@@ -38,7 +38,7 @@ export async function renderCommunity(plays) {
     $("community-empty").hidden = false;
     $("community-empty").textContent =
       `${n} ${n === 1 ? "person has" : "people have"} shared so far. ` +
-      `Community charts appear once ${stats.minCrowd} people have shared, so no one's listening can be singled out.`;
+      `Community charts appear once ${stats.minCrowd} people have shared.`;
     return;
   }
   $("community-empty").hidden = true;
