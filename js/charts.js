@@ -178,13 +178,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     }
   }
 
-  // Edge overlays break off wherever the band is too thin to see, so absent artists leave no line
+  // Hours per week for artist s at date i. Where nothing at all was played in the window, share mode has
+  // a gap (null); hours leaves the same gap rather than drawing 0, so a morph never tweens between a
+  // gap and a value, which draws a vertical stroke at each such date mid-morph.
+  const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx ? 0 : perWeek(data.hours[s][i]));
+
+  // Edge overlays break off wherever the band is too thin to see, so absent artists leave no line. They
+  // keep the same breaks in hours mode, where they're hidden, so a morph never tweens a break into a
+  // value: a lit (pinned) artist's outline would otherwise draw a vertical stroke at every break.
   const edgeData = (s, side) =>
     data.dates.map((d, i) => {
-      if (!share) return [d, s === otherIdx ? 0 : perWeek(data.hours[s][i])];
       const lo = bottom[s][i], hi = top[s][i];
       if (lo == null || hi - lo < 0.002) return [d, null];
-      return [d, side === "t" ? hi : lo];
+      return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
     });
   const overlayStyle = (s, on) => ({ width: 2, color: colors[s], opacity: on && share ? 1 : 0, cap: "round", join: "round" });
 
@@ -252,7 +258,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         blur: share
           ? { areaStyle: null, lineStyle: null }
           : { areaStyle: null, lineStyle: { opacity: hide ? 0 : 0.2 } },
-        data: data.dates.map((d, i) => [d, share ? top[s][i] : hide ? 0 : perWeek(data.hours[s][i])]),
+        data: data.dates.map((d, i) => [d, share ? top[s][i] : hoursAt(s, i)]),
       };
     })
     // Top band first, matching the paint order above
