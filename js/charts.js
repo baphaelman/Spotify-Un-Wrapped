@@ -136,9 +136,9 @@ function setOptionFaded(c, option, opts, ms) {
 // over the bottom of higher ones. In hours mode the fills fade out and the lines move to hours per week.
 // "Everyone else" flattens to zero and fades out in hours mode, where it would dwarf everyone.
 //
-// Share mode draws each band as a 2px line in the artist's color over a pale tint of it (t.shade.band).
-// Each band also has two silent overlay lines, its top (t) and bottom (b) edge, drawn above every band.
-// They're hidden except to outline the hovered band all the way round.
+// Share mode draws each band as a pale tint of the artist's color (t.shade.band), outlined on both edges
+// by two silent overlay lines, its top (t) and bottom (b), drawn above every band and inset slightly so
+// neighbors' borders sit side by side. Hours mode hides them.
 //
 // pins: optional { has(name), unpin(name), toggle(name) } for artists the reader pinned; their legend chips
 // get an ×, and clicking a band or line in the plot calls toggle.
@@ -184,16 +184,22 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // gap and a value, which draws a vertical stroke at each such date mid-morph.
   const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx ? 0 : perWeek(data.hours[s][i]));
 
-  // Edge overlays break off wherever the band is too thin to see, so absent artists leave no line. They
-  // keep the same breaks in hours mode, where they're hidden, so a morph never tweens a break into a
-  // value: a lit (pinned) artist's outline would otherwise draw a vertical stroke at every break.
+  // Share mode outlines every band on both edges in its own color, each line pulled EDGE_INSET px inside
+  // the band (converted to share; the y axis is always 0–100%), so at each boundary the two neighbors'
+  // borders sit side by side rather than one artist's line standing for both. Edges break off wherever
+  // the band is too thin to hold both, so absent artists leave no line. They keep the same breaks in
+  // hours mode, where they're hidden, so a morph never tweens a break into a value, which would draw a
+  // vertical stroke at every break.
+  const EDGE_INSET = 1.5;
+  const pad = EDGE_INSET / Math.max(1, el.clientHeight - 84); // the plot's height: grid top + bottom below
   const edgeData = (s, side) =>
     data.dates.map((d, i) => {
       const lo = bottom[s][i], hi = top[s][i];
-      if (lo == null || hi - lo < 0.002) return [d, null];
-      return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
+      if (lo == null || hi - lo < 2 * pad + 0.002) return [d, null];
+      return [d, !share ? hoursAt(s, i) : side === "t" ? hi - pad : lo + pad];
     });
-  const overlayStyle = (s, on) => ({ width: 2, color: colors[s], opacity: on && share ? 1 : 0, cap: "round", join: "round" });
+  // Lit bands' outlines thicken; hours mode hides them
+  const overlayStyle = (s, on) => ({ width: on ? 2.5 : 1.5, color: colors[s], opacity: share ? 1 : 0, cap: "round", join: "round" });
 
   // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
@@ -235,9 +241,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // ECharts paints series in the order their views were created, so artists added later (raising
         // the artist count) would otherwise paint over everything below them
         z: (share ? 2 : 3) + (names.length - s) / 100,
-        // Share: the line on each band's top edge is its border with the band above
+        // Share: hidden; the edge overlays draw each band's borders instead (see edgeData)
         lineStyle: {
-          ...(share ? { width: 2, opacity: 1 } : lineLook(s, base)),
+          ...(share ? { width: 2, opacity: 0 } : lineLook(s, base)),
           color: colors[s],
           cap: "round",
           join: "round",
