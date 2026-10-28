@@ -17,6 +17,9 @@ function tokens() {
     other: v("--other"),
     series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--series-${i}`)),
     seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
+    // Rolling chart fills, set per theme: the share of the artist's color mixed into the surface for a
+    // band at rest and a hovered band, and the opacity under a hovered hours line
+    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), line: +v("--shade-line") },
   };
 }
 
@@ -83,11 +86,6 @@ const row = (color, value, label, strong = false) =>
   `<span style="width:12px;height:${strong ? 4 : 2}px;background:${color};border-radius:1px"></span>` +
   `<b style="min-width:3.5em">${value}</b><span style="${strong ? "font-weight:600" : "opacity:.75"}">${esc(label)}</span></div>`;
 
-// Rolling chart fills, as the share of the artist's color mixed into the surface (bands) or as opacity
-// (hours): every band at rest, the hovered band, and the fill under the hovered hours line
-const BAND_SHADE = 0.05;
-const HOVER_FILL = 0.2;
-const LINE_SHADE = 0.05;
 
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
@@ -138,7 +136,7 @@ function setOptionFaded(c, option, opts, ms) {
 // over the bottom of higher ones. In hours mode the fills fade out and the lines move to hours per week.
 // "Everyone else" flattens to zero and fades out in hours mode, where it would dwarf everyone.
 //
-// Share mode draws each band as a 2px line in the artist's color over a pale tint of it (BAND_SHADE).
+// Share mode draws each band as a 2px line in the artist's color over a pale tint of it (t.shade.band).
 // Each band also has two silent overlay lines, its top (t) and bottom (b) edge, drawn above every band.
 // They're hidden except to outline the hovered band all the way round.
 //
@@ -165,7 +163,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const visible = (s) => st.selected[names[s]] !== false;
 
   // Fills stay opaque tints, not transparency, because bands overlap down to the axis
-  const fills = colors.map((c) => mix(t.surface, c, BAND_SHADE));
+  const fills = colors.map((c) => mix(t.surface, c, t.shade.band));
 
   // Cumulative share over visible series; a hidden series collapses onto the band below it
   const top = names.map(() => new Array(data.dates.length));
@@ -195,8 +193,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
-  // Share: lit bands are filled in (HOVER_FILL) and the rest emptied to their outline; none lit = at rest
-  const bandFill = (k, lit) => (!lit.size ? fills[k] : lit.has(k) ? mix(t.surface, colors[k], HOVER_FILL) : t.surface);
+  // Share: lit bands are filled in (t.shade.hover) and the rest emptied to their outline; none lit = at rest
+  const bandFill = (k, lit) => (!lit.size ? fills[k] : lit.has(k) ? mix(t.surface, colors[k], t.shade.hover) : t.surface);
   // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill
   const lineLook = (k, lit) => ({
     width: lit.has(k) ? 3 : 2,
@@ -230,7 +228,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // bands can fade it in rather than have it appear
         areaStyle: {
           color: share ? bandFill(s, base) : colors[s],
-          opacity: share ? 1 : !hide && base.has(s) ? LINE_SHADE : 0,
+          opacity: share ? 1 : !hide && base.has(s) ? t.shade.line : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -355,7 +353,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   );
 
   // Share mode: highlight the band under the pointer by emptying every other band down to its outline
-  // and filling the hovered one in (HOVER_FILL), strongly enough to stand out even when the bands are
+  // and filling the hovered one in (t.shade.hover), strongly enough to stand out even when the bands are
   // unshaded. The hovered band's edge overlays draw its whole border, bottom included.
   const lit = () => (focused == null ? base : new Set([...base, focused]));
   const focusBand = (sIndex) => {
@@ -373,7 +371,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   };
   // Hours mode: thicken one line and fade the rest, by restyling directly (ECharts' own blur state is
   // cleared on every pointer move over empty plot space, which is all of it once lines are silent).
-  // With LINE_SHADE on, only a lit line gets a faint fill; nothing is filled at rest.
+  // With t.shade.line on, only a lit line gets a faint fill; nothing is filled at rest.
   const focusLine = (k) => {
     if (k === focused) return;
     focused = k;
@@ -383,7 +381,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       series: names.map((_, j) => ({
         id: `s${j}`,
         lineStyle: lineLook(j, on),
-        areaStyle: { opacity: j !== otherIdx && on.has(j) ? LINE_SHADE : 0 },
+        areaStyle: { opacity: j !== otherIdx && on.has(j) ? t.shade.line : 0 },
       })),
     }, undefined, 200);
   };
