@@ -9,8 +9,12 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 
-// pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours
-const state = { plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", pinned: [], artists: [] };
+// pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
+// colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
+const state = {
+  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share",
+  pinned: [], artists: [], colorSlots: new Map(),
+};
 
 // ---------- Loading ----------
 
@@ -37,6 +41,7 @@ async function open(plays) {
   state.plays = plays;
   state.artists = agg.topArtists(plays, Infinity);
   state.pinned = [];
+  state.colorSlots = new Map();
   state.key = await submissionKey(plays);
   state.shared = null;
   setStatus("");
@@ -69,6 +74,7 @@ $("reset").addEventListener("click", () => {
   state.plays = state.key = state.shared = null;
   state.pinned = [];
   state.artists = [];
+  state.colorSlots = new Map();
   $("file-input").value = "";
   showView("you");
 });
@@ -314,7 +320,34 @@ function renderRollingChart(zoom, morph = false) {
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, {
     has: (name) => state.pinned.includes(name),
     unpin,
-  });
+  }, assignSlots(artists));
+}
+
+// Palette slot for each artist in the chart, so a color follows the artist instead of their position
+// in the stack (which is their rank, and shifts with the period, the artist count and the pins).
+// An artist keeps the slot they last had, if it's free. Pinned artists are placed first, so they always
+// keep theirs: they're in the chart the whole time they're pinned, so nothing else can have taken it.
+// Newcomers take the lowest free slot, which is usually one just vacated by whoever they replaced.
+function assignSlots(artists) {
+  const slots = new Array(artists.length);
+  const used = new Set();
+  const take = (i, slot) => {
+    slots[i] = slot;
+    used.add(slot);
+    state.colorSlots.set(artists[i], slot);
+  };
+  const order = [...artists.keys()].sort((a, b) => state.pinned.includes(artists[b]) - state.pinned.includes(artists[a]));
+  for (const i of order) {
+    const had = state.colorSlots.get(artists[i]);
+    if (had !== undefined && !used.has(had)) take(i, had);
+  }
+  for (const i of order) {
+    if (slots[i] !== undefined) continue;
+    let slot = 0;
+    while (used.has(slot)) slot++;
+    take(i, slot);
+  }
+  return slots;
 }
 
 // The period's top n artists plus the pinned ones. Pins outside the top n join at the end, on top of

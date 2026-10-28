@@ -141,13 +141,15 @@ function setOptionFaded(c, option, opts, ms) {
 // They're hidden except to outline the hovered band all the way round.
 //
 // pins: optional { has(name), unpin(name) } for artists the reader pinned; their legend chips get an ×.
-export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null) {
+// slots: optional palette slot per artist (aligned with names), so colors can follow the artist; by default
+// an artist's color is their position.
+export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null) {
   const t = tokens();
   const c = chart(el);
   const share = mode === "share";
   const otherIdx = hasOther ? names.length - 1 : -1;
   // "Everyone else" is always gray, never borrowing the next artist's slot
-  const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[i]));
+  const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const perWeek = (h) => (h / window) * 7;
 
@@ -158,7 +160,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     st = { names, selected: Object.fromEntries(names.map((n) => [n, true])), zrMove: st?.zrMove, zrOut: st?.zrOut };
     rollingState.set(el, st);
   }
-  st.args = [data, names, window, zoom, mode, hasOther, pins];
+  st.args = [data, names, window, zoom, mode, hasOther, pins, slots];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
 
@@ -452,8 +454,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 
   // Showing or hiding artists re-stacks the bands around them, as a morph
   const restack = () => {
-    const [d, n, w, , m, o, p] = st.args;
-    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p);
+    const [d, n, w, , m, o, p, sl] = st.args;
+    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl);
   };
   renderLegend(el, names, colors, visible, otherIdx, {
     hover: (name) => st.focusArtist(name),

@@ -78,6 +78,10 @@ week), and switching between them morphs.
   strength in its final shape.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
+- **Colors follow the artist, not the stack position.** `assignSlots` in `main.js` gives each artist a
+  palette slot, remembers it in `state.colorSlots`, and passes the slots to `renderRolling` (`slots`).
+  Pinned artists are placed first, so they keep their color for as long as they're pinned. Stack order is
+  still rank, so don't use the series index as a color index.
 - **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
 - **`setOptionFaded`** tweens style changes by animating ECharts' internal `_polygon`/`_polyline`
   shapes directly (re-rendering each frame costs ~20ms, too slow to tween). This depends on ECharts
