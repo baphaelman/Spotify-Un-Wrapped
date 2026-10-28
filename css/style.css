@@ -552,7 +552,7 @@ dialog pre {
   background-repeat: repeat-x;
   box-shadow: 0 0 0 1px var(--axis);
   cursor: pointer;
-  animation: palette-drift 6s linear infinite paused;
+  animation: palette-drift 15s linear infinite paused;
 }
 .palette-dot:hover, .palette-dot[aria-expanded="true"] { animation-play-state: running; }
 .palette-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
