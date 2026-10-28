@@ -424,28 +424,37 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);
 
+  // Showing or hiding artists re-stacks the bands around them, as a morph
+  const restack = () => {
+    const [d, n, w, , m, o, p] = st.args;
+    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p);
+  };
   renderLegend(el, names, colors, visible, otherIdx, {
     hover: (name) => st.focusArtist(name),
     toggle: (name) => c.dispatchAction({ type: "legendToggleSelect", name }),
+    // Several at once in a single re-stack, rather than one morph per artist
+    showAll: (list, show) => {
+      for (const name of list) st.selected[name] = show;
+      restack();
+    },
     pins,
   });
 
-  // Toggling an artist re-stacks the bands around it, as a morph
   // (legendToggleSelect fires legendselectchanged; other legend actions fire the other two)
   for (const ev of ["legendselectchanged", "legendselected", "legendunselected"]) {
     c.off(ev);
     c.on(ev, (e) => {
       st.selected = { ...e.selected };
-      const [d, n, w, , m, o, p] = st.args;
-      renderRolling(el, d, n, w, currentZoom(el), m, o, true, p);
+      restack();
     });
   }
 }
 
 // HTML legend in the Artists panel above a rolling chart: hover highlights an artist, click shows/hides
-// them. The top artists sit above the search, pinned ones below it, each pinned chip outlined in its
-// artist's color with an × that unpins it. "Everyone else" isn't listed: it's a switch in the Graph panel.
-function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, pins }) {
+// them. The top artists sit above the search, led by an "All" checkbox that shows or hides them
+// together; pinned ones sit below it, each outlined in its artist's color with an × that unpins it.
+// "Everyone else" isn't listed: it's a switch in the panel's corner.
+function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, showAll, pins }) {
   const card = el.closest(".card");
   const item = (name, k) => {
     const b = document.createElement("button");
@@ -484,7 +493,19 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, pin
   const shown = names.map((name, k) => [name, k]).filter(([, k]) => k !== otherIdx);
   const pinned = shown.filter(([name]) => pins?.has(name));
   card.querySelector(".pinned-legend").replaceChildren(...pinned.map(([n, k]) => item(n, k)));
-  card.querySelector(".top-legend").replaceChildren(...shown.filter(([name]) => !pins?.has(name)).map(([n, k]) => item(n, k)));
+  const top = shown.filter(([name]) => !pins?.has(name));
+  // Checked when every unpinned artist is shown, mixed when some are; a click shows them all, or hides
+  // them all once they're all shown
+  const on = top.filter(([, k]) => visible(k)).length;
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "legend-item legend-all";
+  all.setAttribute("role", "checkbox");
+  all.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
+  all.setAttribute("aria-label", "Show all top artists");
+  all.textContent = "All";
+  all.addEventListener("click", () => showAll(top.map(([name]) => name), on !== top.length));
+  card.querySelector(".top-legend").replaceChildren(...(top.length ? [all] : []), ...top.map(([n, k]) => item(n, k)));
 }
 
 // Highlight an artist in a rolling chart from elsewhere on the page; null clears.

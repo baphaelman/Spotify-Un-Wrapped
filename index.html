@@ -71,7 +71,15 @@
         <!-- Who's in the chart on the left, how it's drawn on the right -->
         <div class="chart-panels">
           <section class="chart-panel" aria-labelledby="artists-title">
-            <h3 id="artists-title" class="panel-title">Artists</h3>
+            <div class="panel-head">
+              <h3 id="artists-title" class="panel-title">Artists</h3>
+              <!-- Next to the title, since it sets the artists' colors -->
+              <div class="palette-picker">
+                <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
+                <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
+              </div>
+              <label class="other-switch">Everyone else <input id="include-other" class="switch" type="checkbox" role="switch"></label>
+            </div>
             <div class="chart-legend top-legend"></div>
             <div class="artist-search">
               <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -93,13 +101,8 @@
             </div>
             <div class="setting">
               <label class="setting-label" for="n-artists">Top artists</label>
-              <!-- Bars shrinking left to right, like a ranked chart; the range input sits invisibly on top -->
-              <div class="slider bars-slider">
-                <div class="bars">
-                  <span data-v="3" style="--h: 1"></span><span data-v="4" style="--h: 0.78"></span><span data-v="5" style="--h: 0.6"></span>
-                  <span data-v="6" style="--h: 0.46"></span><span data-v="7" style="--h: 0.35"></span><span data-v="8" style="--h: 0.26"></span>
-                  <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
-                </div>
+              <div class="slider">
+                <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
                 <div class="ticks" aria-hidden="true">
                   <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
                 </div>
@@ -115,17 +118,6 @@
                 </div>
               </div>
               <output id="window-out" for="window">45 days</output>
-            </div>
-            <div class="setting other-setting">
-              <label class="setting-label" for="include-other">Everyone else</label>
-              <input id="include-other" class="switch" type="checkbox" role="switch">
-            </div>
-            <div class="setting">
-              <span class="setting-label">Colors</span>
-              <div class="palette-picker">
-                <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Chart colors" title="Chart colors"></button>
-                <div id="palette-menu" class="palette-menu" role="menu" aria-label="Chart colors" hidden></div>
-              </div>
             </div>
           </section>
         </div>

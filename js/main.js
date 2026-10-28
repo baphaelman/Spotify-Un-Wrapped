@@ -220,15 +220,13 @@ function periodZoom() {
   return [new Date(+state.year, 0, 1).getTime(), new Date(+state.year, 11, 31).getTime()];
 }
 
-// Fills a slider's track up to the thumb, places its notches (and bars), and marks the notch it sits
-// on. Bars light up to the thumb, since picking more artists takes in every bar before it.
+// Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
 function paintSlider(input) {
   const at = (v) => (v - input.min) / (input.max - input.min);
   input.style.setProperty("--p", at(input.value));
-  for (const tick of input.closest(".slider").querySelectorAll("[data-v]")) {
+  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
     tick.style.setProperty("--p", at(tick.dataset.v));
     tick.classList.toggle("on", tick.dataset.v === input.value);
-    tick.classList.toggle("lit", Number(tick.dataset.v) <= Number(input.value));
   }
 }
 
@@ -284,7 +282,7 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
 }
 
 // The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
-const otherToggle = $("include-other").closest(".setting");
+const otherToggle = $("include-other").closest("label");
 otherToggle.addEventListener("pointerenter", () => {
   if ($("include-other").checked) focusArtist($("chart-rolling"), "Everyone else");
 });

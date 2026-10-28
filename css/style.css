@@ -236,6 +236,10 @@ button.ghost:hover { background: var(--border); }
   border-radius: 10px;
 }
 .panel-title { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+/* Artists panel's top row: title and color dot on the left, the "Everyone else" switch in the corner */
+.panel-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.panel-head .palette-dot { width: 18px; height: 18px; }
+.other-switch { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
 .settings { gap: 8px; }
 .setting { display: grid; grid-template-columns: 96px auto auto; align-items: center; justify-content: start; gap: 12px; min-height: 32px; }
 .setting-label { font-size: 13px; color: var(--text-secondary); }
@@ -338,25 +342,6 @@ button.ghost:hover { background: var(--border); }
 .ticks span.on { color: var(--text-primary); font-weight: 600; }
 .ticks span.on::before { background: var(--accent); }
 
-/* Artists: bars shrinking from 3 to 8 like a ranked chart, lit up to the choice. The range input lies
-   invisibly over them, so dragging, clicking and the keyboard all work; bars use its thumb positions. */
-.bars { position: relative; height: 30px; }
-.bars span {
-  position: absolute;
-  bottom: 0;
-  left: calc(7px + (100% - 14px) * var(--p, 0));
-  width: 12px;
-  height: calc(30px * var(--h));
-  transform: translateX(-50%);
-  border-radius: 3px;
-  background: var(--grid);
-  transition: background 0.15s;
-}
-.bars span.lit { background: var(--accent); }
-.bars:hover span:not(.lit) { background: var(--axis); }
-.bars:has(input:focus-visible) span.on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
-.slider .bars input[type="range"] { position: absolute; inset: 0; height: 100%; opacity: 0; }
-
 .chart { width: 100%; height: 320px; margin-top: 8px; }
 .chart.tall { height: 520px; }
 
@@ -448,6 +433,22 @@ dialog pre {
 /* Artist chips: the top artists above the search, pinned ones below it */
 .chart-legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .chart-legend:empty { display: none; }
+/* "All" leads the top artists: a checkbox chip, checked, mixed or empty */
+.legend-all::before {
+  content: "";
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px currentColor;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.legend-all[aria-checked="true"]::before { content: "✓"; background: var(--accent); box-shadow: none; color: #fff; }
+.legend-all[aria-checked="mixed"]::before { content: "–"; background: var(--accent); box-shadow: none; color: #fff; }
+.legend-all { color: var(--text-secondary); }
 .legend-item {
   display: inline-flex;
   align-items: center;
