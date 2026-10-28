@@ -191,9 +191,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     });
   const overlayStyle = (s, on) => ({ width: 2, color: colors[s], opacity: on && share ? 1 : 0, cap: "round", join: "round" });
 
-  // The artists drawn highlighted: the pinned ones by default, or just the one under the pointer (or
-  // hovered in the legend or a list) while there is one. Built into the options below as well as applied
-  // on hover, so a re-render or a mode morph keeps the pinned artists lit.
+  // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
+  // legend or a list) while there is one. Built into the options below as well as applied on hover, so
+  // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
   // Share: lit bands are filled in (HOVER_FILL) and the rest emptied to their outline; none lit = at rest
   const bandFill = (k, lit) => (!lit.size ? fills[k] : lit.has(k) ? mix(t.surface, colors[k], HOVER_FILL) : t.surface);
@@ -357,7 +357,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Share mode: highlight the band under the pointer by emptying every other band down to its outline
   // and filling the hovered one in (HOVER_FILL), strongly enough to stand out even when the bands are
   // unshaded. The hovered band's edge overlays draw its whole border, bottom included.
-  const lit = () => (focused == null ? base : new Set([focused]));
+  const lit = () => (focused == null ? base : new Set([...base, focused]));
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;
     focused = sIndex;
