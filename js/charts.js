@@ -193,8 +193,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
-  // Share: lit bands are filled in (t.shade.hover) and the rest emptied to their outline; none lit = at rest
-  const bandFill = (k, lit) => (!lit.size ? fills[k] : lit.has(k) ? mix(t.surface, colors[k], t.shade.hover) : t.surface);
+  // Share: lit bands are filled in more strongly (t.shade.hover); the rest keep their resting tint
+  const bandFill = (k, lit) => (lit.has(k) ? mix(t.surface, colors[k], t.shade.hover) : fills[k]);
   // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill
   const lineLook = (k, lit) => ({
     width: lit.has(k) ? 3 : 2,
@@ -352,9 +352,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     morph ? 750 : 0
   );
 
-  // Share mode: highlight the band under the pointer by emptying every other band down to its outline
-  // and filling the hovered one in (t.shade.hover), strongly enough to stand out even when the bands are
-  // unshaded. The hovered band's edge overlays draw its whole border, bottom included.
+  // Share mode: highlight the band under the pointer by filling it in more strongly (t.shade.hover),
+  // leaving every other band at its resting tint. The hovered band's edge overlays draw its whole
+  // border, bottom included.
   const lit = () => (focused == null ? base : new Set([...base, focused]));
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;

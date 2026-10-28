@@ -296,11 +296,11 @@ button.ghost:hover { background: var(--border); }
 /* Artists panel's top row: title and color pill on the left, the "Everyone else" toggle in the corner */
 .panel-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .settings { gap: 8px; }
-.setting { display: grid; grid-template-columns: 96px auto auto; align-items: center; justify-content: start; gap: 12px; min-height: 32px; }
+.setting { display: grid; grid-template-columns: 96px auto; align-items: center; justify-content: start; gap: 12px; min-height: 32px; }
 .setting-label { font-size: 13px; color: var(--text-secondary); }
-.setting output { min-width: 4ch; white-space: nowrap; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.setting-hint { display: block; margin-top: 2px; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
 @media (max-width: 800px) { .chart-panels { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 600px) { .setting { grid-template-columns: 84px auto auto; gap: 10px; } }
+@media (max-width: 600px) { .setting { grid-template-columns: 84px auto; gap: 10px; } }
 
 /* "Everyone else": a pill in the Share/Hours toggle's style, the faint track tint when off and the
    chosen option's stronger tint when on, with its band's gray swatch. The checkbox inside is hidden. */

@@ -105,24 +105,25 @@
               </div>
             </div>
             <div class="setting">
-              <label class="setting-label" for="n-artists">Top artists</label>
+              <label class="setting-label" for="n-artists">Artists</label>
               <div class="slider">
                 <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
                 <div class="ticks" aria-hidden="true">
                   <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
                 </div>
               </div>
-              <output id="n-artists-out" for="n-artists">8</output>
             </div>
             <div class="setting">
-              <label class="setting-label" for="window">Smoothing</label>
+              <div class="setting-label">
+                <label for="window">Smoothing</label>
+                <span class="setting-hint" id="window-hint">Days of listening in each point</span>
+              </div>
               <div class="slider">
-                <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
+                <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days" aria-describedby="window-hint">
                 <div class="ticks" aria-hidden="true">
                   <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
                 </div>
               </div>
-              <output id="window-out" for="window">45 days</output>
             </div>
           </section>
         </div>

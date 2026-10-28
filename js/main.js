@@ -296,8 +296,6 @@ function renderRollingChart(zoom, morph = false) {
   const n = Number($("n-artists").value);
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
-  $("n-artists-out").textContent = n;
-  $("window-out").textContent = `${window} days`;
   $("window").setAttribute("aria-valuetext", `${window} days`);
   for (const id of ["n-artists", "window"]) paintSlider($(id));
 
