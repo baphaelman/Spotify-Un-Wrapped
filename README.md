@@ -1,5 +1,5 @@
 # Spotify (Un)Wrapped
-If you have Spotify Premium you can request all your streaming data for free. I hope to make a website that will automatically create beautiful visualizations once you drag your streaming files
+If you have Spotify Premium you can request all your streaming data for free. This is a website that will automatically create beautiful visualizations once you drag your streaming files
 
 **Try it:** https://baphaelman.github.io/Spotify-Un-Wrapped/
 
