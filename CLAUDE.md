@@ -16,6 +16,9 @@ https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, served from `mai
 - **Colors live as CSS tokens in `css/style.css`** (`--series-1..8`, `--seq-*`, surfaces, inks), with
   light and dark blocks. `charts.js` reads them via `tokens()`. A user-chosen palette (`PALETTES` in
   `main.js`, stored in localStorage) overrides `--series-*` on `<body>`.
+- **Commit when a change seems to work, before handing back to the owner.** You don't need to ask
+  first. Small commits with clear messages, so any change can be undone. **Don't push unless asked:**
+  pushing `main` deploys the live site.
 - **Chart palette rules:** at most 8 categorical colors; color follows the artist, never the rank;
   "Everyone else" is always the gray `--other`.
 
@@ -44,21 +47,29 @@ week), and switching between them morphs.
 - **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
   `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.
 - **Stacking is done by hand, not with ECharts' `stack`.** Each band is the line at its cumulative top,
-  filled down to the axis. Bands are drawn top band first, so lower bands paint over the bottom of
-  higher ones. A hidden artist collapses onto the band below it.
-- **The Hours view has no fills (`areaStyle: null`).** Before morphing back to Share, fills are added
-  under the lines with no animation, or new fills would appear already at their final shape.
+  filled down to the axis, and lower bands paint over the bottom of higher ones. That paint order is set
+  with each series' `z`, not left to series order: ECharts paints in the order it created each series'
+  view, so artists added later (raising the artist count) would paint over everything below them. A
+  hidden artist collapses onto the band below it.
+- **The Hours view keeps an invisible fill (`opacity: 0`) under every line,** so the hovered line's
+  shading and the morph back into bands fade in. A fill created mid-update would appear at full
+  strength in its final shape.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
 - **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
 - **`setOptionFaded`** tweens style changes by animating ECharts' internal `_polygon`/`_polyline`
-  shapes directly. This depends on ECharts internals (as of 5.6).
+  shapes directly (re-rendering each frame costs ~20ms, too slow to tween). This depends on ECharts
+  internals (as of 5.6). Two traps: stop running fades *before* `setOption`, because zrender moves a
+  running animation onto the new style object and it paints its old target back; and when either end
+  of a fade is invisible, tween only opacity, or the color blend shows partway.
 
 ### Hover: hard-won rules
 
 - **Every series is `silent`, and hover is worked out from the data.** A zrender `mousemove` handler
   (`st.zrMove`) converts the pointer to a date and value. Share mode focuses the band containing the
-  pointer; Hours mode focuses the **topmost** line at that date.
+  pointer; Hours mode focuses the **topmost** line at that date. When the artist list changes and `st`
+  is rebuilt, carry `zrMove`/`zrOut` over so the old handlers get removed, or they keep running
+  against the previous artists.
 - **Focus is drawn by restyling, never by ECharts highlight states.** Those states break the hand-made
   stacking: a highlighted band shows all the way down to the axis. Keep `triggerEmphasis: false` on the
   **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every

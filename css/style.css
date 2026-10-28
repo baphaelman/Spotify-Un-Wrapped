@@ -301,9 +301,6 @@ button.ghost:hover { background: var(--border); }
   white-space: nowrap;
 }
 .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 1px; background: var(--axis); }
-/* End labels hang inward from their notch rather than centering on it, so they stay inside the slider */
-.ticks span:first-child { transform: translateX(-0.5px); align-items: flex-start; }
-.ticks span:last-child { transform: translateX(calc(-100% + 0.5px)); align-items: flex-end; }
 .ticks span.on { color: var(--text-primary); font-weight: 600; }
 .ticks span.on::before { background: var(--accent); }
 .controls .check input { accent-color: var(--accent); }
