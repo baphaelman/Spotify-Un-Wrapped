@@ -175,25 +175,28 @@ button.ghost:hover { background: var(--border); }
 }
 .filters.sticky.stuck { border-bottom-color: var(--border); }
 .chart-wrap { position: relative; }
+/* One flat layer: a faint tint for the track, a stronger one for the chosen option. Tints of the text
+   color rather than surfaces, so it never reads as a hole cut into the panel in either theme. */
 .segmented {
   display: flex;
+  gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--page);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 .segmented button {
   border: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 3px 10px;
+  padding: 4px 12px;
   font-size: 13px;
   border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
 }
+.segmented button:hover { color: var(--text-primary); }
 .segmented button[aria-pressed="true"] {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--text-primary) 13%, transparent);
   color: var(--text-primary);
-  box-shadow: 0 0 0 1px var(--border);
 }
 
 .stats {
