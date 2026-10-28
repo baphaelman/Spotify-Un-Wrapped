@@ -92,10 +92,10 @@ $("tab-community").addEventListener("click", () => showView("community"));
 
 function renderShareState(text) {
   $("share-state").textContent = text ?? (state.shared ? "Shared with the community ✓" : "Not shared with the community");
-  const btn = $("share-toggle");
-  btn.hidden = state.shared === null;
-  btn.textContent = state.shared ? "Remove from community" : "Share with community";
-  btn.className = state.shared ? "ghost" : "primary";
+  // Sharing starts from the stats page; removing lives on the Community page
+  $("share-toggle").hidden = state.shared !== false;
+  $("community-leave").hidden = !state.shared;
+  $("community-leave-state").textContent = text ?? "Your listening summary is in the community pool.";
 }
 
 async function refreshShareState() {
@@ -127,13 +127,15 @@ async function unshare() {
     await api.deleteSummary(state.key);
     state.shared = false;
     renderShareState();
+    if (state.view === "community") renderCommunity(state.plays);
   } catch (err) {
     console.error(err);
     renderShareState(`Couldn't remove: ${err.message}`);
   }
 }
 
-$("share-toggle").addEventListener("click", () => (state.shared ? unshare() : share()));
+$("share-toggle").addEventListener("click", share);
+$("share-remove").addEventListener("click", unshare);
 $("share-preview").addEventListener("click", () => {
   // One line per artist/track entry so it's easy to scan
   const entries = Object.entries(buildSummary(state.plays)).map(([k, v]) =>
@@ -427,12 +429,12 @@ $("artist-search").addEventListener("keydown", (e) => {
 
 // ---------- Theme ----------
 
-// Series palettes, chosen from the dot beside the legend. "Current" is the stylesheet's own --series-N
+// Series palettes, chosen from the dot beside the legend. "Default" is the stylesheet's own --series-N
 // colors; the others override them on <body>, so the root keeps the stylesheet values to preview from.
 // The checked ones pass the data-viz palette validator's hard gates in both modes, ordered for
 // adjacent stacked bands.
 const PALETTES = {
-  current: { label: "Current" },
+  current: { label: "Default" },
   earth: {
     label: "Earth",
     light: ["#386ca5", "#b5543a", "#04988e", "#d4932b", "#7d5a9e", "#6f8f3a", "#c06c84", "#96691b"],

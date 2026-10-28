@@ -415,6 +415,7 @@ dialog pre {
 }
 
 .empty { text-align: center; padding: 48px 16px; color: var(--text-secondary); }
+.community-leave { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin-top: 24px; }
 .toplist .tag {
   font-size: 11px;
   color: var(--text-secondary);
