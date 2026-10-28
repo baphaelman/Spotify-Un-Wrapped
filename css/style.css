@@ -62,7 +62,7 @@
     --shade-band: 0.1;
     --shade-hover: 0.3;
     --shade-line: 0.05;
-    --shade-dim: 0.025;
+    --shade-dim: 0.02;
   }
 }
 
@@ -95,7 +95,7 @@
   --shade-band: 0.1;
   --shade-hover: 0.3;
   --shade-line: 0.05;
-  --shade-dim: 0.025;
+  --shade-dim: 0.02;
 }
 
 * { box-sizing: border-box; }
