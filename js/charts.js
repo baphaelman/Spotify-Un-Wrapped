@@ -319,11 +319,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 
   // Clip each band's edge lines to the band itself, so only their inner halves show (see edgeData). The
   // clip is the band's own area shape, ECharts' polygon built from its top edge and the top edge of the
-  // visible band below (or the axis). It's rebuilt once ECharts has finished drawing (after a render,
-  // zoom, resize or morph) and dropped before each update, while shapes move. This reaches into ECharts
-  // internals like setOptionFaded; without them the borders are just unclipped, twice as wide.
+  // visible band below (or the axis). ECharts swaps in new shape points whenever it redraws, so the clips
+  // are rebuilt right after each update, before it's painted: after a render or hover restyle, and on
+  // every step of a zoom-slider drag (which otherwise left them lagging behind the bands). A clip whose
+  // band hasn't changed is left alone. During a mode morph the shapes are in motion, so the clips are
+  // dropped and rebuilt once ECharts finishes. This reaches into ECharts internals like setOptionFaded;
+  // without them the borders are just unclipped, twice as wide.
   const edgeLines = () => [...drawnShapes(c)].filter(([k]) => /^[tb]\d+:line$/.test(k)).map(([, e]) => e);
-  for (const e of edgeLines()) e.removeClipPath();
+  if (morph) {
+    for (const e of edgeLines()) {
+      e.removeClipPath();
+      e.__clipOf = null;
+    }
+  }
   const clipEdges = () => {
     if (!share) return;
     const shapes = drawnShapes(c);
@@ -337,13 +345,16 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (!floor) continue;
       for (const side of ["t", "b"]) {
         const line = shapes.get(`${side}${k}:line`);
-        if (!line) continue;
+        if (!line || (line.__clipOf?.[0] === band.shape.points && line.__clipOf[1] === floor)) continue;
         line.setClipPath(new band.constructor({ shape: { points: band.shape.points, stackedOnPoints: floor } }));
+        line.__clipOf = [band.shape.points, floor];
       }
     }
   };
-  c.off("finished");
-  c.on("finished", clipEdges);
+  for (const ev of ["finished", "datazoom"]) {
+    c.off(ev);
+    c.on(ev, clipEdges);
+  }
 
   setOptionFaded(
     c,
@@ -405,6 +416,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     { notMerge: !morph },
     morph ? 750 : 0
   );
+  if (!morph) clipEdges();
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
   if (holdFill && base.size) {
     setTimeout(() => {
@@ -432,6 +444,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
       ]),
     }, undefined, 200);
+    clipEdges();
   };
   // Hours mode: thicken one line and fade the rest, by restyling directly (ECharts' own blur state is
   // cleared on every pointer move over empty plot space, which is all of it once lines are silent).
