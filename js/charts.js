@@ -203,6 +203,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // low opacity would pass through a stronger fill than either end.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
+  // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
+  // band fills all the way down to the axis, hidden under the bands below; fading only partway while
+  // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
+  // once the morph is done (below).
+  const holdFill = morph && !share && st.mode === "share";
+  const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
   const lineLook =(k, lit) => ({
     width: lit.has(k) ? 3 : 2,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
@@ -235,7 +241,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // bands can fade it in rather than have it appear
         areaStyle: {
           color: share ? bandFill(s, base) : hoursFill[s],
-          opacity: share ? 1 : !hide && base.has(s) ? hoursFillOpacity : 0,
+          opacity: share ? 1 : !hide && base.has(s) && !holdFill ? hoursFillOpacity : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -358,6 +364,16 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     { notMerge: !morph },
     morph ? 750 : 0
   );
+  // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
+  if (holdFill && base.size) {
+    setTimeout(() => {
+      if (st.renderToken !== renderToken) return;
+      setOptionFaded(c, {
+        animationDurationUpdate: 0,
+        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursFillOpacity } })),
+      }, undefined, 300);
+    }, 750);
+  }
 
   // Share mode: highlight the band under the pointer by filling it in more strongly (t.shade.hover),
   // dimming every other band a little (t.shade.dim). The hovered band's edge overlays draw its whole
