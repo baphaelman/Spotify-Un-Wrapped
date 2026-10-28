@@ -160,6 +160,7 @@ function showDashboard() {
 function setPeriod(value) {
   $("year-filter").value = state.year = value;
   const i = $("year-filter").selectedIndex;
+  $("year-label").textContent = $("year-filter").options[i].text;
   $("year-prev").disabled = i <= 0;
   $("year-next").disabled = i >= $("year-filter").options.length - 1;
   renderAll();
@@ -169,6 +170,62 @@ $("year-filter").addEventListener("change", (e) => setPeriod(e.target.value));
 // Options run All time, oldest year … newest year, so stepping walks through them in order
 $("year-prev").addEventListener("click", () => setPeriod($("year-filter").options[$("year-filter").selectedIndex - 1].value));
 $("year-next").addEventListener("click", () => setPeriod($("year-filter").options[$("year-filter").selectedIndex + 1].value));
+
+// The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
+// moves with the bar on scroll (a native dropdown can end up off screen)
+function openYearMenu() {
+  const menu = $("year-menu");
+  menu.replaceChildren(
+    ...[...$("year-filter").options].map((o) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.tabIndex = -1;
+      li.dataset.value = o.value;
+      li.setAttribute("aria-selected", o.selected);
+      li.textContent = o.text;
+      li.addEventListener("click", () => chooseYear(o.value));
+      return li;
+    })
+  );
+  menu.hidden = false;
+  $("year-button").setAttribute("aria-expanded", "true");
+  const current = menu.querySelector('[aria-selected="true"]');
+  current?.scrollIntoView({ block: "nearest" });
+  current?.focus();
+}
+
+function closeYearMenu(refocus = false) {
+  if ($("year-menu").hidden) return;
+  $("year-menu").hidden = true;
+  $("year-button").setAttribute("aria-expanded", "false");
+  if (refocus) $("year-button").focus();
+}
+
+function chooseYear(value) {
+  closeYearMenu(true);
+  if (value !== state.year) setPeriod(value);
+}
+
+$("year-button").addEventListener("click", () => ($("year-menu").hidden ? openYearMenu() : closeYearMenu()));
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest(".year-picker")) closeYearMenu();
+});
+$("year-menu").addEventListener("keydown", (e) => {
+  const items = [...$("year-menu").children];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "Escape") closeYearMenu(true);
+  else if (e.key === "Tab") closeYearMenu();
+  else if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    if (i >= 0) chooseYear(items[i].dataset.value);
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    items[Math.min(items.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))].focus();
+  } else if (e.key === "Home" || e.key === "End") {
+    e.preventDefault();
+    items[e.key === "Home" ? 0 : items.length - 1].focus();
+  }
+});
 
 // Hairline under the period bar once it's pinned to the top
 window.addEventListener("scroll", () => {

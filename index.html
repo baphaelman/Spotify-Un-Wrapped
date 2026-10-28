@@ -53,7 +53,12 @@
         <div class="period">
           <span>Period</span>
           <button id="year-prev" class="ghost step" type="button" aria-label="Previous year">‹</button>
-          <select id="year-filter" aria-label="Period"></select>
+          <!-- The hidden select holds the period; the button and menu are what's shown (main.js) -->
+          <select id="year-filter" aria-label="Period" hidden></select>
+          <div class="year-picker">
+            <button id="year-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="year-menu" aria-label="Period"><span id="year-label"></span></button>
+            <ul id="year-menu" class="year-menu" role="listbox" aria-label="Period" hidden></ul>
+          </div>
           <button id="year-next" class="ghost step" type="button" aria-label="Next year">›</button>
         </div>
         <button id="reset" class="ghost" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>

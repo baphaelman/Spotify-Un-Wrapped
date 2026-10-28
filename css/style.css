@@ -123,19 +123,54 @@ button, select {
 }
 button.ghost { background: transparent; }
 button.ghost:hover { background: var(--border); }
-/* The year select's chevron sits on the left, drawn as two small gradients in the muted ink so it
-   follows the theme (the native one can't move) */
-#year-filter {
-  -webkit-appearance: none;
-  appearance: none;
-  padding-left: 30px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
-    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-  background-position: 13px calc(50% + 1px), 18px calc(50% + 1px);
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
+/* Period picker: a button with its chevron on the left (flipping up while open), and a menu that hangs
+   from it inside the sticky bar. Fixed width so the bar doesn't shift between "All time" and a year. */
+.year-picker { position: relative; }
+#year-button { display: flex; align-items: center; gap: 10px; min-width: 104px; text-align: left; }
+#year-button::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 1px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s, margin 0.15s;
 }
+#year-button[aria-expanded="true"]::before { margin-top: 3px; transform: rotate(-135deg); }
+.year-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.year-menu::-webkit-scrollbar { display: none; }
+.year-menu [role="option"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.year-menu [role="option"]::before { content: ""; width: 12px; color: var(--accent); font-weight: 700; }
+.year-menu [aria-selected="true"]::before { content: "✓"; }
+.year-menu [role="option"]:hover, .year-menu [role="option"]:focus-visible { background: var(--border); outline: none; }
 
 /* Landing */
 .landing { max-width: 640px; margin: 10vh auto 0; }
