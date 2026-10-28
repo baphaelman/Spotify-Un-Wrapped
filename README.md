@@ -3,17 +3,7 @@ If you have Spotify Premium you can request all your streaming data for free. I 
 
 **Try it:** https://baphaelman.github.io/Spotify-Un-Wrapped/
 
-<img width="1405" height="785" alt="Screenshot 2026-10-27 at 7 55 44 PM" src="https://github.com/user-attachments/assets/220565d3-daaf-4930-9e33-430833405149" />
-
-# Python demo
-Follow the instructions in 'Quick n Dirty Spotify Graph.pdf' to get started
-It is indeed quick n dirty, copy-pasted from a Jupyter notebook I was fooling around in.
-
-# To Do
-- [ ] Get some other peoples' data and see what assumptions I can/can't safely make (how are podcasts treated? easy way to deal with sleep playlists? what do people actually want to see? also just snoopy lol
-)
-- [x] Make it an actual website lol
-- [ ] Rate-limit or bot-check community submissions if spam shows up
+<img width="1158" height="741" alt="Screenshot 2026-10-28 at 3 55 09 PM" src="https://github.com/user-attachments/assets/3e9fa468-ab85-4e9f-8856-30650d766bd8" />
 
 # Website
 ## Run it
