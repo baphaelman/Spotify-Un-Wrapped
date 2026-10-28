@@ -6,12 +6,14 @@
 #              #hours  switch to Hours · #community  open Community · #preview  open the share preview
 #              #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-hours)
 #   plain.html reopens data remembered from an earlier test.html visit; title "DONE <ms>" once shown
-import json, os, sys
+import json, os, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "dev" / "site"
-data = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT.parent / "spotify/datas/Spotify Extended Streaming History").resolve()
+# Agents work in worktrees under .claude/worktrees/, so look for the data next to the main checkout
+MAIN = (ROOT / subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True).stdout.strip()).resolve().parent
+data = Path(sys.argv[1] if len(sys.argv) > 1 else MAIN.parent / "spotify/datas/Spotify Extended Streaming History").resolve()
 
 SITE.mkdir(parents=True, exist_ok=True)
 for name, target in [("css", ROOT / "css"), ("js", ROOT / "js"), ("data", data)]:

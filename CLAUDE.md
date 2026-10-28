@@ -19,8 +19,30 @@ https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, served from `mai
 - **Commit when a change seems to work, before handing back to the owner.** You don't need to ask
   first. Small commits with clear messages, so any change can be undone. **Don't push unless asked:**
   pushing `main` deploys the live site.
+- **Several agents work on this project at once, so each one works in its own worktree** (see below).
 - **Chart palette rules:** at most 8 categorical colors; color follows the artist, never the rank;
   "Everyone else" is always the gray `--other`.
+
+## Working alongside other agents
+
+The owner runs up to three agents on this project at once. Each agent works on its own branch in its
+own folder, so no agent sees another's half-finished edits.
+
+- **At the start of a task, call `EnterWorktree`** with a short name for the task (for example
+  `artist-search`). This creates `.claude/worktrees/<name>/` on a new branch from local `main`.
+  `.claude/settings.json` sets `worktree.baseRef: head` because `origin/main` lags behind local `main`.
+  Skip this step only if `git worktree list` shows you're already in one.
+- **Use your own server port.** The main folder uses 8765. In a worktree, pick 8766 or higher after
+  checking that `lsof -i :<port>` shows nothing. Run `python3 dev/harness.py` first, since `dev/site/`
+  isn't in git. Stop only your own server (`pkill -f "http.server <your port>"`).
+  Give the owner the `http://localhost:<port>/` link so they can check it in a real browser.
+- **Commit on your branch** whenever something works (see Ground rules).
+- **Merge into `main` only when the owner approves.** In the worktree, run `git rebase main`, fix any
+  conflicts, re-test, then run `git -C "<main checkout>" merge --ff-only <branch>`. To find the main
+  checkout path, run `git worktree list` and use the first row. If the merge refuses, tell the owner
+  and don't force it.
+- **After merging,** remove the worktree with `ExitWorktree` (`remove`) if you created it in this
+  session. Otherwise, from the main checkout, run `git worktree remove <path>` and `git branch -d <branch>`.
 
 ## Files
 

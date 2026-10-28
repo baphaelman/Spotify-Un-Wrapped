@@ -9,7 +9,7 @@
 # The browser profile persists in dev/site/.profile (IndexedDB = remembered data); delete it for a
 # clean first visit. Add ?v=$RANDOM to URLs, or the profile's cache serves stale pages.
 # Needs: pip3 install websocket-client
-import base64, json, os, subprocess, sys, time, urllib.request
+import base64, json, os, socket, subprocess, sys, time, urllib.request
 from pathlib import Path
 import websocket
 
@@ -19,14 +19,17 @@ url, out = sys.argv[1], sys.argv[2]
 w = int(sys.argv[3]) if len(sys.argv) > 3 else 1280
 h = int(sys.argv[4]) if len(sys.argv) > 4 else 2400
 dark = len(sys.argv) > 5 and sys.argv[5] == "dark"
+# A free DevTools port, so agents in different worktrees can take screenshots at the same time
+with socket.socket() as s:
+    s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]
 B = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
-proc = subprocess.Popen([B, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--remote-debugging-port=9333", "--remote-allow-origins=*",
+proc = subprocess.Popen([B, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--remote-debugging-port={PORT}", "--remote-allow-origins=*",
                          f"--user-data-dir={PROFILE}",
                          f"--window-size={w},{h}", "about:blank"], stderr=subprocess.DEVNULL)
 try:
     for _ in range(50):
         try:
-            tabs = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json"))
+            tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json"))
             page = next(t for t in tabs if t["type"] == "page")
             break
         except Exception:

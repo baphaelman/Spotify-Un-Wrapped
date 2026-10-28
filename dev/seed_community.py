@@ -2,7 +2,7 @@
 # Their keys are sha256("synthetic-test-<i>"), so cleanup removes exactly these and nothing real.
 #   python3 dev/seed_community.py seed [data_dir] | cleanup
 # Fake artists/tracks mix the data owner's top 40 (for overlap) with popular ones.
-import json, random, hashlib, math, sys, glob, collections, urllib.request
+import json, random, hashlib, math, sys, glob, collections, subprocess, urllib.request
 U = "https://qvsoxqeuvpnryitechsf.supabase.co/rest/v1/rpc/"
 K = "sb_publishable_Z9847V3vIbDpJRQnXBvA8w_5FK2uz9B"
 N = 12
@@ -23,7 +23,10 @@ if sys.argv[1] == "cleanup":
 # Pool: the owner's top artists/tracks (for overlap) plus some broadly popular ones
 art, trk = collections.Counter(), collections.Counter()
 from pathlib import Path
-data = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent.parent.parent / "spotify/datas/Spotify Extended Streaming History"
+ROOT = Path(__file__).resolve().parent.parent
+# Agents work in worktrees under .claude/worktrees/, so look for the data next to the main checkout
+MAIN = (ROOT / subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True).stdout.strip()).resolve().parent
+data = Path(sys.argv[2]) if len(sys.argv) > 2 else MAIN.parent / "spotify/datas/Spotify Extended Streaming History"
 for f in glob.glob(str(data / "Streaming_History_Audio*.json")):
     for r in json.load(open(f)):
         a = r.get("master_metadata_album_artist_name")
