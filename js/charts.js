@@ -190,7 +190,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // the band is too thin to hold both, so absent artists leave no line. They keep the same breaks in
   // hours mode, where they're hidden, so a morph never tweens a break into a value, which would draw a
   // vertical stroke at every break.
-  const EDGE_INSET = 1.5;
+  // Inset by half a line's width, so each border's outer edge sits exactly on the boundary and the two
+  // neighbors' borders meet flush, with no fill showing between them
+  const EDGE_WIDTH = 1.5;
+  const EDGE_INSET = EDGE_WIDTH / 2;
   const pad = EDGE_INSET / Math.max(1, el.clientHeight - 84); // the plot's height: grid top + bottom below
   const edgeData = (s, side) =>
     data.dates.map((d, i) => {
@@ -199,7 +202,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       return [d, !share ? hoursAt(s, i) : side === "t" ? hi - pad : lo + pad];
     });
   // Lit bands' outlines thicken; hours mode hides them
-  const overlayStyle = (s, on) => ({ width: on ? 2.5 : 1.5, color: colors[s], opacity: share ? 1 : 0, cap: "round", join: "round" });
+  const overlayStyle = (s, on) => ({ width: on ? 2.5 : EDGE_WIDTH, color: colors[s], opacity: share ? 1 : 0, cap: "round", join: "round" });
 
   // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
