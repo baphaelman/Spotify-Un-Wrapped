@@ -412,6 +412,69 @@ dialog pre {
 }
 .legend-item:hover { background: var(--border); color: var(--text-primary); }
 .legend-item .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+/* A pinned artist's chip and its unpin × hover as one */
+.legend-pin { display: inline-flex; align-items: center; border-radius: 6px; }
+.legend-pin:hover { background: var(--border); }
+.legend-pin .legend-item:hover { background: transparent; }
+.legend-unpin {
+  padding: 2px 6px 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.legend-unpin:hover { color: var(--text-primary); }
+
+/* Artist search after the legend: a combobox that pins any artist into the chart */
+.artist-search { position: relative; flex: none; padding-top: 2px; }
+.artist-search input {
+  width: 128px;
+  height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  transition: width 0.15s, border-color 0.15s, background 0.15s;
+}
+.artist-search input::placeholder { color: var(--text-muted); }
+.artist-search input:focus { width: 200px; outline: none; border-color: var(--accent); background: var(--surface); }
+.artist-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 280px;
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.artist-results [role="option"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.artist-results [aria-selected="true"] { background: var(--border); }
+.artist-results [aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.artist-results .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artist-results mark { background: none; color: inherit; font-weight: 700; }
+.artist-results .detail { flex: none; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.artist-results .note { padding: 6px 8px; font-size: 12px; color: var(--text-muted); }
 .legend-item[aria-pressed="false"] { opacity: 0.4; }
 .legend-item[aria-pressed="false"] .swatch { background: transparent !important; box-shadow: inset 0 0 0 1px currentColor; }
 .legend-item.dimmed { opacity: 0.4; }

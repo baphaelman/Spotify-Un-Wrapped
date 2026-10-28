@@ -138,7 +138,9 @@ function setOptionFaded(c, option, opts, ms) {
 // Share mode draws each band as a 2px line in the artist's color over a pale tint of it (BAND_SHADE).
 // Each band also has two silent overlay lines, its top (t) and bottom (b) edge, drawn above every band.
 // They're hidden except to outline the hovered band all the way round.
-export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false) {
+//
+// pins: optional { has(name), unpin(name) } for artists the reader pinned; their legend chips get an ×.
+export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null) {
   const t = tokens();
   const c = chart(el);
   const share = mode === "share";
@@ -155,7 +157,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     st = { names, selected: Object.fromEntries(names.map((n) => [n, true])), zrMove: st?.zrMove, zrOut: st?.zrOut };
     rollingState.set(el, st);
   }
-  st.args = [data, names, window, zoom, mode, hasOther];
+  st.args = [data, names, window, zoom, mode, hasOther, pins];
   const visible = (s) => st.selected[names[s]] !== false;
 
   // Fills stay opaque tints, not transparency, because bands overlap down to the axis
@@ -425,6 +427,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   renderLegend(el, names, colors, visible, share ? -1 : otherIdx, {
     hover: (name) => st.focusArtist(name),
     toggle: (name) => c.dispatchAction({ type: "legendToggleSelect", name }),
+    pins,
   });
 
   // Toggling an artist re-stacks the bands around it, as a morph
@@ -433,15 +436,16 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     c.off(ev);
     c.on(ev, (e) => {
       st.selected = { ...e.selected };
-      const [d, n, w, , m, o] = st.args;
-      renderRolling(el, d, n, w, currentZoom(el), m, o, true);
+      const [d, n, w, , m, o, p] = st.args;
+      renderRolling(el, d, n, w, currentZoom(el), m, o, true, p);
     });
   }
 }
 
 // HTML legend above a rolling chart: hover highlights an artist, click shows/hides them.
 // `dimmed` is an index drawn as not applicable (hours mode's "Everyone else"), or -1.
-function renderLegend(el, names, colors, visible, dimmed, { hover, toggle }) {
+// Pinned artists get an × beside their chip that unpins them.
+function renderLegend(el, names, colors, visible, dimmed, { hover, toggle, pins }) {
   let box = el.parentElement.querySelector(".chart-legend");
   if (!box) {
     box = document.createElement("div");
@@ -463,7 +467,22 @@ function renderLegend(el, names, colors, visible, dimmed, { hover, toggle }) {
       b.addEventListener("pointerenter", () => hover(name));
       b.addEventListener("pointerleave", () => hover(null));
       b.addEventListener("click", () => toggle(name));
-      return b;
+      if (!pins?.has(name)) return b;
+      // A sibling, not a child: buttons can't nest
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "legend-unpin";
+      x.textContent = "×";
+      x.setAttribute("aria-label", `Unpin ${name}`);
+      x.title = "Unpin";
+      x.addEventListener("click", () => {
+        hover(null);
+        pins.unpin(name);
+      });
+      const wrap = document.createElement("span");
+      wrap.className = "legend-pin";
+      wrap.append(b, x);
+      return wrap;
     })
   );
 }

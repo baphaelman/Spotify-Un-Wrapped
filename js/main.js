@@ -9,7 +9,8 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 
-const state = { plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share" };
+// pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours
+const state = { plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", pinned: [], artists: [] };
 
 // ---------- Loading ----------
 
@@ -34,6 +35,8 @@ async function load(files) {
 
 async function open(plays) {
   state.plays = plays;
+  state.artists = agg.topArtists(plays, Infinity);
+  state.pinned = [];
   state.key = await submissionKey(plays);
   state.shared = null;
   setStatus("");
@@ -64,6 +67,8 @@ $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 $("reset").addEventListener("click", () => {
   clearPlays();
   state.plays = state.key = state.shared = null;
+  state.pinned = [];
+  state.artists = [];
   $("file-input").value = "";
   showView("you");
 });
@@ -238,16 +243,34 @@ function renderRollingChart(zoom, morph = false) {
   for (const id of ["n-artists", "window"]) paintSlider($(id));
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
-  const artists = agg.topArtists(agg.filterYear(state.plays, state.year), n).map((a) => a.name);
+  const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
   const data = agg.rolling(state.plays, artists, window, includeOther);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
+  state.chartNames = artists;
 
   $("rolling-sub").textContent =
     (state.rollingMode === "share"
-      ? `Share of listening time, ${window}-day rolling window` + (includeOther ? "" : `, among your top ${n} artists`)
+      ? `Share of listening time, ${window}-day rolling window` +
+        (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
       : `Hours per week, ${window}-day rolling average`) +
     (state.year === "all" ? "" : `, top artists of ${state.year}`);
-  renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph);
+  renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, {
+    has: (name) => state.pinned.includes(name),
+    unpin,
+  });
+}
+
+// The period's top n artists plus the pinned ones. Pins outside the top n join at the end, on top of
+// the stack in the next colors, so the artists already shown keep theirs. They push out the
+// lowest-ranked unpinned artists, keeping n artists (or as many as are pinned, if that's more).
+function chartArtists(plays, n) {
+  const top = agg.topArtists(plays, n).map((a) => a.name);
+  const extra = state.pinned.filter((a) => !top.includes(a));
+  const keep = Math.max(n, state.pinned.length) - extra.length;
+  for (let i = top.length - 1; top.length > keep && i >= 0; i--) {
+    if (!state.pinned.includes(top[i])) top.splice(i, 1);
+  }
+  return [...top, ...extra];
 }
 
 for (const btn of document.querySelectorAll("#rolling-mode button")) {
@@ -265,6 +288,135 @@ for (const id of ["n-artists", "window", "include-other"]) {
     pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling"))));
   });
 }
+
+// ---------- Artist search: pin any artist into the rolling chart ----------
+
+const MAX_PINS = 8; // one per series color
+// Case- and accent-insensitive, so "beyonce" finds Beyoncé
+const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const fmtArtistHours = (h) => (h < 1 ? "<1 h" : `${Math.round(h).toLocaleString()} h`);
+let results = [];
+let active = -1;
+
+function pin(name) {
+  if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
+  state.pinned = [...state.pinned, name];
+  renderRollingChart(currentZoom($("chart-rolling")));
+}
+
+function unpin(name) {
+  state.pinned = state.pinned.filter((a) => a !== name);
+  renderRollingChart(currentZoom($("chart-rolling")));
+}
+
+// Up to 8 matches: names starting with the query, then a word starting with it, then anywhere.
+// state.artists is sorted by hours and the sort is stable, so ties stay biggest first.
+function searchArtists(query) {
+  const q = fold(query.trim());
+  if (!q) return [];
+  const found = [];
+  for (const a of state.artists) {
+    const at = fold(a.name).indexOf(q);
+    if (at < 0) continue;
+    const rank = at === 0 ? 0 : /[\s\-&(./,]/.test(a.name[at - 1]) ? 1 : 2;
+    found.push({ ...a, at, len: q.length, rank });
+  }
+  return found.sort((a, b) => a.rank - b.rank).slice(0, 8);
+}
+
+function setActive(i) {
+  active = i;
+  const opts = [...$("artist-results").querySelectorAll('[role="option"]')];
+  opts.forEach((li, k) => li.setAttribute("aria-selected", k === i));
+  if (opts[i]) {
+    $("artist-search").setAttribute("aria-activedescendant", opts[i].id);
+    opts[i].scrollIntoView({ block: "nearest" });
+  } else $("artist-search").removeAttribute("aria-activedescendant");
+  // Preview the artist in the chart if they're already in it
+  focusArtist($("chart-rolling"), results[i]?.name ?? null);
+}
+
+function showResults() {
+  const input = $("artist-search");
+  const list = $("artist-results");
+  results = searchArtists(input.value);
+  if (!input.value.trim()) return closeResults();
+
+  const full = state.pinned.length >= MAX_PINS;
+  const note = (text) => {
+    const li = document.createElement("li");
+    li.className = "note";
+    li.textContent = text;
+    return li;
+  };
+  const items = results.map((a, i) => {
+    const pinned = state.pinned.includes(a.name);
+    const li = document.createElement("li");
+    li.id = `artist-opt-${i}`;
+    li.setAttribute("role", "option");
+    if (full && !pinned) li.setAttribute("aria-disabled", "true");
+    const name = document.createElement("span");
+    name.className = "name";
+    // Bold the match. Folding can change a name's length (rarely), and then the indexes don't line up
+    if (fold(a.name).length === a.name.length) {
+      const mark = document.createElement("mark");
+      mark.textContent = a.name.slice(a.at, a.at + a.len);
+      name.append(a.name.slice(0, a.at), mark, a.name.slice(a.at + a.len));
+    } else name.textContent = a.name;
+    const detail = document.createElement("span");
+    detail.className = "detail";
+    detail.textContent = pinned ? "Pinned" : state.chartNames?.includes(a.name) ? "In chart" : fmtArtistHours(a.hours);
+    li.append(name, detail);
+    // pointerdown would blur the input and close the list before the click lands
+    li.addEventListener("pointerdown", (e) => e.preventDefault());
+    li.addEventListener("pointerenter", () => setActive(i));
+    li.addEventListener("click", () => choose(i));
+    return li;
+  });
+  list.replaceChildren(
+    ...(full ? [note(`${MAX_PINS} artists pinned. Unpin one to add another.`)] : []),
+    ...(items.length ? items : [note("No artists match")])
+  );
+  list.hidden = false;
+  input.setAttribute("aria-expanded", "true");
+  setActive(results.length ? 0 : -1);
+}
+
+function closeResults() {
+  if ($("artist-results").hidden) return;
+  $("artist-results").hidden = true;
+  $("artist-search").setAttribute("aria-expanded", "false");
+  $("artist-search").removeAttribute("aria-activedescendant");
+  focusArtist($("chart-rolling"), null);
+  results = [];
+  active = -1;
+}
+
+function choose(i) {
+  const a = results[i];
+  if (!a || (state.pinned.length >= MAX_PINS && !state.pinned.includes(a.name))) return;
+  $("artist-search").value = "";
+  closeResults();
+  pin(a.name);
+}
+
+$("artist-search").addEventListener("input", showResults);
+$("artist-search").addEventListener("focus", showResults);
+$("artist-search").addEventListener("blur", closeResults);
+$("artist-search").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!results.length) return;
+    setActive((active + (e.key === "ArrowDown" ? 1 : results.length - 1)) % results.length);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    choose(active);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    if ($("artist-results").hidden) $("artist-search").value = "";
+    closeResults();
+  }
+});
 
 // ---------- Theme ----------
 
