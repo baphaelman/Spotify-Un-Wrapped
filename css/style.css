@@ -409,6 +409,9 @@ dialog pre {
 }
 .legend-item:hover { background: var(--border); color: var(--text-primary); }
 .legend-item .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.legend-item[aria-pressed="false"] { opacity: 0.4; }
+.legend-item[aria-pressed="false"] .swatch { background: transparent !important; box-shadow: inset 0 0 0 1px currentColor; }
+.legend-item.dimmed { opacity: 0.4; }
 /* A pinned artist's chip and its unpin × hover as one */
 .legend-pin { display: inline-flex; align-items: center; border-radius: 6px; }
 .legend-pin:hover { background: var(--border); }
@@ -472,9 +475,6 @@ dialog pre {
 .artist-results mark { background: none; color: inherit; font-weight: 700; }
 .artist-results .detail { flex: none; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .artist-results .note { padding: 6px 8px; font-size: 12px; color: var(--text-muted); }
-.legend-item[aria-pressed="false"] { opacity: 0.4; }
-.legend-item[aria-pressed="false"] .swatch { background: transparent !important; box-shadow: inset 0 0 0 1px currentColor; }
-.legend-item.dimmed { opacity: 0.4; }
 /* Below the Share/Hours toggle. Padding, not margin: a first child's top margin collapses through
    .chart-wrap and would carry the toggle down with it */
 @media (max-width: 600px) { .legend-row { margin-right: 0; padding-top: 32px; } }
