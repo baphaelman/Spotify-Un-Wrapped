@@ -59,10 +59,10 @@
     --seq-3: #3987e5;
     --seq-4: #86b6ef;
     --seq-5: #cde2fb;
-    --shade-band: 0.1;
+    --shade-band: 0.08;
     --shade-hover: 0.2;
     --shade-line: 0.05;
-    --shade-dim: 0.05;
+    --shade-dim: 0.04;
   }
 }
 
@@ -92,10 +92,10 @@
   --seq-3: #3987e5;
   --seq-4: #86b6ef;
   --seq-5: #cde2fb;
-  --shade-band: 0.1;
+  --shade-band: 0.08;
   --shade-hover: 0.2;
   --shade-line: 0.05;
-  --shade-dim: 0.05;
+  --shade-dim: 0.04;
 }
 
 * { box-sizing: border-box; }
