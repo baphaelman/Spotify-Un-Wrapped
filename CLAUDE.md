@@ -1,0 +1,110 @@
+# Spotify (Un)Wrapped
+
+Static site: users drop their Spotify streaming-history export and get interactive charts, all computed
+in the browser. An opt-in Community tab pools anonymous summaries in Supabase. Live at
+https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, served from `main`, root folder).
+`rolling_window.py` is the original pandas/Plotly prototype the main chart is ported from.
+
+## Ground rules
+
+- **No build step, no Node.** Plain ES modules plus ECharts 5.6.0 and JSZip from cdnjs, loaded in
+  `index.html`. Run it with `python3 -m http.server` (modules don't load over `file://`).
+- **The owner cares most about smooth, beautiful interaction.** Check visual changes in a real render
+  (see Testing), and ask before major changes.
+- **Artist and track names come from user files.** Put them in the DOM with `textContent`, and escape
+  them (`esc`) in tooltip HTML.
+- **Colors live as CSS tokens in `css/style.css`** (`--series-1..8`, `--seq-*`, surfaces, inks), with
+  light and dark blocks. `charts.js` reads them via `tokens()`. A user-chosen palette (`PALETTES` in
+  `main.js`, stored in localStorage) overrides `--series-*` on `<body>`.
+- **Chart palette rules:** at most 8 categorical colors; color follows the artist, never the rank;
+  "Everyone else" is always the gray `--other`.
+
+## Files
+
+- `js/parse.js`: reads a zip, folder or JSON files into `{t, ms, artist, track, album, skipped}`.
+  Handles both the extended and the older account-data export.
+- `js/aggregate.js`: pure functions for top lists, monthly totals, the 7×24 clock and `rolling()`, a
+  port of the Python script that uses prefix sums.
+- `js/charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling`.
+- `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
+  sharing, theme.
+- `js/lists.js`: ranked lists and stat tiles.
+- `js/store.js`: the parsed plays persist in IndexedDB, so return visits skip the upload. "Forget my
+  data" clears them.
+- `js/summary.js`, `js/api.js`, `js/config.js`, `js/community.js`: the community pool.
+- `supabase/schema.sql`: the pool's tables and functions. Paste into the Supabase SQL editor to apply
+  changes; it's safe to re-run.
+- `dev/`: test tools (see Testing).
+
+## The rolling chart (`renderRolling`): read this before touching it
+
+It has two modes on one canvas, **Share** (stacked bands) and **Hours** (overlaid lines of hours per
+week), and switching between them morphs.
+
+- **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
+  `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.
+- **Stacking is done by hand, not with ECharts' `stack`.** Each band is the line at its cumulative top,
+  filled down to the axis. Bands are drawn top band first, so lower bands paint over the bottom of
+  higher ones. A hidden artist collapses onto the band below it.
+- **The Hours view has no fills (`areaStyle: null`).** Before morphing back to Share, fills are added
+  under the lines with no animation, or new fills would appear already at their final shape.
+- **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
+  (for example `yAxis.interval`).
+- **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
+- **`setOptionFaded`** tweens style changes by animating ECharts' internal `_polygon`/`_polyline`
+  shapes directly. This depends on ECharts internals (as of 5.6).
+
+### Hover: hard-won rules
+
+- **Every series is `silent`, and hover is worked out from the data.** A zrender `mousemove` handler
+  (`st.zrMove`) converts the pointer to a date and value. Share mode focuses the band containing the
+  pointer; Hours mode focuses the **topmost** line at that date.
+- **Focus is drawn by restyling, never by ECharts highlight states.** Those states break the hand-made
+  stacking: a highlighted band shows all the way down to the axis. Keep `triggerEmphasis: false` on the
+  **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every
+  shape into the highlight state.
+- **The legend is HTML (`renderLegend`).** The ECharts legend is hidden and only holds which artists
+  are shown. Hover calls `focusArtist`; a click dispatches `legendToggleSelect`, which re-stacks the
+  bands as a morph.
+- **`focusArtist(el, name)`** (exported) lets the page highlight an artist from outside the chart. The
+  Top artists and Top tracks rows use it.
+- **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom: it swallows
+  wheel events. Zoom only through the slider.
+
+## Community pool
+
+- **Supabase project `qvsoxqeuvpnryitechsf`.** The publishable key in `js/config.js` is meant to be
+  public.
+- **The browser can only call these functions:** `submit_summary`, `delete_summary`, `is_shared`,
+  `community_stats` and `artist_ranks`. RLS is on with no policies, so direct table access is refused.
+- **The shared summary** (`summary.js`) holds totals, the top 500 artists and tracks with hours, and
+  the 168-cell clock. Nothing else leaves the browser.
+- **Submission key:** sha256 of the user's first 200 plays. Re-uploading replaces the old summary, and
+  only someone with the data can delete it.
+- **Minimum crowd of 5:** nothing is shown below 5 contributors, and an artist or track appears only
+  once 5 contributors have it.
+- **Known gap:** there's no rate limiting or bot check. Cloudflare Turnstile is the plan if spam shows
+  up.
+- **Fake data:** `python3 dev/seed_community.py seed|cleanup` adds or removes 12 fake contributors
+  (keys from `"synthetic-test-<i>"`). `cleanup` never touches real submissions.
+
+## Testing
+
+You need a real browser render to see visual or hover changes. Headless Brave is installed (no Chrome
+or Node).
+
+```sh
+python3 dev/harness.py                      # rebuild dev/site after any index.html change
+(cd dev/site && python3 -m http.server 8765 &)
+python3 dev/shot.py "http://localhost:8765/test.html?v=$RANDOM#hours" /tmp/out.png 1280 1900
+HOVER_SEL="#top-artists li:nth-child(3)" python3 dev/shot.py ...   # also HOVER, EVAL, FRAMES, WHEEL
+```
+
+- **`test.html`** loads the owner's history from `../spotify/datas/Spotify Extended Streaming History`.
+  Its hash actions are documented in `dev/harness.py`.
+- **`EVAL`** is handy for inspecting chart state, for example how many shapes are stuck in a highlight
+  state:
+  `getZr().storage.getDisplayList(true).filter(e => e.currentStates?.length)`.
+- **Headless frames don't show how smooth an animation feels.** Ask the owner to judge smoothness in a
+  real browser.
+- **Keep screenshots cheap:** crop them, or take only what proves the change.

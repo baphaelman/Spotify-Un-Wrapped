@@ -46,6 +46,8 @@ The older *Account data* export (`StreamingHistory_music_*.json`, last year only
 | `js/charts.js` | ECharts renderers |
 | `js/main.js` | Drag and drop, filters, tabs, sharing, and wiring |
 | `js/lists.js` | Ranked lists and stat tiles |
+| `js/store.js` | Remembers the loaded data on this device (IndexedDB) |
+| `dev/` | Test tools: headless screenshots, test pages, fake community data |
 | `js/summary.js` | Builds the anonymous summary that gets shared, plus the submission key |
 | `js/api.js`, `js/config.js` | Supabase client and settings |
 | `js/community.js` | Community page |

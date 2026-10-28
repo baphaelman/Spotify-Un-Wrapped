@@ -25,7 +25,7 @@
         <input id="file-input" type="file" multiple accept=".json,.zip">
         <strong>Drop your Spotify data here</strong>
         <span>The <code>my_spotify_data.zip</code> file, its folder, or the <code>Streaming_History_Audio_*.json</code> files</span>
-        <span class="muted small">Your files are read in your browser and never uploaded.</span>
+        <span class="muted small">Your files are read in your browser and never uploaded. They're remembered on this device until you click “Forget my data”.</span>
       </label>
       <label class="share-optin">
         <input id="share-optin" type="checkbox">
@@ -49,11 +49,14 @@
 
     <!-- Dashboard -->
     <section id="dashboard" class="dashboard" hidden>
-      <div class="filters">
-        <label>Period
-          <select id="year-filter"></select>
-        </label>
-        <button id="reset" class="ghost" type="button">Load different data</button>
+      <div class="filters sticky">
+        <div class="period">
+          <span>Period</span>
+          <button id="year-prev" class="ghost step" type="button" aria-label="Previous year">‹</button>
+          <select id="year-filter" aria-label="Period"></select>
+          <button id="year-next" class="ghost step" type="button" aria-label="Next year">›</button>
+        </div>
+        <button id="reset" class="ghost" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
         <span class="spacer"></span>
         <span id="share-state" class="muted small"></span>
         <button id="share-preview" class="ghost" type="button">Preview shared data</button>
@@ -69,12 +72,37 @@
             <p class="muted" id="rolling-sub"></p>
           </div>
           <div class="controls">
-            <label>Artists <input id="n-artists" type="range" min="3" max="8" value="8"><output id="n-artists-out">8</output></label>
-            <label>Smoothing <input id="window" type="range" min="7" max="180" step="1" value="30"><output id="window-out">30d</output></label>
+            <div class="slider">
+              <div class="slider-head"><label for="n-artists">Artists</label><output id="n-artists-out" for="n-artists">8</output></div>
+              <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
+              <div class="ticks" aria-hidden="true">
+                <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
+              </div>
+            </div>
+            <div class="slider">
+              <div class="slider-head"><label for="window">Smoothing</label><output id="window-out" for="window">45 days</output></div>
+              <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
+              <div class="ticks" aria-hidden="true">
+                <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
+              </div>
+            </div>
             <label class="check"><input id="include-other" type="checkbox"> Include everyone else</label>
           </div>
         </div>
-        <div id="chart-rolling" class="chart tall"></div>
+        <div class="chart-wrap">
+          <div id="rolling-mode" class="segmented" role="group" aria-label="Chart type">
+            <button type="button" data-mode="share" aria-pressed="true">Share</button>
+            <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+          </div>
+          <div class="legend-row">
+            <div class="palette-picker">
+              <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Chart colors" title="Chart colors"></button>
+              <div id="palette-menu" class="palette-menu" role="menu" aria-label="Chart colors" hidden></div>
+            </div>
+            <div class="chart-legend"></div>
+          </div>
+          <div id="chart-rolling" class="chart tall"></div>
+        </div>
       </article>
 
       <div class="grid-2">
