@@ -184,25 +184,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // gap and a value, which draws a vertical stroke at each such date mid-morph.
   const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx ? 0 : perWeek(data.hours[s][i]));
 
-  // Share mode outlines every band on both edges in its own color, each line pulled EDGE_INSET px inside
-  // the band (converted to share; the y axis is always 0–100%), so at each boundary the two neighbors'
-  // borders sit side by side rather than one artist's line standing for both. Edges break off wherever
-  // the band is too thin to hold both, so absent artists leave no line. They keep the same breaks in
-  // hours mode, where they're hidden, so a morph never tweens a break into a value, which would draw a
-  // vertical stroke at every break.
-  // Inset by half a line's width, so each border's outer edge sits exactly on the boundary and the two
-  // neighbors' borders meet flush, with no fill showing between them
-  const EDGE_WIDTH = 1.5;
-  const EDGE_INSET = EDGE_WIDTH / 2;
-  const pad = EDGE_INSET / Math.max(1, el.clientHeight - 84); // the plot's height: grid top + bottom below
+  // Share mode outlines every band on both edges in its own color, so at each boundary the two neighbors
+  // each show their own border rather than one artist's line standing for both. Each edge line is drawn
+  // at twice its visible width, centered on the boundary, then clipped to its own band (clipEdges below):
+  // only its inner half shows, so borders keep one width everywhere, even on steep slopes, and meet
+  // neighbors' exactly on the boundary. Edges break off wherever a band is too thin to see, so absent
+  // artists leave no line. They keep the same breaks in hours mode, where they're hidden, so a morph never
+  // tweens a break into a value, which would draw a vertical stroke at every break.
   const edgeData = (s, side) =>
     data.dates.map((d, i) => {
       const lo = bottom[s][i], hi = top[s][i];
-      if (lo == null || hi - lo < 2 * pad + 0.002) return [d, null];
-      return [d, !share ? hoursAt(s, i) : side === "t" ? hi - pad : lo + pad];
+      if (lo == null || hi - lo < 0.002) return [d, null];
+      return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
     });
-  // Lit bands' outlines thicken; hours mode hides them
-  const overlayStyle = (s, on) => ({ width: on ? 2.5 : EDGE_WIDTH, color: colors[s], opacity: share ? 1 : 0, cap: "round", join: "round" });
+  // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
+  const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share ? 1 : 0, cap: "butt", join: "round" });
 
   // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
@@ -320,6 +316,34 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   };
 
   st.mode = mode;
+
+  // Clip each band's edge lines to the band itself, so only their inner halves show (see edgeData). The
+  // clip is the band's own area shape, ECharts' polygon built from its top edge and the top edge of the
+  // visible band below (or the axis). It's rebuilt once ECharts has finished drawing (after a render,
+  // zoom, resize or morph) and dropped before each update, while shapes move. This reaches into ECharts
+  // internals like setOptionFaded; without them the borders are just unclipped, twice as wide.
+  const edgeLines = () => [...drawnShapes(c)].filter(([k]) => /^[tb]\d+:line$/.test(k)).map(([, e]) => e);
+  for (const e of edgeLines()) e.removeClipPath();
+  const clipEdges = () => {
+    if (!share) return;
+    const shapes = drawnShapes(c);
+    let below = null;
+    for (let k = 0; k < names.length; k++) {
+      if (!visible(k)) continue;
+      const band = shapes.get(`s${k}:area`);
+      if (!band) continue;
+      const floor = below == null ? band.shape.stackedOnPoints : shapes.get(`s${below}:area`)?.shape.points;
+      below = k;
+      if (!floor) continue;
+      for (const side of ["t", "b"]) {
+        const line = shapes.get(`${side}${k}:line`);
+        if (!line) continue;
+        line.setClipPath(new band.constructor({ shape: { points: band.shape.points, stackedOnPoints: floor } }));
+      }
+    }
+  };
+  c.off("finished");
+  c.on("finished", clipEdges);
 
   setOptionFaded(
     c,
