@@ -144,9 +144,6 @@ button.ghost:hover { background: var(--border); }
   left: 0;
   z-index: 20;
   min-width: 100%;
-  max-height: min(360px, 60vh);
-  overflow-y: auto;
-  scrollbar-width: none;
   margin: 0;
   padding: 6px;
   list-style: none;
@@ -155,7 +152,6 @@ button.ghost:hover { background: var(--border); }
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
-.year-menu::-webkit-scrollbar { display: none; }
 .year-menu [role="option"] {
   display: flex;
   align-items: center;
