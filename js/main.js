@@ -671,7 +671,29 @@ $("theme-toggle").addEventListener("click", () => {
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderForTheme);
 
+// Trial: the shading sliders set the current theme's --shade-* tokens on <body>, overriding style.css.
+// A theme change clears them, so each theme starts from its own defaults.
+const shadeSliders = [...document.querySelectorAll(".shade-trial input")];
+function syncShadeSliders() {
+  const css = getComputedStyle(document.body);
+  for (const s of shadeSliders) {
+    s.value = Math.round(css.getPropertyValue(s.dataset.var) * 100);
+    s.nextElementSibling.textContent = `${s.value}%`;
+  }
+}
+for (const s of shadeSliders) {
+  s.addEventListener("input", () => {
+    document.body.style.setProperty(s.dataset.var, s.value / 100);
+    s.nextElementSibling.textContent = `${s.value}%`;
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => state.plays && renderRollingChart(currentZoom($("chart-rolling"))));
+  });
+}
+syncShadeSliders();
+
 function rerenderForTheme() {
+  for (const s of shadeSliders) document.body.style.removeProperty(s.dataset.var);
+  syncShadeSliders();
   applyPalette();
   const zoom = state.plays ? currentZoom($("chart-rolling")) : undefined;
   disposeAll();

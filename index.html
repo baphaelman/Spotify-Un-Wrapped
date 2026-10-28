@@ -125,6 +125,13 @@
                 </div>
               </div>
             </div>
+            <!-- Trial: tune the current theme's shading live (main.js); resets on theme change or reload -->
+            <div class="shade-trial">
+              <div class="setting-hint">Shading (trial, this theme)</div>
+              <div class="setting"><label class="setting-label" for="shade-band">Band</label><input id="shade-band" type="range" min="0" max="60" step="1" data-var="--shade-band"><output for="shade-band"></output></div>
+              <div class="setting"><label class="setting-label" for="shade-hover">Hover</label><input id="shade-hover" type="range" min="0" max="100" step="1" data-var="--shade-hover"><output for="shade-hover"></output></div>
+              <div class="setting"><label class="setting-label" for="shade-line">Line</label><input id="shade-line" type="range" min="0" max="60" step="1" data-var="--shade-line"><output for="shade-line"></output></div>
+            </div>
           </section>
         </div>
         <div class="chart-wrap">
