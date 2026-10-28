@@ -205,10 +205,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
   // Fills are opaque tints, not transparency, because bands overlap down to the axis.
-  // Share: lit bands are filled in more strongly (t.shade.hover). The rest keep their resting tint, or
-  // dim slightly (t.shade.dim) while a band is hovered; pinned artists lit at rest don't dim them
-  const bandFill = (k, lit, hovering = false) =>
-    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : hovering ? t.shade.dim : t.shade.band);
+  // Share: lit bands (pinned, or under the pointer) are filled in more strongly (t.shade.hover), and while
+  // any band is lit the rest dim slightly (t.shade.dim); with none lit, every band has its resting tint
+  const bandFill = (k, lit) =>
+    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band);
   // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill. The fill is the same
   // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color. Sharing the
   // color means a morph only changes opacity: tweening a band's opaque tint to the artist's full color at
@@ -439,7 +439,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.flatMap((_, k) => [
-        { id: `s${k}`, areaStyle: { color: bandFill(k, on, focused != null) } },
+        { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
         { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
         { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
       ]),
