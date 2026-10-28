@@ -424,7 +424,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);
 
-  renderLegend(el, names, colors, visible, share ? -1 : otherIdx, {
+  renderLegend(el, names, colors, visible, otherIdx, {
     hover: (name) => st.focusArtist(name),
     toggle: (name) => c.dispatchAction({ type: "legendToggleSelect", name }),
     pins,
@@ -442,49 +442,51 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
 }
 
-// HTML legend above a rolling chart: hover highlights an artist, click shows/hides them.
-// `dimmed` is an index drawn as not applicable (hours mode's "Everyone else"), or -1.
-// Pinned artists get an × beside their chip that unpins them.
-function renderLegend(el, names, colors, visible, dimmed, { hover, toggle, pins }) {
-  let box = el.parentElement.querySelector(".chart-legend");
-  if (!box) {
-    box = document.createElement("div");
-    box.className = "chart-legend";
-    el.before(box);
-  }
-  box.replaceChildren(
-    ...names.map((name, k) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "legend-item" + (k === dimmed ? " dimmed" : "");
-      b.setAttribute("aria-pressed", visible(k));
-      const sw = document.createElement("span");
-      sw.className = "swatch";
-      sw.style.background = colors[k];
-      const label = document.createElement("span");
-      label.textContent = name; // artist names come from user files
-      b.append(sw, label);
-      b.addEventListener("pointerenter", () => hover(name));
-      b.addEventListener("pointerleave", () => hover(null));
-      b.addEventListener("click", () => toggle(name));
-      if (!pins?.has(name)) return b;
-      // A sibling, not a child: buttons can't nest
-      const x = document.createElement("button");
-      x.type = "button";
-      x.className = "legend-unpin";
-      x.textContent = "×";
-      x.setAttribute("aria-label", `Unpin ${name}`);
-      x.title = "Unpin";
-      x.addEventListener("click", () => {
-        hover(null);
-        pins.unpin(name);
-      });
-      const wrap = document.createElement("span");
-      wrap.className = "legend-pin";
-      wrap.append(b, x);
-      return wrap;
-    })
-  );
+// HTML legend in the artist panel above a rolling chart: hover highlights an artist, click shows/hides
+// them. Pinned artists go in their own column, each with an × that unpins them; the rest fill the top
+// artists column. "Everyone else" isn't listed: its include toggle sits under the column (index.html).
+function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, pins }) {
+  const card = el.closest(".card");
+  const item = (name, k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "legend-item";
+    b.title = name;
+    b.setAttribute("aria-pressed", visible(k));
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = colors[k];
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = name; // artist names come from user files
+    b.append(sw, label);
+    b.addEventListener("pointerenter", () => hover(name));
+    b.addEventListener("pointerleave", () => hover(null));
+    b.addEventListener("click", () => toggle(name));
+    if (!pins?.has(name)) return b;
+    // A sibling, not a child: buttons can't nest
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "legend-unpin";
+    x.textContent = "×";
+    x.setAttribute("aria-label", `Unpin ${name}`);
+    x.title = "Unpin";
+    x.addEventListener("click", () => {
+      hover(null);
+      pins.unpin(name);
+    });
+    const wrap = document.createElement("span");
+    wrap.className = "legend-pin";
+    wrap.append(b, x);
+    return wrap;
+  };
+  const shown = names.map((name, k) => [name, k]).filter(([, k]) => k !== otherIdx);
+  const pinned = shown.filter(([name]) => pins?.has(name));
+  const hint = document.createElement("p");
+  hint.className = "legend-hint";
+  hint.textContent = "None yet";
+  card.querySelector(".pinned-legend").replaceChildren(...(pinned.length ? pinned.map(([n, k]) => item(n, k)) : [hint]));
+  card.querySelector(".top-legend").replaceChildren(...shown.filter(([name]) => !pins?.has(name)).map(([n, k]) => item(n, k)));
 }
 
 // Highlight an artist in a rolling chart from elsewhere on the page; null clears.

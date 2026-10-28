@@ -67,46 +67,63 @@
 
       <article class="card">
         <div class="card-head">
-          <div>
+          <div class="card-head-main">
             <h2>Top Artists View</h2>
             <p class="muted" id="rolling-sub"></p>
+            <div class="chart-controls">
+              <!-- Artists: bars shrinking left to right, like a ranked chart; the range input sits invisibly on top -->
+              <div class="slider bars-slider">
+                <div class="slider-head"><label for="n-artists">Artists</label><output id="n-artists-out" for="n-artists">Top 8</output></div>
+                <div class="bars">
+                  <span data-v="3" style="--h: 1"></span><span data-v="4" style="--h: 0.78"></span><span data-v="5" style="--h: 0.6"></span>
+                  <span data-v="6" style="--h: 0.46"></span><span data-v="7" style="--h: 0.35"></span><span data-v="8" style="--h: 0.26"></span>
+                  <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
+                </div>
+                <div class="ticks" aria-hidden="true">
+                  <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
+                </div>
+              </div>
+              <div class="slider">
+                <div class="slider-head"><label for="window">Smoothing</label><output id="window-out" for="window">45 days</output></div>
+                <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
+                <div class="ticks" aria-hidden="true">
+                  <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="controls">
-            <div class="slider">
-              <div class="slider-head"><label for="n-artists">Artists</label><output id="n-artists-out" for="n-artists">8</output></div>
-              <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
-              <div class="ticks" aria-hidden="true">
-                <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
+          <!-- The chart's artists: search to pin, the pinned ones, then the top artists -->
+          <div class="artist-panel">
+            <div class="artist-panel-top">
+              <div class="palette-picker">
+                <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Chart colors" title="Chart colors"></button>
+                <div id="palette-menu" class="palette-menu" role="menu" aria-label="Chart colors" hidden></div>
+              </div>
+              <div class="artist-search">
+                <input id="artist-search" type="search" placeholder="Add an artist…" autocomplete="off" spellcheck="false"
+                  role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
+                  aria-label="Add an artist to the chart">
+                <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
               </div>
             </div>
-            <div class="slider">
-              <div class="slider-head"><label for="window">Smoothing</label><output id="window-out" for="window">45 days</output></div>
-              <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
-              <div class="ticks" aria-hidden="true">
-                <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
+            <div class="artist-cols">
+              <div class="legend-col">
+                <div class="legend-title">Pinned</div>
+                <div class="chart-legend pinned-legend"></div>
+              </div>
+              <div class="legend-col">
+                <div class="legend-title">Top artists</div>
+                <div class="chart-legend top-legend"></div>
+                <label class="legend-item other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span>Everyone else</span></label>
               </div>
             </div>
-            <label class="check"><input id="include-other" type="checkbox"> Include everyone else</label>
+            <div id="rolling-mode" class="segmented" role="group" aria-label="Chart type">
+              <button type="button" data-mode="share" aria-pressed="true">Share</button>
+              <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+            </div>
           </div>
         </div>
         <div class="chart-wrap">
-          <div id="rolling-mode" class="segmented" role="group" aria-label="Chart type">
-            <button type="button" data-mode="share" aria-pressed="true">Share</button>
-            <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
-          </div>
-          <div class="legend-row">
-            <div class="palette-picker">
-              <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Chart colors" title="Chart colors"></button>
-              <div id="palette-menu" class="palette-menu" role="menu" aria-label="Chart colors" hidden></div>
-            </div>
-            <div class="chart-legend"></div>
-            <div class="artist-search">
-              <input id="artist-search" type="search" placeholder="Add an artist…" autocomplete="off" spellcheck="false"
-                role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
-                aria-label="Add an artist to the chart">
-              <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
-            </div>
-          </div>
           <div id="chart-rolling" class="chart tall"></div>
         </div>
       </article>

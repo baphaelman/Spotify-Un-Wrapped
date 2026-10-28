@@ -220,13 +220,15 @@ function periodZoom() {
   return [new Date(+state.year, 0, 1).getTime(), new Date(+state.year, 11, 31).getTime()];
 }
 
-// Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
+// Fills a slider's track up to the thumb, places its notches (and bars), and marks the notch it sits
+// on. Bars light up to the thumb, since picking more artists takes in every bar before it.
 function paintSlider(input) {
   const at = (v) => (v - input.min) / (input.max - input.min);
   input.style.setProperty("--p", at(input.value));
-  for (const tick of input.parentElement.querySelectorAll(".ticks [data-v]")) {
+  for (const tick of input.closest(".slider").querySelectorAll("[data-v]")) {
     tick.style.setProperty("--p", at(tick.dataset.v));
     tick.classList.toggle("on", tick.dataset.v === input.value);
+    tick.classList.toggle("lit", Number(tick.dataset.v) <= Number(input.value));
   }
 }
 
@@ -237,7 +239,7 @@ function renderRollingChart(zoom, morph = false) {
   const n = Number($("n-artists").value);
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
-  $("n-artists-out").textContent = n;
+  $("n-artists-out").textContent = `Top ${n}`;
   $("window-out").textContent = `${window} days`;
   $("window").setAttribute("aria-valuetext", `${window} days`);
   for (const id of ["n-artists", "window"]) paintSlider($(id));
@@ -280,6 +282,13 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
     renderRollingChart(currentZoom($("chart-rolling")), true);
   });
 }
+
+// The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
+const otherToggle = $("include-other").closest("label");
+otherToggle.addEventListener("pointerenter", () => {
+  if ($("include-other").checked) focusArtist($("chart-rolling"), "Everyone else");
+});
+otherToggle.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
 
 let pending = 0;
 for (const id of ["n-artists", "window", "include-other"]) {
