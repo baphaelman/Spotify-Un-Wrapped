@@ -140,7 +140,8 @@ function setOptionFaded(c, option, opts, ms) {
 // Each band also has two silent overlay lines, its top (t) and bottom (b) edge, drawn above every band.
 // They're hidden except to outline the hovered band all the way round.
 //
-// pins: optional { has(name), unpin(name) } for artists the reader pinned; their legend chips get an ×.
+// pins: optional { has(name), unpin(name), toggle(name) } for artists the reader pinned; their legend chips
+// get an ×, and clicking a band or line in the plot calls toggle.
 // slots: optional palette slot per artist (aligned with names), so colors can follow the artist; by default
 // an artist's color is their position.
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null) {
@@ -433,16 +434,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (st.zrMove) {
     zr.off("mousemove", st.zrMove);
     zr.off("globalout", st.zrOut);
+    zr.off("click", st.zrClick);
   }
   let fromPlot = false; // only clear focus the plot set, not a legend or list hover's
   const focus = share ? focusBand : focusLine;
-  st.zrMove = (e) => {
-    const px = [e.offsetX, e.offsetY];
-    if (!c.containPixel({ gridIndex: 0 }, px)) {
-      if (fromPlot) focus(null);
-      fromPlot = false;
-      return;
-    }
+  // The band or line under a pixel: its index, null for none, or undefined when the pixel is off the plot
+  const pick = (px) => {
+    if (!c.containPixel({ gridIndex: 0 }, px)) return undefined;
     const [t0, y] = c.convertFromPixel({ gridIndex: 0 }, px);
     // Nearest date (dates are sorted)
     let lo = 0, hi = data.dates.length - 1;
@@ -464,15 +462,39 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         if (v > bestV) { bestV = v; best = k; }
       });
     }
+    return best;
+  };
+  // "Everyone else" can't be pinned, so it isn't offered as clickable
+  const pinnable = (k) => k != null && k !== otherIdx;
+  st.zrMove = (e) => {
+    const px = [e.offsetX, e.offsetY];
+    const best = pick(px);
+    if (best === undefined) {
+      if (fromPlot) focus(null);
+      fromPlot = false;
+      zr.setCursorStyle("default");
+      return;
+    }
     fromPlot = true;
+    zr.setCursorStyle(pins && pinnable(best) ? "pointer" : "default");
     if (best !== focused) {
       focus(best);
       retip(...px);
     }
   };
-  st.zrOut = () => { if (fromPlot) focus(null); fromPlot = false; };
+  st.zrOut = () => {
+    if (fromPlot) focus(null);
+    fromPlot = false;
+    zr.setCursorStyle("default");
+  };
+  // Clicking the band or line under the pointer pins it, or unpins it if it's already pinned
+  st.zrClick = (e) => {
+    const best = pick([e.offsetX, e.offsetY]);
+    if (pins?.toggle && pinnable(best)) pins.toggle(names[best]);
+  };
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);
+  zr.on("click", st.zrClick);
 
   // Showing or hiding artists re-stacks the bands around them, as a morph
   const restack = () => {

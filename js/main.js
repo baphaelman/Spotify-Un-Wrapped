@@ -320,6 +320,7 @@ function renderRollingChart(zoom, morph = false) {
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, {
     has: (name) => state.pinned.includes(name),
     unpin,
+    toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
   }, assignSlots(artists));
 }
 

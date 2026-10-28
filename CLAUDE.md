@@ -103,6 +103,9 @@ week), and switching between them morphs.
 - **The legend is HTML (`renderLegend`).** The ECharts legend is hidden and only holds which artists
   are shown. Hover calls `focusArtist`; a click dispatches `legendToggleSelect`, which re-stacks the
   bands as a morph.
+- **Clicking the plot toggles the hovered artist's pin** (`st.zrClick`, through `pins.toggle`). It uses
+  the same `pick` as hover, so the clicked band is always the one that was highlighted. "Everyone else"
+  isn't pinnable. Zrender only fires `click` after a `mousedown`, which matters when scripting tests.
 - **`focusArtist(el, name)`** (exported) lets the page highlight an artist from outside the chart. The
   Top artists and Top tracks rows use it.
 - **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom: it swallows
