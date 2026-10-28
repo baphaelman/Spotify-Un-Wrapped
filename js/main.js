@@ -468,7 +468,7 @@ const PALETTES = {
   ocean: { label: "Ocean", unchecked: true, colors: ["#0b2545", "#13315c", "#1d4e89", "#2a6f97", "#2c8c99", "#42a6a0", "#7bc6b5", "#b8e0d2"] },
   viridis: { label: "Viridis", unchecked: true, colors: ["#440154", "#46327e", "#365c8d", "#277f8e", "#1fa187", "#4ac16d", "#a0da39", "#fde725"] },
   greens: { label: "Spotify greens", unchecked: true, colors: ["#1db954", "#168d40", "#57d27f", "#0f5e2c", "#8fe3a8", "#2f7d4f", "#b9f0c9", "#4a9e6b"] },
-  accent: { label: "Gray + one accent", unchecked: true, colors: ["#e4572e", "#9aa0a6", "#b8bcc1", "#7d838a", "#cfd2d6", "#6b7178", "#a9aeb3", "#888e95"] },
+  accent: { label: "Gray + accent", unchecked: true, colors: ["#e4572e", "#9aa0a6", "#b8bcc1", "#7d838a", "#cfd2d6", "#6b7178", "#a9aeb3", "#888e95"] },
   mono: { label: "Monochrome blue", unchecked: true, colors: ["#0b3d91", "#1f5fbf", "#3a7fd9", "#5d9be6", "#86b6ef", "#a9cbf4", "#2c4f7c", "#6f8fb5"] },
 };
 
@@ -498,8 +498,11 @@ function applyPalette() {
     if (colors) style.setProperty(`--series-${i + 1}`, colors[i]);
     else style.removeProperty(`--series-${i + 1}`);
   }
-  // The picker is a pill of the chart's colors, blended left to right
-  $("palette-button").style.background = `linear-gradient(to right, ${paletteColors(paletteKey).join(", ")})`;
+  // The picker is a pill of the chart's colors, blended left to right and back round to the first, so
+  // its hover drift loops seamlessly (style.css). An image, not the background shorthand, which would
+  // reset the stylesheet's size and repeat.
+  const c = paletteColors(paletteKey);
+  $("palette-button").style.backgroundImage = `linear-gradient(to right, ${[...c, c[0]].join(", ")})`;
 }
 
 function choosePalette(key) {
