@@ -39,7 +39,10 @@ export function disposeAll() {
 // [startValue, endValue] of a chart's current zoom, so re-renders can keep the reader's place.
 export function currentZoom(el) {
   const dz = instances.get(el)?.getOption()?.dataZoom?.[0];
-  return dz ? [dz.startValue, dz.endValue] : undefined;
+  if (Number.isFinite(dz?.startValue)) return [dz.startValue, dz.endValue];
+  // With every series hidden, ECharts reports the range as NaN; fall back to the last one the rolling
+  // chart had
+  return rollingState.get(el)?.zoom;
 }
 
 // Artist and track names come from user files: escape before they enter tooltip HTML.
@@ -158,6 +161,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     rollingState.set(el, st);
   }
   st.args = [data, names, window, zoom, mode, hasOther, pins];
+  if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
 
   // Fills stay opaque tints, not transparency, because bands overlap down to the axis
@@ -451,7 +455,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 }
 
 // HTML legend in the Artists panel above a rolling chart: hover highlights an artist, click shows/hides
-// them. The top artists sit above the search, led by an "All" checkbox that shows or hides them
+// them. The top artists sit above the search, led by a small checkbox that shows or hides them
 // together; pinned ones sit below it, each outlined in its artist's color with an × that unpins it.
 // "Everyone else" isn't listed: it's a switch in the panel's corner.
 function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, showAll, pins }) {
@@ -502,8 +506,8 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
   all.className = "legend-item legend-all";
   all.setAttribute("role", "checkbox");
   all.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
-  all.setAttribute("aria-label", "Show all top artists");
-  all.textContent = "All";
+  all.title = on === top.length ? "Hide all top artists" : "Show all top artists";
+  all.setAttribute("aria-label", all.title);
   all.addEventListener("click", () => showAll(top.map(([name]) => name), on !== top.length));
   card.querySelector(".top-legend").replaceChildren(...(top.length ? [all] : []), ...top.map(([n, k]) => item(n, k)));
 }
