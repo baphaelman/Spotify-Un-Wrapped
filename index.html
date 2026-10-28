@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spotify (Un)Wrapped</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Spotify <span class="muted">(Un)</span>Wrapped</h1>
+    <nav class="tabs">
+      <button id="tab-you" type="button" class="tab active">Your stats</button>
+      <button id="tab-community" type="button" class="tab">Community</button>
+    </nav>
+    <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
+  </header>
+
+  <main>
+    <!-- Landing: drop zone -->
+    <section id="landing" class="landing">
+      <label id="dropzone" class="dropzone" for="file-input">
+        <input id="file-input" type="file" multiple accept=".json,.zip">
+        <strong>Drop your Spotify data here</strong>
+        <span>The <code>my_spotify_data.zip</code> file, its folder, or the <code>Streaming_History_Audio_*.json</code> files</span>
+        <span class="muted small">Your files are read in your browser and never uploaded.</span>
+      </label>
+      <label class="share-optin">
+        <input id="share-optin" type="checkbox">
+        <span>Also add an anonymous summary of my listening to the community pool</span>
+      </label>
+      <p class="muted small share-note">
+        Only totals are shared: hours, play counts, your top 500 artists and tracks with hours, and your
+        weekday × hour listening grid. No timestamps, IP addresses, devices or locations. You can preview it
+        and remove it any time.
+      </p>
+      <p id="status" class="status" role="status"></p>
+      <details class="howto">
+        <summary>How do I get my data?</summary>
+        <ol>
+          <li>Go to <a href="https://www.spotify.com/account/privacy/" target="_blank" rel="noopener">Spotify → Privacy settings</a> and scroll to <em>Download your data</em>.</li>
+          <li>Check <em>Extended streaming history</em> and click <em>Request data</em>.</li>
+          <li>Spotify emails you a zip (can take a few days). Drop it above.</li>
+        </ol>
+      </details>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="dashboard" hidden>
+      <div class="filters">
+        <label>Period
+          <select id="year-filter"></select>
+        </label>
+        <button id="reset" class="ghost" type="button">Load different data</button>
+        <span class="spacer"></span>
+        <span id="share-state" class="muted small"></span>
+        <button id="share-preview" class="ghost" type="button">Preview shared data</button>
+        <button id="share-toggle" type="button" hidden></button>
+      </div>
+
+      <div id="stats" class="stats"></div>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Who you were listening to</h2>
+            <p class="muted" id="rolling-sub"></p>
+          </div>
+          <div class="controls">
+            <label>Artists <input id="n-artists" type="range" min="3" max="8" value="8"><output id="n-artists-out">8</output></label>
+            <label>Smoothing <input id="window" type="range" min="7" max="180" step="1" value="30"><output id="window-out">30d</output></label>
+            <label class="check"><input id="include-other" type="checkbox"> Include everyone else</label>
+          </div>
+        </div>
+        <div id="chart-rolling" class="chart tall"></div>
+      </article>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Top artists</h2>
+          <ol id="top-artists" class="toplist"></ol>
+        </article>
+        <article class="card">
+          <h2>Top tracks</h2>
+          <ol id="top-tracks" class="toplist"></ol>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Hours per month</h2>
+        <div id="chart-monthly" class="chart"></div>
+      </article>
+
+      <article class="card">
+        <h2>When you listen</h2>
+        <p class="muted">Hours by weekday and hour of day, in your local time zone</p>
+        <div id="chart-clock" class="chart"></div>
+      </article>
+    </section>
+
+    <!-- Community -->
+    <section id="community" class="dashboard" hidden>
+      <p id="community-status" class="status" role="status"></p>
+      <div id="community-empty" class="card empty" hidden></div>
+      <div id="community-body" hidden>
+        <div id="community-stats" class="stats"></div>
+
+        <article class="card">
+          <h2>How much people listen</h2>
+          <p class="muted" id="hist-sub">Contributors by total hours listened</p>
+          <div id="chart-hist" class="chart"></div>
+        </article>
+
+        <article class="card" id="fan-card">
+          <h2>Your artists in the community</h2>
+          <p class="muted">How your hours compare with everyone else who listens to them</p>
+          <ol id="fan-ranks" class="toplist"></ol>
+        </article>
+
+        <article class="card">
+          <h2>Time of day</h2>
+          <p class="muted">Share of listening by hour of day</p>
+          <div id="chart-hours" class="chart"></div>
+        </article>
+
+        <div class="grid-2">
+          <article class="card">
+            <h2>Most shared artists</h2>
+            <p class="muted">By number of contributors who listen</p>
+            <ol id="community-artists" class="toplist"></ol>
+          </article>
+          <article class="card">
+            <h2>Most shared tracks</h2>
+            <p class="muted">By number of contributors who listen</p>
+            <ol id="community-tracks" class="toplist"></ol>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="preview-dialog">
+    <div class="dialog-head">
+      <h2>What gets shared</h2>
+      <button id="preview-close" class="ghost" type="button" aria-label="Close">✕</button>
+    </div>
+    <p class="muted small">This exact JSON is sent, and nothing else.</p>
+    <pre id="preview-json"></pre>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
