@@ -498,9 +498,8 @@ function applyPalette() {
     if (colors) style.setProperty(`--series-${i + 1}`, colors[i]);
     else style.removeProperty(`--series-${i + 1}`);
   }
-  // The dot is a color wheel blended from the chart's colors, closing back on the first
-  const c = paletteColors(paletteKey);
-  $("palette-button").style.background = `conic-gradient(${[...c, c[0]].join(", ")})`;
+  // The picker is a pill of the chart's colors, blended left to right
+  $("palette-button").style.background = `linear-gradient(to right, ${paletteColors(paletteKey).join(", ")})`;
 }
 
 function choosePalette(key) {
