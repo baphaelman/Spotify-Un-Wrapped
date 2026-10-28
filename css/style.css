@@ -29,7 +29,7 @@
   --shade-band: 0.2;
   --shade-hover: 0.4;
   --shade-line: 0.1;
-  --shade-dim: 0.1;
+  --shade-dim: 0.05;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,7 +62,7 @@
     --shade-band: 0.1;
     --shade-hover: 0.3;
     --shade-line: 0.05;
-    --shade-dim: 0.05;
+    --shade-dim: 0.025;
   }
 }
 
@@ -95,7 +95,7 @@
   --shade-band: 0.1;
   --shade-hover: 0.3;
   --shade-line: 0.05;
-  --shade-dim: 0.05;
+  --shade-dim: 0.025;
 }
 
 * { box-sizing: border-box; }
