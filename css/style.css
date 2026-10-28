@@ -24,10 +24,12 @@
   --seq-3: #2a78d6;
   --seq-4: #184f95;
   --seq-5: #0d366b;
-  /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line */
+  /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line, and the
+     other bands while one is hovered */
   --shade-band: 0.2;
   --shade-hover: 0.45;
   --shade-line: 0.25;
+  --shade-dim: 0.15;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -60,6 +62,7 @@
     --shade-band: 0.05;
     --shade-hover: 0.2;
     --shade-line: 0.05;
+    --shade-dim: 0.025;
   }
 }
 
@@ -92,6 +95,7 @@
   --shade-band: 0.05;
   --shade-hover: 0.2;
   --shade-line: 0.05;
+  --shade-dim: 0.025;
 }
 
 * { box-sizing: border-box; }

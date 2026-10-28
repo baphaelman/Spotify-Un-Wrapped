@@ -18,8 +18,9 @@ function tokens() {
     series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--series-${i}`)),
     seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
     // Rolling chart fills, set per theme: the share of the artist's color mixed into the surface for a
-    // band at rest and a hovered band, and the opacity under a hovered hours line
-    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), line: +v("--shade-line") },
+    // band at rest, a hovered band, and the other bands while one is hovered; and the opacity under a
+    // hovered hours line
+    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), dim: +v("--shade-dim"), line: +v("--shade-line") },
   };
 }
 
@@ -162,9 +163,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
 
-  // Fills stay opaque tints, not transparency, because bands overlap down to the axis
-  const fills = colors.map((c) => mix(t.surface, c, t.shade.band));
-
   // Cumulative share over visible series; a hidden series collapses onto the band below it
   const top = names.map(() => new Array(data.dates.length));
   const bottom = names.map(() => new Array(data.dates.length));
@@ -193,8 +191,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
-  // Share: lit bands are filled in more strongly (t.shade.hover); the rest keep their resting tint
-  const bandFill = (k, lit) => (lit.has(k) ? mix(t.surface, colors[k], t.shade.hover) : fills[k]);
+  // Fills are opaque tints, not transparency, because bands overlap down to the axis.
+  // Share: lit bands are filled in more strongly (t.shade.hover). The rest keep their resting tint, or
+  // dim slightly (t.shade.dim) while a band is hovered; pinned artists lit at rest don't dim them
+  const bandFill = (k, lit, hovering = false) =>
+    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : hovering ? t.shade.dim : t.shade.band);
   // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill
   const lineLook = (k, lit) => ({
     width: lit.has(k) ? 3 : 2,
@@ -353,7 +354,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   );
 
   // Share mode: highlight the band under the pointer by filling it in more strongly (t.shade.hover),
-  // leaving every other band at its resting tint. The hovered band's edge overlays draw its whole
+  // dimming every other band a little (t.shade.dim). The hovered band's edge overlays draw its whole
   // border, bottom included.
   const lit = () => (focused == null ? base : new Set([...base, focused]));
   const focusBand = (sIndex) => {
@@ -363,7 +364,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.flatMap((_, k) => [
-        { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
+        { id: `s${k}`, areaStyle: { color: bandFill(k, on, focused != null) } },
         { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
         { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
       ]),
