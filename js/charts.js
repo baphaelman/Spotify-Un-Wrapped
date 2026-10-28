@@ -295,7 +295,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       .map((p) => ({ p, share: data.share[sIdx(p)][i], hours: data.hours[sIdx(p)][i] }))
       // Drop anyone who would read as 0%
       .filter((r) => r.share >= 0.005)
-      .sort((a, b) => b.share - a.share)
+      // Top band first, so the rows read in the same order as the bands under the pointer
+      .sort((a, b) => sIdx(b.p) - sIdx(a.p))
       .map((r) => row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused));
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
