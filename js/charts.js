@@ -442,9 +442,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
 }
 
-// HTML legend in the artist panel above a rolling chart: hover highlights an artist, click shows/hides
-// them. Pinned artists go in their own column, each with an × that unpins them; the rest fill the top
-// artists column. "Everyone else" isn't listed: its include toggle sits under the column (index.html).
+// HTML legend in the Artists panel above a rolling chart: hover highlights an artist, click shows/hides
+// them. The top artists sit above the search, pinned ones below it, each pinned chip outlined in its
+// artist's color with an × that unpins it. "Everyone else" isn't listed: it's a switch in the Graph panel.
 function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, pins }) {
   const card = el.closest(".card");
   const item = (name, k) => {
@@ -477,15 +477,13 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, pin
     });
     const wrap = document.createElement("span");
     wrap.className = "legend-pin";
+    wrap.style.setProperty("--c", colors[k]);
     wrap.append(b, x);
     return wrap;
   };
   const shown = names.map((name, k) => [name, k]).filter(([, k]) => k !== otherIdx);
   const pinned = shown.filter(([name]) => pins?.has(name));
-  const hint = document.createElement("p");
-  hint.className = "legend-hint";
-  hint.textContent = "None yet";
-  card.querySelector(".pinned-legend").replaceChildren(...(pinned.length ? pinned.map(([n, k]) => item(n, k)) : [hint]));
+  card.querySelector(".pinned-legend").replaceChildren(...pinned.map(([n, k]) => item(n, k)));
   card.querySelector(".top-legend").replaceChildren(...shown.filter(([name]) => !pins?.has(name)).map(([n, k]) => item(n, k)));
 }
 

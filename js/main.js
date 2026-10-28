@@ -239,7 +239,7 @@ function renderRollingChart(zoom, morph = false) {
   const n = Number($("n-artists").value);
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
-  $("n-artists-out").textContent = `Top ${n}`;
+  $("n-artists-out").textContent = n;
   $("window-out").textContent = `${window} days`;
   $("window").setAttribute("aria-valuetext", `${window} days`);
   for (const id of ["n-artists", "window"]) paintSlider($(id));
@@ -284,7 +284,7 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
 }
 
 // The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
-const otherToggle = $("include-other").closest("label");
+const otherToggle = $("include-other").closest(".setting");
 otherToggle.addEventListener("pointerenter", () => {
   if ($("include-other").checked) focusArtist($("chart-rolling"), "Everyone else");
 });
