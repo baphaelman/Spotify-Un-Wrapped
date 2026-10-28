@@ -364,17 +364,10 @@ const fmtArtistHours = (h) => (h < 1 ? "<1 h" : `${Math.round(h).toLocaleString(
 let results = [];
 let active = -1;
 
-// A new pin's band is highlighted for a moment, so the reader can see where it landed in the stack
-const PIN_FLASH_MS = 1600;
-let flashTimer = 0;
-
 function pin(name) {
   if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
   state.pinned = [...state.pinned, name];
   renderRollingChart(currentZoom($("chart-rolling")));
-  focusArtist($("chart-rolling"), name);
-  clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => focusArtist($("chart-rolling"), null), PIN_FLASH_MS);
 }
 
 function unpin(name) {

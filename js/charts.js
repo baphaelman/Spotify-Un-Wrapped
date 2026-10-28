@@ -191,6 +191,18 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     });
   const overlayStyle = (s, on) => ({ width: 2, color: colors[s], opacity: on && share ? 1 : 0, cap: "round", join: "round" });
 
+  // The artists drawn highlighted: the pinned ones by default, or just the one under the pointer (or
+  // hovered in the legend or a list) while there is one. Built into the options below as well as applied
+  // on hover, so a re-render or a mode morph keeps the pinned artists lit.
+  const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
+  // Share: lit bands are filled in (HOVER_FILL) and the rest emptied to their outline; none lit = at rest
+  const bandFill = (k, lit) => (!lit.size ? fills[k] : lit.has(k) ? mix(t.surface, colors[k], HOVER_FILL) : t.surface);
+  // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill
+  const lineLook = (k, lit) => ({
+    width: lit.has(k) ? 3 : 2,
+    opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
+  });
+
   const series = names
     .map((name, s) => {
       const hide = !share && s === otherIdx;
@@ -206,12 +218,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // the artist count) would otherwise paint over everything below them
         z: (share ? 2 : 3) + (names.length - s) / 100,
         // Share: the line on each band's top edge is its border with the band above
-        lineStyle: { width: 2, color: colors[s], opacity: hide ? 0 : 1, cap: "round", join: "round" },
+        lineStyle: {
+          ...(share ? { width: 2, opacity: 1 } : lineLook(s, base)),
+          color: colors[s],
+          cap: "round",
+          join: "round",
+        },
         // Every series ignores the pointer; the plot works out what's under it from the data (see zrMove).
         silent: true,
         // Hours mode keeps an invisible fill, so the hovered line's shading and the morph back into
         // bands can fade it in rather than have it appear
-        areaStyle: { color: share ? fills[s] : colors[s], opacity: share ? 1 : 0, origin: "start" },
+        areaStyle: {
+          color: share ? bandFill(s, base) : colors[s],
+          opacity: share ? 1 : !hide && base.has(s) ? LINE_SHADE : 0,
+          origin: "start",
+        },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
         // hand instead (see focusBand below). Hours mode: built-in emphasis on the hovered line.
         emphasis: share
@@ -236,7 +257,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
           symbol: "none",
           color: colors[s],
           z: 4,
-          lineStyle: overlayStyle(s, false),
+          lineStyle: overlayStyle(s, base.has(s)),
           areaStyle: null,
           emphasis: { disabled: true },
           data: edgeData(s, side),
@@ -336,36 +357,34 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Share mode: highlight the band under the pointer by emptying every other band down to its outline
   // and filling the hovered one in (HOVER_FILL), strongly enough to stand out even when the bands are
   // unshaded. The hovered band's edge overlays draw its whole border, bottom included.
-  const focusFill = (k, sIndex) => (sIndex == null ? fills[k] : sIndex === k ? mix(t.surface, colors[k], HOVER_FILL) : t.surface);
+  const lit = () => (focused == null ? base : new Set([focused]));
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;
     focused = sIndex;
+    const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.flatMap((_, k) => [
-        { id: `s${k}`, areaStyle: { color: focusFill(k, sIndex) } },
-        { id: `t${k}`, lineStyle: overlayStyle(k, k === sIndex) },
-        { id: `b${k}`, lineStyle: overlayStyle(k, k === sIndex) },
+        { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
+        { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
+        { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
       ]),
     }, undefined, 200);
   };
   // Hours mode: thicken one line and fade the rest, by restyling directly (ECharts' own blur state is
   // cleared on every pointer move over empty plot space, which is all of it once lines are silent).
-  // With LINE_SHADE on, only the focused line gets a faint fill; nothing is filled at rest.
+  // With LINE_SHADE on, only a lit line gets a faint fill; nothing is filled at rest.
   const focusLine = (k) => {
     if (k === focused) return;
     focused = k;
+    const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
-      series: names.map((_, j) => {
-        const gone = j === otherIdx;
-        const on = k == null || j === k;
-        return {
-          id: `s${j}`,
-          lineStyle: { width: j === k ? 3 : 2, opacity: gone ? 0 : on ? 1 : 0.2 },
-          areaStyle: { opacity: !gone && j === k ? LINE_SHADE : 0 },
-        };
-      }),
+      series: names.map((_, j) => ({
+        id: `s${j}`,
+        lineStyle: lineLook(j, on),
+        areaStyle: { opacity: j !== otherIdx && on.has(j) ? LINE_SHADE : 0 },
+      })),
     }, undefined, 200);
   };
 
