@@ -716,7 +716,7 @@ function paintClock(plays = shownPlays()) {
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden), includeOther);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther);
 }
 
 // Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
