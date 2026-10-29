@@ -1317,9 +1317,32 @@ $("palette-menu").addEventListener("keydown", (e) => {
 });
 applyPalette();
 
-$("theme-toggle").addEventListener("click", () => {
+let themeSwapping = false;
+function flipTheme() {
   document.documentElement.dataset.theme = isDark() ? "light" : "dark";
   rerenderForTheme();
+}
+// The new theme is revealed by a circle growing from the toggle over the old one, so the charts (redrawn, not
+// restyled) change with the page instead of snapping.
+$("theme-toggle").addEventListener("click", async () => {
+  const root = document.documentElement;
+  if (!document.startViewTransition || !dur(MORPH_MS) || themeSwapping) return flipTheme();
+  const b = $("theme-toggle").getBoundingClientRect();
+  const x = b.left + b.width / 2, y = b.top + b.height / 2;
+  const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  themeSwapping = true;
+  root.classList.add("theme-swap");
+  const t = document.startViewTransition(flipTheme);
+  try {
+    await t.ready;
+    root.animate(
+      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+      { duration: MORPH_MS, easing: EASE_IN_OUT.css, pseudoElement: "::view-transition-new(root)" }
+    );
+    await t.finished;
+  } catch {}
+  root.classList.remove("theme-swap");
+  themeSwapping = false;
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderForTheme);
 

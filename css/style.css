@@ -781,6 +781,18 @@ dialog pre {
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 /* Settings: a gear beside the theme toggle, opening a small menu of what can be done with the loaded data.
    The menu hangs from the gear's right edge, so it opens leftward. */
+/* Theme toggle: dark is a moon (a disc slid over the orb), light a sun (disc gone, orb shrunk, rays out). Turns on the
+   same tier as the page's reveal. */
+#theme-toggle { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
+#theme-toggle:hover { color: var(--text-primary); }
+#theme-toggle svg { transition: transform var(--motion-morph) var(--ease-in-out); transform: rotate(-40deg); }
+#theme-toggle :is(.orb, .moon-cut, .rays) { transform-box: fill-box; transform-origin: center; transition: transform var(--motion-morph) var(--ease-in-out), opacity var(--motion-morph) var(--ease-in-out); }
+#theme-toggle .moon-cut { transform: translate(3.4px, -3px); }
+#theme-toggle .rays { transform: scale(0.4); opacity: 0; }
+:root[data-theme="light"] #theme-toggle svg { transform: rotate(180deg); }
+:root[data-theme="light"] #theme-toggle .orb { transform: scale(0.68); }
+:root[data-theme="light"] #theme-toggle .moon-cut { transform: translate(9px, -9px); }
+:root[data-theme="light"] #theme-toggle .rays { transform: none; opacity: 1; }
 .settings { position: relative; display: flex; }
 #settings-button { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
 #settings-button:hover, #settings-button[aria-expanded="true"] { color: var(--text-primary); }
@@ -938,6 +950,11 @@ body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: bac
 .stat:hover { transform: translateY(-2px); border-color: var(--axis); }
 button:not(:disabled):active { transform: scale(0.96); }
 .toplist li { transition: background-color var(--motion-fade) var(--ease-out); }
+
+/* Flipping the theme reveals the new one in a circle growing from the toggle (main.js, a view transition). The
+   colors snap underneath it, so the usual cross-fade is off while it runs. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.theme-swap :is(body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu) { transition: none !important; }
 
 /* The period label swaps with a quick slide when the period changes */
 #year-label.swap { animation: pop var(--motion-fade) var(--ease-out); }
