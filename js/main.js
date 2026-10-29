@@ -421,7 +421,7 @@ for (const btn of document.querySelectorAll("#smoothify button")) {
   btn.addEventListener("click", () => {
     state.smoothify = Number(btn.dataset.level);
     for (const b of document.querySelectorAll("#smoothify button")) b.setAttribute("aria-pressed", b === btn);
-    renderRollingChart(currentZoom($("chart-rolling")));
+    renderRollingChart(currentZoom($("chart-rolling")), true);
   });
 }
 
@@ -436,7 +436,9 @@ let pending = 0;
 for (const id of ["n-artists", "window", "include-other"]) {
   $(id).addEventListener("input", () => {
     cancelAnimationFrame(pending);
-    pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling"))));
+    // Only the "Everyone else" switch animates: the sliders re-render continuously as they drag
+    const morph = id === "include-other";
+    pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling")), morph));
   });
 }
 

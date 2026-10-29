@@ -1,5 +1,7 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
+import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded } from "./motion.js";
+
 const instances = new Map();
 
 function tokens() {
@@ -90,40 +92,36 @@ const row = (color, value, label, strong = false) =>
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
 
-// ECharts applies style changes instantly, and re-rendering every frame is too slow (~20ms) to tween
-// them, so fades animate the drawn shapes directly: note each series' fill and line as drawn, apply the
-// new options, then animate every shape from the old look to the new. This reaches into ECharts
-// internals (each series view's _polygon and _polyline, as of 5.6); without them, changes just snap.
-const pickStyle = (st) =>
-  Object.fromEntries(["fill", "stroke", "opacity", "lineWidth"].filter((k) => st[k] != null).map((k) => [k, st[k]]));
-function drawnShapes(c) {
-  const shapes = new Map();
-  for (const m of c.getModel()?.getSeries() ?? []) {
-    const v = c.getViewOfSeriesModel?.(m);
-    if (v?._polygon) shapes.set(`${m.id}:area`, v._polygon);
-    if (v?._polyline) shapes.set(`${m.id}:line`, v._polyline);
+const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
+
+// Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
+// from, or shrinks to, zero thickness on top of the stack. Returns true if it handled this render (share
+// mode, same artists and window, "Everyone else" newly on or off), false for a plain render.
+//  - On: draw the old data with a zero-thickness band added (instantly), then morph to the new data.
+//  - Off: morph the new data with a zero-thickness band kept on top, then redraw without it.
+function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth) {
+  const st = rollingState.get(el);
+  if (!st || mode !== "share" || st.mode !== "share" || st.hasOther === hasOther || st.window !== window) return false;
+  if (artistsOf(st.names, st.hasOther).join("\u0000") !== artistsOf(names, hasOther).join("\u0000")) return false;
+  if (!data.share.length) return false;
+  const flat = (d) => ({
+    ...d,
+    share: [...d.share, d.dates.map((_, i) => (d.share[0][i] == null ? null : 0))],
+    hours: [...d.hours, d.dates.map(() => 0)],
+  });
+  if (hasOther) {
+    const [oldData, , , , , , , , oldSmooth] = st.args;
+    renderRolling(el, flat(oldData), names, window, zoom, mode, true, false, pins, slots, oldSmooth);
+    renderRolling(el, data, names, window, zoom, mode, true, ms, pins, slots, smooth);
+  } else {
+    renderRolling(el, flat(data), [...names, "Everyone else"], window, zoom, mode, true, ms, pins, slots, smooth);
+    const token = rollingState.get(el).renderToken;
+    setTimeout(() => {
+      if (rollingState.get(el)?.renderToken !== token) return; // something re-rendered since
+      renderRolling(el, data, names, window, currentZoom(el), mode, false, false, pins, slots, smooth);
+    }, ms);
   }
-  return shapes;
-}
-function setOptionFaded(c, option, opts, ms) {
-  const shapes = drawnShapes(c);
-  const before = new Map([...shapes].map(([k, e]) => [k, pickStyle(e.style)]));
-  // Stop earlier fades first: zrender moves a running animation onto the new style object ECharts
-  // swaps in, so one left running would paint its old target over the new look
-  for (const e of shapes.values()) e.stopAnimation("fade");
-  c.setOption(option, opts);
-  if (!ms) return;
-  for (const [k, e] of drawnShapes(c)) {
-    const to = pickStyle(e.style);
-    const from = before.get(k) ?? { ...to, opacity: 0 }; // a shape that just appeared fades in
-    // Fading from or to invisible changes only opacity: tweening the color as well would show a
-    // blend of the two colors partway, though neither end shows any color at all
-    let end = to;
-    if (from.opacity === 0) Object.assign(from, { fill: to.fill, stroke: to.stroke });
-    else if (to.opacity === 0) end = { ...from, opacity: 0 };
-    e.setStyle(from);
-    e.animateTo({ style: end }, { duration: ms, easing: "cubicOut", scope: "fade", done: () => e.setStyle(to) });
-  }
+  return true;
 }
 
 // mode "share": stacked bands of each artist's share of listening (the original rolling_window.py).
@@ -145,7 +143,13 @@ function setOptionFaded(c, option, opts, ms) {
 // slots: optional palette slot per artist (aligned with names), so colors can follow the artist; by default
 // an artist's color is their position.
 // smooth: 0..1, how much each curve is rounded into a spline (the data itself is blurred by the caller).
+//
+// morph: false to redraw without animation, or true (or a duration in ms) to tween from what's drawn to the
+// new data, styles and smoothing. Switching "Everyone else" on or off morphs too, through a stand-in band
+// of zero thickness (see withOtherMorph).
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
+  const ms = morph ? (morph === true ? MORPH_MS : morph) : 0;
+  if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
   const c = chart(el);
   const share = mode === "share";
@@ -159,10 +163,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (!st || st.names.join("\u0000") !== names.join("\u0000")) {
     // Keep the old pointer handlers' references, so they're removed below rather than left running
     // against the previous artists alongside the new ones
-    st = { names, selected: Object.fromEntries(names.map((n) => [n, true])), zrMove: st?.zrMove, zrOut: st?.zrOut };
+    // Hidden artists stay hidden when only "Everyone else" came or went
+    const same = st && artistsOf(st.names, st.hasOther).join("\u0000") === artistsOf(names, hasOther).join("\u0000");
+    st = {
+      names,
+      selected: Object.fromEntries(names.map((n) => [n, same ? st.selected[n] ?? true : true])),
+      zrMove: st?.zrMove,
+      zrOut: st?.zrOut,
+    };
     rollingState.set(el, st);
   }
-  st.args = [data, names, window, zoom, mode, hasOther, pins, slots];
+  st.hasOther = hasOther;
+  st.window = window;
+  st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
 
@@ -366,7 +379,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // No animation on first draw or data changes; only morphs between modes tween
       animation: true,
       animationDuration: 0,
-      animationDurationUpdate: morph ? 750 : 0,
+      animationDurationUpdate: ms,
       animationEasingUpdate: "cubicInOut",
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: 12, bottom: 72 },
@@ -418,7 +431,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     },
     // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade
     { notMerge: !morph },
-    morph ? 750 : 0
+    ms
   );
   clipEdges();
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
@@ -429,7 +442,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         animationDurationUpdate: 0,
         series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursFillOpacity } })),
       }, undefined, 300);
-    }, 750);
+    }, ms);
   }
 
   // Share mode: highlight the band under the pointer by filling it in more strongly (t.shade.hover),
@@ -447,7 +460,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
         { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
       ]),
-    }, undefined, 200);
+    }, undefined, FADE_MS);
     clipEdges();
   };
   // Hours mode: thicken one line and fade the rest, by restyling directly (ECharts' own blur state is
@@ -464,7 +477,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         lineStyle: lineLook(j, on),
         areaStyle: { opacity: j !== otherIdx && on.has(j) ? hoursFillOpacity : 0 },
       })),
-    }, undefined, 200);
+    }, undefined, FADE_MS);
   };
 
   // Highlight an artist from outside the plot (legend, top lists): their band in share mode, their
@@ -549,8 +562,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 
   // Showing or hiding artists re-stacks the bands around them, as a morph
   const restack = () => {
-    const [d, n, w, , m, o, p, sl] = st.args;
-    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl);
+    const [d, n, w, , m, o, p, sl, sm] = st.args;
+    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl, sm);
   };
   renderLegend(el, names, colors, visible, otherIdx, {
     hover: (name) => st.focusArtist(name),
