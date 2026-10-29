@@ -208,17 +208,22 @@ button.ghost:hover { background: var(--border); }
 .filters .period { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
 .filters .step { padding: 6px 10px; }
 .filters .step:disabled { opacity: 0.3; cursor: default; }
+/* The period bar is a panel of its own, a step lighter than the page and the cards, outlined and rounded.
+   Pinned to the top it floats a little below the edge with a soft shadow, and a band of page color above
+   it (the first shadow) hides the content scrolling past in that gap. */
 .filters.sticky {
   position: sticky;
-  top: 0;
+  top: 8px;
   z-index: 10;
-  margin: 0 -16px 16px;
-  padding: 10px 16px;
-  background: var(--page);
-  border-bottom: 1px solid transparent;
-  transition: border-color var(--motion-fade) var(--ease-out);
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: box-shadow var(--motion-fade) var(--ease-out);
 }
-.filters.sticky.stuck { border-bottom-color: var(--border); }
+.filters.sticky.stuck { box-shadow: 0 -9px 0 0 var(--page), 0 10px 28px -6px rgba(0, 0, 0, 0.45); }
+:root[data-theme="light"] .filters.sticky.stuck { box-shadow: 0 -9px 0 0 var(--page), 0 10px 28px -8px rgba(0, 0, 0, 0.16); }
 
 /* The period bar is the page's one navigation: presets and the exact dates on the first row, then the brush
    (js/brush.js), a timeline of listening with a window on it. Dragging the window picks any stretch of days. */

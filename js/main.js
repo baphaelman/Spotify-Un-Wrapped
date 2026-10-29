@@ -347,10 +347,11 @@ $("year-menu").addEventListener("keydown", (e) => {
   }
 });
 
-// Hairline under the period bar once it's pinned to the top
+// Shadow under the period bar once it's pinned near the top (its sticky offset)
 window.addEventListener("scroll", () => {
   const bar = document.querySelector(".filters.sticky");
-  bar.classList.toggle("stuck", bar.getBoundingClientRect().top <= 0 && window.scrollY > 0);
+  const top = parseFloat(getComputedStyle(bar).top) || 0;
+  bar.classList.toggle("stuck", bar.getBoundingClientRect().top <= top + 0.5 && window.scrollY > 0);
 }, { passive: true });
 
 // A preset or step pans the chart sideways between periods of about the same length, and zooms (a longer
