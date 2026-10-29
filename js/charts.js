@@ -656,6 +656,7 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
     const chip = document.createElement("span");
     chip.className = "legend-item" + (pinned ? " pinned" : "") + (visible(k) ? "" : " hidden-artist");
     chip.style.setProperty("--c", colors[k]);
+    chip.dataset.artist = name;
     const sw = document.createElement("button");
     sw.type = "button";
     sw.className = "swatch";

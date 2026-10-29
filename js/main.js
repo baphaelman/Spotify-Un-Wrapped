@@ -422,8 +422,8 @@ function shownPlays() {
 function renderDependents() {
   const plays = shownPlays();
   renderStats(plays);
-  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
-  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
+  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, { pin: true, box: true });
+  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist, { pin: true });
   paintMonthly(plays);
   renderClock($("chart-clock"), agg.clock(plays));
   paintTopLists();
@@ -461,7 +461,7 @@ function renderStats(plays) {
 
 // artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered.
 // pinnable: clicking a row pins or unpins that artist. paintTopLists colors the rows afterwards.
-function renderTopList(ol, items, detail, artistOf, pinnable = false) {
+function renderTopList(ol, items, detail, artistOf, { pin: pinnable = false, box: withBox = false } = {}) {
   const max = items[0]?.hours || 1;
   renderList(
     ol,
@@ -485,17 +485,19 @@ function renderTopList(ol, items, detail, artistOf, pinnable = false) {
       li.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePin(artistOf(items[i])); }
       });
-      const box = document.createElement("button");
-      box.type = "button";
-      box.className = "swatch show-box";
-      box.setAttribute("aria-pressed", "true");
-      box.addEventListener("click", (e) => {
-        e.stopPropagation();
-        focusArtist($("chart-rolling"), null);
-        toggleArtist($("chart-rolling"), artistOf(items[i]));
-      });
-      box.addEventListener("keydown", (e) => e.stopPropagation());
-      li.prepend(box);
+      if (withBox) {
+        const box = document.createElement("button");
+        box.type = "button";
+        box.className = "swatch show-box";
+        box.setAttribute("aria-pressed", "true");
+        box.addEventListener("click", (e) => {
+          e.stopPropagation();
+          focusArtist($("chart-rolling"), null);
+          toggleArtist($("chart-rolling"), artistOf(items[i]));
+        });
+        box.addEventListener("keydown", (e) => e.stopPropagation());
+        li.prepend(box);
+      }
       const mark = document.createElement("span");
       mark.className = "pin-mark";
       mark.innerHTML = PIN_SVG; // constant markup, no user data
@@ -525,14 +527,30 @@ function paintTopLists() {
       li.classList.toggle("pinned", pinned);
       if (ol.classList.contains("pinnable")) {
         const box = li.querySelector(".show-box");
-        const inChart = slot !== undefined;
-        box.disabled = !inChart;
-        box.setAttribute("aria-label", inChart ? `Hide ${name}` : `${name} isn't in the chart`);
-        box.title = inChart ? "Hide this artist everywhere" : "Not in the chart, so it can't be hidden";
+        if (box) {
+          const inChart = slot !== undefined;
+          box.disabled = !inChart;
+          box.setAttribute("aria-label", inChart ? `Hide ${name}` : `${name} isn't in the chart`);
+          box.title = inChart ? "Hide this artist everywhere" : "Not in the chart, so it can't be hidden";
+        }
         li.setAttribute("aria-pressed", pinned);
         li.title = pinned ? "Click to unpin" : "Click to pin to the chart";
       }
     });
+  }
+  paintFocus();
+}
+
+// The hovered artist lights everything that belongs to them, as pinning does: their rows in both lists, and
+// their entries in the legends (the chart's own, and the monthly key; the mix key and bar are lit in mix.js)
+let listFocus = null;
+function paintFocus(name = listFocus) {
+  listFocus = name;
+  for (const id of ["top-artists", "top-tracks"]) {
+    [...$(id).children].forEach((li, i) => li.classList.toggle("focus", name != null && $(id)._artists?.[i] === name));
+  }
+  for (const item of document.querySelectorAll("#monthly-legend [data-artist], .chart-legend [data-artist]")) {
+    item.classList.toggle("focus", name != null && item.dataset.artist === name);
   }
 }
 
@@ -687,6 +705,7 @@ function paintMonthly(plays = shownPlays()) {
     item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "") + (off ? " hidden-artist" : "");
     const color = `var(--series-${state.colorSlots.get(n) + 1})`;
     item.style.setProperty("--c", color);
+    item.dataset.artist = n;
     item.title = off ? `Show ${n}` : pinned ? `Unpin ${n}` : `Pin ${n}`;
     const sw = document.createElement("button");
     sw.type = "button";
@@ -722,6 +741,7 @@ function paintMonthly(plays = shownPlays()) {
   restName.dataset.text = rest.title;
   rest.append(restSw, restName);
   $("monthly-legend").replaceChildren(...key, rest);
+  paintFocus();
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
@@ -748,6 +768,7 @@ function renderMix(artists, slots, includeOther, pins) {
 setupMix((name) => focusArtist($("chart-rolling"), name));
 onFocusChange($("chart-rolling"), (name) => {
   highlightMix(name);
+  paintFocus(name);
   focusMonthly($("chart-monthly"), name);
   brushFocus = name;
   paintBrush();
