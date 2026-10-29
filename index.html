@@ -75,15 +75,19 @@
           <div>
             <h2>Top Artists View</h2>
             <p class="muted" id="rolling-sub"></p>
+          <div class="tav-controls">
+            <div class="artist-search">
+              <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
+                role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
+                aria-label="Search artists to pin to the chart">
+              <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
+            </div>
+            <div class="chart-legend pinned-legend"></div>
+          </div>
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
-              <span class="toggle-label" id="smoothify-label">Smoothing</span>
-              <div id="smoothify" class="segmented" role="group" aria-labelledby="smoothify-label">
-                <button type="button" data-level="0" aria-pressed="true">Off</button>
-                <button type="button" data-level="1" aria-pressed="false">Low</button>
-                <button type="button" data-level="2" aria-pressed="false">High</button>
-              </div>
               <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
                 <button type="button" data-mode="share" aria-pressed="true">Share</button>
                 <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
@@ -105,17 +109,15 @@
               </div>
             </div>
             </div>
+            <div class="tav-smooth">
+              <span class="toggle-label" id="smoothify-label">Smoothing</span>
+              <div id="smoothify" class="segmented" role="group" aria-labelledby="smoothify-label">
+                <button type="button" data-level="0" aria-pressed="true">Off</button>
+                <button type="button" data-level="1" aria-pressed="false">Low</button>
+                <button type="button" data-level="2" aria-pressed="false">High</button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="tav-controls">
-          <div class="artist-search">
-            <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
-              role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
-              aria-label="Search artists to pin to the chart">
-            <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
-          </div>
-          <div class="chart-legend pinned-legend"></div>
         </div>
         <div class="tav-legend">
           <div class="chart-legend top-legend"></div>
