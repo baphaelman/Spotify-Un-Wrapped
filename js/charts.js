@@ -601,7 +601,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, showAll, pins }) {
   const card = el.closest(".card");
   // A chip is a swatch button (shows or hides the artist) and a name button (pins or unpins them). The
-  // swatch is an outline in the artist's color that fills in on hover and stays filled while pinned.
+  // swatch is filled in the artist's color while they're shown, and an outline when hidden.
   const item = (name, k) => {
     const pinned = !!pins?.has(name);
     const chip = document.createElement("span");

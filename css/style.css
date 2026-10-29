@@ -504,7 +504,7 @@ dialog pre {
 }
 .legend-item:hover { background: var(--border); }
 .legend-item button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-/* The swatch is the artist's color as an outline; it fills in on hover and stays filled while pinned */
+/* The swatch is filled in the artist's color while they're shown in the chart, and an outline when hidden */
 .chart-legend .legend-item .swatch {
   width: 10px;
   height: 10px;
@@ -513,7 +513,7 @@ dialog pre {
   box-shadow: inset 0 0 0 1.5px var(--c);
   transition: background 0.12s;
 }
-.chart-legend .legend-item:hover .swatch, .chart-legend .legend-item.pinned .swatch { background: var(--c); }
+.chart-legend .legend-item .swatch[aria-pressed="true"] { background: var(--c); }
 .chart-legend .legend-item .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-legend .legend-item.hidden-artist { opacity: 0.4; }
 .chart-legend .legend-item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
