@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { FADE_MS, GROW_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
+import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
 
 const instances = new Map();
 
@@ -249,8 +249,8 @@ function panTo(el, from, to, { ms, easing }, done, yMax) {
 // by two silent overlay lines, its top (t) and bottom (b), drawn above every band and inset slightly so
 // neighbors' borders sit side by side. Hours mode hides them.
 //
-// pins: optional { has(name), unpin(name), toggle(name) } for artists the reader pinned; their legend chips
-// get an ×, and clicking a band or line in the plot calls toggle.
+// pins: optional { has(name), unpin(name), toggle(name) } for artists the reader pinned; clicking a band or
+// line in the plot calls toggle.
 // slots: optional palette slot per artist (aligned with names), so colors can follow the artist; by default
 // an artist's color is their position.
 // smooth: 0..1, how much each curve is rounded into a spline (the data itself is blurred by the caller).
@@ -561,7 +561,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: 12, bottom: 28 },
-      // Hidden: it only holds which artists are shown. The visible legend is HTML (renderLegend), so
+      // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (main.js paintArtistKey), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },
       tooltip: {
@@ -751,12 +751,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     for (const name of list) if (name in st.selected) st.selected[name] = show;
     restack();
   };
-  renderLegend(el, names, colors, visible, otherIdx, {
-    hover: (name) => st.focusArtist(name),
-    toggle: (name) => c.dispatchAction({ type: "legendToggleSelect", name }),
-    showAll: st.showAll,
-    pins,
-  });
 
   // (legendToggleSelect fires legendselectchanged; other legend actions fire the other two)
   for (const ev of ["legendselectchanged", "legendselected", "legendunselected"]) {
@@ -770,77 +764,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
   hiddenNames.set(el, hidden);
   selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
-}
-
-// HTML legend in the Artists panel above a rolling chart: hover highlights an artist, clicking the swatch shows/hides
-// them and clicking the name pins them. The top artists sit above the search, led by a small checkbox that shows or hides them
-// together; pinned ones sit below it, each outlined in its artist's color with an × that unpins it.
-// "Everyone else" isn't listed: it's a switch in the panel's corner.
-function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, showAll, pins }) {
-  const card = el.closest(".card");
-  // A chip is a swatch button (shows or hides the artist) and a name button (pins or unpins them). The
-  // swatch is filled in the artist's color while they're shown, and an outline when hidden.
-  const item = (name, k) => {
-    const pinned = !!pins?.has(name);
-    const chip = document.createElement("span");
-    chip.className = "legend-item" + (pinned ? " pinned" : "") + (visible(k) ? "" : " hidden-artist");
-    chip.style.setProperty("--c", colors[k]);
-    chip.dataset.artist = name;
-    const sw = document.createElement("button");
-    sw.type = "button";
-    sw.className = "swatch";
-    sw.setAttribute("aria-pressed", visible(k));
-    sw.setAttribute("aria-label", `${visible(k) ? "Hide" : "Show"} ${name}`);
-    sw.title = visible(k) ? "Hide" : "Show";
-    sw.addEventListener("click", () => toggle(name));
-    const label = document.createElement("button");
-    label.type = "button";
-    label.className = "name";
-    label.textContent = name; // artist names come from user files
-    label.title = pins ? (pinned ? `Unpin ${name}` : `Pin ${name}`) : name;
-    if (pins) label.setAttribute("aria-pressed", pinned);
-    label.addEventListener("click", () => (pins ? pins.toggle(name) : toggle(name)));
-    chip.append(sw, label);
-    chip.addEventListener("pointerenter", () => hover(name));
-    chip.addEventListener("pointerleave", () => hover(null));
-    if (!pinned) return chip;
-    const x = document.createElement("button");
-    x.type = "button";
-    x.className = "legend-unpin";
-    x.textContent = "×";
-    x.setAttribute("aria-label", `Unpin ${name}`);
-    x.title = "Unpin";
-    x.addEventListener("click", () => {
-      hover(null);
-      pins.unpin(name);
-    });
-    chip.append(x);
-    return chip;
-  };
-  const shown = names.map((name, k) => [name, k]).filter(([, k]) => k !== otherIdx);
-  const pinned = shown.filter(([name]) => pins?.has(name));
-  // Pinning can add a chip row (or remove one), so the controls grow or shrink instead of snapping, and
-  // everything below slides with them
-  const controls = card.querySelector(".tav-controls");
-  const heightBefore = controls.offsetHeight;
-  card.querySelector(".pinned-legend").replaceChildren(...pinned.map(([n, k]) => item(n, k)));
-  const heightAfter = controls.offsetHeight;
-  if (heightBefore !== heightAfter && dur(GROW_MS)) {
-    controls.animate([{ height: `${heightBefore}px`, overflow: "hidden" }, { height: `${heightAfter}px`, overflow: "hidden" }], { duration: GROW_MS, easing: EASE_OUT.css });
-  }
-  const top = shown.filter(([name]) => !pins?.has(name));
-  // Checked when every unpinned artist is shown, mixed when some are; a click shows them all, or hides
-  // them all once they're all shown
-  const on = top.filter(([, k]) => visible(k)).length;
-  const all = document.createElement("button");
-  all.type = "button";
-  all.className = "legend-item legend-all";
-  all.setAttribute("role", "checkbox");
-  all.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
-  all.title = on === top.length ? "Hide all top artists" : "Show all top artists";
-  all.setAttribute("aria-label", all.title);
-  all.addEventListener("click", () => showAll(top.map(([name]) => name), on !== top.length));
-  card.querySelector(".top-legend").replaceChildren(...(top.length ? [all] : []), ...top.map(([n, k]) => item(n, k)));
 }
 
 // Show or hide an artist in a rolling chart from elsewhere on the page (what unticking their legend box does)

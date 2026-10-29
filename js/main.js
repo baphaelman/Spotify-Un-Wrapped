@@ -419,6 +419,7 @@ function liveSettleChart() {
     renderRollingChart(periodZoom(), ms && { ms, live: true }, null, false);
     liveTail = () => {
       if (mixArgs) renderMix(...mixArgs);
+      paintArtistKey();
       paintBrush(undefined, ms ? { ms, ease: EASE_OUT.js } : null);
     };
   }
@@ -454,6 +455,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   if (!state.plays) return;
   renderDependents();
   if (mixArgs) renderMix(...mixArgs);
+  paintArtistKey();
   paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });
 
@@ -572,7 +574,7 @@ function joinLitRows(ol) {
 }
 
 // The hovered artist lights everything that belongs to them, as pinning does: their rows in both lists, and
-// their entries in the legends (the chart's own, and the monthly key; the mix key and bar are lit in mix.js)
+// their chip in the period bar's key (the mix bar is lit in mix.js)
 let listFocus = null;
 function paintFocus(name = listFocus) {
   listFocus = name;
@@ -580,7 +582,7 @@ function paintFocus(name = listFocus) {
     [...$(id).children].forEach((li, i) => li.classList.toggle("focus", name != null && $(id)._artists?.[i] === name));
     joinLitRows($(id));
   }
-  for (const item of document.querySelectorAll("#monthly-legend [data-artist], .chart-legend [data-artist]")) {
+  for (const item of document.querySelectorAll("#artist-key [data-artist]")) {
     item.classList.toggle("focus", name != null && item.dataset.artist === name);
   }
 }
@@ -679,6 +681,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
     // the steps of a sweep change neither the artists nor their colors
     paintTopLists();
     renderMix(artists, slots, includeOther, pins);
+    paintArtistKey();
     paintMonthly();
     paintClock();
     paintBrush();
@@ -721,7 +724,7 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
-// When you listened, split into the chart's artists (same colors, pins and hover)
+// When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
 function paintClock(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , includeOther, pins] = mixArgs;
@@ -729,11 +732,9 @@ function paintClock(plays = shownPlays()) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, 0.5);
-  $("clock-legend").replaceChildren(...artistKey(keyed, pins, hover, { all: true, other: includeOther }));
-  paintFocus();
 }
 
-// Total hours per month with the chart's artists picked out (same colors, pins and hover), each month's top artist on top, with its own key beneath
+// Total hours per month with the chart's artists picked out (same colors, pins and hover), each month's top artist on top
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -743,22 +744,31 @@ function paintMonthly(plays = shownPlays()) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden));
-  $("monthly-legend").replaceChildren(...artistKey(keyed, pins, hover));
-  paintFocus();
 }
 
-// The key under a chart drawn from the rolling chart's artists: a chip per artist whose box shows or hides them
-// and whose name pins them, lit on hover, then "Everyone else" in gray (not pinnable) when other is set. With all,
-// it's led by a box that shows or hides every artist in the key at once, like the rolling chart's.
-function artistKey(keyed, pins, hover, { all: withAll = false, other = true } = {}) {
-  // Deselected artists stay in the key, dimmed, so they can be ticked back on
-  const key = keyed.map((n) => {
+// The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
+// colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
+// them everywhere. Pinned chips are outlined, with an × that unpins. It's led by a box that shows or hides every
+// unpinned artist at once. Chips that stay glide to their new places when the artists change.
+function paintArtistKey() {
+  if (!mixArgs) return;
+  const [artists, , , pins] = mixArgs;
+  // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
+  const keyed = artists.filter((a) => state.colorSlots.has(a));
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  const key = $("artist-key");
+  const chips = (root) => new Map([...root.querySelectorAll("[data-artist]")].map((el) => [el.dataset.artist, el]));
+  const before = new Map([...chips(key)].map(([n, el]) => [n, el.getBoundingClientRect()]));
+  // Rebuilding drops keyboard focus, so it goes back to the same control in the new chip
+  const focused = key.contains(document.activeElement) ? document.activeElement : null;
+  const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];
+
+  const items = keyed.map((n) => {
     const off = state.hidden.includes(n);
     const pinned = !off && pins.has(n);
     const item = document.createElement("span");
     item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "") + (off ? " hidden-artist" : "");
-    const color = `var(--series-${state.colorSlots.get(n) + 1})`;
-    item.style.setProperty("--c", color);
+    item.style.setProperty("--c", `var(--series-${state.colorSlots.get(n) + 1})`);
     item.dataset.artist = n;
     item.title = off ? `Show ${n}` : pinned ? `Unpin ${n}` : `Pin ${n}`;
     const sw = document.createElement("button");
@@ -772,30 +782,33 @@ function artistKey(keyed, pins, hover, { all: withAll = false, other = true } = 
       hover(null);
       pins.hide(n);
     });
-    const label = document.createElement("span");
+    const label = document.createElement("button");
+    label.type = "button";
     label.className = "name";
     label.textContent = n; // artist names come from user files
     label.dataset.text = n; // read by the CSS that reserves the bold width
+    label.setAttribute("aria-label", item.title);
     item.append(sw, label);
+    if (pinned) {
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "legend-unpin";
+      x.textContent = "×";
+      x.title = `Unpin ${n}`;
+      x.setAttribute("aria-label", x.title);
+      x.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hover(null);
+        pins.unpin(n);
+      });
+      item.append(x);
+    }
     item.addEventListener("pointerenter", () => hover(n));
     item.addEventListener("pointerleave", () => hover(null));
     item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));
     return item;
   });
-  // Everyone else isn't an artist, so it's keyed but not pinnable
-  const rest = document.createElement("span");
-  rest.className = "legend-item mix-legend-item";
-  rest.title = "Everyone else";
-  const restSw = document.createElement("span");
-  restSw.className = "swatch";
-  restSw.style.background = "var(--other)";
-  const restName = document.createElement("span");
-  restName.className = "name";
-  restName.textContent = rest.title;
-  restName.dataset.text = rest.title;
-  rest.append(restSw, restName);
-  if (!withAll) return other ? [...key, rest] : key;
-  // As in the rolling chart's legend, the box leaves pinned artists alone. Checked when every unpinned artist is
+  // As in the rolling chart, the box leaves pinned artists alone. Checked when every unpinned artist is
   // shown, mixed when some are; a click shows them all, or hides them all once they're all shown
   const top = keyed.filter((n) => !pins.has(n));
   const on = top.filter((n) => !state.hidden.includes(n)).length;
@@ -807,7 +820,14 @@ function artistKey(keyed, pins, hover, { all: withAll = false, other = true } = 
   box.title = on === top.length ? "Hide all top artists" : "Show all top artists";
   box.setAttribute("aria-label", box.title);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
-  return [...(top.length ? [box] : []), ...key, ...(other ? [rest] : [])];
+  key.replaceChildren(...(top.length ? [box] : []), ...items);
+  flip(before, chips(key));
+  if (refocus) {
+    const [n, cls] = refocus;
+    const chip = n == null ? null : chips(key).get(n);
+    (n == null ? key.querySelector(".legend-all") : chip?.querySelector(`[class="${cls}"]`) ?? chip?.querySelector(".name"))?.focus({ preventScroll: true });
+  }
+  paintFocus();
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period

@@ -74,7 +74,7 @@ reply. They judge the result in their own browser, so don't hand back without a 
   (style and curve-rounding tweens for line and bar series) and `sweep` (steps a value through keyframes
   with chained morphs). It also holds the DOM helpers `tweenNumber`,
   `flip` (FLIP glide keyed by name) and `dur` (0 under reduced motion). The mix bar (`mix.js`) keeps one
-  segment and legend entry per artist and animates `left`/`width` itself, so a period change slides the
+  segment per artist and animates `left`/`width` itself, so a period change slides the
   artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
   matched across renders the same way (`lists.js`).
 - `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
@@ -189,9 +189,12 @@ week), and switching between them morphs.
   stacking: a highlighted band shows all the way down to the axis. Keep `triggerEmphasis: false` on the
   **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every
   shape into the highlight state.
-- **The legend is HTML (`renderLegend`).** The ECharts legend is hidden and only holds which artists
-  are shown. Hover calls `focusArtist`; a click dispatches `legendToggleSelect`, which re-stacks the
-  bands as a morph.
+- **The legend is HTML, and there's one for the whole page:** the artist key in the sticky period bar
+  (`paintArtistKey` in `main.js`), beside the search that pins and, on the bar's first row, "Everyone else"
+  and the Artists slider. No graph has a key of its own. The ECharts legend is hidden and only holds which
+  artists are shown. Hover calls `focusArtist`; a box click goes through `toggleArtist`/`showArtists`, which
+  dispatch `legendToggleSelect` and re-stack the bands as a morph. Repaint the key wherever the chart's
+  artists, pins or selection change (the rolling chart's followers, `onSelectionChange`, `liveTail`).
 - **Clicking the plot toggles the hovered artist's pin** (`st.zrClick`, through `pins.toggle`). It uses
   the same `pick` as hover, so the clicked band is always the one that was highlighted. "Everyone else"
   isn't pinnable. Zrender only fires `click` after a `mousedown`, which matters when scripting tests.

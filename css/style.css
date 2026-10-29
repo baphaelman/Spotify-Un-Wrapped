@@ -366,23 +366,33 @@ button.ghost:hover { background: var(--border); }
 .tav-sliders .slider { grid-template-columns: 56px 96px; column-gap: 8px; align-items: center; width: auto; }
 .tav-sliders .slider-label { text-align: right; font-size: 11px; color: var(--text-muted); }
 .tav-sliders .ticks { grid-column: 2; }
-.tav-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 14px 0 0; }
-.tav-controls .artist-search { flex: none; width: 200px; }
-/* Pinned chips: each stays on one line (long names ellipsize), and the row wraps between chips */
-.tav-controls .pinned-legend { width: 100%; min-width: 0; }
-.tav-controls .legend-item.pinned { flex: none; max-width: 100%; white-space: nowrap; }
-.tav-legend { display: flex; align-items: flex-start; gap: 8px 12px; margin: 18px 0 8px; }
-/* Every item shares a 24px first row, centered, so the palette dot, the select-all box, the toggle and the
-   smoothing select stay level whether the legend takes one row or wraps to two */
-.tav-legend > * { min-height: 24px; }
-.tav-legend .other-toggle { flex: none; }
 .tav-smooth select { height: 24px; box-sizing: border-box; }
-.tav-legend .chart-legend { flex: 0 1 auto; min-width: 0; gap: 4px 12px; }
-.tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
-.tav-legend .legend-item:hover { background: transparent; color: var(--text-primary); }
-.tav-legend .other-toggle { margin-left: 0; padding: 0; background: transparent; font-size: 11px; user-select: none; }
-/* No pill when checked here: the swatch's fill already says so, and the pill would hug the text */
-.tav-legend .other-toggle:has(input:checked) { background: transparent; }
+
+/* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist.
+   The chips share one row, shrinking rather than wrapping so the bar keeps its height as the artists change:
+   each takes an equal share of the room but no more than its name needs, so only long names ellipsize. */
+.bar-artists { flex: 1 0 100%; display: flex; align-items: center; gap: 8px 12px; min-width: 0; }
+.bar-artists .artist-search { flex: none; width: 190px; }
+.bar-artists .artist-search input { height: 28px; font-size: 12px; }
+.bar-artists .artist-key { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 2px; }
+.artist-key .legend-item { flex: 1 1 0; max-width: max-content; padding: 3px 8px; border-color: transparent; font-size: 12px; color: var(--text-secondary); }
+.artist-key .legend-item:hover { color: var(--text-primary); }
+.artist-key .legend-item .swatch, .artist-key .legend-unpin { flex: none; }
+.artist-key .legend-item .name { padding: 0; }
+.artist-key .legend-item.pinned { border-color: var(--c); color: var(--text-primary); padding-right: 0; }
+.artist-key .legend-item .legend-unpin { padding: 0 6px 0 2px; }
+/* "Everyone else" and the artist count, on the bar's first row beside the window lengths */
+.bar-opts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+.bar-opts + .period-resize { margin-left: 0; }
+.bar-opts .other-toggle { flex: none; margin-left: 0; padding: 4px 10px; font-size: 12px; user-select: none; }
+.bar-opts .slider { flex: none; grid-template-columns: auto 88px; column-gap: 8px; align-items: center; width: auto; }
+.bar-opts .slider-label { font-size: 11px; color: var(--text-muted); }
+.bar-opts .ticks { grid-column: 2; }
+@media (max-width: 700px) {
+  .bar-artists { flex-wrap: wrap; }
+  .bar-artists .artist-search { flex: 1 1 160px; }
+  .bar-artists .artist-key { order: 3; flex: 1 0 100%; flex-wrap: wrap; }
+}
 
 /* "Everyone else": a pill in the Share/Hours toggle's style, the faint track tint when off and the
    chosen option's stronger tint when on, with its band's gray swatch. The checkbox inside is hidden. */
@@ -588,7 +598,7 @@ dialog pre {
   .tabs { order: 3; width: 100%; margin: 0; }
 }
 
-/* Artist chips: the top artists above the search, pinned ones below it */
+/* Artist chips (the period bar's key) */
 .chart-legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .chart-legend:empty { display: none; }
 /* Show/hide all: a small muted checkbox ahead of the top artists, checked, mixed or empty. No chip,
@@ -763,8 +773,6 @@ dialog pre {
 .mix-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .mix-total { display: grid; justify-items: end; gap: 2px; }
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-#mix-legend { position: relative; margin: 14px 0 12px; }
-#clock-legend { margin: 14px 0 4px; }
 .mix-legend-item { cursor: default; }
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }
@@ -797,9 +805,6 @@ dialog pre {
 .mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
 .mix-seg.pinned:hover { background: color-mix(in srgb, var(--c) 44%, var(--surface)); }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
-/* The chart legend's pinned chip trims its right padding to make room for an unpin x; this legend has
-   none, so keep the box the size it was */
-#mix-legend .mix-legend-item.pinned, #monthly-legend .mix-legend-item.pinned, #clock-legend .mix-legend-item.pinned { padding-right: 10px; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
 .mix-legend-item .name::after {

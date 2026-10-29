@@ -76,6 +76,17 @@
           <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
         </div>
         <div id="period-range" class="period-range" aria-live="off"></div>
+        <!-- Artist settings for every graph: the gray "Everyone else" and how many artists to show -->
+        <div class="bar-opts">
+          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
+          <div class="slider">
+            <label class="slider-label" for="n-artists">Artists</label>
+            <input id="n-artists" type="range" min="3" max="10" step="1" value="8">
+            <div class="ticks" aria-hidden="true">
+              <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span><span data-v="9">9</span><span data-v="10">10</span>
+            </div>
+          </div>
+        </div>
         <!-- Sets the window's length, keeping its right edge where it is -->
         <div id="period-resize" class="segmented solid period-resize" role="group" aria-label="Window length">
           <button type="button" data-months="3" aria-pressed="false">3m</button>
@@ -94,6 +105,17 @@
           </div>
           <div id="brush-years" class="brush-years" aria-hidden="true"></div>
         </div>
+        <!-- The artists every graph shows: search to pin one, then a chip per artist (main.js paintArtistKey) -->
+        <div class="bar-artists">
+          <div class="artist-search">
+            <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
+              role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
+              aria-label="Search artists to pin to the chart">
+            <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
+          </div>
+          <div id="artist-key" class="chart-legend artist-key"></div>
+        </div>
       </div>
 
       <div id="stats" class="stats"></div>
@@ -103,16 +125,6 @@
           <div>
             <h2>Top Artists View</h2>
             <p class="muted" id="rolling-sub"></p>
-          <div class="tav-controls">
-            <div class="artist-search">
-              <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
-                role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
-                aria-label="Search artists to pin to the chart">
-              <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
-            </div>
-            <div class="chart-legend pinned-legend"></div>
-          </div>
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
@@ -120,15 +132,19 @@
                 <button type="button" data-mode="share" aria-pressed="true">Share</button>
                 <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
               </div>
-            </div>
-            <div class="tav-sliders">
-            <div class="slider">
-              <label class="slider-label" for="n-artists">Artists</label>
-              <input id="n-artists" type="range" min="3" max="10" step="1" value="8">
-              <div class="ticks" aria-hidden="true">
-                <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span><span data-v="9">9</span><span data-v="10">10</span>
+              <div class="tav-smooth">
+                <span class="toggle-label" id="smoothify-label">Smoothing</span>
+                <select id="smoothify" aria-labelledby="smoothify-label">
+                  <option value="auto" selected>Auto</option>
+                  <option value="0">Off</option>
+                  <option value="1">Low</option>
+                  <option value="2">Med</option>
+                  <option value="3">High</option>
+                  <option value="4">Max</option>
+                </select>
               </div>
             </div>
+            <div class="tav-sliders">
             <div class="slider">
               <label class="slider-label" for="window">Window</label>
               <input id="window" type="range" min="0" max="5" step="1" value="3" aria-valuetext="45 days">
@@ -137,21 +153,6 @@
               </div>
             </div>
             </div>
-          </div>
-        </div>
-        <div class="tav-legend">
-          <div class="chart-legend top-legend"></div>
-          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
-          <div class="tav-smooth">
-            <span class="toggle-label" id="smoothify-label">Smoothing</span>
-            <select id="smoothify" aria-labelledby="smoothify-label">
-              <option value="auto" selected>Auto</option>
-              <option value="0">Off</option>
-              <option value="1">Low</option>
-              <option value="2">Med</option>
-              <option value="3">High</option>
-              <option value="4">Max</option>
-            </select>
           </div>
         </div>
         <div class="chart-wrap">
@@ -167,7 +168,6 @@
           </div>
           <div class="mix-total"><span id="mix-total-label" class="panel-title">Total listening</span><span id="mix-total" class="mix-total-value"></span></div>
         </div>
-        <div class="chart-legend" id="mix-legend"></div>
         <div id="mix-bar" class="mix-bar" role="img"></div>
       </article>
 
@@ -186,13 +186,11 @@
         <h2>Hours per month</h2>
         <p class="muted">Each month's top artist on top</p>
         <div id="chart-monthly" class="chart"></div>
-        <div class="chart-legend" id="monthly-legend"></div>
       </article>
 
       <article class="card">
         <h2>When you listened</h2>
         <p class="muted">Who you listen to through each day of the week, as a share of that time, in your local time zone</p>
-        <div class="chart-legend" id="clock-legend"></div>
         <div id="chart-clock" class="chart"></div>
       </article>
     </section>
