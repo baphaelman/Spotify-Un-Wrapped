@@ -830,11 +830,17 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
+  // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
+  // changes, so the old chart fades out over the new one instead of the bars growing in again
+  const crossfade =
+    fresh && prev && prev.span === span && prev.rows.length === rows.length && +prev.rows[0]?.month === +rows[0]?.month && dur(MORPH_MS) > 0;
   // Rebuilding under an open tooltip (a click pinning a new artist in) leaves it filling a removed element
   if (fresh && prev) c.dispatchAction({ type: "hideTip" });
+  if (crossfade) fadeOutFrame(el, t.surface);
   setOptionFaded(
     c,
     {
+      animation: !crossfade,
       animationDuration: ENTER_MS,
       animationDurationUpdate: MORPH_MS,
       animationEasingUpdate: EASE_IN_OUT.echarts,
@@ -948,6 +954,33 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   c.off("click");
   c.on("mouseover", (p) => (slice = pickable(artistOf(p)) ? artistOf(p) : null));
   c.on("mouseout", () => (slice = null));
+}
+
+// Lay a copy of the chart's current frame over it and fade it out (MORPH_MS), so whatever is drawn next crossfades
+// in. A copy still fading from an earlier call is folded into the new one, at the opacity it has reached.
+function fadeOutFrame(el, background) {
+  const src = el.querySelector("canvas");
+  if (!src) return;
+  const copy = document.createElement("canvas");
+  copy.width = src.width;
+  copy.height = src.height;
+  const ctx = copy.getContext("2d");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, copy.width, copy.height);
+  ctx.drawImage(src, 0, 0);
+  for (const old of el.querySelectorAll(".chart-fade")) {
+    ctx.globalAlpha = +getComputedStyle(old).opacity;
+    ctx.drawImage(old, 0, 0);
+    old.remove();
+  }
+  copy.className = "chart-fade";
+  Object.assign(copy.style, { position: "absolute", left: 0, top: 0, width: src.style.width, height: src.style.height, pointerEvents: "none", zIndex: 1 });
+  if (getComputedStyle(el).position === "static") el.style.position = "relative";
+  el.append(copy);
+  copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MORPH_MS, easing: EASE_IN_OUT.css, fill: "forwards" }).finished.then(
+    () => copy.remove(),
+    () => {}
+  );
 }
 
 // The artists in the spotlight: the pinned ones, and the one hovered
