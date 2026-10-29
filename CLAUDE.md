@@ -51,6 +51,9 @@ own folder, so no agent sees another's half-finished edits.
 - `js/aggregate.js`: pure functions for top lists, monthly totals, the 7×24 clock and `rolling()`, a
   port of the Python script that uses prefix sums.
 - `js/charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling`.
+- `js/motion.js`: shared chart motion. Durations (`MORPH_MS`, `FADE_MS`), `setOptionFaded` (style and
+  curve-rounding tweens) and `sweep` (steps a value through keyframes with chained morphs). New charts
+  should take their timings and animation helpers from here.
 - `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
   sharing, theme.
 - `js/lists.js`: ranked lists and stat tiles.
@@ -76,6 +79,11 @@ week), and switching between them morphs.
 - **The Hours view keeps an invisible fill (`opacity: 0`) under every line,** so the hovered line's
   shading and the morph back into bands fade in. A fill created mid-update would appear at full
   strength in its final shape.
+- **`morph` is `false`, `true`/ms, or `{ms, easing}`.** Re-renders that keep the same series and point
+  count can morph. Where a straight point-to-point tween would only crossfade, **sweep** instead
+  (`motion.js`): smoothify steps through blur radii, and the window slider steps through window sizes,
+  drawing each step on the final chart's date points (`rolling`'s `gridWindow`) so counts match. Toggling
+  "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
 - **Colors follow the artist, not the stack position.** `assignSlots` in `main.js` gives each artist a
