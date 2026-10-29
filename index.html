@@ -78,7 +78,8 @@
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
-              <div id="smoothify" class="segmented" role="group" aria-label="Smoothify: round off the curves">
+              <span class="toggle-label" id="smoothify-label">Smoothing</span>
+              <div id="smoothify" class="segmented" role="group" aria-labelledby="smoothify-label">
                 <button type="button" data-level="0" aria-pressed="true">Off</button>
                 <button type="button" data-level="1" aria-pressed="false">Low</button>
                 <button type="button" data-level="2" aria-pressed="false">High</button>
@@ -97,7 +98,7 @@
               </div>
             </div>
             <div class="slider">
-              <label class="slider-label" for="window">Smoothing</label>
+              <label class="slider-label" for="window">Window</label>
               <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
               <div class="ticks" aria-hidden="true">
                 <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
