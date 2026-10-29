@@ -138,6 +138,14 @@ export function rangeHours(table, from, to) {
 const START_MIN_SHARE = 0.2; // of the median window's hours, for the chart to begin
 
 
+// The index of the first point whose window holds at least a fifth of the typical window's listening (the
+// median over points with any), or -1 if nothing was played
+export function leadIn(totals) {
+  const played = totals.filter((x) => x > 0).sort((a, b) => a - b);
+  const typical = played[Math.floor(played.length / 2)];
+  return typical ? totals.findIndex((x) => x >= typical * START_MIN_SHARE) : -1;
+}
+
 // Port of rolling_window.py: a centered rolling sum of daily hours per artist,
 // converted to each artist's share of listening at that point in time.
 // Edges where the window doesn't fully fit are dropped (pandas min_periods=window).
@@ -174,9 +182,7 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
   // typical window's listening (the median over points with any). A chart with nothing is left alone.
   // The totals are all listening, not just the artists drawn, so every artist set (and "Everyone else" on or
   // off) starts on the same date. Charts tween point by point, and shifted dates would pair the wrong points.
-  const totals = everyoneTotals;
-  const typical = totals.filter((x) => x > 0).sort((a, b) => a - b)[Math.floor(totals.filter((x) => x > 0).length / 2)];
-  const lead = typical ? totals.findIndex((x) => x >= typical * START_MIN_SHARE) : -1;
+  const lead = leadIn(everyoneTotals);
   if (lead > 0) {
     dates.splice(0, lead);
     for (const arr of [...hours, ...share]) arr.splice(0, lead);

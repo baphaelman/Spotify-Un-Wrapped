@@ -645,9 +645,10 @@ function paintBrush() {
     };
   });
   const days = dates.map(agg.dayIndex);
-  // The timeline begins where the chart's data does, which depends on the artists shown (the chart cuts
-  // off the stretch before they were listened to), so a smaller window can cut off more
-  setBrushBands({ start: Math.max(extent().lo, days[0]), days, bands }, brushMorph);
+  // The timeline begins where the drawn artists' listening does, not where the chart's data does (that's the
+  // same for every artist set, so charts can morph), so a smaller window can cut off more
+  const lead = Math.max(0, agg.leadIn(dates.map((_, k) => names.reduce((t, _n, i) => t + (raw.hours[i][k] ?? 0), 0))));
+  setBrushBands({ start: Math.max(extent().lo, days[lead]), days, bands }, brushMorph);
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period

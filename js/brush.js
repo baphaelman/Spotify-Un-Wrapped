@@ -114,16 +114,20 @@ export function setBrushData(first, last, min = first) {
 export function setBrushBands(next, morph) {
   clearTimeout(morphTimer);
   cancelAnimationFrame(morphRaf);
+  $("brush-track").classList.remove("morphing");
   const prev = bands;
   const ms = dur(morph?.ms ?? 0);
   const same = prev && next.days.length === prev.days.length && next.days[0] === prev.days[0] && next.bands.length === prev.bands.length;
   if (!ms || !same) return applyBands(next);
   morphTimer = setTimeout(() => {
     const t0 = performance.now();
+    // The window is repositioned every frame as the timeline's left end moves, so it mustn't also ease
+    $("brush-track").classList.add("morphing");
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / ms);
       applyBands(t === 1 ? next : blend(prev, next, easeInOut(t)));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
+      else $("brush-track").classList.remove("morphing");
     };
     morphRaf = requestAnimationFrame(tick);
   }, morph.delay ?? 0);
@@ -133,7 +137,7 @@ function applyBands(next) {
   bands = next;
   // The timeline starts where the bands do (`start`, a day index), but not under the reader's hand: the
   // pointer is mapped to days by it, so it waits for the drag to end
-  if (next.start != null && !drag && model) model.first = Math.min(next.start, model.last);
+  if (next.start != null && !drag && model) model.first = Math.min(Math.round(next.start), model.last);
   draw();
   position();
 }
@@ -143,6 +147,7 @@ function blend(a, b, e) {
   const mix = (x, y) => y.map((v, i) => (v == null || x[i] == null ? v : x[i] + (v - x[i]) * e));
   return {
     ...b,
+    start: a.start + (b.start - a.start) * e, // the timeline's left end glides too
     bands: b.bands.map((band, k) => ({
       ...band,
       lo: mix(a.bands[k].lo, band.lo),
