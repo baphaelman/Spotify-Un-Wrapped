@@ -955,6 +955,8 @@ button:not(:disabled):active { transform: scale(0.96); }
    the old light page shrinks back into it, so it sits on top. The colors snap underneath, so the usual cross-fade
    is off while it runs. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* Going light, the new page starts hidden, or it shows whole for the frames before the circle starts growing */
+.theme-swap:not(.to-dark)::view-transition-new(root) { clip-path: circle(0); }
 .to-dark::view-transition-old(root) { z-index: 2; }
 .to-dark::view-transition-new(root) { z-index: 1; }
 .theme-swap :is(body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu) { transition: none !important; }
