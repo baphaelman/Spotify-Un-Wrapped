@@ -548,7 +548,8 @@ dialog pre {
 }
 .toplist .bar.muted-bar { background: var(--other); }
 /* Rows share the rolling chart's colors (--c, set in main.js); pinned artists get a tinted card */
-.toplist li { position: relative; border-radius: 8px; margin: 0 -8px; padding: 6px 8px; }
+/* A clear top and bottom border keeps adjacent tinted rows apart without changing the row pitch */
+.toplist li { position: relative; border-radius: 8px; margin: 0 -8px; padding: 5px 8px; border-block: 1px solid transparent; background-clip: padding-box; }
 .toplist li .name small { color: var(--text-muted); }
 .toplist li[style*="--c"] .name small { color: var(--c); }
 .toplist.pinnable li { cursor: pointer; }
