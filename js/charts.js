@@ -840,7 +840,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
       tooltip: {
         ...tooltipBase(t),
         trigger: "axis",
-        axisPointer: { type: "shadow", shadowStyle: { color: t.grid, opacity: 0.35 } },
+        // The tooltip follows the column, without shading it
+        axisPointer: { type: "none" },
         formatter: (ps) => {
           const r = rows[ps[0].dataIndex];
           const { hours, top } = barView(st, r);
