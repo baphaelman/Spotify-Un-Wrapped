@@ -242,7 +242,7 @@ window.addEventListener("scroll", () => {
 function renderAll(keepZoom) {
   const plays = agg.filterYear(state.plays, state.year);
   renderStats(plays);
-  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name);
+  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
   renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
   renderRollingChart(keepZoom ?? periodZoom());
   renderMonthly($("chart-monthly"), agg.monthly(plays));
@@ -260,8 +260,9 @@ function renderStats(plays) {
   ]);
 }
 
-// artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered
-function renderTopList(ol, items, detail, artistOf) {
+// artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered.
+// pinnable: clicking a row pins or unpins that artist. paintTopLists colors the rows afterwards.
+function renderTopList(ol, items, detail, artistOf, pinnable = false) {
   const max = items[0]?.hours || 1;
   renderList(
     ol,
@@ -272,10 +273,51 @@ function renderTopList(ol, items, detail, artistOf) {
       frac: item.hours / max,
     }))
   );
+  ol.classList.toggle("pinnable", pinnable);
+  ol._artists = items.map(artistOf);
   [...ol.children].forEach((li, i) => {
     li.addEventListener("pointerenter", () => focusArtist($("chart-rolling"), artistOf(items[i])));
     li.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
+    if (pinnable) {
+      li.tabIndex = 0;
+      li.setAttribute("role", "button");
+      li.addEventListener("click", () => togglePin(artistOf(items[i])));
+      li.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePin(artistOf(items[i])); }
+      });
+      const mark = document.createElement("span");
+      mark.className = "pin-mark";
+      mark.innerHTML = PIN_SVG; // constant markup, no user data
+      li.append(mark);
+    }
   });
+}
+
+const PIN_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M9.5 1.5 14.5 6.5 12.6 7.4 10.7 10.2 11 12 9.9 13.1 7.5 10.7 3.4 14.8 2.5 13.9 6.6 9.8 4.2 7.4 5.3 6.3 7.1 6.6 9.9 4.7 10.8 2.8Z"/></svg>';
+
+function togglePin(name) {
+  if (state.pinned.includes(name)) unpin(name);
+  else pin(name);
+}
+
+// Rows take their artist's color in the rolling chart (the bars match the stack above); artists outside
+// the chart stay gray. Pinned artists' rows are highlighted, tracks included.
+function paintTopLists() {
+  for (const id of ["top-artists", "top-tracks"]) {
+    const ol = $(id);
+    [...ol.children].forEach((li, i) => {
+      const name = ol._artists?.[i];
+      const slot = state.chartNames?.includes(name) ? state.colorSlots.get(name) : undefined;
+      if (slot === undefined) li.style.removeProperty("--c");
+      else li.style.setProperty("--c", `var(--series-${slot + 1})`);
+      const pinned = state.pinned.includes(name);
+      li.classList.toggle("pinned", pinned);
+      if (ol.classList.contains("pinnable")) {
+        li.setAttribute("aria-pressed", pinned);
+        li.title = pinned ? "Click to unpin" : "Click to pin to the chart";
+      }
+    });
+  }
 }
 
 // ---------- Rolling chart (the original rolling_window.py) ----------
@@ -324,6 +366,7 @@ function renderRollingChart(zoom, morph = false) {
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
   }, assignSlots(artists), [0, 0.5, 0.75][strength]);
+  paintTopLists();
 }
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position

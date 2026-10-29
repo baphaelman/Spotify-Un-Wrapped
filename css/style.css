@@ -390,7 +390,7 @@ button.ghost:hover { background: var(--border); }
   grid-column: 2 / 4;
   height: 2px;
   border-radius: 1px;
-  background: var(--accent);
+  background: var(--c, var(--other));
 }
 
 @media (max-width: 800px) {
@@ -449,6 +449,20 @@ dialog pre {
   margin-left: 6px;
 }
 .toplist .bar.muted-bar { background: var(--other); }
+/* Rows share the rolling chart's colors (--c, set in main.js); pinned artists get a tinted card */
+.toplist li { position: relative; border-radius: 8px; margin: 0 -8px; padding: 6px 8px; }
+.toplist li .name small { color: var(--text-muted); }
+.toplist li[style*="--c"] .name small { color: var(--c); }
+.toplist.pinnable li { cursor: pointer; }
+.toplist.pinnable li:hover { background: color-mix(in srgb, var(--c, var(--text-muted)) 8%, transparent); }
+.toplist li.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); }
+.toplist li.pinned:hover { background: color-mix(in srgb, var(--c, var(--text-muted)) 20%, transparent); }
+.toplist li.pinned .name, .toplist li.pinned .rank { color: var(--c, var(--text-primary)); font-weight: 600; }
+.toplist li.pinned .name small { font-weight: 400; }
+.toplist li:focus-visible { outline: 2px solid var(--c, var(--accent)); outline-offset: -2px; }
+.toplist .pin-mark { display: none; position: absolute; top: 8px; right: 8px; color: var(--c, var(--text-muted)); }
+.toplist li.pinned .pin-mark { display: block; }
+.toplist.pinnable .val { margin-right: 16px; }
 
 @media (max-width: 600px) {
   .topbar { flex-wrap: wrap; row-gap: 8px; }
