@@ -637,3 +637,6 @@ dialog pre {
 .palette-option .name { flex: 1; }
 .palette-option .strip { display: flex; flex: none; border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
 .palette-option .strip span { width: 12px; height: 14px; }
+
+/* The picker sits at the card right edge, so its menu opens leftward */
+.tav-legend .palette-menu { left: auto; right: 0; }
