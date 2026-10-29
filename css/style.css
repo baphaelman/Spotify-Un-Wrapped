@@ -855,18 +855,21 @@ dialog pre {
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }
 /* Segments are placed by mix.js (left and width), so they can slide and resize as one animation */
-/* The bar is the top 92px; each artist's hours sit in the strip below their segment */
-.mix-bar { --mix-under: 22px; --mix-radius: 10px; position: relative; height: calc(92px + var(--mix-under)); margin-top: 12px; }
+/* The bar is the top 72px; each artist's hours sit in the strip below their segment */
+.mix-bar { --mix-under: 22px; --mix-radius: 10px; position: relative; height: calc(72px + var(--mix-under)); margin-top: 12px; }
 .mix-bar.empty::after {
   content: "No listening in this span"; position: absolute; inset: 0 0 var(--mix-under); display: grid; place-items: center;
   border-radius: var(--mix-radius); background: color-mix(in srgb, var(--text-primary) 5%, transparent); font-size: 12px; color: var(--text-muted);
 }
-.mix-hours {
-  position: absolute; bottom: 0; height: var(--mix-under); display: grid; align-items: end; justify-items: center; overflow: hidden;
+.mix-under {
+  position: absolute; bottom: 0; height: var(--mix-under); display: flex; align-items: flex-end; justify-content: center; gap: 6px; overflow: hidden;
   font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap;
   opacity: 0; pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out);
 }
-.mix-hours.fits { opacity: 1; }
+.mix-under.fits { opacity: 1; }
+/* The plays only when there's room beside the hours */
+.mix-plays { display: none; font-size: 10px; font-weight: 400; color: var(--text-secondary); }
+.mix-under.fits-plays .mix-plays { display: inline; }
 .mix-seg {
   position: absolute;
   top: 0;
@@ -885,25 +888,24 @@ dialog pre {
   font-weight: 500;
   transition: background var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), border-radius var(--motion-fade) var(--ease-out);
 }
+.mix-seg.gone { visibility: hidden; }
 .mix-seg.outer-l { border-top-left-radius: var(--mix-radius); border-bottom-left-radius: var(--mix-radius); }
 .mix-seg.outer-r { border-top-right-radius: var(--mix-radius); border-bottom-right-radius: var(--mix-radius); }
 /* Each line shows once the segment is wide enough for it (mix.js sets fits-*), fading rather than popping */
 .mix-seg > * { max-width: 100%; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-detail > * { opacity: 1; }
-.mix-seg:not(.fits-detail) :is(.mix-who, .mix-meta) { pointer-events: none; }
+.mix-seg:not(.fits-detail) .mix-who { pointer-events: none; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 .mix-who { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .mix-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
-.mix-meta { display: grid; justify-items: center; font-family: var(--mono); font-size: 10px; font-weight: 400; line-height: 1.35; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.mix-meta > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mix-box {
   flex: none; width: 10px; height: 10px; padding: 0; border: 0; border-radius: 2px;
   background: var(--c); cursor: pointer;
 }
-.mix-seg:hover { background: color-mix(in srgb, var(--c) 32%, var(--surface)); }
+.mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
-@media (prefers-reduced-motion: reduce) { .mix-seg, .mix-seg > *, .mix-hours { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .mix-seg, .mix-seg > *, .mix-under { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }
@@ -921,10 +923,9 @@ dialog pre {
   font-weight: 600;
 }
 
-/* Hover anywhere on an artist (chart, legends, lists, this bar) lights their segment and dims the rest; with
-   no hover, pinned artists stay lit and the rest dim (mix.js sets .dim) */
-.mix-seg.dim, .mix-hours.fits.dim { opacity: 0.45; }
-.mix-seg.focus { background: color-mix(in srgb, var(--c) 40%, var(--surface)); }
+/* Hover anywhere on an artist (chart, legends, lists, this bar) lights their segment, a little less than a pin
+   does (above); pinned and hovered artists stay lit and the rest dim (mix.js sets .dim) */
+.mix-seg.dim, .mix-under.fits.dim { opacity: 0.45; }
 .mix-legend-item.focus { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 .chart-legend .legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c) 12%, transparent); }
 

@@ -25,7 +25,7 @@ const span = (cls) => {
   return el;
 };
 
-// A segment reads, top to bottom: its share, a box and the artist's name, then their plays; their hours sit
+// A segment reads, top to bottom: its share, then a box and the artist's name; their hours and (plays) sit
 // below it, under the bar. The box hides the artist everywhere (as in the period bar's key); a click anywhere
 // else pins them.
 function makeEntry(name) {
@@ -40,12 +40,12 @@ function makeEntry(name) {
   nameEl.textContent = name; // from the user's files
   const who = span("mix-who");
   who.append(box, nameEl);
-  const playsEl = span("mix-plays");
+  seg.append(label, who);
   const hoursEl = span("mix-hours");
-  const meta = span("mix-meta");
-  meta.append(playsEl);
-  seg.append(label, who, meta);
-  const e = { name, seg, label, box, playsEl, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const playsEl = span("mix-plays");
+  const under = span("mix-under");
+  under.append(hoursEl, playsEl);
+  const e = { name, seg, label, box, under, hoursEl, playsEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
@@ -61,10 +61,11 @@ function makeEntry(name) {
 }
 
 // What fits in a segment this wide (px): the share from SHARE_PX, the hours under it from HOURS_PX, the name
-// and plays from DETAIL_PX
+// from DETAIL_PX and the plays beside the hours from PLAYS_PX
 const SHARE_PX = 30;
 const HOURS_PX = 40;
 const DETAIL_PX = 80;
+const PLAYS_PX = 104;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
 // Puts every segment and its hours where its x and w say, and shows what fits. The segments at either end
@@ -74,14 +75,18 @@ function place() {
   const W = bar.clientWidth + GAP;
   for (const e of entries.values()) {
     const px = Math.max(0, e.w * W - GAP);
-    for (const el of [e.seg, e.hoursEl]) {
+    for (const el of [e.seg, e.under]) {
       el.style.left = `${e.x * W}px`;
       el.style.width = `${px}px`;
     }
     e.label.textContent = Math.round(e.w * 100) + "%";
+    // Under a pixel wide (no listening in the period) the segment isn't drawn at all: its padding and a pin's
+    // outline would otherwise still show
+    e.seg.classList.toggle("gone", px < 1);
     e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
     e.seg.classList.toggle("fits-detail", px >= DETAIL_PX && !e.leaving);
-    e.hoursEl.classList.toggle("fits", px >= HOURS_PX && !e.leaving && !e.off);
+    e.under.classList.toggle("fits", px >= HOURS_PX && !e.leaving && !e.off);
+    e.under.classList.toggle("fits-plays", px >= PLAYS_PX);
     e.seg.classList.toggle("outer-l", e.x <= EDGE);
     e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
@@ -105,7 +110,7 @@ function glide() {
     for (const [name, e] of entries) {
       if (!e.leaving) continue;
       e.seg.remove();
-      e.hoursEl.remove();
+      e.under.remove();
       entries.delete(name);
     }
   };
@@ -170,7 +175,7 @@ export function updateMix(next) {
     if (!e) {
       e = makeEntry(name);
       entries.set(name, e);
-      bar.append(e.seg, e.hoursEl);
+      bar.append(e.seg, e.under);
       const t = target.get(name);
       Object.assign(e, { x: t.x, w: 0 }); // grows from nothing where it will sit
     }
@@ -186,7 +191,7 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
-    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `${Math.round(n).toLocaleString()} plays` });
+    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()} plays)` });
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     e.box.title = e.pinnable ? "Hide this artist everywhere" : "Hide everyone else";
     e.box.setAttribute("aria-label", e.pinnable ? `Hide ${name}` : e.box.title);
@@ -202,15 +207,18 @@ export function updateMix(next) {
   dim();
 }
 
-// The hovered artist's segment and hours stay lit and the rest dim; with no hover, pinned artists stay lit
+// Pinned artists and the hovered one stay lit and the rest dim (nobody dims while there's neither). A hover
+// lights one more artist; it never dims a pinned one.
 let focusName = null;
 function dim() {
   const focus = focusName == null ? undefined : entries.get(focusName);
-  const pinning = [...entries.values()].some((e) => e.seg.classList.contains("pinned"));
+  // A pinned artist with no listening in the period isn't drawn, so it dims nobody
+  const pinned = (e) => e.seg.classList.contains("pinned") && e.to.w > 0;
+  const any = !!focus || [...entries.values()].some(pinned);
   for (const e of entries.values()) {
-    const lit = focus ? e === focus : !pinning || e.seg.classList.contains("pinned");
+    const lit = !any || e === focus || pinned(e);
     e.seg.classList.toggle("dim", !lit);
-    e.hoursEl.classList.toggle("dim", !lit);
+    e.under.classList.toggle("dim", !lit);
   }
 }
 
