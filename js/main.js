@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, dur } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, MORPH_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -202,6 +202,13 @@ function showDashboard() {
 
 // The bar's text and buttons, and the brush's window, for the current range
 function syncPeriod() {
+  // Everything in the bar that can be pushed sideways when the text changes width glides to its new spot
+  const slid = () => new Map([
+    ["next", $("year-next")],
+    ["dates", $("period-range").querySelector(".dates")],
+    ["days", $("period-range").querySelector(".days")],
+  ].filter(([, el]) => el));
+  const before = new Map([...slid()].map(([k, el]) => [k, el.getBoundingClientRect()]));
   const label = $("year-label");
   const text = presetLabel();
   if (label.textContent !== text) {
@@ -218,9 +225,10 @@ function syncPeriod() {
   $("year-next").disabled = p === null ? state.range.hi >= e.hi : sel.selectedIndex >= sel.options.length - 1;
   const n = spanOf(state.range);
   $("period-range").replaceChildren(
-    rangeText(),
+    Object.assign(document.createElement("span"), { className: "dates", textContent: rangeText() }),
     Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
   );
+  if (before.size) flip(before, slid(), { ms: MORPH_MS * 0.7 });
   for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, +b.dataset.months)));
   setBrushRange(state.range);
 }
