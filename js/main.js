@@ -748,7 +748,7 @@ function paintMonthly(plays = shownPlays()) {
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
 // colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
-// them everywhere. Pinned chips are outlined, with an × that unpins. It's led by a box that shows or hides every
+// them everywhere. Pinned chips are tinted and bold. It's led by a box that shows or hides every
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
 function paintArtistKey() {
   if (!mixArgs) return;
@@ -789,20 +789,6 @@ function paintArtistKey() {
     label.dataset.text = n; // read by the CSS that reserves the bold width
     label.setAttribute("aria-label", item.title);
     item.append(sw, label);
-    if (pinned) {
-      const x = document.createElement("button");
-      x.type = "button";
-      x.className = "legend-unpin";
-      x.textContent = "×";
-      x.title = `Unpin ${n}`;
-      x.setAttribute("aria-label", x.title);
-      x.addEventListener("click", (e) => {
-        e.stopPropagation();
-        hover(null);
-        pins.unpin(n);
-      });
-      item.append(x);
-    }
     item.addEventListener("pointerenter", () => hover(n));
     item.addEventListener("pointerleave", () => hover(null));
     item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));

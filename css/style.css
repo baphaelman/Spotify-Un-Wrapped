@@ -368,19 +368,18 @@ button.ghost:hover { background: var(--border); }
 .tav-sliders .ticks { grid-column: 2; }
 .tav-smooth select { height: 24px; box-sizing: border-box; }
 
-/* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist.
-   The chips share one row, shrinking rather than wrapping so the bar keeps its height as the artists change:
-   each takes an equal share of the room but no more than its name needs, so only long names ellipsize. */
+/* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist,
+   in the same chips the graphs' keys used. The chips share one row, shrinking rather than wrapping so the bar
+   keeps its height as the artists change: each takes an equal share of the room but no more than its name
+   needs, so only long names ellipsize. */
 .bar-artists { flex: 1 0 100%; display: flex; align-items: center; gap: 8px 12px; min-width: 0; }
 .bar-artists .artist-search { flex: none; width: 190px; }
-.bar-artists .artist-search input { height: 28px; font-size: 12px; }
-.bar-artists .artist-key { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 2px; }
-.artist-key .legend-item { flex: 1 1 0; max-width: max-content; padding: 3px 8px; border-color: transparent; font-size: 12px; color: var(--text-secondary); }
-.artist-key .legend-item:hover { color: var(--text-primary); }
-.artist-key .legend-item .swatch, .artist-key .legend-unpin { flex: none; }
+.bar-artists .artist-search input { height: 30px; }
+.bar-artists .artist-key { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
+.artist-key .legend-item { flex: 1 1 0; max-width: max-content; }
+.artist-key .legend-item .swatch { flex: none; }
 .artist-key .legend-item .name { padding: 0; }
-.artist-key .legend-item.pinned { border-color: var(--c); color: var(--text-primary); padding-right: 0; }
-.artist-key .legend-item .legend-unpin { padding: 0 6px 0 2px; }
+.artist-key .legend-item.pinned { padding-right: 10px; }
 /* "Everyone else" and the artist count, on the bar's first row beside the window lengths */
 .bar-opts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
 .bar-opts + .period-resize { margin-left: 0; }
