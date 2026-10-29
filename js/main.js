@@ -721,7 +721,7 @@ function paintClock(plays = shownPlays()) {
   paintFocus();
 }
 
-// Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
+// Total hours per month with the chart's artists picked out (same colors, pins and hover), each month's top artist on top, with its own key beneath
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;

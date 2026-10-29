@@ -822,12 +822,14 @@ export function focusArtist(el, name) {
   rollingState.get(el)?.focusArtist?.(name);
 }
 
-// Total hours per month with the chart's artists picked out of it: stacked bars (the rest of the month is a gray
-// "Everyone else" segment, so each bar is the month's total).
-// This is always about the whole month, whatever the "Everyone else" switch says. Drawn like the rolling chart:
-// each artist is a pale tint of their color with an outline; pinned artists and the one hovered (anywhere on the
-// page, through focusMonthly) fill in more strongly while the rest dim. names/slots are the artists and their palette
-// slots; pins is {has, toggle}; hover(name|null) reports the pointer.
+// Total hours per month, stacked: the month's top artist on top of each bar, filled in strongly and captioned
+// above it where there's room; below them the chart's other artists in a lighter tint; and at the base everyone
+// else in gray. Artists with less than FOLD of a month are folded into the gray, so small slices don't clutter
+// it, unless they're lit (pinned, or hovered anywhere on the page, through focusMonthly): then they show, filled
+// in and outlined, while the rest dim. Hovering a month lists its top five. names/slots are the chart's artists
+// and their palette slots; pins is {has, toggle}; hover(name|null) reports the pointer; off holds deselected
+// artists (never lit).
+const FOLD = 0.03;
 const monthlyState = new WeakMap();
 export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set()) {
   const t = tokens();
@@ -836,42 +838,45 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const oneYear = rows.length <= 13;
   const tick = (r) =>
     oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
-  // The artists, then what's left of the month in gray
-  const all = [...names, "Everyone else"];
-  const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
-  const sum = (r) => r.by.reduce((a, b) => a + b, 0);
-  const valueOf = (r, k) => (k < names.length ? r.by[k] : Math.max(0, r.hours - sum(r)));
+  const grid = { left: 48, right: 16, top: 28, bottom: 32 };
+  // Room for a caption above each bar; too narrow and they're left off (the tooltip still names the top artist)
+  const slotW = rows.length ? (el.clientWidth - grid.left - grid.right) / rows.length : 0;
+  const caption = slotW >= 56;
+  const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
+  const colorOf = (n) => (slotOf.has(n) ? t.series[slotOf.get(n)] : t.other);
   const c = chart(el);
   const prev = monthlyState.get(el);
-  const st = { names, all, rows, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
   const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
-  // A deselected artist keeps its look until its bars have shrunk away, then loses the outline a zero-height
-  // bar would still draw. (Already-deselected ones, or all of them on a fresh draw, are settled at once.)
-  st.gone = new Set([...off].filter((n) => fresh || prev.gone?.has(n)));
+  // last: each series' values on screen (see settleMonthly)
+  const st = { names, rows, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
-  if (st.gone.size < off.size) {
-    setTimeout(() => {
-      if (monthlyState.get(el) !== st) return;
-      st.gone = new Set(off);
-      c.setOption({ animationDurationUpdate: 0, series: all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
-    }, MORPH_MS);
-  }
+  // Caption styles: a dot in the top artist's color (gray if they're not in the chart), then the name
+  const rich = { n: { color: t.secondary, fontSize: 11, align: "center" }, o: { color: t.other, fontSize: 9, align: "center" } };
+  slots.forEach((s) => (rich[`s${s}`] = { color: t.series[s], fontSize: 9, align: "center" }));
+  const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
+  const bar = { type: "bar", stack: "month", barCategoryGap: oneYear ? "30%" : "12%" };
+  const looks = monthlySeries(st);
   c.setOption(
     {
       animationDuration: 600,
       animationDurationUpdate: MORPH_MS,
       animationEasingUpdate: "cubicInOut",
-      grid: { left: 48, right: 16, top: 16, bottom: 32 },
+      grid,
       tooltip: {
         ...tooltipBase(t),
-        trigger: "item",
-        formatter: (p) => {
-          const r = rows[p.dataIndex];
-          const h = valueOf(r, p.seriesIndex);
-          return (
-            `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${label(r.month)}</span><br>` +
-            `<b>${fmtHours(h)}</b> <span style="opacity:.75">${r.hours ? Math.round((h / r.hours) * 100) : 0}% of ${fmtHours(r.hours)}</span>`
-          );
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: t.grid, opacity: 0.35 } },
+        formatter: (ps) => {
+          const r = rows[ps[0].dataIndex];
+          const head = `<div style="margin-bottom:4px"><b>${label(r.month)}</b> <span style="opacity:.75">${fmtHours(r.hours)}</span></div>`;
+          if (!r.hours) return head;
+          const lit = litSet(st);
+          const pct = (h) => `${Math.round((h / r.hours) * 100)}%`;
+          // Lit artists outside the month's top five follow it
+          const extra = names
+            .map((n, k) => ({ name: n, hours: r.by[k] }))
+            .filter((a) => lit.has(a.name) && a.hours > 0 && !r.top.some((x) => x.name === a.name));
+          return head + [...r.top, ...extra].map((a) => row(colorOf(a.name), pct(a.hours), a.name, lit.has(a.name))).join("");
         },
       },
       xAxis: {
@@ -879,6 +884,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         data: rows.map(tick),
         ...baseAxis(t),
         axisLabel: { color: t.muted, interval: 0 },
+        axisPointer: { triggerEmphasis: false },
         splitLine: { show: false },
       },
       yAxis: {
@@ -887,47 +893,110 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: (v) => `${v} h` },
       },
-      series: all.map((n, k) => ({
-        id: `m${k}`,
-        name: n,
-        type: "bar",
-        stack: "month",
-        barCategoryGap: oneYear ? "30%" : "8%",
-        cursor: pins && k < names.length ? "pointer" : "default",
-        ...monthlyLook(st, k),
-        data: rows.map((r) => valueOf(r, k)),
-      })),
+      series: [
+        { ...looks[0], name: "Everyone else", ...bar, silent: true },
+        ...[...names, ...names].map((n, j) => ({ ...looks[j + 1], name: n, ...bar, cursor: pins ? "pointer" : "default" })),
+        {
+          ...looks[2 * names.length + 1],
+          name: "Top artist",
+          ...bar,
+          // Topmost, so it carries the caption (from a zero-height bar when the top artist is in the chart)
+          label: {
+            show: caption,
+            position: "top",
+            distance: 6,
+            width: slotW - 6,
+            overflow: "truncate",
+            align: "center",
+            rich,
+            formatter: (p) => {
+              const top = rows[p.dataIndex].top[0];
+              if (!top) return "";
+              return `{${slotOf.has(top.name) ? `s${slotOf.get(top.name)}` : "o"}|●} {n|${plain(top.name)}}`;
+            },
+          },
+        },
+      ],
     },
     { notMerge: fresh }
   );
+  // Only the chart's artists are pinnable (and shared with the rest of the page). The gray top series names its
+  // artist per bar.
+  const artistOf = (p) => (p.seriesId === "top" ? p.data?.name : p.seriesName);
+  settleMonthly(el, st, looks);
   c.off("mouseover");
   c.off("mouseout");
   c.off("click");
-  // Only the artists are pinnable (and shared with the rest of the page); the gray series isn't
-  c.on("mouseover", (p) => names.includes(p.seriesName) && hover(p.seriesName));
+  c.on("mouseover", (p) => names.includes(artistOf(p)) && hover(artistOf(p)));
   c.on("mouseout", () => hover(null));
-  c.on("click", (p) => names.includes(p.seriesName) && pins?.toggle(p.seriesName));
+  c.on("click", (p) => names.includes(artistOf(p)) && pins?.toggle(artistOf(p)));
 }
 
-// The style of artist k's series: lit (pinned or hovered), dim (something else is lit) or at rest
-function monthlyLook(st, k) {
-  const { t, names, colors } = st;
-  // A deselected artist has no data, so no outline either (a zero-height bar would still draw its border)
-  if (st.gone.has(names[k])) return { itemStyle: { color: "transparent", borderWidth: 0 } };
-  const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
-  const rest = k === names.length; // the gray series is never lit
-  const on = !rest && lit.has(names[k]);
-  const dim = lit.size && !on;
-  const col = colors[k];
-  // The gray remainder is the month's total, so it stays readable while an artist is lit, and always has an outline
-  if (rest) return { itemStyle: { color: mix(t.surface, col, 0.22), borderColor: mix(t.surface, col, 0.6), borderWidth: 1 } };
-  return {
-    itemStyle: {
-      color: mix(t.surface, col, on ? t.shade.hover : dim ? t.shade.dim : t.shade.band),
-      borderColor: dim ? mix(t.surface, col, 0.35) : col,
-      borderWidth: on ? 2 : 1,
-    },
-  };
+// The artists in the spotlight: the pinned ones, and the one hovered
+function litSet(st) {
+  const lit = new Set(st.names.filter((n) => st.pins?.has(n) && !st.off.has(n)));
+  if (st.hovered != null) lit.add(st.hovered);
+  return lit;
+}
+
+// The series' ids, data and styles, bottom to top: the gray remainder (rest), each chart artist's slices (m{k}),
+// each chart artist's top-of-the-month block (t{k}), then the top block of a month whose top artist isn't in the
+// chart (top, gray). Giving every artist their own top series keeps a region theirs when they stop being on
+// top (deselected, say), so it shrinks away instead of turning into someone else's. A small artist's slice is
+// folded into the gray unless they're lit, so lighting one grows their slices out of it.
+function monthlySeries(st) {
+  const { t, names, rows, colorOf } = st;
+  const lit = litSet(st);
+  const fill = (col, on, dim, base) => mix(t.surface, col, on ? 0.5 : dim ? 0.1 : base);
+  // A hairline in the surface color between slices, or the artist's color around a lit one
+  const edge = (col, on) => (on ? { borderColor: col, borderWidth: 1.5 } : { borderColor: t.surface, borderWidth: 1 });
+  const radius = { borderRadius: [1.5, 1.5, 0, 0] };
+  // A zero-height bar still strokes its outline, so an emptied bar keeps it only while it shrinks (settleMonthly
+  // takes it off after)
+  const items = (id, values, extra = () => ({})) =>
+    values.map((v, i) => ({ value: v, ...extra(i), ...(v > 0 || st.last?.get(id)?.[i] > 0 ? {} : { itemStyle: { borderWidth: 0 } }) }));
+  const tops = rows.map((r) => r.top[0]?.name);
+  const shown = names.map((n, k) => rows.map((r, i) => n !== tops[i] && r.by[k] > 0 && (lit.has(n) || r.by[k] >= FOLD * r.hours)));
+  const rest = rows.map((r, i) => {
+    const slices = names.reduce((s, _n, k) => s + (shown[k][i] ? r.by[k] : 0), 0);
+    return Math.max(0, r.hours - slices - (r.top[0]?.hours ?? 0));
+  });
+  const slices = names.map((n, k) => {
+    const on = lit.has(n);
+    const col = colorOf(n);
+    return {
+      id: `m${k}`,
+      itemStyle: { color: fill(col, on, lit.size && !on, 0.25), ...edge(col, on && "lit") },
+      data: items(`m${k}`, rows.map((r, i) => (shown[k][i] ? r.by[k] : 0))),
+    };
+  });
+  // Always drawn like a pinned artist, so lighting another doesn't dim them
+  const topBlocks = names.map((n, k) => ({
+    id: `t${k}`,
+    itemStyle: { color: fill(colorOf(n), true), ...edge(colorOf(n), true), ...radius },
+    data: items(`t${k}`, rows.map((r, i) => (tops[i] === n ? r.by[k] : 0))),
+  }));
+  // A top artist outside the chart has no color of their own: a lighter gray than the rest, without an outline
+  const uncharted = rows.map((r, i) => (tops[i] != null && !names.includes(tops[i]) ? r.top[0].hours : 0));
+  const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i] })) };
+  // The gray never dims either: it's the rest of the month, whoever is lit
+  const gray = { id: "rest", itemStyle: { color: mix(t.surface, t.other, 0.35), ...edge(t.other, false) }, data: rest };
+  return [gray, ...slices, ...topBlocks, top];
+}
+
+// Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
+function settleMonthly(el, st, series) {
+  const was = st.last;
+  st.last = new Map(series.filter((s) => s.id !== "rest").map((s) => [s.id, s.data.map((d) => d.value)]));
+  clearTimeout(st.settle);
+  const emptied = [...st.last].some(([id, vs]) => vs.some((v, i) => v === 0 && was?.get(id)?.[i] > 0));
+  if (!emptied) return;
+  st.settle = setTimeout(() => {
+    if (monthlyState.get(el) !== st) return;
+    const next = monthlySeries(st);
+    instances.get(el)?.setOption({ series: next }, undefined, true);
+    settleMonthly(el, st, next);
+  }, MORPH_MS);
 }
 
 // Light one artist (and dim the rest) from a hover elsewhere on the page; null clears
@@ -935,8 +1004,12 @@ export function focusMonthly(el, name) {
   const st = monthlyState.get(el);
   const c = instances.get(el);
   if (!st || !c) return;
-  st.hovered = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
-  c.setOption({ series: st.all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
+  const next = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
+  if (next === st.hovered) return;
+  st.hovered = next;
+  const series = monthlySeries(st);
+  c.setOption({ series }, undefined, true);
+  settleMonthly(el, st, series);
 }
 
 // When you listen: one small share stack graph per weekday, across the hours of the day, drawn like the rolling

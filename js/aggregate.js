@@ -77,18 +77,20 @@ export function summary(plays) {
   };
 }
 
-// [{ month: Date, hours, by }] with empty months filled in. `by` is the hours each of `artists` contributed
-// that month, in the same order; whatever is left of `hours` is everyone else.
-export function monthly(plays, artists = []) {
+// [{ month: Date, hours, by, top }] with empty months filled in. `by` is the hours each of `artists` contributed
+// that month, in the same order; whatever is left of `hours` is everyone else. `top` is the month's `n` biggest
+// artists of all, as [{ name, hours }].
+export function monthly(plays, artists = [], n = 5) {
   const col = new Map(artists.map((a, i) => [a, i]));
   const m = new Map();
   for (const p of plays) {
     const d = new Date(p.t);
     const k = d.getFullYear() * 12 + d.getMonth();
     let e = m.get(k);
-    if (!e) m.set(k, (e = { hours: 0, by: new Array(artists.length).fill(0) }));
+    if (!e) m.set(k, (e = { hours: 0, by: new Array(artists.length).fill(0), each: new Map() }));
     const h = p.ms / HOUR;
     e.hours += h;
+    e.each.set(p.artist, (e.each.get(p.artist) || 0) + h);
     const i = col.get(p.artist);
     if (i !== undefined) e.by[i] += h;
   }
@@ -98,7 +100,8 @@ export function monthly(plays, artists = []) {
   const out = [];
   for (let k = lo; k <= hi; k++) {
     const e = m.get(k);
-    out.push({ month: new Date(Math.floor(k / 12), k % 12, 1), hours: e?.hours || 0, by: e?.by || new Array(artists.length).fill(0) });
+    const top = e ? [...e.each].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name, hours]) => ({ name, hours })) : [];
+    out.push({ month: new Date(Math.floor(k / 12), k % 12, 1), hours: e?.hours || 0, by: e?.by || new Array(artists.length).fill(0), top });
   }
   return out;
 }
