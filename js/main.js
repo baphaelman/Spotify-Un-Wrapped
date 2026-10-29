@@ -764,7 +764,9 @@ function paintClock(plays = shownPlays()) {
   renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, 0.5);
 }
 
-// Total hours per month with the chart's artists picked out (same colors, pins and hover), each month's top artist on top
+// Total hours per month (per half-year or year over a long period, see agg.monthSpan) with the chart's artists
+// picked out (same colors, pins and hover), each bar's top artist on top
+const SPAN_WORDS = { 1: ["month", "month's"], 6: ["6 months", "half-year's"], 12: ["year", "year's"] };
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -773,7 +775,10 @@ function paintMonthly(plays = shownPlays()) {
   // Deselected artists keep their (empty) series, so unticking one shrinks its bars in place instead of redrawing the chart
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderMonthly($("chart-monthly"), agg.monthly(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden));
+  const span = agg.monthSpan(plays);
+  $("monthly-title").textContent = `Hours per ${SPAN_WORDS[span][0]}`;
+  $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top artist on top`;
+  renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span);
 }
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and

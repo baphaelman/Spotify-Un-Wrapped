@@ -786,7 +786,7 @@ export function focusArtist(el, name) {
   rollingState.get(el)?.focusArtist?.(name);
 }
 
-// Total hours per month, stacked: the month's top artist on top of each bar, filled in strongly and captioned
+// Total hours per month (or per `span` months), stacked: the month's top artist on top of each bar, filled in strongly and captioned
 // above it where there's room; below them the chart's other artists in a lighter tint; and at the base everyone
 // else in gray. Artists with less than FOLD of a month are folded into the gray, so small slices don't clutter
 // it, unless they're lit (pinned, or hovered anywhere on the page, through focusMonthly): then they show, filled
@@ -795,13 +795,20 @@ export function focusArtist(el, name) {
 // artists (never lit).
 const FOLD = 0.03;
 const monthlyState = new WeakMap();
-export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set()) {
+export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), span = 1) {
   const t = tokens();
-  const label = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
-  // One year: label every month. Longer: label each January with its year.
-  const oneYear = rows.length <= 13;
+  const short = (d) => d.toLocaleDateString(undefined, { month: "short" });
+  // A bar's period: "Mar 2024", "Jan–Jun 2024" or "2024"
+  const label = (d) =>
+    span === 12
+      ? String(d.getFullYear())
+      : span > 1
+        ? `${short(d)}–${short(new Date(d.getFullYear(), d.getMonth() + span - 1, 1))} ${d.getFullYear()}`
+        : d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  // One year of months: label every month. Years: every bar. Otherwise: each January with its year.
+  const oneYear = span === 1 && rows.length <= 13;
   const tick = (r) =>
-    oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
+    oneYear ? short(r.month) : span === 12 || r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
   const grid = { left: 48, right: 16, top: 28, bottom: 32 };
   // Room for a caption above each bar; too narrow and they're left off (the tooltip still names the top artist)
   const slotW = rows.length ? (el.clientWidth - grid.left - grid.right) / rows.length : 0;
@@ -810,15 +817,16 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const colorOf = (n) => (slotOf.has(n) ? t.series[slotOf.get(n)] : t.other);
   const c = chart(el);
   const prev = monthlyState.get(el);
-  const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
+  // A new bar size changes every bar, so the chart draws afresh rather than morphing bars into unrelated ones
+  const fresh = !prev || prev.span !== span || prev.names.join("\u0000") !== names.join("\u0000");
   // last: each series' values on screen (see settleMonthly)
-  const st = { names, rows, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
+  const st = { names, rows, span, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   // Caption styles: a dot in the top artist's color (gray if they're not in the chart), then the name
   const rich = { n: { color: t.secondary, fontSize: 11, align: "center" }, o: { color: t.other, fontSize: 9, align: "center" } };
   slots.forEach((s) => (rich[`s${s}`] = { color: t.series[s], fontSize: 9, align: "center" }));
   const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
-  const bar = { type: "bar", stack: "month", barCategoryGap: oneYear ? "30%" : "12%" };
+  const bar = { type: "bar", stack: "month", barCategoryGap: rows.length <= 20 ? "30%" : "12%" };
   const looks = monthlySeries(st);
   setOptionFaded(
     c,

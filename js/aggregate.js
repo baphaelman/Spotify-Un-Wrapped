@@ -77,15 +77,25 @@ export function summary(plays) {
   };
 }
 
-// [{ month: Date, hours, by, top }] with empty months filled in. `by` is the hours each of `artists` contributed
-// that month, in the same order; whatever is left of `hours` is everyone else. `top` is the month's `n` biggest
-// artists of all, as [{ name, hours }].
-export function monthly(plays, artists = [], n = 5) {
+// How many months each bar of the monthly chart covers, so a long period doesn't crowd into slivers: a month up
+// to three years, half a year up to ten, then a year
+export function monthSpan(plays) {
+  if (!plays.length) return 1;
+  const k = (t) => new Date(t).getFullYear() * 12 + new Date(t).getMonth();
+  const months = k(plays[plays.length - 1].t) - k(plays[0].t) + 1;
+  return months <= 36 ? 1 : months <= 120 ? 6 : 12;
+}
+
+// [{ month: Date, hours, by, top }] with empty months filled in, in blocks of `span` calendar months (1, 6 or 12,
+// aligned to the year; `month` is the block's first). `by` is the hours each of `artists` contributed that block,
+// in the same order; whatever is left of `hours` is everyone else. `top` is the block's `n` biggest artists of
+// all, as [{ name, hours }].
+export function monthly(plays, artists = [], n = 5, span = 1) {
   const col = new Map(artists.map((a, i) => [a, i]));
   const m = new Map();
   for (const p of plays) {
     const d = new Date(p.t);
-    const k = d.getFullYear() * 12 + d.getMonth();
+    const k = Math.floor((d.getFullYear() * 12 + d.getMonth()) / span);
     let e = m.get(k);
     if (!e) m.set(k, (e = { hours: 0, by: new Array(artists.length).fill(0), each: new Map() }));
     const h = p.ms / HOUR;
@@ -101,7 +111,7 @@ export function monthly(plays, artists = [], n = 5) {
   for (let k = lo; k <= hi; k++) {
     const e = m.get(k);
     const top = e ? [...e.each].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name, hours]) => ({ name, hours })) : [];
-    out.push({ month: new Date(Math.floor(k / 12), k % 12, 1), hours: e?.hours || 0, by: e?.by || new Array(artists.length).fill(0), top });
+    out.push({ month: new Date(Math.floor((k * span) / 12), (k * span) % 12, 1), hours: e?.hours || 0, by: e?.by || new Array(artists.length).fill(0), top });
   }
   return out;
 }
