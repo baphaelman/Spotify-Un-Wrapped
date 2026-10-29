@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
 const state = {
-  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share",
+  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", smoothify: 0,
   pinned: [], artists: [], colorSlots: new Map(),
 };
 
@@ -303,12 +303,11 @@ function renderRollingChart(zoom, morph = false) {
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
   $("window").setAttribute("aria-valuetext", `${window} days`);
-  for (const id of ["n-artists", "window", "smoothify"]) paintSlider($(id));
-  $("smoothify").setAttribute("aria-valuetext", ["Off", "Low", "Medium", "High", "Max"][$("smoothify").value]);
+  for (const id of ["n-artists", "window"]) paintSlider($(id));
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
   const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
-  const strength = Number($("smoothify").value);
+  const strength = state.smoothify;
   const raw = agg.rolling(state.plays, artists, window, includeOther);
   const data = strength ? agg.smoothify(raw, window, strength) : raw;
   const names = includeOther ? [...artists, "Everyone else"] : artists;
@@ -324,7 +323,7 @@ function renderRollingChart(zoom, morph = false) {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
-  }, assignSlots(artists), strength / 4);
+  }, assignSlots(artists), [0, 0.5, 0.75][strength]);
 }
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
@@ -375,6 +374,14 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
   });
 }
 
+for (const btn of document.querySelectorAll("#smoothify button")) {
+  btn.addEventListener("click", () => {
+    state.smoothify = Number(btn.dataset.level);
+    for (const b of document.querySelectorAll("#smoothify button")) b.setAttribute("aria-pressed", b === btn);
+    renderRollingChart(currentZoom($("chart-rolling")));
+  });
+}
+
 // The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
 const otherToggle = $("include-other").closest("label");
 otherToggle.addEventListener("pointerenter", () => {
@@ -383,7 +390,7 @@ otherToggle.addEventListener("pointerenter", () => {
 otherToggle.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
 
 let pending = 0;
-for (const id of ["n-artists", "window", "include-other", "smoothify"]) {
+for (const id of ["n-artists", "window", "include-other"]) {
   $(id).addEventListener("input", () => {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling"))));
