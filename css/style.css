@@ -621,6 +621,14 @@ dialog pre {
 .toplist .show-box:disabled { opacity: 0.45; cursor: default; }
 .toplist .show-box:not(:disabled):hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
 .toplist li:has(.show-box) { grid-template-columns: 10px 2ch 1fr auto; }
+/* Hovering a filled box (the artist is shown) cuts a minus out of it, so the click reads as "leave them out" */
+:is(.toplist .show-box, .artist-key .swatch) { position: relative; }
+:is(.toplist .show-box, .artist-key .swatch)::after {
+  content: ""; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px;
+  background: var(--surface); opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-fade) var(--ease-out);
+}
+:is(.toplist .show-box:not(:disabled), .artist-key .swatch[aria-pressed="true"]):hover::after { opacity: 1; }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
