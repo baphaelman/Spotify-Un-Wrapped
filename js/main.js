@@ -1,8 +1,8 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange } from "./charts.js";
 import { sweep, cancelSweep } from "./motion.js";
-import { updateMix, setupMix } from "./mix.js";
+import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
@@ -407,6 +407,7 @@ function renderMix(artists, slots, includeOther, pins) {
   });
 }
 setupMix((name) => focusArtist($("chart-rolling"), name));
+onFocusChange($("chart-rolling"), highlightMix);
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
 // in the stack (which is their rank, and shifts with the period, the artist count and the pins).

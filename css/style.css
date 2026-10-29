@@ -665,18 +665,9 @@ dialog pre {
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 500;
-  transition: flex-grow 0.18s ease-out, background 0.15s;
+  transition: flex-grow 0.18s ease-out, background 0.15s, opacity 0.15s;
 }
 .mix-seg:hover { background: color-mix(in srgb, var(--c) 32%, var(--surface)); }
-.mix-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
-.mix-play { width: 32px; padding: 6px 0; font-size: 11px; }
-.mix-month { display: flex; align-items: center; gap: 2px; }
-.mix-month select { min-width: 112px; padding: 6px 8px; }
-.mix-month .step { padding: 6px 10px; }
-.mix-controls button:disabled { opacity: 0.3; cursor: default; }
-.segmented button:disabled { opacity: 0.3; cursor: default; }
-.slider.mix-slider { width: 100%; margin-top: 10px; gap: 0; }
-.mix-ends { display: flex; justify-content: space-between; font-size: 11px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .mix-seg { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
@@ -684,3 +675,8 @@ dialog pre {
 .mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
 .mix-seg.pinned:hover { background: color-mix(in srgb, var(--c) 44%, var(--surface)); }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
+
+/* Hover anywhere on an artist (chart, legends, lists, this bar) lights their segment and dims the rest */
+.mix-bar.focusing .mix-seg:not(.focus) { opacity: 0.45; }
+.mix-seg.focus { background: color-mix(in srgb, var(--c) 40%, var(--surface)); }
+.mix-legend-item.focus { background: var(--border); }

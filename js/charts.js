@@ -92,6 +92,11 @@ const row = (color, value, label, strong = false) =>
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
 
+// Called with the name of the artist lit in a rolling chart (or null) whenever that changes, whatever
+// lit it (the plot, a legend, a list); lets other parts of the page follow the highlight.
+const focusHooks = new WeakMap();
+export const onFocusChange = (el, fn) => focusHooks.set(el, fn);
+
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
 // Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
@@ -453,6 +458,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;
     focused = sIndex;
+    focusHooks.get(el)?.(focused == null ? null : names[focused]);
     const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
@@ -470,6 +476,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const focusLine = (k) => {
     if (k === focused) return;
     focused = k;
+    focusHooks.get(el)?.(focused == null ? null : names[focused]);
     const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
