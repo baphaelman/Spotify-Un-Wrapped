@@ -188,13 +188,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // each show their own border rather than one artist's line standing for both. Each edge line is drawn
   // at twice its visible width, centered on the boundary, then clipped to its own band (clipEdges below):
   // only its inner half shows, so borders keep one width everywhere, even on steep slopes, and meet
-  // neighbors' exactly on the boundary. Edges break off wherever a band is too thin to see, so absent
-  // artists leave no line. They keep the same breaks in hours mode, where they're hidden, so a morph never
-  // tweens a break into a value, which would draw a vertical stroke at every break.
+  // neighbors' exactly on the boundary. A band too thin to see clips its edges away with it, so absent
+  // artists leave no line. Edges break only where the band does (nothing played in the window), in both
+  // modes: matching the band's gaps exactly keeps an edge locked to its band through a morph, which
+  // ECharts tweens point by point, and a break never tweens into a value (a vertical stroke).
   const edgeData = (s, side) =>
     data.dates.map((d, i) => {
       const lo = bottom[s][i], hi = top[s][i];
-      if (lo == null || hi - lo < 0.002) return [d, null];
+      if (lo == null) return [d, null];
       return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
     });
   // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
@@ -318,20 +319,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.mode = mode;
 
   // Clip each band's edge lines to the band itself, so only their inner halves show (see edgeData). The
-  // clip is the band's own area shape, ECharts' polygon built from its top edge and the top edge of the
-  // visible band below (or the axis). ECharts swaps in new shape points whenever it redraws, so the clips
-  // are rebuilt right after each update, before it's painted: after a render or hover restyle, and on
-  // every step of a zoom-slider drag (which otherwise left them lagging behind the bands). A clip whose
-  // band hasn't changed is left alone. During a mode morph the shapes are in motion, so the clips are
-  // dropped and rebuilt once ECharts finishes. This reaches into ECharts internals like setOptionFaded;
-  // without them the borders are just unclipped, twice as wide.
-  const edgeLines = () => [...drawnShapes(c)].filter(([k]) => /^[tb]\d+:line$/.test(k)).map(([, e]) => e);
-  if (morph) {
-    for (const e of edgeLines()) {
-      e.removeClipPath();
-      e.__clipOf = null;
-    }
-  }
+  // clip is ECharts' own area polygon for the band, built from its top edge and the top edge of the
+  // visible band below (or the axis). Its shape reads those edges live from the drawn shapes, and zrender
+  // rebuilds a clip from its shape every time it draws the clipped line, so the clip follows the bands
+  // through morphs, re-stacks and zoom-slider drags without lagging or dropping. The clips are re-linked
+  // right after each update, before it's painted, in case ECharts replaced a shape or the stacking
+  // changed; a line already linked to the same shapes is left alone. This reaches into ECharts internals
+  // like setOptionFaded; without them the borders are just unclipped, twice as wide.
   const clipEdges = () => {
     if (!share) return;
     const shapes = drawnShapes(c);
@@ -340,14 +334,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (!visible(k)) continue;
       const band = shapes.get(`s${k}:area`);
       if (!band) continue;
-      const floor = below == null ? band.shape.stackedOnPoints : shapes.get(`s${below}:area`)?.shape.points;
+      const floorBand = below == null ? null : shapes.get(`s${below}:area`) ?? null;
       below = k;
-      if (!floor) continue;
       for (const side of ["t", "b"]) {
         const line = shapes.get(`${side}${k}:line`);
-        if (!line || (line.__clipOf?.[0] === band.shape.points && line.__clipOf[1] === floor)) continue;
-        line.setClipPath(new band.constructor({ shape: { points: band.shape.points, stackedOnPoints: floor } }));
-        line.__clipOf = [band.shape.points, floor];
+        if (!line || (line.__clipOf?.[0] === band && line.__clipOf[1] === floorBand)) continue;
+        const clip = new band.constructor({});
+        clip.shape = {
+          get points() { return band.shape.points; },
+          get stackedOnPoints() { return floorBand ? floorBand.shape.points : band.shape.stackedOnPoints; },
+        };
+        // zrender skips drawing a line whose clip has zero area, judged from a cached bounding box that a
+        // live shape never refreshes; a band that's flat for a moment mustn't hide its border for good
+        clip.isZeroArea = () => false;
+        line.setClipPath(clip);
+        line.__clipOf = [band, floorBand];
       }
     }
   };
@@ -416,7 +417,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     { notMerge: !morph },
     morph ? 750 : 0
   );
-  if (!morph) clipEdges();
+  clipEdges();
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
   if (holdFill && base.size) {
     setTimeout(() => {
