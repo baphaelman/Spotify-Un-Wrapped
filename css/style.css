@@ -1,7 +1,45 @@
+/* Dark is the design: the default for everyone. [data-theme="light"] is kept as an opt-in. */
 :root {
+  color-scheme: dark;
+  --page: #0a0c0e;
+  --surface: #101316;
+  --surface-2: #161a1e;
+  --text-primary: #eceeed;
+  --text-secondary: #a3a9ad;
+  --text-muted: #6b7278;
+  --grid: #1c2024;
+  --axis: #2a2f34;
+  --border: rgba(255, 255, 255, 0.07);
+  --accent: #4a7fc1;
+  --other: #4b5258;
+  --series-1: #4a7fc1;
+  --series-2: #d9773f;
+  --series-3: #2f9e6b;
+  --series-4: #c9a227;
+  --series-5: #d0598f;
+  --series-6: #3aa64a;
+  --series-7: #a78bfa;
+  --series-8: #f0786c;
+  --seq-0: #1a1d20;
+  --seq-1: #2e3338;
+  --seq-2: #4a5057;
+  --seq-3: #6c747b;
+  --seq-4: #a3b0b8;
+  --seq-5: #f2f4f4;
+  /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line, and the
+     other bands while one is hovered */
+  --shade-band: 0.1;
+  --shade-hover: 0.3;
+  --shade-line: 0.05;
+  --shade-dim: 0.03;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
   --page: #f9f9f7;
   --surface: #fcfcfb;
+  --surface-2: #f0efec;
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
   --text-muted: #898781;
@@ -24,78 +62,10 @@
   --seq-3: #2a78d6;
   --seq-4: #184f95;
   --seq-5: #0d366b;
-  /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line, and the
-     other bands while one is hovered */
   --shade-band: 0.2;
   --shade-hover: 0.4;
   --shade-line: 0.1;
   --shade-dim: 0.06;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --text-primary: #f0efec;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.10);
-    --accent: #3987e5;
-    --other: #52514e;
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-    --series-5: #d55181;
-    --series-6: #008300;
-    --series-7: #9085e9;
-    --series-8: #e66767;
-    --seq-0: #232322;
-    --seq-1: #104281;
-    --seq-2: #1c5cab;
-    --seq-3: #3987e5;
-    --seq-4: #86b6ef;
-    --seq-5: #cde2fb;
-    --shade-band: 0.1;
-    --shade-hover: 0.3;
-    --shade-line: 0.05;
-    --shade-dim: 0.03;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --text-primary: #f0efec;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --grid: #2c2c2a;
-  --axis: #383835;
-  --border: rgba(255, 255, 255, 0.10);
-  --accent: #3987e5;
-  --other: #52514e;
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-  --series-5: #d55181;
-  --series-6: #008300;
-  --series-7: #9085e9;
-  --series-8: #e66767;
-  --seq-0: #232322;
-  --seq-1: #104281;
-  --seq-2: #1c5cab;
-  --seq-3: #3987e5;
-  --seq-4: #86b6ef;
-  --seq-5: #cde2fb;
-  --shade-band: 0.1;
-  --shade-hover: 0.3;
-  --shade-line: 0.05;
-  --shade-dim: 0.03;
 }
 
 * { box-sizing: border-box; }
@@ -104,12 +74,13 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--text-primary);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2 { margin: 0; font-weight: 600; }
-h1 { font-size: 18px; }
-h2 { font-size: 16px; }
+h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+h2 { font-size: 15px; }
 .muted { color: var(--text-muted); }
 .small { font-size: 13px; }
 a { color: var(--accent); }
@@ -131,8 +102,9 @@ button, select {
   color: var(--text-primary);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 6px 12px;
+  font-size: 12px;
   cursor: pointer;
 }
 button.ghost { background: transparent; }
@@ -164,7 +136,7 @@ button.ghost:hover { background: var(--border); }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .year-menu [role="option"] {
   display: flex;
@@ -253,8 +225,8 @@ button.ghost:hover { background: var(--border); }
 }
 .segmented button:hover { color: var(--text-primary); }
 .segmented button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--text-primary) 13%, transparent);
-  color: var(--text-primary);
+  background: #e6e8e7;
+  color: #0a0c0e;
 }
 
 .stats {
@@ -266,18 +238,18 @@ button.ghost:hover { background: var(--border); }
 .stat {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 16px;
 }
-.stat .label { color: var(--text-secondary); font-size: 13px; }
-.stat .value { font-size: 28px; font-weight: 600; line-height: 1.2; }
-.stat.hero .value { font-size: 48px; }
+.stat .label { color: var(--text-secondary); font-size: 12px; }
+.stat .value { font-family: var(--mono); font-size: 28px; font-weight: 500; line-height: 1.2; letter-spacing: -0.02em; }
+.stat.hero .value { font-size: 32px; }
 .stat .sub { color: var(--text-muted); font-size: 13px; }
 
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
   min-width: 0;
@@ -294,9 +266,9 @@ button.ghost:hover { background: var(--border); }
   min-width: 0;
   padding: 12px 14px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
 }
-.panel-title { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.panel-title { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
 /* Artists panel's top row: title and color pill on the left, the "Everyone else" toggle in the corner */
 .panel-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .settings { gap: 8px; }
@@ -410,14 +382,14 @@ button.ghost:hover { background: var(--border); }
   padding: 6px 0;
 }
 #top-artists li:hover .name, #top-tracks li:hover .name { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
-.toplist .rank { color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+.toplist .rank { color: var(--text-muted); font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .toplist .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toplist .name small { color: var(--text-muted); margin-left: 6px; }
-.toplist .val { color: var(--text-secondary); font-variant-numeric: tabular-nums; font-size: 13px; }
+.toplist .val { color: var(--text-secondary); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; }
 .toplist .bar {
   grid-column: 2 / 4;
-  height: 6px;
-  border-radius: 0 4px 4px 0;
+  height: 2px;
+  border-radius: 1px;
   background: var(--accent);
 }
 
@@ -455,7 +427,7 @@ dialog {
   border-radius: 12px;
   padding: 16px;
 }
-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; }
 dialog pre {
   max-height: 60vh;
@@ -575,7 +547,7 @@ dialog pre {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .artist-results [role="option"] {
   display: flex;
@@ -629,7 +601,7 @@ dialog pre {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .palette-menu::-webkit-scrollbar { display: none; }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
