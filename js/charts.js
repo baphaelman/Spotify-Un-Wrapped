@@ -746,8 +746,18 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const c = chart(el);
   const prev = monthlyState.get(el);
   const st = { names, all, rows, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
-  monthlyState.set(el, st);
   const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
+  // A deselected artist keeps its look until its bars have shrunk away, then loses the outline a zero-height
+  // bar would still draw. (Already-deselected ones, or all of them on a fresh draw, are settled at once.)
+  st.gone = new Set([...off].filter((n) => fresh || prev.gone?.has(n)));
+  monthlyState.set(el, st);
+  if (st.gone.size < off.size) {
+    setTimeout(() => {
+      if (monthlyState.get(el) !== st) return;
+      st.gone = new Set(off);
+      c.setOption({ animationDurationUpdate: 0, series: all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
+    }, MORPH_MS);
+  }
   c.setOption(
     {
       animationDuration: 600,
@@ -805,7 +815,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
 function monthlyLook(st, k) {
   const { t, names, colors } = st;
   // A deselected artist has no data, so no outline either (a zero-height bar would still draw its border)
-  if (st.off.has(names[k])) return { itemStyle: { color: "transparent", borderWidth: 0 } };
+  if (st.gone.has(names[k])) return { itemStyle: { color: "transparent", borderWidth: 0 } };
   const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
   const rest = k === names.length; // the gray series is never lit
   const on = !rest && lit.has(names[k]);
