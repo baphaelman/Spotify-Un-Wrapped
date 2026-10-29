@@ -224,16 +224,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
 
-  // Cumulative share over visible series; a hidden series collapses onto the band below it
+  // Cumulative share over visible series, rescaled by the visible total at each date so the bands always
+  // fill the plot, as if the hidden artists had never played; a hidden series collapses onto the band below it
   const top = names.map(() => new Array(data.dates.length));
   const bottom = names.map(() => new Array(data.dates.length));
+  const scale = new Array(data.dates.length).fill(1);
   for (let i = 0; i < data.dates.length; i++) {
+    let sum = 0;
+    for (let s = 0; s < names.length; s++) if (visible(s)) sum += data.share[s][i] ?? 0;
+    scale[i] = sum > 0 ? 1 / sum : 0;
     let run = 0;
     for (let s = 0; s < names.length; s++) {
       const v = data.share[s][i];
       if (v == null) { top[s][i] = bottom[s][i] = null; continue; }
       bottom[s][i] = run;
-      if (visible(s)) run += v;
+      if (visible(s)) run += v * scale[i];
       top[s][i] = run;
     }
   }
@@ -359,7 +364,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (!params.length || params[0].value[1] == null) return "";
     const i = params[0].dataIndex;
     const rows = params
-      .map((p) => ({ p, share: data.share[sIdx(p)][i], hours: data.hours[sIdx(p)][i] }))
+      .map((p) => ({ p, share: data.share[sIdx(p)][i] * scale[i], hours: data.hours[sIdx(p)][i] }))
       // Drop anyone who would read as 0%
       .filter((r) => r.share >= 0.005)
       // Top band first, so the rows read in the same order as the bands under the pointer
