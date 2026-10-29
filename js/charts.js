@@ -903,12 +903,38 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // artist per bar.
   const artistOf = (p) => (p.seriesId === "top" ? p.data?.name : p.seriesName);
   settleMonthly(el, st, looks);
+  // The pointer picks the artist whose slice it's over; anywhere else in a column, it picks the column's top
+  // artist, so hovering or clicking the column is hovering or clicking them. ECharts reports the slice
+  // (mouseover/out) before zrender's mousemove, which then works out the pick.
+  const pickable = (n) => names.includes(n) && !off.has(n);
+  let slice = null;
+  let picked = null;
+  const pick = (x, y) => {
+    let n = slice;
+    if (n == null && c.containPixel("grid", [x, y])) {
+      const i = Math.round(c.convertFromPixel({ gridIndex: 0 }, [x, y])[0]);
+      const top = rows[i] && barView(st, rows[i]).top[0]?.name;
+      if (pickable(top)) n = top;
+    }
+    c.getZr().setCursorStyle(n != null && pins ? "pointer" : "default");
+    if (n !== picked) hover((picked = n));
+  };
+  const zr = c.getZr();
+  if (prev?.zr) for (const [ev, fn] of Object.entries(prev.zr)) zr.off(ev, fn);
+  st.zr = {
+    mousemove: (e) => pick(e.offsetX, e.offsetY),
+    globalout: () => {
+      slice = null;
+      if (picked != null) hover((picked = null));
+    },
+    click: () => picked != null && pins?.toggle(picked),
+  };
+  for (const [ev, fn] of Object.entries(st.zr)) zr.on(ev, fn);
   c.off("mouseover");
   c.off("mouseout");
   c.off("click");
-  c.on("mouseover", (p) => names.includes(artistOf(p)) && hover(artistOf(p)));
-  c.on("mouseout", () => hover(null));
-  c.on("click", (p) => names.includes(artistOf(p)) && pins?.toggle(artistOf(p)));
+  c.on("mouseover", (p) => (slice = pickable(artistOf(p)) ? artistOf(p) : null));
+  c.on("mouseout", () => (slice = null));
 }
 
 // The artists in the spotlight: the pinned ones, and the one hovered
