@@ -445,14 +445,25 @@ $("period-resize").addEventListener("click", (e) => {
       $("smoothify").value = String(look.smooth);
     }
   }
-  if (!sameRange(range, state.range)) return setRange(range);
+  if (!sameRange(range, state.range)) {
+    // After the pan, the slice size sweeps to the new one on the new period's points (the old and new slices
+    // have different points, which a plain morph would match up by position), then the artists morph in
+    const was = state.chartNames, to = WINDOWS[$("window").value], from = state.shownWindow;
+    const finish = from && from !== to && was && (() => {
+      const zoom = periodZoom(), old = { grid: to, artists: was };
+      renderRollingChart(zoom, false, { ...old, window: from }, false);
+      sweep((t, ms) => renderRollingChart(zoom, { ms, easing: "linear" }, { ...old, window: t === 1 ? to : Math.round(from * (to / from) ** t) }, false))
+        .then((done) => done && renderRollingChart(zoom, true, null, false));
+    });
+    return setRange(range, true, finish);
+  }
   // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
   if ($("window").value !== windowWas) return sweepWindow();
   renderRollingChart(currentZoom($("chart-rolling")), true);
 });
 
 // A preset or a step: the chart scrolls (or zooms) to the new period, then the artists change
-function setRange(range, animate = true) {
+function setRange(range, animate = true, finish = null) {
   const was = state.range;
   state.range = range;
   // The brush window slides in step with the chart's pan
@@ -461,7 +472,7 @@ function setRange(range, animate = true) {
   syncPeriod();
   // Like the chart: the window slides across first, then the bands behind it morph to the new artists
   brushMorph = pan ? { delay: pan, ms: MORPH_MS } : null;
-  renderAll(undefined, animate && was ? was : false);
+  renderAll(undefined, animate && was ? was : false, finish);
   brushMorph = null;
 }
 
@@ -557,10 +568,10 @@ function panMs(from) {
   return dur(ratio > 1.5 || ratio < 1 / 1.5 ? ZOOM_MS : PAN_MS);
 }
 
-function renderAll(keepZoom, from = false) {
+function renderAll(keepZoom, from = false, finish = null) {
   renderDependents();
   const ms = panMs(from);
-  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true });
+  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true, finish });
 }
 
 // The brush moved the window. Everything the range feeds is redrawn; the rolling chart only slides to the
@@ -824,7 +835,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
-  let artists = chartArtists(rangePlays(), n);
+  let artists = look?.artists ?? chartArtists(rangePlays(), n);
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
