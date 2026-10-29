@@ -808,9 +808,9 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         : span > 1
           ? `${short(d)}–${short(new Date(d.getFullYear(), d.getMonth() + span - 1, 1))} ${d.getFullYear()}`
           : d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
-  // Months: every month, January as its year. Years: every bar. Quarters and halves: each January with its year.
+  // Months: every month's name. Years: every bar. Quarters and halves: each January with its year.
   const tick = (r) =>
-    span >= 12 || r.month.getMonth() === 0 ? String(r.month.getFullYear()) : span === 1 ? short(r.month) : "";
+    span === 1 ? short(r.month) : span >= 12 || r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
   const grid = { left: 48, right: 16, top: 28, bottom: 32 };
   // Room for a caption above each bar; too narrow and they're left off (the tooltip still names the top artist)
   const slotW = rows.length ? (el.clientWidth - grid.left - grid.right) / rows.length : 0;
@@ -905,10 +905,13 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   settleMonthly(el, st, looks);
   // The pointer picks the artist whose slice it's over; anywhere else in a column, it picks the column's top
   // artist, so hovering or clicking the column is hovering or clicking them. ECharts reports the slice
-  // (mouseover/out) before zrender's mousemove, which then works out the pick.
+  // (mouseover/out) before zrender's mousemove, which then works out the pick. A pin re-renders the chart
+  // without moving the pointer, so the slice under it carries over, and a click works out its own pick.
   const pickable = (n) => names.includes(n) && !off.has(n);
-  let slice = null;
-  let picked = null;
+  let slice = pickable(prev?.slice?.()) ? prev.slice() : null;
+  let picked = prev?.picked?.() ?? null;
+  st.slice = () => slice;
+  st.picked = () => picked;
   const pick = (x, y) => {
     let n = slice;
     if (n == null && c.containPixel("grid", [x, y])) {
@@ -927,7 +930,10 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
       slice = null;
       if (picked != null) hover((picked = null));
     },
-    click: () => picked != null && pins?.toggle(picked),
+    click: (e) => {
+      pick(e.offsetX, e.offsetY);
+      if (picked != null) pins?.toggle(picked);
+    },
   };
   for (const [ev, fn] of Object.entries(st.zr)) zr.on(ev, fn);
   c.off("mouseover");
