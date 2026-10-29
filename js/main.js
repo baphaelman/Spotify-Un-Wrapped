@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, focusMonthly, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, focusMonthly, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, MORPH_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
@@ -485,6 +485,16 @@ function renderTopList(ol, items, detail, artistOf, pinnable = false) {
       li.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePin(artistOf(items[i])); }
       });
+      const box = document.createElement("button");
+      box.type = "button";
+      box.className = "show-box";
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+        focusArtist($("chart-rolling"), null);
+        toggleArtist($("chart-rolling"), artistOf(items[i]));
+      });
+      box.addEventListener("keydown", (e) => e.stopPropagation());
+      li.prepend(box);
       const mark = document.createElement("span");
       mark.className = "pin-mark";
       mark.innerHTML = PIN_SVG; // constant markup, no user data
@@ -513,6 +523,11 @@ function paintTopLists() {
       const pinned = state.pinned.includes(name);
       li.classList.toggle("pinned", pinned);
       if (ol.classList.contains("pinnable")) {
+        const box = li.querySelector(".show-box");
+        const inChart = slot !== undefined;
+        box.disabled = !inChart;
+        box.setAttribute("aria-label", inChart ? `Hide ${name}` : `${name} isn't in the chart`);
+        box.title = inChart ? "Hide this artist everywhere" : "Not in the chart, so it can't be hidden";
         li.setAttribute("aria-pressed", pinned);
         li.title = pinned ? "Click to unpin" : "Click to pin to the chart";
       }
@@ -605,6 +620,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
+    hide: (name) => toggleArtist($("chart-rolling"), name),
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
@@ -668,9 +684,17 @@ function paintMonthly(plays = shownPlays()) {
     const color = `var(--series-${slots[k] + 1})`;
     item.style.setProperty("--c", color);
     item.title = pinned ? `Unpin ${n}` : `Pin ${n}`;
-    const sw = document.createElement("span");
+    const sw = document.createElement("button");
+    sw.type = "button";
     sw.className = "swatch";
     sw.style.background = color;
+    sw.title = `Hide ${n}`;
+    sw.setAttribute("aria-label", sw.title);
+    sw.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hover(null);
+      pins.hide(n);
+    });
     const label = document.createElement("span");
     label.className = "name";
     label.textContent = n; // artist names come from user files

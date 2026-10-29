@@ -541,6 +541,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     (share ? focusBand : focusLine)(k < 0 ? null : k);
   };
 
+  // Show or hide an artist as the legend's box does
+  st.toggleArtist = (name) => c.dispatchAction({ type: "legendToggleSelect", name });
+
   // The tooltip formats before the pointer handler runs, so redraw it once the focused series is known
   const retip = (x, y) => c.dispatchAction({ type: "showTip", x, y });
 
@@ -708,6 +711,11 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
   all.setAttribute("aria-label", all.title);
   all.addEventListener("click", () => showAll(top.map(([name]) => name), on !== top.length));
   card.querySelector(".top-legend").replaceChildren(...(top.length ? [all] : []), ...top.map(([n, k]) => item(n, k)));
+}
+
+// Show or hide an artist in a rolling chart from elsewhere on the page (what unticking their legend box does)
+export function toggleArtist(el, name) {
+  rollingState.get(el)?.toggleArtist?.(name);
 }
 
 // Highlight an artist in a rolling chart from elsewhere on the page; null clears.

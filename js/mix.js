@@ -37,8 +37,16 @@ function makeItem(e) {
   const item = document.createElement("span");
   item.className = "legend-item mix-legend-item";
   item.title = e.name;
-  const sw = document.createElement("span");
+  const sw = document.createElement("button");
+  sw.type = "button";
   sw.className = "swatch";
+  sw.title = `Hide ${e.name}`;
+  sw.setAttribute("aria-label", sw.title);
+  sw.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    hover(null);
+    if (e.pinnable) ctx.pins.hide(e.name);
+  });
   const label = document.createElement("span");
   label.className = "name";
   label.textContent = e.name; // artist names come from user files
@@ -172,6 +180,7 @@ export function updateMix(next) {
       el.classList.toggle("pinned", pinned);
     }
     e.item.firstChild.style.background = color;
+    e.item.firstChild.disabled = !e.pinnable; // "Everyone else" has no box to untick
     const share = e.to.w;
     e.seg.title = `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
