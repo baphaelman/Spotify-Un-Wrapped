@@ -227,15 +227,14 @@ function syncPeriod() {
 
 const sameRange = (a, b) => a.lo === b.lo && a.hi === b.hi;
 
-// The window `months` calendar months long from its left edge, which stays put, so it grows or shrinks from
-// the right. Past the end of the history it slides back to fit instead of shrinking.
+// The window `months` calendar months long, ending where it ends now: the right edge stays put and the
+// left edge moves, so the buttons rescale the window back from the most recent day. A history shorter than
+// that gives what there is.
 function resized(range, months) {
   const e = extent();
-  const from = agg.dayToDate(range.lo);
-  const len = agg.dayIndex(new Date(from.getFullYear(), from.getMonth() + months, from.getDate()).getTime()) - range.lo;
-  const n = Math.min(len, e.hi - e.lo + 1);
-  const lo = Math.max(e.lo, Math.min(range.lo, e.hi - n + 1));
-  return { lo, hi: lo + n - 1 };
+  const after = agg.dayToDate(range.hi + 1); // the day after the window; the new window starts `months` before it
+  const lo = agg.dayIndex(new Date(after.getFullYear(), after.getMonth() - months, after.getDate()).getTime());
+  return { lo: Math.max(e.lo, lo), hi: range.hi };
 }
 
 $("period-resize").addEventListener("click", (e) => {

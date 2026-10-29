@@ -66,8 +66,8 @@ own folder, so no agent sees another's half-finished edits.
   shows as "Custom". Every graph, list and stat reads `rangePlays()` / `state.range`.
 - `js/brush.js`: the sticky bar's timeline (the rolling chart's stack graph in miniature over the whole
   history, drawn by `paintBrush` in `main.js` from the same data, artists and colors, with pinned or hovered
-  artists lit and the rest dimmed; and a draggable window and edges). The 3m/6m/1y buttons resize the
-  window from its right edge (`resized`). It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
+  artists lit and the rest dimmed; and a draggable window and edges). The 3m/6m/1y buttons rescale the
+  window with its right edge fixed (`resized`). It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
   moved by `setBrushRange`. Drags go through `liveRender` in `main.js`, which slides the rolling chart's
   range every frame (`setZoom`) but redraws artists, lists, stats and the mix bar at most every ~90 ms, or
   3x the last redraw's cost, so dragging stays smooth.
