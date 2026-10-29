@@ -152,6 +152,13 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
     }
   }
+  // Drop the empty stretch at the start, before any of these series has a play (the data can begin well
+  // before the first listen of the chosen artists). A chart with nothing at all is left alone.
+  const lead = dates.findIndex((_, i) => hours.some((h) => h[i] > 0));
+  if (lead > 0) {
+    dates.splice(0, lead);
+    for (const arr of [...hours, ...share]) arr.splice(0, lead);
+  }
   return { dates, hours, share };
 }
 
