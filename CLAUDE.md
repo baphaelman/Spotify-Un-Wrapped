@@ -125,7 +125,9 @@ matches what is moving.
   Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
 - **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
   timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
-  the exception by design: the view pans first (`PAN_MS`/`ZOOM_MS`), then the new artists morph in.
+  the exception by design: the view pans first (`PAN_MS`/`ZOOM_MS`), then the new artists morph in. So is
+  the bar's timeline when its bands change shape and its ends move too: the bands morph first, then the ends
+  travel, each at the tier (`setBrushBands`).
 - **Things come and go by shrinking or fading, not by appearing.** A hidden artist collapses to zero
   thickness; a series that leaves fades its outline as it goes. Series can't tween in or out, so keep them
   in place with no thickness (see `withOtherMorph`, the timeline's `hidden` bands).

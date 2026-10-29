@@ -18,7 +18,7 @@ let drag = null;
 let keyTimer = 0;
 let morphTimer = 0;
 let morphRaf = 0;
-let morphAt = { start: 0, end: 0 }; // when the morph in flight starts (after its delay) and ends (performance.now())
+let morphAt = { start: 0, end: 0, turn: 0 }; // when the morph in flight starts (after its delay), turns from its bands to the timeline's ends (0 if it doesn't) and ends (performance.now())
 
 const days = () => model.last - model.first + 1;
 const trackW = () => $("brush-track").clientWidth;
@@ -123,23 +123,34 @@ export function setBrushBands(next, morph) {
   $("brush-track").classList.remove("morphing");
   const now = performance.now();
   const flying = now < morphAt.end;
-  const delay = Math.max(morph?.delay ?? 0, flying ? morphAt.start - now : 0);
-  const ms = Math.max(dur(morph?.ms ?? 0), flying ? morphAt.end - now - delay : 0);
   const prev = bands && bands.bands.length === next.bands.length ? resample(bands, next.days) : null;
+  // When the bands change shape and the timeline's ends move too, it's two steps: the bands morph in place,
+  // then the ends travel, each over `ms`, so the two movements don't blur into one
+  const twoStep = !!prev && movesAcross(prev, next) && movesUpDown(prev, next);
+  const delay = Math.max(morph?.delay ?? 0, flying ? morphAt.start - now : 0);
+  const ms = Math.max(dur(morph?.ms ?? 0) * (twoStep ? 2 : 1), flying ? morphAt.end - now - delay : 0);
   if (!ms || !prev) {
-    morphAt = { start: 0, end: 0 };
+    morphAt = { start: 0, end: 0, turn: 0 };
     return applyBands(next);
   }
-  // Taking over a morph already moving, it carries on without first slowing to a stop
-  const ease = flying && now >= morphAt.start ? easeOut : morph?.ease ?? easeInOut;
-  morphAt = { start: now + delay, end: now + delay + ms };
+  const start = now + delay;
+  // A morph taking over one still in its first step turns when that one would have
+  const turn = !twoStep ? 0 : flying && morphAt.turn > start ? morphAt.turn : start + ms / 2;
+  const split = twoStep ? (turn - start) / ms : 1;
+  // Taking over a movement already under way, it carries on without first slowing to a stop
+  const base = morph?.ease ?? easeInOut;
+  const easeV = flying && now >= morphAt.start ? easeOut : base;
+  const easeH = !twoStep ? easeV : flying && morphAt.turn && now >= morphAt.turn ? easeOut : base;
+  morphAt = { start, end: start + ms, turn };
   morphTimer = setTimeout(() => {
     const t0 = performance.now();
     // The window is repositioned every frame as the timeline's left end moves, so it mustn't also ease
     $("brush-track").classList.add("morphing");
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / ms);
-      applyBands(t === 1 ? next : blend(prev, next, ease(t)));
+      const ev = easeV(Math.min(1, t / split));
+      const eh = twoStep ? easeH(Math.max(0, (t - split) / (1 - split))) : ev;
+      applyBands(t === 1 ? next : blend(prev, next, ev, eh));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
       else $("brush-track").classList.remove("morphing");
     };
@@ -170,13 +181,21 @@ function applyBands(next) {
   }
 }
 
-// The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade
-function blend(a, b, e) {
+// Whether the timeline's ends move, and whether any band's edges do
+const movesAcross = (a, b) => Math.abs(a.start - b.start) >= 0.5 || Math.abs(a.end - b.end) >= 0.5;
+function movesUpDown(a, b) {
+  const differ = (x, y) => y.some((v, i) => v != null && x[i] != null && Math.abs(v - x[i]) > 1e-4);
+  return b.bands.some((band, k) => differ(a.bands[k].lo, band.lo) || differ(a.bands[k].hi, band.hi));
+}
+
+// The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade; the timeline's ends a
+// fraction `eh` of the way
+function blend(a, b, e, eh = e) {
   const mix = (x, y) => y.map((v, i) => (v == null || x[i] == null ? v : x[i] + (v - x[i]) * e));
   return {
     ...b,
-    start: a.start + (b.start - a.start) * e, // the timeline's ends glide too
-    end: a.end + (b.end - a.end) * e,
+    start: a.start + (b.start - a.start) * eh, // the timeline's ends glide too
+    end: a.end + (b.end - a.end) * eh,
     bands: b.bands.map((band, k) => ({
       ...band,
       lo: mix(a.bands[k].lo, band.lo),
