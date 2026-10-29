@@ -939,20 +939,20 @@ export function focusMonthly(el, name) {
 // shown. grid is clockBy's, by the hour; the hours are smoothed around the week's clock (late Sunday runs into Monday
 // morning) so a band doesn't jump between neighbouring hours. Pins and hover work as in renderMonthly (focusClock
 // lights an artist from elsewhere): names/slots are the artists and their palette slots, off the deselected ones
-// (already left out of grid's plays, so shares are of what's shown).
+// (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing, in hours (0 for none).
 const clockState = new WeakMap();
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const hourLabel = (h) => (h % 24 === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
-const CLOCK_SIGMA = 1.2; // hours
 
 // Gaussian blur of a 168-hour ring
 function blurRing(v, sigma) {
+  if (!(sigma > 0)) return v;
   const n = v.length, r = Math.ceil(sigma * 3);
   const w = Array.from({ length: 2 * r + 1 }, (_, i) => Math.exp(-((i - r) ** 2) / (2 * sigma * sigma)));
   return v.map((_, i) => w.reduce((s, wj, j) => s + wj * v[(i + j - r + n) % n], 0));
 }
 
-export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true) {
+export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 1.5) {
   const t = tokens();
   const all = [...names, "Everyone else"];
   const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
@@ -965,7 +965,7 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
   const ring = all.map((_, k) =>
     grid.flatMap((row) => row.map((e) => (k < otherIdx ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0)))
   );
-  const smooth = ring.map((v) => blurRing(v, CLOCK_SIGMA));
+  const smooth = ring.map((v) => blurRing(v, sigma));
   // Each hour's value sits at the middle of the hour; points go on the hour (0..24 each day), halfway between two
   const at = (v, d, h) => (v[(d * 24 + h - 1 + 168) % 168] + v[(d * 24 + h) % 168]) / 2;
   const hours = all.map((_, k) => DAYS.map((_, d) => Array.from({ length: 25 }, (_, h) => at(smooth[k], d, h))));
@@ -991,8 +991,8 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
 
   // A row per weekday, each its own grid, with the hour labels under the last. Laid out in pixels from the chart's
   // height (the card sets it in CSS)
-  const top = 8, bottomPad = 28, gap = 8;
-  const each = ((el.clientHeight || 480) - top - bottomPad) / 7;
+  const top = 8, bottomPad = 28, gap = 28;
+  const each = ((el.clientHeight || 640) - top - bottomPad + gap) / 7;
   const grids = DAYS.map((_, d) => ({ left: 48, right: 16, top: top + d * each, height: each - gap }));
 
   const tip = (params) => {

@@ -631,7 +631,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
   state.shownWindow = window; // where a window sweep starts from, even if it interrupts another
   const includeOther = $("include-other").checked;
   $("window").setAttribute("aria-valuetext", `${target} days`);
-  for (const id of ["n-artists", "window"]) paintSlider($(id));
+  for (const id of ["n-artists", "window", "clock-smooth"]) paintSlider($(id));
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
@@ -716,8 +716,15 @@ function paintClock(plays = shownPlays()) {
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, CLOCK_SIGMAS[$("clock-smooth").value]);
 }
+// The clock's smoothing, in hours, for each step of its slider
+const CLOCK_SIGMAS = [0, 0.5, 1, 1.5, 2, 3, 4];
+$("clock-smooth").addEventListener("input", (e) => {
+  paintSlider(e.target);
+  e.target.setAttribute("aria-valuetext", `${CLOCK_SIGMAS[e.target.value]} hours`);
+  if (state.plays) paintClock();
+});
 
 // Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
 function paintMonthly(plays = shownPlays()) {
