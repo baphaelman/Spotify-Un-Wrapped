@@ -830,6 +830,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
+  // Rebuilding under an open tooltip (a click pinning a new artist in) leaves it filling a removed element
+  if (fresh && prev) c.dispatchAction({ type: "hideTip" });
   setOptionFaded(
     c,
     {
@@ -899,19 +901,22 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     { notMerge: fresh },
     fresh ? 0 : dur(MORPH_MS)
   );
-  // Only the chart's artists are pinnable (and shared with the rest of the page). The gray top series names its
-  // artist per bar.
+  // The gray top series names its artist per bar
   const artistOf = (p) => (p.seriesId === "top" ? p.data?.name : p.seriesName);
   settleMonthly(el, st, looks);
   // The pointer picks the artist whose slice it's over; anywhere else in a column, it picks the column's top
-  // artist, so hovering or clicking the column is hovering or clicking them. ECharts reports the slice
-  // (mouseover/out) before zrender's mousemove, which then works out the pick. A pin re-renders the chart
-  // without moving the pointer, so the slice under it carries over, and a click works out its own pick.
-  const pickable = (n) => names.includes(n) && !off.has(n);
+  // artist, so hovering or clicking the column is hovering or clicking them. A top artist outside the chart can
+  // be picked too: clicking pins them into it, but only the chart's artists light up on hover (shared with the
+  // rest of the page). ECharts reports the slice (mouseover/out) before zrender's mousemove, which then works
+  // out the pick. A pin re-renders the chart without moving the pointer, so the slice under it carries over, and
+  // a click works out its own pick.
+  // `lit` is the artist last reported to hover(): only the chart's artists, carried over a re-render so it's
+  // cleared when the pointer leaves
+  const pickable = (n) => n != null && !off.has(n);
   let slice = pickable(prev?.slice?.()) ? prev.slice() : null;
-  let picked = prev?.picked?.() ?? null;
+  let lit = prev?.lit?.() ?? null;
   st.slice = () => slice;
-  st.picked = () => picked;
+  st.lit = () => lit;
   const pick = (x, y) => {
     let n = slice;
     if (n == null && c.containPixel("grid", [x, y])) {
@@ -920,7 +925,9 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
       if (pickable(top)) n = top;
     }
     c.getZr().setCursorStyle(n != null && pins ? "pointer" : "default");
-    if (n !== picked) hover((picked = n));
+    const l = names.includes(n) ? n : null;
+    if (l !== lit) hover((lit = l));
+    return n;
   };
   const zr = c.getZr();
   if (prev?.zr) for (const [ev, fn] of Object.entries(prev.zr)) zr.off(ev, fn);
@@ -928,11 +935,11 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     mousemove: (e) => pick(e.offsetX, e.offsetY),
     globalout: () => {
       slice = null;
-      if (picked != null) hover((picked = null));
+      if (lit != null) hover((lit = null));
     },
     click: (e) => {
-      pick(e.offsetX, e.offsetY);
-      if (picked != null) pins?.toggle(picked);
+      const n = pick(e.offsetX, e.offsetY);
+      if (n != null) pins?.toggle(n);
     },
   };
   for (const [ev, fn] of Object.entries(st.zr)) zr.on(ev, fn);
