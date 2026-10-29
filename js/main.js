@@ -684,7 +684,7 @@ function paintMonthly(plays = shownPlays()) {
   // The month's total isn't an artist, so it's keyed but not pinnable
   const rest = document.createElement("span");
   rest.className = "legend-item mix-legend-item";
-  rest.title = state.monthlyMode === "bars" ? "Everyone else" : "Total hours";
+  rest.title = "Everyone else";
   const restSw = document.createElement("span");
   restSw.className = "swatch";
   restSw.style.background = "var(--other)";
