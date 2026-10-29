@@ -3,7 +3,8 @@ If you have Spotify Premium you can request all your streaming data for free. Th
 
 **Try it:** https://baphaelman.github.io/Spotify-Un-Wrapped/
 
-<img width="1158" height="741" alt="Screenshot 2026-10-28 at 3 55 09 PM" src="https://github.com/user-attachments/assets/3e9fa468-ab85-4e9f-8856-30650d766bd8" />
+<img width="1208" height="714" alt="Screenshot 2026-10-28 at 9 44 11 PM" src="https://github.com/user-attachments/assets/fddbc02a-a7e4-4c08-9200-6131754cd64e" />
+
 
 # Website
 ## Run it
