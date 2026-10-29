@@ -148,6 +148,7 @@ export function setBrushBands(next, morph) {
 }
 
 function applyBands(next) {
+  const firstPaint = !bands;
   bands = next;
   // The timeline starts where the bands do (`start`, a day index), but not under the reader's hand: the
   // pointer is mapped to days by it, so it waits for the drag to end
@@ -157,7 +158,16 @@ function applyBands(next) {
     if (next.start != null) model.first = Math.min(Math.round(next.start), model.last);
   }
   draw();
+  // The first bands only fix where the timeline starts, which the window was placed without: it takes its place
+  // at once, not by gliding from where the whole history would have put it
+  const track = $("brush-track");
+  const snap = firstPaint && !track.classList.contains("morphing");
+  if (snap) track.classList.add("morphing");
   position();
+  if (snap) {
+    void track.offsetWidth; // commit the new place before the transition returns
+    track.classList.remove("morphing");
+  }
 }
 
 // The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade
