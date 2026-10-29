@@ -136,6 +136,10 @@ function build() {
       item.append(sw, label);
       item.addEventListener("pointerenter", () => hover(name));
       item.addEventListener("pointerleave", () => hover(null));
+      if (canPin(i)) {
+        item.classList.add("pinnable");
+        item.addEventListener("click", () => ctx.pins.toggle(name));
+      }
       return item;
   });
   $("mix-legend").replaceChildren(...items);
@@ -143,9 +147,9 @@ function build() {
 
 function buildMonths() {
   const { lo, hi } = ctx;
-  const opts = [new Option("Custom range", "")];
+  // The first entry is the whole period, as in the Period bar and the stack graph above
+  const opts = [new Option(ctx.periodLabel, "")];
   for (let k = monthKey(lo); k <= monthKey(hi); k++) opts.push(new Option(fmtMonth(monthStart(k)), String(k)));
-  opts[0].hidden = true;
   $("mix-month").replaceChildren(...opts);
   $("mix-lo").textContent = fmtMonth(lo);
   $("mix-hi").textContent = fmtMonth(hi);
@@ -158,7 +162,7 @@ export function updateMix(next) {
   ctx = next;
   const key = ctx.names.join("\u0000") + "|" + ctx.slots?.join(",") + "|" + ctx.hasOther;
   if (key !== rendered.key) { build(); rendered.key = key; }
-  const bounds = ctx.lo + ":" + ctx.hi;
+  const bounds = ctx.lo + ":" + ctx.hi + ":" + ctx.periodLabel;
   if (bounds !== rendered.bounds) {
     // A new period (or new data): start on its last month
     rendered.bounds = bounds;
@@ -209,7 +213,10 @@ function play() {
 export function setupMix(onHover) {
   hover = onHover;
   $("mix-slider").addEventListener("input", (e) => { stop(); setSpan(Number(e.target.value), span.len); });
-  $("mix-month").addEventListener("change", (e) => { stop(); if (e.target.value) setMonth(Number(e.target.value)); });
+  $("mix-month").addEventListener("change", (e) => { stop(); 
+    if (e.target.value) setMonth(Number(e.target.value));
+    else setSpan(ctx.lo, ctx.hi - ctx.lo + 1);
+  });
   $("mix-prev").addEventListener("click", () => { stop(); setMonth(monthOfSpan() - 1); });
   $("mix-next").addEventListener("click", () => { stop(); setMonth(monthOfSpan() + 1); });
   $("mix-latest").addEventListener("click", () => { stop(); setSpan(ctx.hi - span.len + 1, span.len); });

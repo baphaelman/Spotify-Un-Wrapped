@@ -401,6 +401,7 @@ function renderMix(artists, slots, includeOther, pins) {
     slots,
     pins,
     hasOther: includeOther,
+    periodLabel: $("year-label").textContent,
     lo: agg.dayIndex(inPeriod[0].t),
     hi: agg.dayIndex(inPeriod[inPeriod.length - 1].t),
   });
