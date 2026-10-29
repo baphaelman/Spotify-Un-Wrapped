@@ -710,14 +710,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const [d, n, w, , m, o, p, sl, sm] = st.args;
     renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl, sm);
   };
+  // Several at once in a single re-stack, rather than one morph per artist
+  st.showAll = (list, show) => {
+    for (const name of list) if (name in st.selected) st.selected[name] = show;
+    restack();
+  };
   renderLegend(el, names, colors, visible, otherIdx, {
     hover: (name) => st.focusArtist(name),
     toggle: (name) => c.dispatchAction({ type: "legendToggleSelect", name }),
-    // Several at once in a single re-stack, rather than one morph per artist
-    showAll: (list, show) => {
-      for (const name of list) st.selected[name] = show;
-      restack();
-    },
+    showAll: st.showAll,
     pins,
   });
 
@@ -809,6 +810,11 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
 // Show or hide an artist in a rolling chart from elsewhere on the page (what unticking their legend box does)
 export function toggleArtist(el, name) {
   rollingState.get(el)?.toggleArtist?.(name);
+}
+
+// Show or hide several artists in a rolling chart at once (what its "all" box does)
+export function showArtists(el, list, show) {
+  rollingState.get(el)?.showAll?.(list, show);
 }
 
 // Highlight an artist in a rolling chart from elsewhere on the page; null clears.
@@ -939,7 +945,7 @@ export function focusMonthly(el, name) {
 // shown. grid is clockBy's, by the hour; the hours are smoothed around the week's clock (late Sunday runs into Monday
 // morning) so a band doesn't jump between neighbouring hours. Pins and hover work as in renderMonthly (focusClock
 // lights an artist from elsewhere): names/slots are the artists and their palette slots, off the deselected ones
-// (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing, in hours (0 for none).
+// (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing, in hours.
 const clockState = new WeakMap();
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const hourLabel = (h) => (h % 24 === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
@@ -952,7 +958,7 @@ function blurRing(v, sigma) {
   return v.map((_, i) => w.reduce((s, wj, j) => s + wj * v[(i + j - r + n) % n], 0));
 }
 
-export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 1.5) {
+export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 0.5) {
   const t = tokens();
   const all = [...names, "Everyone else"];
   const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];

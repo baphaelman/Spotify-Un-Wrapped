@@ -457,9 +457,6 @@ button.ghost:hover { background: var(--border); }
 .chart { width: 100%; height: 320px; margin-top: 8px; }
 .chart.tall { height: 480px; }
 #chart-clock { height: 640px; }
-.clock-smooth { grid-template-columns: auto 160px; column-gap: 10px; align-items: center; justify-content: start; width: auto; margin-top: 12px; }
-.clock-smooth .slider-label { font-size: 11px; color: var(--text-muted); }
-.clock-smooth .ticks { grid-column: 2; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-2 .card { margin-bottom: 16px; }
@@ -748,6 +745,7 @@ dialog pre {
 .mix-total { display: grid; justify-items: end; gap: 2px; }
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
 #mix-legend { position: relative; margin: 14px 0 12px; }
+#clock-legend { margin-top: 12px; }
 .mix-legend-item { cursor: default; }
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }
@@ -782,7 +780,7 @@ dialog pre {
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 /* The chart legend's pinned chip trims its right padding to make room for an unpin x; this legend has
    none, so keep the box the size it was */
-#mix-legend .mix-legend-item.pinned, #monthly-legend .mix-legend-item.pinned { padding-right: 10px; }
+#mix-legend .mix-legend-item.pinned, #monthly-legend .mix-legend-item.pinned, #clock-legend .mix-legend-item.pinned { padding-right: 10px; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
 .mix-legend-item .name::after {

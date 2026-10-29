@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, MORPH_MS, CHASE_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
@@ -631,7 +631,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
   state.shownWindow = window; // where a window sweep starts from, even if it interrupts another
   const includeOther = $("include-other").checked;
   $("window").setAttribute("aria-valuetext", `${target} days`);
-  for (const id of ["n-artists", "window", "clock-smooth"]) paintSlider($(id));
+  for (const id of ["n-artists", "window"]) paintSlider($(id));
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
@@ -716,15 +716,10 @@ function paintClock(plays = shownPlays()) {
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, CLOCK_SIGMAS[$("clock-smooth").value]);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, 0.5);
+  $("clock-legend").replaceChildren(...artistKey(keyed, pins, hover, { all: true, other: includeOther }));
+  paintFocus();
 }
-// The clock's smoothing, in hours, for each step of its slider
-const CLOCK_SIGMAS = [0, 0.5, 1, 1.5, 2, 3, 4];
-$("clock-smooth").addEventListener("input", (e) => {
-  paintSlider(e.target);
-  e.target.setAttribute("aria-valuetext", `${CLOCK_SIGMAS[e.target.value]} hours`);
-  if (state.plays) paintClock();
-});
 
 // Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
 function paintMonthly(plays = shownPlays()) {
@@ -736,6 +731,14 @@ function paintMonthly(plays = shownPlays()) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden));
+  $("monthly-legend").replaceChildren(...artistKey(keyed, pins, hover));
+  paintFocus();
+}
+
+// The key under a chart drawn from the rolling chart's artists: a chip per artist whose box shows or hides them
+// and whose name pins them, lit on hover, then "Everyone else" in gray (not pinnable) when other is set. With all,
+// it's led by a box that shows or hides every artist in the key at once, like the rolling chart's.
+function artistKey(keyed, pins, hover, { all: withAll = false, other = true } = {}) {
   // Deselected artists stay in the key, dimmed, so they can be ticked back on
   const key = keyed.map((n) => {
     const off = state.hidden.includes(n);
@@ -767,7 +770,7 @@ function paintMonthly(plays = shownPlays()) {
     item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));
     return item;
   });
-  // The month's total isn't an artist, so it's keyed but not pinnable
+  // Everyone else isn't an artist, so it's keyed but not pinnable
   const rest = document.createElement("span");
   rest.className = "legend-item mix-legend-item";
   rest.title = "Everyone else";
@@ -779,8 +782,19 @@ function paintMonthly(plays = shownPlays()) {
   restName.textContent = rest.title;
   restName.dataset.text = rest.title;
   rest.append(restSw, restName);
-  $("monthly-legend").replaceChildren(...key, rest);
-  paintFocus();
+  if (!withAll) return other ? [...key, rest] : key;
+  // Checked when every artist in the key is shown, mixed when some are; a click shows them all, or hides them all
+  // once they're all shown
+  const on = keyed.filter((n) => !state.hidden.includes(n)).length;
+  const box = document.createElement("button");
+  box.type = "button";
+  box.className = "legend-item legend-all";
+  box.setAttribute("role", "checkbox");
+  box.setAttribute("aria-checked", on === keyed.length ? "true" : on ? "mixed" : "false");
+  box.title = on === keyed.length ? "Hide all artists" : "Show all artists";
+  box.setAttribute("aria-label", box.title);
+  box.addEventListener("click", () => showArtists($("chart-rolling"), keyed, on !== keyed.length));
+  return [...(keyed.length ? [box] : []), ...key, ...(other ? [rest] : [])];
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
