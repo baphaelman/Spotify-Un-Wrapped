@@ -1322,26 +1322,30 @@ function flipTheme() {
   document.documentElement.dataset.theme = isDark() ? "light" : "dark";
   rerenderForTheme();
 }
-// The new theme is revealed by a circle growing from the toggle over the old one, so the charts (redrawn, not
-// restyled) change with the page instead of snapping.
+// The page changes theme through a circle at the toggle: light grows out of it, or shrinks back into it going dark.
+// The charts are redrawn, not restyled, so this is what keeps them from snapping.
 $("theme-toggle").addEventListener("click", async () => {
   const root = document.documentElement;
   if (!document.startViewTransition || !dur(MORPH_MS) || themeSwapping) return flipTheme();
   const b = $("theme-toggle").getBoundingClientRect();
   const x = b.left + b.width / 2, y = b.top + b.height / 2;
   const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const toDark = !isDark();
   themeSwapping = true;
   root.classList.add("theme-swap");
+  root.classList.toggle("to-dark", toDark);
   const t = document.startViewTransition(flipTheme);
   try {
     await t.ready;
+    // Light spreads out from the toggle; going dark, the light is drawn back into it
+    const open = `circle(${r}px at ${x}px ${y}px)`, shut = `circle(0px at ${x}px ${y}px)`;
     root.animate(
-      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
-      { duration: MORPH_MS, easing: EASE_IN_OUT.css, pseudoElement: "::view-transition-new(root)" }
+      { clipPath: toDark ? [open, shut] : [shut, open] },
+      { duration: MORPH_MS, easing: EASE_IN_OUT.css, pseudoElement: toDark ? "::view-transition-old(root)" : "::view-transition-new(root)" }
     );
     await t.finished;
   } catch {}
-  root.classList.remove("theme-swap");
+  root.classList.remove("theme-swap", "to-dark");
   themeSwapping = false;
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderForTheme);

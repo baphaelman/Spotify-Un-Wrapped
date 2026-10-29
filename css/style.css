@@ -954,6 +954,8 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* Flipping the theme reveals the new one in a circle growing from the toggle (main.js, a view transition). The
    colors snap underneath it, so the usual cross-fade is off while it runs. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.to-dark::view-transition-old(root) { z-index: 2; }
+.to-dark::view-transition-new(root) { z-index: 1; }
 .theme-swap :is(body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu) { transition: none !important; }
 
 /* The period label swaps with a quick slide when the period changes */
