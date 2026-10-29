@@ -139,7 +139,71 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
 
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
 export function setZoom(el, [start, end]) {
-  instances.get(el)?.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
+  const c = instances.get(el);
+  if (!c) return;
+  const st = rollingState.get(el);
+  // The range follows the reader's hand, so it mustn't tween behind it (a morph leaves a duration set)
+  if (st?.tweens) {
+    c.setOption({ animationDurationUpdate: 0 });
+    st.tweens = false;
+  }
+  c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
+  if (st?.live) paintLive(c, st); // the zoom redrew the new values; put the blend back before it's painted
+}
+
+// A live morph (morph.live): new artists while the range is moving under the reader's hand, as in a drag
+// of the period window. ECharts' own morph tweens points on screen, so every zoom step would restart it
+// and the bands would trail the window. Instead the chart is drawn with the new data at once, and each
+// frame every shape's points are moved back between the old values and the new ones, at x positions the
+// zoom has just laid out. Values are kept per series id by data index (st.values), so a live morph
+// interrupted by the next one carries on from what's on screen. Reaches into ECharts internals like
+// setOptionFaded.
+const liveEase = (t) => 1 - Math.pow(1 - t, 3); // starts quick, so a chain of interrupted morphs keeps up
+const liveAt = (L, now = performance.now()) => liveEase(Math.min(1, (now - L.t0) / L.ms));
+
+// The values on screen now, per series id
+function liveValues(st) {
+  if (!st?.live) return st?.values;
+  const e = liveAt(st.live);
+  return new Map([...st.live.to].map(([id, b]) => {
+    const a = st.live.from.get(id);
+    return [id, a ? b.map((v, i) => (v == null || a[i] == null ? v : a[i] + (v - a[i]) * e)) : b];
+  }));
+}
+
+function stopLive(st) {
+  if (!st?.live) return;
+  cancelAnimationFrame(st.live.raf);
+  st.live = null;
+}
+
+function paintLive(c, st) {
+  const L = st.live;
+  const e = liveAt(L);
+  const y0 = c.convertToPixel({ yAxisIndex: 0 }, 0);
+  const dy = c.convertToPixel({ yAxisIndex: 0 }, 1) - y0;
+  for (const m of c.getModel().getSeries()) {
+    const a = L.from.get(m.id), b = L.to.get(m.id);
+    if (!a || !b) continue;
+    const view = c.getViewOfSeriesModel(m);
+    const d = m.getData();
+    const n = d.count();
+    for (const shape of [view?._polyline, view?._polygon]) {
+      if (!shape) continue;
+      // ECharts lays out a fresh points array on each update; keep it for its x positions
+      if (shape.shape.points !== shape.__liveOut) shape.__liveFresh = shape.shape.points;
+      const fresh = shape.__liveFresh;
+      if (fresh?.length !== n * 2) continue;
+      const out = new Float32Array(fresh);
+      for (let i = 0; i < n; i++) {
+        const r = d.getRawIndex(i);
+        if (a[r] == null || b[r] == null || Number.isNaN(out[2 * i + 1])) continue;
+        out[2 * i + 1] = y0 + dy * (a[r] + (b[r] - a[r]) * e);
+      }
+      shape.setShape({ points: out });
+      shape.__liveOut = out;
+    }
+  }
 }
 
 // Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
@@ -184,14 +248,20 @@ function panTo(el, from, to, { ms, easing }, done) {
 //
 // morph: false to redraw without animation, or true (or a duration in ms, or {ms, easing}) to tween from what's drawn to the
 // new data, styles and smoothing. Switching "Everyone else" on or off morphs too, through a stand-in band
-// of zero thickness (see withOtherMorph).
+// of zero thickness (see withOtherMorph). {ms, live: true} morphs while the zoom range keeps moving (see
+// paintLive); it needs the same mode, window and number of series, or it redraws.
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
-  // Any render ends a pan in progress
+  // Any render ends a pan or a live morph in progress
   const prev = rollingState.get(el);
   if (prev?.panRaf) {
     cancelAnimationFrame(prev.panRaf);
     prev.panRaf = 0;
   }
+  const liveFrom =
+    morph?.live && prev?.mode === mode && prev.hasOther === hasOther && prev.window === window &&
+    prev.names.length === names.length && prev.values?.dates === data.dates.length ? liveValues(prev) : null;
+  stopLive(prev);
+  if (morph?.live && !liveFrom) morph = false;
   // A period change ({ms, easing, pan: true}) first scrolls (or zooms) the plot to the new range with the
   // artists already on screen, as if dragging the zoom slider, then morphs the bands into the new
   // period's artists. That needs the same series on screen; otherwise it redraws.
@@ -437,13 +507,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   c.on("datazoom", () => zoomHooks.get(el)?.());
 
+  // What each series shows, by data index, for the next live morph to start from
+  st.values = new Map(series.map((s) => [s.id, s.data.map((p) => p[1])]));
+  st.values.dates = data.dates.length;
+  st.tweens = !liveFrom && ms > 0;
+
   setOptionFaded(
     c,
     {
       // No animation on first draw or data changes; only morphs between modes tween
       animation: true,
       animationDuration: 0,
-      animationDurationUpdate: ms,
+      // A live morph moves the points itself (paintLive); its colors still fade
+      animationDurationUpdate: liveFrom ? 0 : ms,
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: 12, bottom: 28 },
@@ -485,6 +561,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     easing
   );
   clipEdges();
+  if (liveFrom) {
+    const L = (st.live = { from: liveFrom, to: st.values, t0: performance.now(), ms });
+    paintLive(c, st); // before the new values are ever painted
+    const tick = () => {
+      if (st.live !== L) return;
+      paintLive(c, st);
+      if (liveAt(L) < 1) L.raf = requestAnimationFrame(tick);
+      else st.live = null;
+    };
+    L.raf = requestAnimationFrame(tick);
+  }
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
   if (holdFill && base.size) {
     setTimeout(() => {

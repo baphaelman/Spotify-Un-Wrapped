@@ -109,8 +109,9 @@ export function setBrushData(first, last, min = first) {
 // edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
 // hovered), "dim" (something else is lit) or "rest".
 //
-// morph: { delay, ms } to keep the old bands for `delay` ms (while the window slides over), then tween
-// their edges and colors into the new ones over `ms`, as the rolling chart does after it pans. Bands of
+// morph: { delay, ms, ease } to keep the old bands for `delay` ms (while the window slides over), then tween
+// their edges and colors into the new ones over `ms` (easing in and out by default), as the rolling chart
+// does after it pans. A morph cut short by the next one carries on from the bands on screen. Bands of
 // another window size sit on other days, so the old ones are first read off on the new days.
 export function setBrushBands(next, morph) {
   clearTimeout(morphTimer);
@@ -125,7 +126,7 @@ export function setBrushBands(next, morph) {
     $("brush-track").classList.add("morphing");
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / ms);
-      applyBands(t === 1 ? next : blend(prev, next, easeInOut(t)));
+      applyBands(t === 1 ? next : blend(prev, next, (morph.ease ?? easeInOut)(t)));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
       else $("brush-track").classList.remove("morphing");
     };

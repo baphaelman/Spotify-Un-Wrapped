@@ -115,27 +115,44 @@ export function clock(plays) {
 
 // Hours per day for each artist (plus "Everyone else" last, if included), as prefix sums so any span of days
 // is O(1). The rolling chart and the mix bar both read from this, so they always agree.
+// Each artist's row is worked out once per set of plays and kept, so a new artist set (as when dragging the
+// period window reshuffles the top artists) costs only the rows it hasn't seen.
+const tables = new WeakMap(); // plays → { first, last, len, byArtist: artist → their plays, rows: artist → prefix, everyone }
 export function dailyTable(plays, artists, includeOther) {
-  const first = dayIndex(plays[0].t);
-  const last = dayIndex(plays[plays.length - 1].t);
-  const len = last - first + 1;
-  const idx = new Map(artists.map((a, i) => [a, i]));
-  const nSeries = artists.length + (includeOther ? 1 : 0);
-  const daily = Array.from({ length: nSeries }, () => new Float64Array(len));
-  for (const p of plays) {
-    let s = idx.get(p.artist);
-    if (s === undefined) {
-      if (!includeOther) continue;
-      s = artists.length;
+  let tb = tables.get(plays);
+  if (!tb) {
+    const first = dayIndex(plays[0].t);
+    const last = dayIndex(plays[plays.length - 1].t);
+    const byArtist = new Map();
+    for (const p of plays) {
+      const list = byArtist.get(p.artist);
+      if (list) list.push(p);
+      else byArtist.set(p.artist, [p]);
     }
-    daily[s][dayIndex(p.t) - first] += p.ms / HOUR;
+    tb = { first, last, len: last - first + 1, byArtist, rows: new Map() };
+    tb.everyone = prefixOf(tb, plays);
+    tables.set(plays, tb);
   }
-  const prefix = daily.map((arr) => {
-    const out = new Float64Array(len + 1);
-    for (let i = 0; i < len; i++) out[i + 1] = out[i] + arr[i];
-    return out;
+  const prefix = artists.map((a) => {
+    let row = tb.rows.get(a);
+    if (!row) tb.rows.set(a, (row = prefixOf(tb, tb.byArtist.get(a) ?? [])));
+    return row;
   });
-  return { first, last, len, prefix };
+  if (includeOther) {
+    // Everyone else: everyone, less the artists shown
+    const rest = Float64Array.from(tb.everyone);
+    for (const row of prefix) for (let i = 0; i <= tb.len; i++) rest[i] -= row[i];
+    prefix.push(rest);
+  }
+  return { first: tb.first, last: tb.last, len: tb.len, prefix };
+}
+
+// Hours per day of some plays, as prefix sums over the table's days
+function prefixOf({ first, len }, plays) {
+  const out = new Float64Array(len + 1);
+  for (const p of plays) out[dayIndex(p.t) - first + 1] += p.ms / HOUR;
+  for (let i = 0; i < len; i++) out[i + 1] += out[i];
+  return out;
 }
 
 // Each series' hours over the days [from, to] (day indices, inclusive, clipped to the data), and their sum

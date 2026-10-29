@@ -3,6 +3,7 @@
 
 export const MORPH_MS = 750; // data or layout changes: points tween between old and new
 export const FADE_MS = 200; // hover and highlight restyles
+export const CHASE_MS = 450; // morphs that follow a moving input (a dragged period window), each cut short by the next
 
 // ECharts applies style changes instantly, and re-rendering every frame is too slow (~20ms) to tween
 // them, so fades animate the drawn shapes directly: note each series' fill and line as drawn, apply the

@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, focusMonthly, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, MORPH_MS } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, MORPH_MS, CHASE_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -374,12 +374,14 @@ function renderAll(keepZoom, from = false) {
 // new range while its artists stay the same, and redraws (with the new artists) when they change.
 // The chart's range slides every frame, which is cheap. The rest (new artists, lists, stats, the other
 // charts) is a few frames of work, so it runs at most every LIVE_MS while the window moves, and once more
-// when it stops.
+// when it stops. The chart and the rest go in separate frames, so neither waits on the other.
 // How often depends on how slow this machine finds it: the work gets at most a third of the time.
 const LIVE_MS = 90;
 let liveAt = 0;
 let liveCost = 0;
 let liveTimer = 0;
+let liveDeps = 0;
+let liveTail = null; // the chart's own followers (the mix bar and the bar's backdrop), put off to the next frame
 function liveRender() {
   if (!state.plays || !state.range) return;
   setZoom($("chart-rolling"), clampZoom(periodZoom(), rawMemo?.raw.dates));
@@ -391,19 +393,37 @@ function liveRender() {
 
 function liveSettle() {
   liveAt = performance.now();
-  liveSettleWork();
-  liveCost = performance.now() - liveAt;
-  liveAt += liveCost;
+  liveSettleChart();
+  const chartCost = performance.now() - liveAt;
+  liveAt += chartCost;
+  liveCost = chartCost;
+  cancelAnimationFrame(liveDeps);
+  liveDeps = requestAnimationFrame(() => {
+    const t0 = performance.now();
+    renderDependents();
+    if (liveTail) liveTail();
+    liveTail = null;
+    const cost = performance.now() - t0;
+    liveCost = chartCost + cost;
+    liveAt = Math.max(liveAt, t0) + cost;
+  });
 }
 
-function liveSettleWork() {
-  renderDependents();
+function liveSettleChart() {
   const n = Number($("n-artists").value);
   const artists = chartArtists(rangePlays(), n);
   if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && mixArgs) {
     $("rolling-sub").textContent = rollingSub(n, WINDOWS[$("window").value], $("include-other").checked);
     renderMix(...mixArgs);
-  } else renderRollingChart(periodZoom());
+  } else {
+    // New artists morph in while the range keeps sliding, the backdrop in the bar with them
+    const ms = dur(CHASE_MS);
+    renderRollingChart(periodZoom(), ms && { ms, live: true }, null, false);
+    liveTail = () => {
+      if (mixArgs) renderMix(...mixArgs);
+      paintBrush(undefined, ms ? { ms, ease: (t) => 1 - Math.pow(1 - t, 3) } : null);
+    };
+  }
 }
 
 // The plays in the period
@@ -602,7 +622,8 @@ const spanDays = (zoom, dates) =>
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
-function renderRollingChart(zoom, morph = false, look = null) {
+// followers: false leaves the lists, mix bar, monthly chart and the bar's backdrop for the caller to update.
+function renderRollingChart(zoom, morph = false, look = null, followers = !look) {
   if (!look) cancelSweep(); // any other render ends a sweep in progress
   const n = Number($("n-artists").value);
   const target = WINDOWS[$("window").value];
@@ -643,7 +664,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
-  if (!look) {
+  if (followers) {
     // the steps of a sweep change neither the artists nor their colors
     paintTopLists();
     renderMix(artists, slots, includeOther, pins);
