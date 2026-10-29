@@ -107,7 +107,8 @@ export function setBrushData(first, last, min = first) {
 // The stack graph in miniature, behind the window: the rolling chart's own artists and colors over the
 // whole history. { start, days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
 // edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
-// hovered), "dim" (something else is lit) or "rest".
+// hovered), "dim" (something else is lit), "rest" or "hidden" (deselected: give it no thickness, so it can
+// grow back in a morph rather than pop).
 //
 // morph: { delay, ms, ease } to keep the old bands for `delay` ms (while the window slides over), then tween
 // their edges and colors into the new ones over `ms` (easing in and out by default), as the rolling chart
@@ -159,8 +160,23 @@ function blend(a, b, e) {
       lo: mix(a.bands[k].lo, band.lo),
       hi: mix(a.bands[k].hi, band.hi),
       color: a.bands[k].color === band.color ? band.color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
+      mix: lookMix(a.bands[k], band, e),
     })),
   };
+}
+
+// A look as numbers, so a change of look (pinned, hovered, shown again) can tween: the weights of the three
+// shades (CSS variables, so they follow the theme), the edge's width and the band's opacity
+const LOOKS = {
+  lit: { band: 0, hover: 1, dim: 0, width: 2, alpha: 1 },
+  dim: { band: 0, hover: 0, dim: 1, width: 1.25, alpha: 1 },
+  rest: { band: 1, hover: 0, dim: 0, width: 1.25, alpha: 1 },
+  hidden: { band: 1, hover: 0, dim: 0, width: 1.25, alpha: 0 },
+};
+const lookOf = (band) => band.mix ?? LOOKS[band.look];
+function lookMix(a, b, e) {
+  const x = lookOf(a), y = lookOf(b);
+  return Object.fromEntries(Object.keys(y).map((k) => [k, x[k] + (y[k] - x[k]) * e]));
 }
 
 // The old bands' edges on the new points' days; days the old bands don't reach take the new value
@@ -237,11 +253,14 @@ function draw() {
       const line = (key, r) => r.map((i, k) => `${k ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
       const rev = (r) => [...r].reverse();
       const fill = runs.map((r) => `${line("hi", r)}${line("lo", rev(r)).replace("M", "L")}Z`).join("");
-      const shade = band.look === "lit" ? "hover" : band.look === "dim" ? "dim" : "band";
-      el("path", { d: fill, style: `fill:color-mix(in srgb, ${band.color} calc(var(--shade-${shade}) * 100%), var(--surface))` });
+      const m = lookOf(band);
+      if (m.alpha < 0.01) continue;
+      const shade = `(var(--shade-band) * ${m.band.toFixed(3)} + var(--shade-hover) * ${m.hover.toFixed(3)} + var(--shade-dim) * ${m.dim.toFixed(3)})`;
+      const alpha = m.alpha < 1 ? `;opacity:${m.alpha.toFixed(3)}` : "";
+      el("path", { d: fill, style: `fill:color-mix(in srgb, ${band.color} calc(${shade} * 100%), var(--surface))${alpha}` });
       el("path", {
         d: runs.map((r) => line("hi", r) + line("lo", r)).join(""),
-        style: `fill:none;stroke:${band.color};stroke-width:${band.look === "lit" ? 2 : 1.25};stroke-linejoin:round`,
+        style: `fill:none;stroke:${band.color};stroke-width:${m.width.toFixed(2)};stroke-linejoin:round${alpha}`,
       });
     }
   }

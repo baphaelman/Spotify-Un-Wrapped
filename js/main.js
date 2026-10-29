@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, MORPH_MS, CHASE_MS } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, MORPH_MS, FADE_MS, CHASE_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -456,7 +456,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   if (!state.plays) return;
   renderDependents();
   if (mixArgs) renderMix(...mixArgs);
-  paintBrush();
+  paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });
 
 function renderStats(plays) {
@@ -686,20 +686,21 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   if (brushMemo?.raw !== raw) brushMemo = { raw, data: agg.blur(raw, 12) };
   const { dates, share } = brushMemo.data;
   const names = $("include-other").checked ? [...state.chartNames, "Everyone else"] : state.chartNames;
-  const rows = names.map((_, i) => i).filter((i) => !state.hidden.includes(names[i]));
-  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && rows.some((i) => names[i] === a)));
-  const total = dates.map((_, k) => rows.reduce((t, i) => t + (share[i][k] ?? 0), 0));
+  // Deselected artists stay as bands with no thickness, so showing or hiding one morphs
+  const hidden = names.map((a) => state.hidden.includes(a));
+  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && names.some((n, i) => n === a && !hidden[i])));
+  const total = dates.map((_, k) => names.reduce((t, _n, i) => t + (hidden[i] ? 0 : share[i][k] ?? 0), 0));
   let acc = new Float64Array(dates.length);
-  const bands = rows.map((i) => {
+  const bands = names.map((_n, i) => {
     const lo = Array.from(acc);
-    acc = acc.map((a, k) => a + (share[i][k] ?? 0));
+    if (!hidden[i]) acc = acc.map((a, k) => a + (share[i][k] ?? 0));
     const frac = (v, k) => (share[i][k] == null || total[k] <= 0 ? null : v / total[k]);
     const hi = Array.from(acc, frac);
     return {
       lo: lo.map(frac),
       hi,
       color: names[i] === "Everyone else" ? "var(--other)" : `var(--series-${state.colorSlots.get(names[i]) + 1})`,
-      look: lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
+      look: hidden[i] ? "hidden" : lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
     };
   });
   const days = dates.map(agg.dayIndex);
@@ -826,7 +827,7 @@ onFocusChange($("chart-rolling"), (name) => {
   focusMonthly($("chart-monthly"), name);
   focusClock($("chart-clock"), name);
   brushFocus = name;
-  paintBrush();
+  paintBrush(undefined, brushMorph ?? { ms: FADE_MS });
 });
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
@@ -958,12 +959,16 @@ let active = -1;
 function pin(name) {
   if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
   state.pinned = [...state.pinned, name];
+  brushMorph = { ms: MORPH_MS };
   renderRollingChart(currentZoom($("chart-rolling")));
+  brushMorph = null;
 }
 
 function unpin(name) {
   state.pinned = state.pinned.filter((a) => a !== name);
+  brushMorph = { ms: MORPH_MS };
   renderRollingChart(currentZoom($("chart-rolling")));
+  brushMorph = null;
 }
 
 // Up to 8 matches: names starting with the query, then a word starting with it, then anywhere.
