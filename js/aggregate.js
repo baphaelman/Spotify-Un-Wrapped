@@ -77,18 +77,28 @@ export function summary(plays) {
   };
 }
 
-// [{ month: Date, hours }] with empty months filled in.
-export function monthly(plays) {
-  const m = sumBy(plays, (p) => {
+// [{ month: Date, hours, by }] with empty months filled in. `by` is the hours each of `artists` contributed
+// that month, in the same order; whatever is left of `hours` is everyone else.
+export function monthly(plays, artists = []) {
+  const col = new Map(artists.map((a, i) => [a, i]));
+  const m = new Map();
+  for (const p of plays) {
     const d = new Date(p.t);
-    return d.getFullYear() * 12 + d.getMonth();
-  });
+    const k = d.getFullYear() * 12 + d.getMonth();
+    let e = m.get(k);
+    if (!e) m.set(k, (e = { hours: 0, by: new Array(artists.length).fill(0) }));
+    const h = p.ms / HOUR;
+    e.hours += h;
+    const i = col.get(p.artist);
+    if (i !== undefined) e.by[i] += h;
+  }
   const keys = [...m.keys()];
   if (!keys.length) return [];
   const lo = Math.min(...keys), hi = Math.max(...keys);
   const out = [];
   for (let k = lo; k <= hi; k++) {
-    out.push({ month: new Date(Math.floor(k / 12), k % 12, 1), hours: m.get(k)?.hours || 0 });
+    const e = m.get(k);
+    out.push({ month: new Date(Math.floor(k / 12), k % 12, 1), hours: e?.hours || 0, by: e?.by || new Array(artists.length).fill(0) });
   }
   return out;
 }

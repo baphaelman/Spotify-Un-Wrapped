@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, focusMonthly, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, MORPH_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
@@ -424,7 +424,7 @@ function renderDependents() {
   renderStats(plays);
   renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
   renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
-  renderMonthly($("chart-monthly"), agg.monthly(plays));
+  paintMonthly(plays);
   renderClock($("chart-clock"), agg.clock(plays));
   paintTopLists();
 }
@@ -612,6 +612,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
     // the steps of a sweep change neither the artists nor their colors
     paintTopLists();
     renderMix(artists, slots, includeOther, pins);
+    paintMonthly();
     paintBrush();
   }
 }
@@ -651,6 +652,38 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
+// Hours per month, stacked by the chart's artists (same colors, pins and hover), with its own key beneath
+function paintMonthly(plays = shownPlays()) {
+  if (!mixArgs) return;
+  const [artists, , includeOther, pins] = mixArgs;
+  const shown = artists.filter((a) => !state.hidden.includes(a));
+  const names = includeOther ? [...shown, "Everyone else"] : shown;
+  const slots = names.map((n) => state.colorSlots.get(n));
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  renderMonthly($("chart-monthly"), agg.monthly(plays, shown), names, slots, includeOther, pins, hover);
+  const key = names.map((n, k) => {
+    const other = includeOther && k === names.length - 1;
+    const pinned = !other && pins.has(n);
+    const item = document.createElement("span");
+    item.className = "legend-item mix-legend-item" + (other ? "" : " pinnable") + (pinned ? " pinned" : "");
+    const color = other ? "var(--other)" : `var(--series-${slots[k] + 1})`;
+    item.style.setProperty("--c", color);
+    item.title = other ? n : pinned ? `Unpin ${n}` : `Pin ${n}`;
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = color;
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = n; // artist names come from user files
+    item.append(sw, label);
+    item.addEventListener("pointerenter", () => hover(n));
+    item.addEventListener("pointerleave", () => hover(null));
+    if (!other) item.addEventListener("click", () => pins.toggle(n));
+    return item;
+  });
+  $("monthly-legend").replaceChildren(...key);
+}
+
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
 let mixMemo = null;
 let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
@@ -675,6 +708,7 @@ function renderMix(artists, slots, includeOther, pins) {
 setupMix((name) => focusArtist($("chart-rolling"), name));
 onFocusChange($("chart-rolling"), (name) => {
   highlightMix(name);
+  focusMonthly($("chart-monthly"), name);
   brushFocus = name;
   paintBrush();
 });

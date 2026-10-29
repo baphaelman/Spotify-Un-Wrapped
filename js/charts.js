@@ -707,14 +707,24 @@ export function focusArtist(el, name) {
   rollingState.get(el)?.focusArtist?.(name);
 }
 
-export function renderMonthly(el, rows) {
+// Hours per month, stacked by artist. `names` are the chart's artists in stack order (the last is "Everyone else"
+// when hasOther), slots their palette slots, pins {has, toggle} the pinned artists. Pinned artists stay strong while
+// the others dim; hover is reported through `hover` and lit from outside with focusMonthly.
+const monthlyState = new WeakMap();
+export function renderMonthly(el, rows, names = [], slots = [], hasOther = false, pins = null, hover = () => {}) {
   const t = tokens();
   const label = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
   // One year: label every month. Longer: label each January with its year.
   const oneYear = rows.length <= 13;
   const tick = (r) =>
     oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
-  chart(el).setOption(
+  const otherIdx = hasOther ? names.length - 1 : -1;
+  const hoursOf = (r, k) => (k === otherIdx ? Math.max(0, r.hours - r.by.reduce((a, b) => a + b, 0)) : r.by[k]);
+  const pinned = new Set(names.filter((n, k) => k !== otherIdx && pins?.has(n)));
+  const c = chart(el);
+  monthlyState.set(el, { names });
+  const opacity = (n) => (pinned.size && !pinned.has(n) ? 0.28 : 1);
+  c.setOption(
     {
       animationDuration: 600,
       animationDurationUpdate: MORPH_MS,
@@ -722,15 +732,20 @@ export function renderMonthly(el, rows) {
       grid: { left: 48, right: 16, top: 16, bottom: 32 },
       tooltip: {
         ...tooltipBase(t),
-        trigger: "axis",
-        axisPointer: { type: "line", lineStyle: { color: t.muted, width: 1 } },
-        formatter: (params) => `<b>${fmtHours(params[0].value)}</b> <span style="opacity:.75">${label(rows[params[0].dataIndex].month)}</span>`,
+        trigger: "item",
+        formatter: (p) => {
+          const r = rows[p.dataIndex];
+          const h = hoursOf(r, p.seriesIndex);
+          return (
+            `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${label(r.month)}</span><br>` +
+            `<b>${fmtHours(h)}</b> <span style="opacity:.75">${r.hours ? Math.round((h / r.hours) * 100) : 0}% of ${fmtHours(r.hours)}</span>`
+          );
+        },
       },
       xAxis: {
         type: "category",
         data: rows.map(tick),
         ...baseAxis(t),
-        boundaryGap: false,
         axisLabel: { color: t.muted, interval: 0 },
         splitLine: { show: false },
       },
@@ -740,24 +755,36 @@ export function renderMonthly(el, rows) {
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: (v) => `${v} h` },
       },
-      series: [
-        {
-          type: "line",
-          // Dots only when there are few enough months to tell apart
-          showSymbol: oneYear,
-          symbol: "circle",
-          symbolSize: 8,
-          color: t.accent,
-          lineStyle: { width: 2, color: t.accent, cap: "round", join: "round" },
-          itemStyle: { color: t.accent, borderColor: t.surface, borderWidth: 2 },
-          areaStyle: { color: t.accent, opacity: 0.1 },
-          emphasis: { scale: 1.25 },
-          data: rows.map((r) => r.hours),
-        },
-      ],
+      series: names.map((n, k) => ({
+        id: `m${k}`,
+        name: n,
+        type: "bar",
+        stack: "month",
+        barCategoryGap: oneYear ? "30%" : "8%",
+        itemStyle: { color: k === otherIdx ? t.other : t.series[slots[k]], opacity: opacity(n) },
+        emphasis: { focus: "series", itemStyle: { opacity: 1 } },
+        blur: { itemStyle: { opacity: 0.28 } },
+        data: rows.map((r) => hoursOf(r, k)),
+        cursor: k === otherIdx || !pins ? "default" : "pointer",
+      })),
     },
-    { notMerge: false } // merge, so a new period tweens from the old one
+    { notMerge: true }
   );
+  c.off("mouseover");
+  c.off("mouseout");
+  c.off("click");
+  c.on("mouseover", (p) => hover(p.seriesName));
+  c.on("mouseout", () => hover(null));
+  c.on("click", (p) => p.seriesIndex !== otherIdx && pins?.toggle(p.seriesName));
+}
+
+// Light one artist's bars (and dim the rest) from a hover elsewhere on the page; null clears
+export function focusMonthly(el, name) {
+  const st = monthlyState.get(el);
+  const c = instances.get(el);
+  if (!st || !c) return;
+  c.dispatchAction({ type: "downplay" });
+  if (name != null && st.names.includes(name)) c.dispatchAction({ type: "highlight", seriesName: name });
 }
 
 export function renderClock(el, grid) {
