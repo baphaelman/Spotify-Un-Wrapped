@@ -104,6 +104,9 @@ export const onZoomChange = (el, fn) => zoomHooks.set(el, fn);
 // can leave them out. It fires on each render, so a reset to all shown is reported too.
 const selectionHooks = new WeakMap();
 export const onSelectionChange = (el, fn) => selectionHooks.set(el, fn);
+// The artists hidden in each rolling chart, by name, so a hidden artist stays hidden while the artist list changes
+// (moving the period, changing the count), even if they drop out of it for a while
+const hiddenNames = new WeakMap();
 
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
@@ -291,11 +294,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (!st || st.names.join("\u0000") !== names.join("\u0000")) {
     // Keep the old pointer handlers' references, so they're removed below rather than left running
     // against the previous artists alongside the new ones
-    // Hidden artists stay hidden when only "Everyone else" came or went
-    const same = st && artistsOf(st.names, st.hasOther).join("\u0000") === artistsOf(names, hasOther).join("\u0000");
+    const hidden = hiddenNames.get(el);
     st = {
       names,
-      selected: Object.fromEntries(names.map((n) => [n, same ? st.selected[n] ?? true : true])),
+      selected: Object.fromEntries(names.map((n) => [n, !hidden?.has(n)])),
       zrMove: st?.zrMove,
       zrOut: st?.zrOut,
     };
@@ -727,6 +729,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       restack();
     });
   }
+  const hidden = hiddenNames.get(el) ?? new Set();
+  for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
+  hiddenNames.set(el, hidden);
   selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
 }
 
