@@ -810,7 +810,7 @@ function paintArtistKey() {
     return { borderColor: cs.borderColor, backgroundColor: cs.backgroundColor, opacity: cs.opacity };
   };
   const looked = new Map([...chips(key)].map(([n, el]) => [n, looks(el)]));
-  // The boxes' minus (and the all box's tick or plus) fades the same way. The box under the
+  // The boxes' minus (and the all box's plus) fades the same way. The box under the
   // pointer is rebuilt too, and a new element can miss :hover until the pointer moves, so .hover stands in
   const boxes = (root) => [...chips(root), ["\u0000all", root.querySelector(".legend-all")]].filter(([, el]) => el);
   const boxOf = (unit) => unit.querySelector(".swatch") ?? unit;
@@ -894,8 +894,7 @@ function paintArtistKey() {
   mark.className = "all-box";
   const glyph = document.createElement("span");
   glyph.className = "all-glyph";
-  if (on === top.length) glyph.textContent = "✓";
-  else glyph.classList.add("plus");
+  glyph.classList.toggle("plus", on !== top.length);
   mark.append(glyph);
   box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
@@ -931,8 +930,9 @@ function paintArtistKey() {
   }
 }
 
-// How a key box's hover marks look: the box's fill and its minus (::before), and the all box's tick or plus
-const MARK_PARTS = [[".swatch", undefined], [".swatch", "::before"], [".all-box", "::before"], [".all-glyph", undefined]];
+// How a key box's marks look: an artist box's fill and its hover minus (::before), and the upright that
+// makes the all box's minus a plus
+const MARK_PARTS = [[".swatch", undefined], [".swatch", "::before"], [".all-glyph", "::after"]];
 function markLooks(unit) {
   return MARK_PARTS.flatMap(([sel, pseudo]) => {
     const el = unit.querySelector(sel);
