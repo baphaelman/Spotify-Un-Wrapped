@@ -97,6 +97,11 @@ week), and switching between them morphs.
   Pinned artists are placed first, so they keep their color for as long as they're pinned. Stack order is
   still rank, so don't use the series index as a color index.
 - **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
+- **A period change is two steps (`morph.pan`, `panTo`).** First the zoom range travels to the new
+  period, a frame at a time via `dispatchAction` (like dragging the slider), with the old artists still
+  on screen, so it reads as a real scroll or zoom; then the bands morph into the new period's artists.
+  Don't let ECharts tween the zoom and the data together: with the point set changing (a filtered
+  window), its point diff doesn't animate zooming out, and the artist change blurs into the movement.
 - **`setOptionFaded`** tweens style changes by animating ECharts' internal `_polygon`/`_polyline`
   shapes directly (re-rendering each frame costs ~20ms, too slow to tween). This depends on ECharts
   internals (as of 5.6). Two traps: stop running fades *before* `setOption`, because zrender moves a

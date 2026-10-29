@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded } from "./motion.js";
+import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded, easeInOut } from "./motion.js";
 
 const instances = new Map();
 
@@ -129,6 +129,26 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
   return true;
 }
 
+// Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
+// a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
+function panTo(el, from, to, { ms, easing }, done) {
+  const c = chart(el);
+  const st = rollingState.get(el);
+  c.setOption({ animationDurationUpdate: 0 }); // each frame is a plain redraw, not a tween
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    const e = easeInOut(t);
+    c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: from[0] + (to[0] - from[0]) * e, endValue: from[1] + (to[1] - from[1]) * e });
+    if (t < 1) st.panRaf = requestAnimationFrame(tick);
+    else {
+      st.panRaf = 0;
+      done();
+    }
+  };
+  st.panRaf = requestAnimationFrame(tick);
+}
+
 // mode "share": stacked bands of each artist's share of listening (the original rolling_window.py).
 // mode "hours": the same artists as overlaid lines of hours per week.
 //
@@ -153,18 +173,27 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
 // new data, styles and smoothing. Switching "Everyone else" on or off morphs too, through a stand-in band
 // of zero thickness (see withOtherMorph).
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
-  // A period change ({ms, easing, pan: true}) pans or zooms the plot to the new range while the bands morph
-  // into the new period's artists. That is a point-by-point tween of the same series, so it only works if
-  // the same series are on screen; otherwise it redraws.
+  // Any render ends a pan in progress
+  const prev = rollingState.get(el);
+  if (prev?.panRaf) {
+    cancelAnimationFrame(prev.panRaf);
+    prev.panRaf = 0;
+  }
+  // A period change ({ms, easing, pan: true}) first scrolls (or zooms) the plot to the new range with the
+  // artists already on screen, as if dragging the zoom slider, then morphs the bands into the new
+  // period's artists. That needs the same series on screen; otherwise it redraws.
   if (morph?.pan) {
-    const was = rollingState.get(el);
-    const same = was && was.mode === mode && was.hasOther === hasOther && was.window === window && was.names.length === names.length;
-    if (!same || !data.dates.length) morph = false;
-    // All time has no zoom range of its own; give it the whole timeline so there's a range to tween to
-    else if (!Number.isFinite(zoom?.[0])) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
+    const same = prev && prev.mode === mode && prev.hasOther === hasOther && prev.window === window && prev.names.length === names.length;
+    const from = same && currentZoom(el);
+    // All time has no zoom range of its own; give it the whole timeline so there's a range to travel to
+    if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
+    if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
+      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth));
+      return;
+    }
+    morph = same;
   }
   const { ms, easing = "cubicInOut" } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
-  const pan = !!(morph && morph.pan);
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
   const c = chart(el);
@@ -228,15 +257,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (lo == null) return [d, null];
       return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
     });
-  // While panning, the y axis is fixed to the new range's own height up front: with every point kept (see
-  // filterMode below) ECharts would size it to the whole timeline, then snap when the filter returns
-  let panMax = 0;
-  if (pan && !share) {
-    data.dates.forEach((d, i) => {
-      if (d < zoom[0] || d > zoom[1]) return;
-      for (let s = 0; s < names.length; s++) if (s !== otherIdx && visible(s)) panMax = Math.max(panMax, hoursAt(s, i) ?? 0);
-    });
-  }
   // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
   const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share ? 1 : 0, cap: "butt", join: "round" });
 
@@ -426,7 +446,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         type: "value",
         min: 0,
         // Function form in both modes so a merge always replaces the previous mode's bound
-        max: share ? () => 1 : pan ? () => Math.max(1, Math.ceil(panMax)) : (v) => Math.max(1, Math.ceil(v.max)),
+        max: share ? () => 1 : (v) => Math.max(1, Math.ceil(v.max)),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
         splitNumber: 4,
@@ -439,8 +459,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       dataZoom: [
         {
           type: "slider",
-          // A pan keeps every point, so the ones entering the window slide in rather than appearing late
-          filterMode: pan ? "none" : "filter",
           startValue: zoom?.[0],
           endValue: zoom?.[1],
           bottom: 12,
@@ -462,13 +480,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     easing
   );
   clipEdges();
-  // Once the pan has landed, draw the same frame again with the usual point filtering
-  if (pan) {
-    setTimeout(() => {
-      if (st.renderToken !== renderToken) return;
-      renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth);
-    }, ms + 50);
-  }
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
   if (holdFill && base.size) {
     setTimeout(() => {
