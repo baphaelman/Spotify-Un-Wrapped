@@ -759,6 +759,13 @@ function paintArtistKey() {
   const key = $("artist-key");
   const chips = (root) => new Map([...root.querySelectorAll("[data-artist]")].map((el) => [el.dataset.artist, el]));
   const before = new Map([...chips(key)].map(([n, el]) => [n, el.getBoundingClientRect()]));
+  // The chips are rebuilt, so a CSS transition can't run: a chip whose outline or tint changes (pinned or
+  // unpinned, shown or hidden) fades from how it looked to how it looks now
+  const looks = (el) => {
+    const cs = getComputedStyle(el);
+    return { borderColor: cs.borderColor, backgroundColor: cs.backgroundColor, opacity: cs.opacity };
+  };
+  const looked = new Map([...chips(key)].map(([n, el]) => [n, looks(el)]));
   // Rebuilding drops keyboard focus, so it goes back to the same control in the new chip
   const focused = key.contains(document.activeElement) ? document.activeElement : null;
   const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];
@@ -842,6 +849,14 @@ function paintArtistKey() {
     (n == null ? key.querySelector(".legend-all") : chip?.querySelector(`[class="${cls}"]`) ?? chip?.querySelector(".name"))?.focus({ preventScroll: true });
   }
   paintFocus();
+  if (!dur(GROW_MS)) return;
+  for (const [n, el] of chips(key)) {
+    const was = looked.get(n);
+    if (!was) continue;
+    const now = looks(el);
+    if (Object.keys(now).every((k) => now[k] === was[k])) continue;
+    el.animate([was, now], { duration: GROW_MS, easing: EASE_OUT.css });
+  }
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period

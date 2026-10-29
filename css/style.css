@@ -342,16 +342,16 @@ button.ghost:hover { background: var(--border); }
 }
 .card p { margin: 2px 0 0; font-size: 13px; }
 
-/* Top Artists View: title and Share/Hours on one row, then search, pins and sliders, then the legend.
-   The sliders are black and white and show only the current value beneath the thumb. */
+/* Top Artists View: the title on the left; Share/Hours in the top right corner, and beneath it the window
+   slider with the smoothing select at its right. The sliders are black and white and show only the current
+   value beneath the thumb. */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tav-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .tav-head > div:first-child { flex: 1; min-width: 0; }
 .segmented.solid { padding: 2px; background: var(--surface-2); border: 1px solid var(--border); }
 .segmented.solid button[aria-pressed="true"] { background: #e6e8e7; color: #0a0c0e; }
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-.tav-toggles { display: flex; align-items: center; gap: 10px; }
-.tav-smooth { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.tav-smooth { flex: none; display: flex; align-items: center; gap: 8px; }
 .tav-smooth select {
   appearance: none;
   padding: 4px 22px 4px 8px;
@@ -361,11 +361,12 @@ button.ghost:hover { background: var(--border); }
   cursor: pointer;
 }
 .tav-smooth select { font-size: 11px; color: var(--text-primary); background-color: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
-.tav-sliders { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tav-tuning { display: flex; align-items: center; gap: 20px; }
 .toggle-label { font-size: 11px; color: var(--text-muted); }
-.tav-sliders .slider { grid-template-columns: 56px 96px; column-gap: 8px; align-items: center; width: auto; }
-.tav-sliders .slider-label { text-align: right; font-size: 11px; color: var(--text-muted); }
-.tav-sliders .ticks { grid-column: 2; }
+/* The track is level with the select, the value hanging beneath the thumb in a zero-height row */
+.tav-tuning .slider { grid-template-columns: auto 96px; grid-template-rows: auto 0; column-gap: 8px; align-items: center; width: auto; }
+.tav-tuning .slider-label { font-size: 11px; color: var(--text-muted); }
+.tav-tuning .ticks { grid-column: 2; height: 0; overflow: visible; }
 .tav-smooth select { height: 24px; box-sizing: border-box; }
 
 /* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist,
@@ -376,7 +377,7 @@ button.ghost:hover { background: var(--border); }
 .bar-artists .artist-search { flex: none; width: 190px; }
 .bar-artists .artist-search input { height: 30px; }
 .bar-artists .artist-key { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
-.artist-key .legend-item { flex: 1 1 0; max-width: max-content; }
+.artist-key .legend-item { flex: 1 1 0; max-width: max-content; transition: background var(--motion-fade) var(--ease-out), border-color var(--motion-fade) var(--ease-out); }
 .artist-key .legend-item .swatch { flex: none; }
 .artist-key .legend-item .name { padding: 0; }
 /* Pinned and hovered chips are marked by their tint and outline, not bold, which would ellipsize more of a
