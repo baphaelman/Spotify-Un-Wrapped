@@ -923,13 +923,22 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   let lit = prev?.lit?.() ?? null;
   st.slice = () => slice;
   st.lit = () => lit;
+  // A column runs from the chart's top edge down to the axis, so the space above the bars (where the captions sit,
+  // outside the plot) answers too, tooltip and all: ECharts only shows it inside the plot, so it's asked for there
+  let tipAbove = null;
   const pick = (x, y) => {
     let n = slice;
-    if (n == null && c.containPixel("grid", [x, y])) {
-      const i = Math.round(c.convertFromPixel({ gridIndex: 0 }, [x, y])[0]);
-      const top = rows[i] && barView(st, rows[i]).top[0]?.name;
+    const inColumn = x >= grid.left && x <= el.clientWidth - grid.right && y >= 0 && y <= el.clientHeight - grid.bottom;
+    const i = inColumn ? Math.round(c.convertFromPixel({ gridIndex: 0 }, [x, Math.max(y, grid.top)])[0]) : null;
+    if (n == null && rows[i]) {
+      const top = barView(st, rows[i]).top[0]?.name;
       if (pickable(top)) n = top;
     }
+    // Asked for on every move, since ECharts hides it again whenever the pointer moves outside the plot
+    const above = rows[i] && y < grid.top ? i : null;
+    if (above != null) c.dispatchAction({ type: "showTip", seriesIndex: 0, dataIndex: above });
+    else if (tipAbove != null && !c.containPixel("grid", [x, y])) c.dispatchAction({ type: "hideTip" });
+    tipAbove = above;
     c.getZr().setCursorStyle(n != null && pins ? "pointer" : "default");
     const l = names.includes(n) ? n : null;
     if (l !== lit) hover((lit = l));
@@ -942,6 +951,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     globalout: () => {
       slice = null;
       if (lit != null) hover((lit = null));
+      if (tipAbove != null) c.dispatchAction({ type: "hideTip" });
+      tipAbove = null;
     },
     click: (e) => {
       const n = pick(e.offsetX, e.offsetY);
