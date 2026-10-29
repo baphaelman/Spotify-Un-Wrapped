@@ -923,12 +923,13 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   let lit = prev?.lit?.() ?? null;
   st.slice = () => slice;
   st.lit = () => lit;
-  // A column runs from the chart's top edge down to the axis, so the space above the bars (where the captions sit,
-  // outside the plot) answers too, tooltip and all: ECharts only shows it inside the plot, so it's asked for there
+  // A column runs from the top of the card down to the axis, so the space above the bars (where the captions sit,
+  // outside the plot) and the card's header beside the title answer too, tooltip and all: ECharts only shows it
+  // inside the plot, so it's asked for there
   let tipAbove = null;
   const pick = (x, y) => {
     let n = slice;
-    const inColumn = x >= grid.left && x <= el.clientWidth - grid.right && y >= 0 && y <= el.clientHeight - grid.bottom;
+    const inColumn = x >= grid.left && x <= el.clientWidth - grid.right && y <= el.clientHeight - grid.bottom;
     const i = inColumn ? Math.round(c.convertFromPixel({ gridIndex: 0 }, [x, Math.max(y, grid.top)])[0]) : null;
     if (n == null && rows[i]) {
       const top = barView(st, rows[i]).top[0]?.name;
@@ -944,22 +945,46 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     if (l !== lit) hover((lit = l));
     return n;
   };
+  const leave = () => {
+    slice = null;
+    if (lit != null) hover((lit = null));
+    if (tipAbove != null) c.dispatchAction({ type: "hideTip" });
+    tipAbove = null;
+  };
   const zr = c.getZr();
   if (prev?.zr) for (const [ev, fn] of Object.entries(prev.zr)) zr.off(ev, fn);
   st.zr = {
     mousemove: (e) => pick(e.offsetX, e.offsetY),
-    globalout: () => {
-      slice = null;
-      if (lit != null) hover((lit = null));
-      if (tipAbove != null) c.dispatchAction({ type: "hideTip" });
-      tipAbove = null;
-    },
+    globalout: leave,
     click: (e) => {
       const n = pick(e.offsetX, e.offsetY);
       if (n != null) pins?.toggle(n);
     },
   };
   for (const [ev, fn] of Object.entries(st.zr)) zr.on(ev, fn);
+  // The card around the chart, outside it: its controls and text keep to themselves, the rest is the column below
+  const card = el.closest(".card");
+  if (prev?.card) for (const [ev, fn] of Object.entries(prev.card)) card?.removeEventListener(ev, fn);
+  const fromCard = (e) => {
+    if (el.contains(e.target)) return undefined; // the chart's own handlers have it
+    const r = el.getBoundingClientRect();
+    const own = e.target.closest("h2, p, label, button, input, a");
+    const n = own ? (leave(), null) : pick(e.clientX - r.left, e.clientY - r.top);
+    card.style.cursor = n != null && pins ? "pointer" : "";
+    return n;
+  };
+  st.card = card && {
+    pointermove: fromCard,
+    pointerleave: () => {
+      card.style.cursor = "";
+      leave();
+    },
+    click: (e) => {
+      const n = fromCard(e);
+      if (n != null) pins?.toggle(n);
+    },
+  };
+  if (card) for (const [ev, fn] of Object.entries(st.card)) card.addEventListener(ev, fn);
   c.off("mouseover");
   c.off("mouseout");
   c.off("click");
