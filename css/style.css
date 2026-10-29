@@ -233,7 +233,7 @@ button.ghost:hover { background: var(--border); }
 .brush-dim.a { left: 0; border-radius: 7px 0 0 7px; }
 .brush-dim.b { right: 0; border-radius: 0 7px 7px 0; }
 /* A preset or step slides the window over; while it's being dragged it follows the pointer exactly */
-.brush-track:not(.dragging) :is(.brush-win, .brush-dim) { transition: left 0.5s cubic-bezier(.65,0,.35,1), width 0.5s cubic-bezier(.65,0,.35,1); }
+.brush-track:not(.dragging) :is(.brush-win, .brush-dim) { transition: left var(--slide-ms, 0.5s) cubic-bezier(.65,0,.35,1), width var(--slide-ms, 0.5s) cubic-bezier(.65,0,.35,1); }
 @media (prefers-reduced-motion: reduce) { .brush-track :is(.brush-win, .brush-dim) { transition: none !important; } }
 .brush-win {
   position: absolute;

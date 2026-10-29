@@ -254,6 +254,8 @@ $("period-resize").addEventListener("click", (e) => {
 function setRange(range, animate = true) {
   const was = state.range;
   state.range = range;
+  // The brush window slides in step with the chart's pan
+  $("brush-track").style.setProperty("--slide-ms", `${panMs(animate && was ? was : false)}ms`);
   syncPeriod();
   renderAll(undefined, animate && was ? was : false);
 }
@@ -353,10 +355,14 @@ const PAN_MS = 900;
 const ZOOM_MS = 1400;
 
 // `from` is the range being left, to animate from (false to just draw)
+function panMs(from) {
+  const ratio = from ? spanOf(from) / spanOf(state.range) : 1;
+  return dur(ratio > 1.5 || ratio < 1 / 1.5 ? ZOOM_MS : PAN_MS);
+}
+
 function renderAll(keepZoom, from = false) {
   renderDependents();
-  const ratio = from ? spanOf(from) / spanOf(state.range) : 1;
-  const ms = dur(ratio > 1.5 || ratio < 1 / 1.5 ? ZOOM_MS : PAN_MS);
+  const ms = panMs(from);
   renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: "cubicInOut", pan: true });
 }
 
