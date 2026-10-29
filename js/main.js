@@ -1,7 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
-import { setupBrush, setBrushData, setBrushRange } from "./brush.js";
+import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
@@ -194,7 +194,7 @@ function showDashboard() {
   const sel = $("year-filter");
   sel.replaceChildren(new Option("All time", "all"), ...agg.years(state.plays).map((y) => new Option(y, y)));
   const e = extent();
-  setBrushData(e.lo, e.hi, agg.dailyHours(state.plays, e.lo, e.hi));
+  setBrushData(e.lo, e.hi);
   // Open on the most recent year; "All time" is one click (or ‹ steps) away
   state.range = null;
   setPeriod(sel.options[sel.options.length - 1].value);
@@ -221,8 +221,27 @@ function syncPeriod() {
     rangeText(),
     Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
   );
+  for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, +b.dataset.months)));
   setBrushRange(state.range);
 }
+
+const sameRange = (a, b) => a.lo === b.lo && a.hi === b.hi;
+
+// The window `months` calendar months long from its left edge, which stays put, so it grows or shrinks from
+// the right. Past the end of the history it slides back to fit instead of shrinking.
+function resized(range, months) {
+  const e = extent();
+  const from = agg.dayToDate(range.lo);
+  const len = agg.dayIndex(new Date(from.getFullYear(), from.getMonth() + months, from.getDate()).getTime()) - range.lo;
+  const n = Math.min(len, e.hi - e.lo + 1);
+  const lo = Math.max(e.lo, Math.min(range.lo, e.hi - n + 1));
+  return { lo, hi: lo + n - 1 };
+}
+
+$("period-resize").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setRange(resized(state.range, +b.dataset.months));
+});
 
 // A preset or a step: the chart scrolls (or zooms) to the new period, then the artists change
 function setRange(range, animate = true) {
@@ -400,6 +419,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   if (!state.plays) return;
   renderDependents();
   if (mixArgs) renderMix(...mixArgs);
+  paintBrush();
 });
 
 function renderStats(plays) {
@@ -575,7 +595,38 @@ function renderRollingChart(zoom, morph = false, look = null) {
     // the steps of a sweep change neither the artists nor their colors
     paintTopLists();
     renderMix(artists, slots, includeOther, pins);
+    paintBrush();
   }
+}
+
+// The brush's backdrop: the rolling chart's own data over the whole history, in miniature (see
+// brush.setBrushBands). Same artists, colors and stacking, with deselected artists left out, and lit
+// (pinned, or hovered anywhere) artists strong while the rest dim, as in the chart.
+let brushFocus = null; // the artist lit by hover, in the chart, a legend or a list
+let brushMemo = null;
+function paintBrush() {
+  const raw = rawMemo?.raw;
+  if (!raw || !state.chartNames || !raw.dates.length) return;
+  if (brushMemo?.raw !== raw) brushMemo = { raw, data: agg.blur(raw, 12) };
+  const { dates, share } = brushMemo.data;
+  const names = $("include-other").checked ? [...state.chartNames, "Everyone else"] : state.chartNames;
+  const rows = names.map((_, i) => i).filter((i) => !state.hidden.includes(names[i]));
+  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && rows.some((i) => names[i] === a)));
+  const total = dates.map((_, k) => rows.reduce((t, i) => t + (share[i][k] ?? 0), 0));
+  let acc = new Float64Array(dates.length);
+  const bands = rows.map((i) => {
+    const lo = Array.from(acc);
+    acc = acc.map((a, k) => a + (share[i][k] ?? 0));
+    const frac = (v, k) => (share[i][k] == null || total[k] <= 0 ? null : v / total[k]);
+    const hi = Array.from(acc, frac);
+    return {
+      lo: lo.map(frac),
+      hi,
+      color: names[i] === "Everyone else" ? "var(--other)" : `var(--series-${state.colorSlots.get(names[i]) + 1})`,
+      look: lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
+    };
+  });
+  setBrushBands({ days: dates.map(agg.dayIndex), bands });
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
@@ -600,7 +651,11 @@ function renderMix(artists, slots, includeOther, pins) {
   });
 }
 setupMix((name) => focusArtist($("chart-rolling"), name));
-onFocusChange($("chart-rolling"), highlightMix);
+onFocusChange($("chart-rolling"), (name) => {
+  highlightMix(name);
+  brushFocus = name;
+  paintBrush();
+});
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
 // in the stack (which is their rank, and shifts with the period, the artist count and the pins).

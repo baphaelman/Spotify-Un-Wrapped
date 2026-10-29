@@ -60,7 +60,6 @@
       <!-- The period: presets on top, and the brush below, which can pick any stretch of days (js/brush.js) -->
       <div class="filters sticky period-bar">
         <div class="period">
-          <span>Period</span>
           <button id="year-prev" class="ghost step" type="button" aria-label="Previous period">‹</button>
           <!-- The hidden select holds the presets; the button and menu are what's shown (main.js) -->
           <select id="year-filter" aria-label="Period" hidden></select>
@@ -71,6 +70,12 @@
           <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
         </div>
         <div id="period-range" class="period-range" aria-live="off"></div>
+        <!-- Sets the window's length, keeping its left edge where it is -->
+        <div id="period-resize" class="segmented solid period-resize" role="group" aria-label="Window length">
+          <button type="button" data-months="3" aria-pressed="false">3m</button>
+          <button type="button" data-months="6" aria-pressed="false">6m</button>
+          <button type="button" data-months="12" aria-pressed="false">1y</button>
+        </div>
         <div class="brush">
           <div id="brush-track" class="brush-track">
             <svg id="brush-svg" aria-hidden="true"></svg>

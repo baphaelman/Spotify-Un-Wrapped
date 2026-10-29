@@ -194,7 +194,6 @@ button.ghost:hover { background: var(--border); }
   margin-bottom: 16px;
 }
 .filters .period { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
-.filters .period > span { margin-right: 4px; }
 .filters .step { padding: 6px 10px; }
 .filters .step:disabled { opacity: 0.3; cursor: default; }
 .filters.sticky {
@@ -212,6 +211,7 @@ button.ghost:hover { background: var(--border); }
 /* The period bar is the page's one navigation: presets and the exact dates on the first row, then the brush
    (js/brush.js), a timeline of listening with a window on it. Dragging the window picks any stretch of days. */
 .period-bar { row-gap: 8px; padding-bottom: 8px; }
+.period-resize { margin-left: auto; }
 .period-range { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .period-range .days { color: var(--text-muted); margin-left: 8px; }
 .brush { flex: 1 0 100%; }
@@ -226,8 +226,6 @@ button.ghost:hover { background: var(--border); }
   cursor: pointer;
 }
 .brush-track svg { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 7px; overflow: hidden; pointer-events: none; }
-.brush-area { fill: var(--accent); opacity: 0.22; }
-.brush-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
 .brush-tick { stroke: var(--border); stroke-width: 1; }
 /* Outside the window, the history is dimmed */
 .brush-dim { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--page) 62%, transparent); pointer-events: none; }

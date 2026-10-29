@@ -34,13 +34,6 @@ export function filterRange(plays, lo, hi) {
   return plays.slice(lowerBound(plays, dayToDate(lo).getTime()), lowerBound(plays, dayToDate(hi + 1).getTime()));
 }
 
-// Hours listened on each day from `first` to `last` (day indices), for the period brush's backdrop
-export function dailyHours(plays, first, last) {
-  const out = new Float64Array(last - first + 1);
-  for (const p of plays) out[dayIndex(p.t) - first] += p.ms / HOUR;
-  return out;
-}
-
 function sumBy(plays, keyFn) {
   const m = new Map();
   for (const p of plays) {

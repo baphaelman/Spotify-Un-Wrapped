@@ -9,7 +9,8 @@ const SVG = "http://www.w3.org/2000/svg";
 const MIN_DAYS = 7; // the smallest window
 const DAY = 86400000;
 
-let model = null; // { first, last, daily }: the history's day indices and hours per day
+let model = null; // { first, last }: the history's first and last day (day indices)
+let bands = null; // see setBrushBands
 let range = null; // { lo, hi }: the window, day indices, inclusive
 let onChange = () => {};
 let drag = null;
@@ -83,11 +84,20 @@ function emit(lo, hi) {
   onChange({ lo, hi });
 }
 
-// Called when the data loads: the history's first and last day, and the hours on each day between
-export function setBrushData(first, last, daily) {
-  model = { first, last, daily };
+// Called when the data loads: the history's first and last day (day indices)
+export function setBrushData(first, last) {
+  model = { first, last };
   draw();
   position();
+}
+
+// The stack graph in miniature, behind the window: the rolling chart's own artists and colors over the
+// whole history. { days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
+// edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
+// hovered), "dim" (something else is lit) or "rest".
+export function setBrushBands(next) {
+  bands = next;
+  draw();
 }
 
 // Moves the window to a range chosen elsewhere (a preset, the step buttons)
@@ -113,25 +123,13 @@ function position() {
   }
 }
 
-// The backdrop: hours per day, averaged over a few pixels' worth of days, with a tick at each new year
+// The backdrop: each band as a pale tint of its artist's color, edged in the color, like the stack graph
+// above it (the shades are the same CSS variables), and a tick at each new year
 function draw() {
   if (!model) return;
   const W = trackW(), H = $("brush-track").clientHeight;
   if (!W) return;
   const n = days();
-  const half = Math.max(3, Math.round((n / W) * 2));
-  const pre = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + model.daily[i];
-  const avg = (day) => {
-    const a = Math.max(0, day - half), b = Math.min(n, day + half + 1);
-    return (pre[b] - pre[a]) / (b - a);
-  };
-  const xs = [];
-  for (let x = 0; x <= W; x += 2) xs.push(x);
-  const vals = xs.map((x) => avg(Math.min(n - 1, Math.floor((x / W) * n))));
-  const max = Math.max(...vals, 1e-9);
-  const y = (v) => H - 3 - (v / max) * (H - 10);
-  const line = xs.map((x, i) => `${i ? "L" : "M"}${x},${y(vals[i]).toFixed(1)}`).join("");
 
   const svg = $("brush-svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -141,6 +139,34 @@ function draw() {
     for (const k in attrs) e.setAttribute(k, attrs[k]);
     svg.append(e);
   };
+
+  if (bands?.days.length) {
+    // About one point per two pixels is plenty, and always the last
+    const stride = Math.max(1, Math.floor(bands.days.length / (W / 2)));
+    const idx = [];
+    for (let i = 0; i < bands.days.length; i += stride) idx.push(i);
+    if (idx[idx.length - 1] !== bands.days.length - 1) idx.push(bands.days.length - 1);
+    const X = (i) => xOf(bands.days[i]).toFixed(1);
+    const Y = (f) => ((1 - f) * H).toFixed(1);
+    for (const band of bands.bands) {
+      // Unbroken stretches of points that have a value
+      const runs = [];
+      let run = null;
+      for (const i of idx) {
+        if (band.hi[i] == null) run = null;
+        else (run ??= (runs.push([]), runs[runs.length - 1])).push(i);
+      }
+      const line = (key, r) => r.map((i, k) => `${k ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
+      const rev = (r) => [...r].reverse();
+      const fill = runs.map((r) => `${line("hi", r)}${line("lo", rev(r)).replace("M", "L")}Z`).join("");
+      const shade = band.look === "lit" ? "hover" : band.look === "dim" ? "dim" : "band";
+      el("path", { d: fill, style: `fill:color-mix(in srgb, ${band.color} calc(var(--shade-${shade}) * 100%), var(--surface))` });
+      el("path", {
+        d: runs.map((r) => line("hi", r) + line("lo", r)).join(""),
+        style: `fill:none;stroke:${band.color};stroke-width:${band.look === "lit" ? 2 : 1.25};stroke-linejoin:round`,
+      });
+    }
+  }
 
   // A tick and a label for each January 1, thinned so the labels never touch
   const startYear = dayToDate(model.first).getFullYear();
@@ -158,6 +184,4 @@ function draw() {
     s.style.left = `${x}px`;
     labels.append(s);
   }
-  el("path", { class: "brush-area", d: `${line}L${W},${H}L0,${H}Z` });
-  el("path", { class: "brush-line", d: line });
 }
