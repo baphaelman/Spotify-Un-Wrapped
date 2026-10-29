@@ -29,7 +29,7 @@ $("feedback-form").addEventListener("submit", async (e) => {
   $("feedback-status").classList.remove("error");
   $("feedback-status").textContent = "Sending…";
   try {
-    await api.submitFeedback(message, $("feedback-contact").value);
+    await api.submitFeedback(message);
     $("feedback-message").value = "";
     $("feedback-status").textContent = "Thanks, got it!";
     setTimeout(() => $("feedback-dialog").close(), 1200);
