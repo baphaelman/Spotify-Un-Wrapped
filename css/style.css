@@ -281,7 +281,9 @@ button.ghost:hover { background: var(--border); }
 .tav-legend .chart-legend { gap: 4px 14px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
 .tav-legend .legend-item:hover { background: transparent; color: var(--text-primary); }
-.tav-legend .other-toggle { margin-left: 0; padding: 0; background: transparent; font-size: 11px; }
+.tav-legend .other-toggle { margin-left: 0; padding: 0; background: transparent; font-size: 11px; user-select: none; }
+/* No pill when checked here: the swatch's fill already says so, and the pill would hug the text */
+.tav-legend .other-toggle:has(input:checked) { background: transparent; }
 .tav-legend .palette-picker { margin-left: auto; }
 
 /* "Everyone else": a pill in the Share/Hours toggle's style, the faint track tint when off and the
