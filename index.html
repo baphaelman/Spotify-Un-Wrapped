@@ -71,72 +71,53 @@
       <div id="stats" class="stats"></div>
 
       <article class="card">
-        <h2>Top Artists View</h2>
-        <p class="muted" id="rolling-sub"></p>
-        <!-- Who's in the chart on the left, how it's drawn on the right -->
-        <div class="chart-panels">
-          <section class="chart-panel" aria-labelledby="artists-title">
-            <div class="panel-head">
-              <h3 id="artists-title" class="panel-title">Artists</h3>
-              <!-- Next to the title, since it sets the artists' colors -->
-              <div class="palette-picker">
-                <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
-                <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
-              </div>
-              <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
+        <div class="tav-head">
+          <div>
+            <h2>Top Artists View</h2>
+            <p class="muted" id="rolling-sub"></p>
+          </div>
+          <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
+            <button type="button" data-mode="share" aria-pressed="true">Share</button>
+            <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+          </div>
+        </div>
+        <div class="tav-controls">
+          <div class="artist-search">
+            <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
+              role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
+              aria-label="Search artists to pin to the chart">
+            <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
+          </div>
+          <div class="chart-legend pinned-legend"></div>
+          <span class="spacer"></span>
+          <div class="slider" title="Artists">
+            <label class="sr-only" for="n-artists">Artists</label>
+            <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
+            <div class="ticks" aria-hidden="true">
+              <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
             </div>
-            <div class="chart-legend top-legend"></div>
-            <div class="artist-search">
-              <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
-                role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
-                aria-label="Search artists to pin to the chart">
-              <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
+          </div>
+          <div class="slider" title="Smoothing, days per point">
+            <label class="sr-only" for="window">Smoothing, days per point</label>
+            <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
+            <div class="ticks" aria-hidden="true">
+              <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
             </div>
-            <div class="chart-legend pinned-legend"></div>
-          </section>
-          <section class="chart-panel settings" aria-labelledby="graph-title">
-            <h3 id="graph-title" class="panel-title">Graph</h3>
-            <div class="setting">
-              <span class="setting-label" id="measure-label">Measure</span>
-              <div id="rolling-mode" class="segmented" role="group" aria-labelledby="measure-label">
-                <button type="button" data-mode="share" aria-pressed="true">Share</button>
-                <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
-              </div>
-            </div>
-            <div class="setting">
-              <label class="setting-label" for="n-artists">Artists</label>
-              <div class="slider">
-                <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
-                <div class="ticks" aria-hidden="true">
-                  <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
-                </div>
-              </div>
-            </div>
-            <div class="setting">
-              <div class="setting-label">
-                <label for="window">Smoothing</label>
-                <span class="setting-hint" id="window-hint">Days per point</span>
-              </div>
-              <div class="slider">
-                <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days" aria-describedby="window-hint">
-                <div class="ticks" aria-hidden="true">
-                  <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
-                </div>
-              </div>
-            </div>
-            <div class="setting">
-              <div class="setting-label">
-                <span id="smoothify-label">Smoothify</span>
-                <span class="setting-hint">Round off the curves</span>
-              </div>
-              <div id="smoothify" class="segmented" role="group" aria-labelledby="smoothify-label">
-                <button type="button" data-level="0" aria-pressed="true">Off</button>
-                <button type="button" data-level="1" aria-pressed="false">Low</button>
-                <button type="button" data-level="2" aria-pressed="false">High</button>
-              </div>
-            </div>
-          </section>
+          </div>
+          <div id="smoothify" class="segmented" role="group" aria-label="Smoothify: round off the curves">
+            <button type="button" data-level="0" aria-pressed="true">Off</button>
+            <button type="button" data-level="1" aria-pressed="false">Low</button>
+            <button type="button" data-level="2" aria-pressed="false">High</button>
+          </div>
+        </div>
+        <div class="tav-legend">
+          <div class="chart-legend top-legend"></div>
+          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
+          <div class="palette-picker">
+            <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
+            <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
+          </div>
         </div>
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
