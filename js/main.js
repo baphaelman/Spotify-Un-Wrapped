@@ -303,13 +303,14 @@ function renderRollingChart(zoom, morph = false) {
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
   $("window").setAttribute("aria-valuetext", `${window} days`);
-  for (const id of ["n-artists", "window"]) paintSlider($(id));
+  for (const id of ["n-artists", "window", "smoothify"]) paintSlider($(id));
+  $("smoothify").setAttribute("aria-valuetext", ["Off", "Low", "Medium", "High", "Max"][$("smoothify").value]);
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
   const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
-  const smooth = $("smoothify").checked;
+  const strength = Number($("smoothify").value);
   const raw = agg.rolling(state.plays, artists, window, includeOther);
-  const data = smooth ? agg.smoothify(raw, window) : raw;
+  const data = strength ? agg.smoothify(raw, window, strength) : raw;
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
@@ -323,7 +324,7 @@ function renderRollingChart(zoom, morph = false) {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
-  }, assignSlots(artists), smooth);
+  }, assignSlots(artists), strength / 4);
 }
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position

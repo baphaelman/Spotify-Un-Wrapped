@@ -144,8 +144,8 @@ function setOptionFaded(c, option, opts, ms) {
 // get an ×, and clicking a band or line in the plot calls toggle.
 // slots: optional palette slot per artist (aligned with names), so colors can follow the artist; by default
 // an artist's color is their position.
-// smooth: draw every curve as a smoothed spline (the data itself is blurred by the caller).
-export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = false) {
+// smooth: 0..1, how much each curve is rounded into a spline (the data itself is blurred by the caller).
+export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
   const t = tokens();
   const c = chart(el);
   const share = mode === "share";
@@ -237,7 +237,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         type: "line",
         showSymbol: false,
         symbol: "none",
-        smooth: smooth ? 1 : false,
+        smooth,
         color: colors[s],
         // Lower bands paint over the bottom of the ones above them. That order has to be explicit:
         // ECharts paints series in the order their views were created, so artists added later (raising
@@ -281,7 +281,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
           silent: true,
           showSymbol: false,
           symbol: "none",
-          smooth: smooth ? 1 : false,
+          smooth,
           color: colors[s],
           z: 4,
           lineStyle: overlayStyle(s, base.has(s)),
