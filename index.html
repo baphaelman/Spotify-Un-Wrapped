@@ -192,8 +192,14 @@
       </div>
 
       <article class="card">
-        <h2 id="monthly-title">Hours per month</h2>
-        <p id="monthly-note" class="muted">Each month's top artist on top</p>
+        <div class="monthly-head">
+          <div>
+            <h2 id="monthly-title">Hours per month</h2>
+            <p id="monthly-note" class="muted">Each month's top artist on top</p>
+          </div>
+          <!-- This graph's own, apart from the period bar's "Everyone else" chip -->
+          <label class="other-toggle"><input id="monthly-other" type="checkbox" checked><span class="swatch"></span>Everyone else</label>
+        </div>
         <div id="chart-monthly" class="chart"></div>
       </article>
 

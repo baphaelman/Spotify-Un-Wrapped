@@ -431,7 +431,7 @@ button.ghost:hover { background: var(--border); }
   .bar-artists .artist-key { order: 3; flex: 1 0 100%; flex-wrap: wrap; }
 }
 
-/* "Everyone else": a pill in the Share/Hours toggle's style, the faint track tint when off and the
+/* "Everyone else" (the monthly chart's own): a pill in the Share/Hours toggle's style, the faint track tint when off and the
    chosen option's stronger tint when on, with its band's gray swatch. The checkbox inside is hidden. */
 .other-toggle {
   position: relative;
@@ -842,7 +842,7 @@ dialog pre {
 
 /* Listening mix (mix.js): one bar of shares for a span of days, with the time controls below it. Each
    segment takes its artist's color through --c, so a chosen palette carries over. */
-.mix-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.mix-head, .monthly-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .mix-total { display: grid; justify-items: end; gap: 2px; }
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
 .mix-legend-item { cursor: default; }

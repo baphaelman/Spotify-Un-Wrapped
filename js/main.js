@@ -765,13 +765,14 @@ function paintClock(plays = shownPlays()) {
 }
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
-// out (same colors, pins and hover), each bar's top artist on top
+// out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle
+// (#monthly-other) shows or hides the gray, apart from the period bar's.
 const SPAN_WORDS = {
-  1: ["month", "month's"],
-  3: ["3 months", "quarter's"],
-  6: ["6 months", "half-year's"],
-  12: ["year", "year's"],
-  24: ["2 years", "two years'"],
+  1: ["per month", "month's"],
+  3: ["every 3 months", "quarter's"],
+  6: ["every 6 months", "half-year's"],
+  12: ["per year", "year's"],
+  24: ["every 2 years", "two years'"],
 };
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
@@ -782,10 +783,12 @@ function paintMonthly(plays = shownPlays()) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const span = agg.monthSpan(plays);
-  $("monthly-title").textContent = `Hours per ${SPAN_WORDS[span][0]}`;
+  $("monthly-title").textContent = `Hours ${SPAN_WORDS[span][0]}`;
   $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top artist on top`;
-  renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span);
+  const other = $("monthly-other").checked;
+  renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span, other);
 }
+$("monthly-other").addEventListener("change", () => paintMonthly());
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
 // colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights

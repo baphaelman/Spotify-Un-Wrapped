@@ -792,10 +792,11 @@ export function focusArtist(el, name) {
 // it, unless they're lit (pinned, or hovered anywhere on the page, through focusMonthly): then they show, filled
 // in and outlined, while the rest dim. Hovering a month lists its top five. names/slots are the chart's artists
 // and their palette slots; pins is {has, toggle}; hover(name|null) reports the pointer; off holds deselected
-// artists (never lit).
+// artists (never lit). other: false leaves everyone else out, so each bar is only the chart's artists and its
+// top artist is the biggest of them.
 const FOLD = 0.03;
 const monthlyState = new WeakMap();
-export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), span = 1) {
+export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), span = 1, other = true) {
   const t = tokens();
   const short = (d) => d.toLocaleDateString(undefined, { month: "short" });
   // A bar's period: "Mar 2024", "Jan–Jun 2024", "2024" or "2024–2025"
@@ -821,7 +822,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // A new bar size changes every bar, so the chart draws afresh rather than morphing bars into unrelated ones
   const fresh = !prev || prev.span !== span || prev.names.join("\u0000") !== names.join("\u0000");
   // last: each series' values on screen (see settleMonthly)
-  const st = { names, rows, span, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
+  const st = { names, rows, span, other, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   // Caption styles: a dot in the top artist's color (gray if they're not in the chart), then the name
   const rich = { n: { color: t.secondary, fontSize: 11, align: "center" }, o: { color: t.other, fontSize: 9, align: "center" } };
@@ -842,15 +843,16 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         axisPointer: { type: "shadow", shadowStyle: { color: t.grid, opacity: 0.35 } },
         formatter: (ps) => {
           const r = rows[ps[0].dataIndex];
-          const head = `<div style="margin-bottom:4px"><b>${label(r.month)}</b> <span style="opacity:.75">${fmtHours(r.hours)}</span></div>`;
-          if (!r.hours) return head;
+          const { hours, top } = barView(st, r);
+          const head = `<div style="margin-bottom:4px"><b>${label(r.month)}</b> <span style="opacity:.75">${fmtHours(hours)}</span></div>`;
+          if (!hours) return head;
           const lit = litSet(st);
-          const pct = (h) => `${Math.round((h / r.hours) * 100)}%`;
+          const pct = (h) => `${Math.round((h / hours) * 100)}%`;
           // Lit artists outside the month's top five follow it
           const extra = names
             .map((n, k) => ({ name: n, hours: r.by[k] }))
-            .filter((a) => lit.has(a.name) && a.hours > 0 && !r.top.some((x) => x.name === a.name));
-          return head + [...r.top, ...extra].map((a) => row(colorOf(a.name), pct(a.hours), a.name, lit.has(a.name))).join("");
+            .filter((a) => lit.has(a.name) && a.hours > 0 && !top.some((x) => x.name === a.name));
+          return head + [...top, ...extra].map((a) => row(colorOf(a.name), pct(a.hours), a.name, lit.has(a.name))).join("");
         },
       },
       xAxis: {
@@ -884,7 +886,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
             align: "center",
             rich,
             formatter: (p) => {
-              const top = rows[p.dataIndex].top[0];
+              const top = barView(st, rows[p.dataIndex]).top[0];
               if (!top) return "";
               return `{${slotOf.has(top.name) ? `s${slotOf.get(top.name)}` : "o"}|●} {n|${plain(top.name)}}`;
             },
@@ -915,11 +917,20 @@ function litSet(st) {
   return lit;
 }
 
+// A bar's total and its top five, [{ name, hours }]: of everyone, or only of the chart's artists when everyone
+// else is left out
+function barView(st, r) {
+  if (st.other) return { hours: r.hours, top: r.top };
+  const own = st.names.map((name, k) => ({ name, hours: r.by[k] })).filter((a) => a.hours > 0);
+  return { hours: own.reduce((s, a) => s + a.hours, 0), top: own.sort((a, b) => b.hours - a.hours).slice(0, 5) };
+}
+
 // The series' ids, data and styles, bottom to top: the gray remainder (rest), each chart artist's slices (m{k}),
 // each chart artist's top-of-the-month block (t{k}), then the top block of a month whose top artist isn't in the
 // chart (top, gray). Giving every artist their own top series keeps a region theirs when they stop being on
 // top (deselected, say), so it shrinks away instead of turning into someone else's. A small artist's slice is
-// folded into the gray unless they're lit, so lighting one grows their slices out of it.
+// folded into the gray unless they're lit, so lighting one grows their slices out of it. Without everyone else
+// there's no gray to fold into, so every slice shows and the gray shrinks away.
 function monthlySeries(st) {
   const { t, names, rows, colorOf } = st;
   const lit = litSet(st);
@@ -931,11 +942,14 @@ function monthlySeries(st) {
   // takes it off after)
   const items = (id, values, extra = () => ({})) =>
     values.map((v, i) => ({ value: v, ...extra(i), ...(v > 0 || st.last?.get(id)?.[i] > 0 ? {} : { itemStyle: { borderWidth: 0 } }) }));
-  const tops = rows.map((r) => r.top[0]?.name);
-  const shown = names.map((n, k) => rows.map((r, i) => n !== tops[i] && r.by[k] > 0 && (lit.has(n) || r.by[k] >= FOLD * r.hours)));
+  const tops = rows.map((r) => barView(st, r).top[0]);
+  const shown = names.map((n, k) =>
+    rows.map((r, i) => n !== tops[i]?.name && r.by[k] > 0 && (!st.other || lit.has(n) || r.by[k] >= FOLD * r.hours))
+  );
   const rest = rows.map((r, i) => {
+    if (!st.other) return 0;
     const slices = names.reduce((s, _n, k) => s + (shown[k][i] ? r.by[k] : 0), 0);
-    return Math.max(0, r.hours - slices - (r.top[0]?.hours ?? 0));
+    return Math.max(0, r.hours - slices - (tops[i]?.hours ?? 0));
   });
   const slices = names.map((n, k) => {
     const on = lit.has(n);
@@ -950,11 +964,11 @@ function monthlySeries(st) {
   const topBlocks = names.map((n, k) => ({
     id: `t${k}`,
     itemStyle: { color: fill(colorOf(n), true), ...edge(colorOf(n), true), ...radius },
-    data: items(`t${k}`, rows.map((r, i) => (tops[i] === n ? r.by[k] : 0))),
+    data: items(`t${k}`, rows.map((r, i) => (tops[i]?.name === n ? r.by[k] : 0))),
   }));
   // A top artist outside the chart has no color of their own: a lighter gray than the rest, without an outline
-  const uncharted = rows.map((r, i) => (tops[i] != null && !names.includes(tops[i]) ? r.top[0].hours : 0));
-  const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i] })) };
+  const uncharted = rows.map((r, i) => (tops[i] && !names.includes(tops[i].name) ? tops[i].hours : 0));
+  const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i]?.name })) };
   // The gray never dims either: it's the rest of the month, whoever is lit
   const gray = { id: "rest", itemStyle: { color: mix(t.surface, t.other, 0.35), ...edge(t.other, false) }, data: rest };
   return [gray, ...slices, ...topBlocks, top];
