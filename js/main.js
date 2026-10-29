@@ -93,8 +93,44 @@ function showView(view) {
   $("landing").hidden = !(view === "you" && !state.plays);
   $("dashboard").hidden = !(view === "you" && state.plays);
   $("community").hidden = view !== "community";
+  // The settings act on loaded data, so there's nothing to show before an upload
+  $("settings-button").hidden = !state.plays;
+  closeSettings();
   if (view === "community") renderCommunity(state.plays);
 }
+
+// The settings menu: sharing and forgetting the loaded data, behind the gear in the top bar
+function openSettings() {
+  $("settings-menu").hidden = false;
+  $("settings-button").setAttribute("aria-expanded", "true");
+  $("settings-menu").querySelector(".settings-item:not([hidden])")?.focus({ preventScroll: true });
+}
+
+function closeSettings(refocus = false) {
+  if ($("settings-menu").hidden) return;
+  $("settings-menu").hidden = true;
+  $("settings-button").setAttribute("aria-expanded", "false");
+  if (refocus) $("settings-button").focus();
+}
+
+$("settings-button").addEventListener("click", () => ($("settings-menu").hidden ? openSettings() : closeSettings()));
+// Any choice closes the menu (its own handler runs as well)
+$("settings-menu").addEventListener("click", (e) => {
+  if (e.target.closest(".settings-item")) closeSettings();
+});
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest(".settings")) closeSettings();
+});
+$("settings-menu").addEventListener("keydown", (e) => {
+  const items = [...$("settings-menu").querySelectorAll(".settings-item:not([hidden])")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "Escape") closeSettings(true);
+  else if (e.key === "Tab") closeSettings();
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+  }
+});
 
 $("tab-you").addEventListener("click", () => showView("you"));
 $("tab-community").addEventListener("click", () => showView("community"));

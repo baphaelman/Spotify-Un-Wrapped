@@ -111,16 +111,12 @@ code { font-size: 0.9em; }
   margin: 0 auto;
   padding: 16px;
 }
-/* The top of the page (this bar, the dashboard's actions and the period bar) is one band in --surface-2
-   across the whole window, ending in the period bar's line and fade. A shadow as wide as the window, clipped
-   to the element's own height (and its gap below), paints the band behind each one's column. Where there's
-   no period bar (landing, community) the band ends in the same line under this bar. */
-.topbar, .dash-actions { background: var(--surface-2); box-shadow: 0 0 0 100vmax var(--surface-2); clip-path: inset(0 -100vmax); }
-.dash-actions { clip-path: inset(0 -100vmax -12px); }
-.topbar { position: relative; }
-body:not(:has(#dashboard:not([hidden]))) .topbar { clip-path: inset(0 -100vmax -1px); }
-/* The line is the column's width, painted out to the window's edges by a border image's outset, which (unlike
-   a wider box) doesn't make the page scroll sideways */
+/* The top of the page (this bar and the period bar) is one band in --surface-2 across the whole window,
+   ending in the period bar's line and fade. A border image's outset paints the band out to the window's edges
+   without clipping the bar's menus or (unlike a wider box) making the page scroll sideways. The bar sits above
+   the period bar, so the settings menu hangs over it. Where there's no period bar (landing, community) the
+   band ends in the same line under this bar, drawn the same way. */
+.topbar { position: relative; z-index: 11; border-image: linear-gradient(var(--surface-2), var(--surface-2)) fill 0 / 0 / 0 100vmax; }
 body:not(:has(#dashboard:not([hidden]))) .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; border-image: linear-gradient(var(--axis), var(--axis)) fill 0 / 0 / 0 100vmax; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
@@ -565,8 +561,6 @@ button.ghost:hover { background: var(--border); }
 .share-optin { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; cursor: pointer; }
 .share-optin input { margin-top: 4px; accent-color: var(--accent); }
 .share-note { margin: 4px 0 0 24px; }
-.filters .spacer { flex: 1; }
-.dash-actions { margin-bottom: 12px; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 dialog {
@@ -784,7 +778,33 @@ dialog pre {
 }
 .palette-menu::-webkit-scrollbar { display: none; }
 /* At the head of the period bar's artist line, centered on the search beside it; the menu opens rightward */
-.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+/* Settings: a gear beside the theme toggle, opening a small menu of what can be done with the loaded data.
+   The menu hangs from the gear's right edge, so it opens leftward. */
+.settings { position: relative; display: flex; }
+#settings-button { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
+#settings-button:hover, #settings-button[aria-expanded="true"] { color: var(--text-primary); }
+#settings-button svg { transition: transform var(--motion-grow) var(--ease-out); }
+#settings-button[aria-expanded="true"] svg { transform: rotate(60deg); }
+.settings-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 240px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.settings-menu:not([hidden]) { animation: pop var(--motion-fade) var(--ease-out); transform-origin: top right; }
+.settings-note { margin: 0; padding: 6px 8px 8px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.settings-item { display: block; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; }
+.settings-item[hidden] { display: none; }
+.settings-item:hover, .settings-item:focus-visible { background: var(--border); outline: none; }
+.settings-item.danger { color: var(--text-secondary); }
+@media (prefers-reduced-motion: reduce) { .settings-menu:not([hidden]) { animation: none; } #settings-button svg { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
 @keyframes palette-drift-lg { to { background-position: -40px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
