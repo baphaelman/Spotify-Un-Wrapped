@@ -710,7 +710,7 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
-// When you listen, split into the chart's artists (same colors, pins and hover)
+// When you listened, split into the chart's artists (same colors, pins and hover)
 function paintClock(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , includeOther, pins] = mixArgs;

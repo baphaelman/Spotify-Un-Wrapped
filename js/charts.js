@@ -1012,7 +1012,7 @@ export function focusMonthly(el, name) {
   settleMonthly(el, st, series);
 }
 
-// When you listen: one small share stack graph per weekday, across the hours of the day, drawn like the rolling
+// When you listened: one small share stack graph per weekday, across the hours of the day, drawn like the rolling
 // chart's Share mode (bands bottom up in rank order, a pale tint of each artist's color under an outline). With
 // includeOther, the rest of the time is a gray "Everyone else" band on top; without, the shares are among the artists
 // shown. grid is clockBy's, by the hour; the hours are smoothed around the week's clock (late Sunday runs into Monday
@@ -1086,7 +1086,8 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
     return `<div style="color:${t.muted};margin-bottom:4px">${DAYS[d]} around ${hourLabel(h)}</div>${rows.join("")}`;
   };
 
-  c.setOption(
+  setOptionFaded(
+    c,
     {
       animation: true,
       animationDuration: 600,
@@ -1145,7 +1146,9 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
         }))
       ),
     },
-    { notMerge: fresh }
+    // Outlines and fills fade with the morph (deselecting an artist), rather than snapping before it
+    { notMerge: fresh },
+    fresh ? 0 : dur(MORPH_MS)
   );
 
   // Hover from the data, as in the rolling chart: the band under the pointer, in the row under it
@@ -1219,8 +1222,11 @@ export function focusClock(el, name) {
   const st = clockState.get(el);
   const c = instances.get(el);
   if (!st || !c) return;
-  st.hovered = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
-  c.setOption({ series: DAYS.flatMap((_, d) => st.all.map((n, k) => ({ id: `c${d}_${k}`, ...clockLook(st, k) }))) }, undefined, true);
+  const next = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
+  if (next === st.hovered) return;
+  st.hovered = next;
+  // Faded, as hover in the rolling chart is
+  setOptionFaded(c, { series: DAYS.flatMap((_, d) => st.all.map((n, k) => ({ id: `c${d}_${k}`, ...clockLook(st, k) }))) }, undefined, dur(FADE_MS));
 }
 
 // Contributors by total hours, with the viewer's bin picked out in the accent.
