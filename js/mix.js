@@ -65,7 +65,7 @@ function makeEntry(name) {
 const SHARE_PX = 30;
 const HOURS_PX = 40;
 const DETAIL_PX = 80;
-const PLAYS_PX = 104;
+const PLAYS_PX = 76;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
 // Puts every segment and its hours where its x and w say, and shows what fits. The segments at either end
@@ -191,7 +191,7 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
-    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()} plays)` });
+    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()})` });
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     e.box.title = e.pinnable ? "Hide this artist everywhere" : "Hide everyone else";
     e.box.setAttribute("aria-label", e.pinnable ? `Hide ${name}` : e.box.title);
