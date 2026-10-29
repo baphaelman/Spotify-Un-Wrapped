@@ -745,7 +745,7 @@ dialog pre {
 .mix-total { display: grid; justify-items: end; gap: 2px; }
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
 #mix-legend { position: relative; margin: 14px 0 12px; }
-#clock-legend { margin-top: 12px; }
+#clock-legend { margin: 14px 0 4px; }
 .mix-legend-item { cursor: default; }
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }

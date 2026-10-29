@@ -783,18 +783,19 @@ function artistKey(keyed, pins, hover, { all: withAll = false, other = true } = 
   restName.dataset.text = rest.title;
   rest.append(restSw, restName);
   if (!withAll) return other ? [...key, rest] : key;
-  // Checked when every artist in the key is shown, mixed when some are; a click shows them all, or hides them all
-  // once they're all shown
-  const on = keyed.filter((n) => !state.hidden.includes(n)).length;
+  // As in the rolling chart's legend, the box leaves pinned artists alone. Checked when every unpinned artist is
+  // shown, mixed when some are; a click shows them all, or hides them all once they're all shown
+  const top = keyed.filter((n) => !pins.has(n));
+  const on = top.filter((n) => !state.hidden.includes(n)).length;
   const box = document.createElement("button");
   box.type = "button";
   box.className = "legend-item legend-all";
   box.setAttribute("role", "checkbox");
-  box.setAttribute("aria-checked", on === keyed.length ? "true" : on ? "mixed" : "false");
-  box.title = on === keyed.length ? "Hide all artists" : "Show all artists";
+  box.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
+  box.title = on === top.length ? "Hide all top artists" : "Show all top artists";
   box.setAttribute("aria-label", box.title);
-  box.addEventListener("click", () => showArtists($("chart-rolling"), keyed, on !== keyed.length));
-  return [...(keyed.length ? [box] : []), ...key, ...(other ? [rest] : [])];
+  box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
+  return [...(top.length ? [box] : []), ...key, ...(other ? [rest] : [])];
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
