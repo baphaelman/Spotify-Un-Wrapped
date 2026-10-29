@@ -123,21 +123,23 @@ button, select {
 }
 button.ghost { background: transparent; }
 button.ghost:hover { background: var(--border); }
-/* Period picker: a button with its chevron on the left (flipping up while open), and a menu that hangs
+/* Period picker: a button with its label on the left and chevron on the right (flipping up while open), and a menu that hangs
    from it inside the sticky bar. Fixed width so the bar doesn't shift between "All time" and a year. */
 .year-picker { position: relative; }
 #year-button { display: flex; align-items: center; gap: 10px; min-width: 104px; text-align: left; }
-#year-button::before {
+#year-label { flex: 1; }
+#year-button::after {
   content: "";
+  flex: none;
   width: 6px;
   height: 6px;
-  margin: -3px 0 0 1px;
+  margin: -3px 1px 0 0;
   border-right: 1.5px solid var(--text-muted);
   border-bottom: 1.5px solid var(--text-muted);
   transform: rotate(45deg);
   transition: transform var(--motion-fade) var(--ease-out), margin var(--motion-fade) var(--ease-out);
 }
-#year-button[aria-expanded="true"]::before { margin-top: 3px; transform: rotate(-135deg); }
+#year-button[aria-expanded="true"]::after { margin-top: 3px; transform: rotate(-135deg); }
 .year-menu {
   position: absolute;
   top: calc(100% + 6px);
