@@ -16,10 +16,6 @@
       <button id="tab-community" type="button" class="tab">Community</button>
     </nav>
     <div class="topbar-actions">
-      <div class="palette-picker">
-        <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
-        <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
-      </div>
       <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
     </div>
   </header>
@@ -107,9 +103,13 @@
         </div>
         <!-- The artists every graph shows: search to pin one, then a chip per artist (main.js paintArtistKey) -->
         <div class="bar-artists">
+          <div class="palette-picker">
+            <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
+            <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
+          </div>
           <div class="artist-search">
             <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <input id="artist-search" type="search" placeholder="Search artists to pin…" autocomplete="off" spellcheck="false"
+            <input id="artist-search" type="search" placeholder="Pin an artist…" autocomplete="off" spellcheck="false"
               role="combobox" aria-expanded="false" aria-controls="artist-results" aria-autocomplete="list"
               aria-label="Search artists to pin to the chart">
             <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>

@@ -382,7 +382,7 @@ button.ghost:hover { background: var(--border); }
    keeps its height as the artists change: each takes an equal share of the room but no more than its name
    needs, so only long names ellipsize. */
 .bar-artists { flex: 1 0 100%; display: flex; align-items: center; gap: 8px 12px; min-width: 0; }
-.bar-artists .artist-search { flex: none; width: 190px; }
+.bar-artists .artist-search { flex: none; width: 170px; }
 .bar-artists .artist-search input { height: 30px; }
 .bar-artists .artist-key { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
 .artist-key .legend-item { flex: 1 1 0; max-width: max-content; transition: background var(--motion-fade) var(--ease-out), border-color var(--motion-fade) var(--ease-out); }
@@ -755,11 +755,10 @@ dialog pre {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .palette-menu::-webkit-scrollbar { display: none; }
-/* In the top bar, beside the theme toggle at the right edge, so the menu opens leftward */
+/* At the head of the period bar's artist line, as tall as the search beside it; the menu opens rightward */
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
-.topbar-actions .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
-@keyframes palette-drift-lg { to { background-position: -40px 0; } }
-.topbar-actions .palette-menu, .topbar-actions .palette-menu:not([hidden]) { left: auto; right: 0; transform-origin: top right; }
+.bar-artists .palette-dot { width: 28px; height: 28px; background-size: 56px 100%; animation-name: palette-drift-lg; }
+@keyframes palette-drift-lg { to { background-position: -56px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
 .palette-option {
   display: flex;

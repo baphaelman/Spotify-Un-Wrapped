@@ -1135,7 +1135,7 @@ $("artist-search").addEventListener("keydown", (e) => {
 
 // ---------- Theme ----------
 
-// Series palettes, chosen from the dot beside the legend. "Default" is the stylesheet's own --series-N
+// Series palettes, chosen from the dot at the head of the period bar's artist key. "Default" is the stylesheet's own --series-N
 // colors; the others override them on <body>, so the root keeps the stylesheet values to preview from.
 // The checked ones pass the data-viz palette validator's hard gates in both modes, ordered for
 // adjacent stacked bands.
