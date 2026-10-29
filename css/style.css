@@ -116,7 +116,7 @@ code { font-size: 0.9em; }
    to the element's own height (and its gap below), paints the band behind each one's column. Where there's
    no period bar (landing, community) the band ends in the same line under this bar. */
 .topbar, .dash-actions { background: var(--surface-2); box-shadow: 0 0 0 100vmax var(--surface-2); clip-path: inset(0 -100vmax); }
-.dash-actions { clip-path: inset(0 -100vmax -8px); }
+.dash-actions { clip-path: inset(0 -100vmax -12px); }
 .topbar { position: relative; }
 body:not(:has(#dashboard:not([hidden]))) .topbar { clip-path: inset(0 -100vmax -1px); }
 /* The line is the column's width, painted out to the window's edges by a border image's outset, which (unlike
@@ -223,8 +223,9 @@ button.ghost:hover { background: var(--border); }
 .filters .step { padding: 6px 10px; }
 .filters .step:disabled { opacity: 0.3; cursor: default; }
 /* The period bar spans the whole window (its content stays in the page's column), a step lighter than the
-   page like the rest of the top band, with a firm line below, then a short fade into the page beneath it. Once it's
-   pinned to the top, the content scrolling under the fade softens into it. */
+   page like the rest of the top band, with a firm line above, setting it apart from the title and actions, and
+   below, then a short fade into the page beneath it. Once it's pinned to the top, the content scrolling under
+   the fade softens into it. */
 .filters.sticky {
   position: sticky;
   top: 0;
@@ -232,6 +233,7 @@ button.ghost:hover { background: var(--border); }
   margin: 0 calc(50% - 50vw) 16px;
   padding: 12px calc(50vw - 50%);
   background: var(--surface-2);
+  border-top: 1px solid var(--axis);
   border-bottom: 1px solid var(--axis);
 }
 .filters.sticky::after {
@@ -564,7 +566,7 @@ button.ghost:hover { background: var(--border); }
 .share-optin input { margin-top: 4px; accent-color: var(--accent); }
 .share-note { margin: 4px 0 0 24px; }
 .filters .spacer { flex: 1; }
-.dash-actions { margin-bottom: 8px; }
+.dash-actions { margin-bottom: 12px; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 dialog {
