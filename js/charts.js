@@ -594,34 +594,36 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
 }
 
-// HTML legend in the Artists panel above a rolling chart: hover highlights an artist, clicking the swatch shows/hides
-// them and clicking the name pins them. The top artists sit above the search, led by a small checkbox that shows or hides them
+// HTML legend in the Artists panel above a rolling chart: hover highlights an artist, clicking a chip pins them. The top artists sit above the search, led by a small checkbox that shows or hides them
 // together; pinned ones sit below it, each outlined in its artist's color with an × that unpins it.
 // "Everyone else" isn't listed: it's a switch in the panel's corner.
 function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, showAll, pins }) {
   const card = el.closest(".card");
-  // A chip is a swatch button (shows or hides the artist) and a name button (pins or unpins them). The
+  // A chip is a swatch and a name; clicking anywhere on it pins or unpins the artist. The
   // swatch is an outline in the artist's color that fills in on hover and stays filled while pinned.
   const item = (name, k) => {
     const pinned = !!pins?.has(name);
     const chip = document.createElement("span");
     chip.className = "legend-item" + (pinned ? " pinned" : "") + (visible(k) ? "" : " hidden-artist");
     chip.style.setProperty("--c", colors[k]);
-    const sw = document.createElement("button");
-    sw.type = "button";
+    // The whole chip is the click target: pins the artist, or unpins them if they're already pinned
+    const sw = document.createElement("span");
     sw.className = "swatch";
-    sw.setAttribute("aria-pressed", visible(k));
-    sw.setAttribute("aria-label", `${visible(k) ? "Hide" : "Show"} ${name}`);
-    sw.title = visible(k) ? "Hide" : "Show";
-    sw.addEventListener("click", () => toggle(name));
-    const label = document.createElement("button");
-    label.type = "button";
+    const label = document.createElement("span");
     label.className = "name";
     label.textContent = name; // artist names come from user files
-    label.title = pins ? (pinned ? `Unpin ${name}` : `Pin ${name}`) : name;
-    if (pins) label.setAttribute("aria-pressed", pinned);
-    label.addEventListener("click", () => (pins ? pins.toggle(name) : toggle(name)));
     chip.append(sw, label);
+    chip.title = pins ? (pinned ? `Unpin ${name}` : `Pin ${name}`) : name;
+    chip.tabIndex = 0;
+    chip.setAttribute("role", "button");
+    if (pins) chip.setAttribute("aria-pressed", pinned);
+    const activate = () => (pins ? pins.toggle(name) : toggle(name));
+    chip.addEventListener("click", activate);
+    chip.addEventListener("keydown", (e) => {
+      if (e.target !== chip || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      activate();
+    });
     chip.addEventListener("pointerenter", () => hover(name));
     chip.addEventListener("pointerleave", () => hover(null));
     if (!pinned) return chip;
@@ -631,7 +633,8 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
     x.textContent = "×";
     x.setAttribute("aria-label", `Unpin ${name}`);
     x.title = "Unpin";
-    x.addEventListener("click", () => {
+    x.addEventListener("click", (e) => {
+      e.stopPropagation();
       hover(null);
       pins.unpin(name);
     });
