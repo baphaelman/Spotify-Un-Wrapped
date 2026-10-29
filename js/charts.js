@@ -331,9 +331,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // Keep the old pointer handlers' references, so they're removed below rather than left running
     // against the previous artists alongside the new ones
     const hidden = hiddenNames.get(el);
+    // While every unpinned artist is hidden (the key's all box is off), artists who arrive (a new period, a
+    // higher count) come in hidden too, so the box stays off. Pinned artists and everyone else are left alone.
+    const was = st ? artistsOf(st.names, st.hasOther).filter((n) => !pins?.has(n)) : [];
+    const allOff = was.length > 0 && was.every((n) => st.selected[n] === false);
+    const fresh = (n, i) => allOff && i !== otherIdx && !st.names.includes(n) && !pins?.has(n);
     st = {
       names,
-      selected: Object.fromEntries(names.map((n) => [n, !hidden?.has(n)])),
+      selected: Object.fromEntries(names.map((n, i) => [n, !hidden?.has(n) && !fresh(n, i)])),
       zrMove: st?.zrMove,
       zrOut: st?.zrOut,
     };
