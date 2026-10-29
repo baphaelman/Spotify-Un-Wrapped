@@ -666,7 +666,9 @@ export function renderMonthly(el, rows) {
     oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
   chart(el).setOption(
     {
-      animationDuration: 400,
+      animationDuration: 600,
+      animationDurationUpdate: MORPH_MS,
+      animationEasingUpdate: "cubicInOut",
       grid: { left: 48, right: 16, top: 16, bottom: 32 },
       tooltip: {
         ...tooltipBase(t),
@@ -704,7 +706,7 @@ export function renderMonthly(el, rows) {
         },
       ],
     },
-    { notMerge: true }
+    { notMerge: false } // merge, so a new period tweens from the old one
   );
 }
 
@@ -718,7 +720,9 @@ export function renderClock(el, grid) {
 
   chart(el).setOption(
     {
-      animationDuration: 400,
+      animationDuration: 600,
+      animationDurationUpdate: MORPH_MS,
+      animationEasingUpdate: "cubicInOut",
       grid: { left: 48, right: 16, top: 8, bottom: 56 },
       tooltip: {
         ...tooltipBase(t),
@@ -749,7 +753,7 @@ export function renderClock(el, grid) {
         },
       ],
     },
-    { notMerge: true }
+    { notMerge: false } // merge, so a new period tweens from the old one
   );
 }
 

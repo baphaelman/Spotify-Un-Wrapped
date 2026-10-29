@@ -646,16 +646,18 @@ dialog pre {
 .mix-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .mix-total { display: grid; justify-items: end; gap: 2px; }
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-#mix-legend { margin: 14px 0 12px; }
+#mix-legend { position: relative; margin: 14px 0 12px; }
 .mix-legend-item { cursor: default; }
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }
-.mix-bar { display: flex; gap: 2px; height: 44px; }
+/* Segments are placed by mix.js (left and width), so they can slide and resize as one animation */
+.mix-bar { position: relative; height: 44px; }
 .mix-bar.empty { position: relative; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 4px; }
 .mix-bar.empty::after { content: "No listening in this span"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: var(--text-muted); }
 .mix-seg {
-  flex: 1 1 0;
-  min-width: 0;
+  position: absolute;
+  top: 0;
+  bottom: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -665,9 +667,11 @@ dialog pre {
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 500;
-  transition: flex-grow 0.18s ease-out, background 0.15s, opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s, box-shadow 0.2s;
 }
 .mix-seg:hover { background: color-mix(in srgb, var(--c) 32%, var(--surface)); }
+.mix-legend-item { transition: background 0.15s; }
+.mix-legend-item .swatch { transition: background 0.3s; }
 @media (prefers-reduced-motion: reduce) { .mix-seg { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
@@ -706,3 +710,42 @@ dialog textarea:focus-visible, dialog input:focus-visible { outline: 2px solid v
 .inbox-meta { display: flex; gap: 8px; align-items: center; }
 .inbox-meta span { margin-right: auto; }
 .inbox-meta button { padding: 2px 8px; }
+
+/* Motion: views rise in, menus and dialogs pop, surfaces ease between themes. The lists, tiles, mix bar
+   and charts animate their data in JS (motion.js), so a period change moves them rather than replaying this. */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(0.97); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes settle { from { opacity: 0; transform: translateY(16px) scale(0.985); } }
+
+.landing > * { animation: rise 0.55s cubic-bezier(.2,.7,.2,1) backwards; }
+.landing > :nth-child(2) { animation-delay: 0.06s; }
+.landing > :nth-child(3) { animation-delay: 0.1s; }
+.landing > :nth-child(n+4) { animation-delay: 0.14s; }
+
+.dashboard .stat, .dashboard .card, .dashboard .community-leave { animation: rise 0.6s cubic-bezier(.2,.7,.2,1) backwards; }
+.stats .stat:nth-child(2) { animation-delay: 0.05s; }
+.stats .stat:nth-child(3) { animation-delay: 0.1s; }
+.stats .stat:nth-child(4) { animation-delay: 0.15s; }
+.dashboard > .card:nth-of-type(1), #community-body > .card:nth-of-type(1) { animation-delay: 0.12s; }
+.dashboard > .card:nth-of-type(2), #community-body > .card:nth-of-type(2) { animation-delay: 0.18s; }
+.dashboard > .card:nth-of-type(3), #community-body > .card:nth-of-type(3) { animation-delay: 0.24s; }
+.grid-2 .card:nth-child(2) { animation-delay: 0.08s; }
+
+.year-menu:not([hidden]), .palette-menu:not([hidden]), .artist-results:not([hidden]) { animation: pop 0.16s cubic-bezier(.2,.7,.2,1); transform-origin: top left; }
+dialog[open] { animation: settle 0.28s cubic-bezier(.2,.7,.2,1); }
+dialog[open]::backdrop { animation: fade 0.28s ease-out; }
+
+body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: background-color 0.35s, border-color 0.35s, color 0.35s; }
+.stat { transition: background-color 0.35s, border-color 0.2s, color 0.35s, transform 0.2s; }
+.stat:hover { transform: translateY(-2px); border-color: var(--axis); }
+button:not(:disabled):active { transform: scale(0.96); }
+.toplist li { transition: background 0.15s; }
+
+/* The period label swaps with a quick slide when the period changes */
+#year-label.swap { animation: pop 0.22s cubic-bezier(.2,.7,.2,1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .landing > *, .dashboard .stat, .dashboard .card, .year-menu, .palette-menu, .artist-results, dialog[open], dialog[open]::backdrop, #year-label.swap { animation: none !important; }
+  .stat:hover, button:active { transform: none !important; }
+}

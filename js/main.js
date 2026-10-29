@@ -168,7 +168,11 @@ function showDashboard() {
 function setPeriod(value) {
   $("year-filter").value = state.year = value;
   const i = $("year-filter").selectedIndex;
-  $("year-label").textContent = $("year-filter").options[i].text;
+  const label = $("year-label");
+  label.textContent = $("year-filter").options[i].text;
+  label.classList.remove("swap");
+  void label.offsetWidth; // restart the swap animation
+  label.classList.add("swap");
   $("year-prev").disabled = i <= 0;
   $("year-next").disabled = i >= $("year-filter").options.length - 1;
   renderAll();
@@ -270,6 +274,7 @@ function renderTopList(ol, items, detail, artistOf, pinnable = false) {
     ol,
     items.map((item) => ({
       name: item.name,
+      key: `${item.name}\u0000${artistOf(item)}`, // the same row in another period glides instead of being redrawn
       detail: detail(item),
       value: `${Math.round(item.hours).toLocaleString()} h`,
       frac: item.hours / max,

@@ -55,7 +55,11 @@ own folder, so no agent sees another's half-finished edits.
 - `js/charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling`.
 - `js/motion.js`: shared chart motion. Durations (`MORPH_MS`, `FADE_MS`), `setOptionFaded` (style and
   curve-rounding tweens) and `sweep` (steps a value through keyframes with chained morphs). New charts
-  should take their timings and animation helpers from here.
+  should take their timings and animation helpers from here. It also holds the DOM helpers `tweenNumber`,
+  `flip` (FLIP glide keyed by name) and `dur` (0 under reduced motion). The mix bar (`mix.js`) keeps one
+  segment and legend entry per artist and animates `left`/`width` itself, so a period change slides the
+  artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
+  matched across renders the same way (`lists.js`).
 - `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
   sharing, theme.
 - `js/lists.js`: ranked lists and stat tiles.

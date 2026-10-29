@@ -72,3 +72,55 @@ export function sweep(apply, ms = MORPH_MS, steps = 8, ease = (t) => t * t * (3 
     step(1);
   });
 }
+
+// ---------- Page motion (DOM, not charts) ----------
+
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+// A duration, or 0 when the visitor asked for less motion
+export const dur = (ms) => (reduced.matches ? 0 : ms);
+export const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+// Counts a number up or down inside `el`. Remembers where it got to (el._num), so an interrupted count
+// carries on from what's showing; pass `from` for an element that was just rebuilt.
+export function tweenNumber(el, to, { format = (n) => Math.round(n).toLocaleString(), from, ms = MORPH_MS } = {}) {
+  cancelAnimationFrame(el._raf);
+  const start = from ?? el._num ?? to;
+  const total = dur(ms);
+  if (start === to || !total) {
+    el._num = to;
+    el.textContent = format(to);
+    return;
+  }
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / total);
+    el._num = t === 1 ? to : start + (to - start) * easeInOut(t);
+    el.textContent = format(el._num);
+    if (t < 1) el._raf = requestAnimationFrame(tick);
+  };
+  el._num = start;
+  el.textContent = format(start);
+  el._raf = requestAnimationFrame(tick);
+}
+
+// FLIP: `before` is Map(key -> DOMRect) measured before the DOM changed, `els` is Map(key -> element)
+// after. Elements that were there glide from their old spot; new ones rise in, staggered.
+export function flip(before, els, { ms = MORPH_MS, stagger = 18 } = {}) {
+  const total = dur(ms);
+  if (!total) return;
+  let n = 0;
+  for (const [key, el] of els) {
+    const was = before.get(key);
+    if (!was) {
+      el.animate(
+        [{ opacity: 0, transform: "translateY(10px) scale(0.97)" }, { opacity: 1, transform: "none" }],
+        { duration: total * 0.6, delay: Math.min(n++ * stagger, 240), easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" }
+      );
+      continue;
+    }
+    const now = el.getBoundingClientRect();
+    const dx = was.left - now.left, dy = was.top - now.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: total, easing: "cubic-bezier(.65,0,.35,1)" });
+  }
+}
