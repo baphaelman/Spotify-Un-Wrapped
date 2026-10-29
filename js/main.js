@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { sweep, cancelSweep, dur } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
@@ -15,7 +15,7 @@ const $ = (id) => document.getElementById(id);
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
 const state = {
   plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
-  pinned: [], artists: [], colorSlots: new Map(),
+  pinned: [], hidden: [], artists: [], colorSlots: new Map(),
 };
 
 // ---------- Loading ----------
@@ -251,18 +251,51 @@ const PAN_MS = 900;
 const ZOOM_MS = 1400;
 
 function renderAll(keepZoom, animate = false) {
-  const plays = agg.filterYear(state.plays, state.year);
-  renderStats(plays);
-  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
-  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
+  renderDependents();
   const zooming = state.year === "all" || animate === "all";
   const ms = dur(zooming ? ZOOM_MS : PAN_MS);
   renderRollingChart(keepZoom ?? periodZoom(), animate && ms > 0 && { ms, easing: "cubicInOut", pan: true });
-  renderMonthly($("chart-monthly"), agg.monthly(plays));
-  renderClock($("chart-clock"), agg.clock(plays));
 }
 
+// The period's plays without the artists deselected in the rolling chart's legend
+function shownPlays() {
+  const plays = agg.filterYear(state.plays, state.year);
+  if (!state.hidden.length) return plays;
+  const hidden = new Set(state.hidden);
+  return plays.filter((p) => !hidden.has(p.artist));
+}
+
+// Everything that follows the legend's selection: stats, top lists, monthly hours and the clock
+// (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
+function renderDependents() {
+  const plays = shownPlays();
+  renderStats(plays);
+  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
+  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
+  renderMonthly($("chart-monthly"), agg.monthly(plays));
+  renderClock($("chart-clock"), agg.clock(plays));
+  paintTopLists();
+}
+
+// Deselecting artists in the legend removes them from the other graphs too
+onSelectionChange($("chart-rolling"), (hidden) => {
+  if (hidden.join("\u0000") === state.hidden.join("\u0000")) return;
+  state.hidden = hidden;
+  if (!state.plays) return;
+  renderDependents();
+  if (mixArgs) renderMix(...mixArgs);
+});
+
 function renderStats(plays) {
+  if (!plays.length) {
+    renderTiles($("stats"), [
+      { label: "Hours listened", value: "0", sub: "no artists shown", hero: true },
+      { label: "Plays", value: "0", sub: "" },
+      { label: "Artists", value: "0", sub: "unique" },
+      { label: "Tracks", value: "0", sub: "unique" },
+    ]);
+    return;
+  }
   const s = agg.summary(plays);
   const fmtDate = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
   renderTiles($("stats"), [
@@ -405,6 +438,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
   };
+  mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
   if (!look) {
     // the steps of a sweep change neither the artists nor their colors
@@ -415,14 +449,19 @@ function renderRollingChart(zoom, morph = false, look = null) {
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
 let mixMemo = null;
+let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
 function renderMix(artists, slots, includeOther, pins) {
+  mixArgs = [artists, slots, includeOther, pins];
   const inPeriod = agg.filterYear(state.plays, state.year);
   const key = [state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
+  // Deselected artists drop out of the bar, and the rest fill it
+  const all = includeOther ? [...artists, "Everyone else"] : artists;
+  const rows = all.map((_, i) => i).filter((i) => !state.hidden.includes(all[i]));
   updateMix({
-    table: mixMemo.table,
-    names: includeOther ? [...artists, "Everyone else"] : artists,
-    slots,
+    table: { ...mixMemo.table, prefix: rows.map((i) => mixMemo.table.prefix[i]) },
+    names: rows.map((i) => all[i]),
+    slots: slots && rows.map((i) => slots[i]),
     pins,
     hasOther: includeOther,
     periodLabel: $("year-label").textContent,

@@ -100,6 +100,11 @@ export const onFocusChange = (el, fn) => focusHooks.set(el, fn);
 const zoomHooks = new Map();
 export const onZoomChange = (el, fn) => zoomHooks.set(el, fn);
 
+// Called with the artists hidden in a rolling chart's legend after every render, so the rest of the page
+// can leave them out. It fires on each render, so a reset to all shown is reported too.
+const selectionHooks = new WeakMap();
+export const onSelectionChange = (el, fn) => selectionHooks.set(el, fn);
+
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
 // Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
@@ -641,6 +646,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       restack();
     });
   }
+  selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
 }
 
 // HTML legend in the Artists panel above a rolling chart: hover highlights an artist, clicking the swatch shows/hides

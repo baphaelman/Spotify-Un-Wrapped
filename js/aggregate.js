@@ -73,6 +73,7 @@ export function monthly(plays) {
     return d.getFullYear() * 12 + d.getMonth();
   });
   const keys = [...m.keys()];
+  if (!keys.length) return [];
   const lo = Math.min(...keys), hi = Math.max(...keys);
   const out = [];
   for (let k = lo; k <= hi; k++) {
