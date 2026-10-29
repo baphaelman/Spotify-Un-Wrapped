@@ -503,18 +503,22 @@ dialog pre {
   text-align: left;
 }
 .legend-item:hover { background: var(--border); }
-.chart-legend .legend-item[role="button"] { cursor: pointer; }
-.legend-item .legend-unpin { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-/* The whole chip is clickable (it pins the artist). The swatch is the artist's color as an outline; it fills in on hover and stays filled while pinned */
+.chart-legend .legend-item { cursor: pointer; }
+.legend-item .legend-unpin, .chart-legend .legend-item button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+/* The swatch is the artist's color as an outline; hovering it turns it into a pin, which stays while pinned */
 .chart-legend .legend-item .swatch {
-  width: 10px;
-  height: 10px;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
   border-radius: 2px;
   flex: none;
+  color: var(--c);
   box-shadow: inset 0 0 0 1.5px var(--c);
-  transition: background 0.12s;
 }
-.chart-legend .legend-item:hover .swatch, .chart-legend .legend-item.pinned .swatch { background: var(--c); }
+.chart-legend .legend-item .swatch svg { display: none; }
+.chart-legend .legend-item .swatch:hover, .chart-legend .legend-item.pinned .swatch { box-shadow: none; }
+.chart-legend .legend-item .swatch:hover svg, .chart-legend .legend-item.pinned .swatch svg { display: block; }
 .chart-legend .legend-item .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-legend .legend-item.hidden-artist { opacity: 0.4; }
 .chart-legend .legend-item:focus-visible, .chart-legend .legend-item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
