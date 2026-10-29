@@ -369,20 +369,28 @@ function showDashboard() {
 
 // The bar's text and buttons, and the brush's window, for the current range
 function syncPeriod() {
-  // Everything in the bar that can be pushed sideways when the text changes width glides to its new spot
+  // Everything in the bar that can be pushed sideways when the text changes width glides to its new spot. (The
+  // picker ends the row, and what's left of it follows the picker's width as it tweens, below.)
   const slid = () => new Map([
-    ["next", $("year-next")],
     ["dates", $("period-range").querySelector(".dates")],
     ["days", $("period-range").querySelector(".days")],
   ].filter(([, el]) => el));
   const before = new Map([...slid()].map(([k, el]) => [k, el.getBoundingClientRect()]));
   const label = $("year-label");
-  const text = presetLabel();
+  // A length picked from the buttons (3m, 1y…) names the day it starts, rather than "Custom"
+  const len = [...$("period-resize").children].some((b) => sameRange(state.range, resized(state.range, b.dataset.len)));
+  const text = presetOf(state.range) === null && len ? fmtDay(state.range.lo) : presetLabel();
   if (label.textContent !== text) {
+    // A date is wider than a year, so the button grows or shrinks to fit, pushing the controls to its left along
+    const button = $("year-button"), was = button.getBoundingClientRect().width;
     label.textContent = text;
     label.classList.remove("swap");
     void label.offsetWidth; // restart the swap animation
     label.classList.add("swap");
+    const now = button.getBoundingClientRect().width;
+    if (was && Math.abs(now - was) > 0.5 && dur(MORPH_MS)) {
+      button.animate({ width: [`${was}px`, `${now}px`] }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css });
+    }
   }
   const p = presetOf(state.range);
   const sel = $("year-filter");

@@ -78,16 +78,6 @@
           <button type="button" data-dim="track" aria-pressed="false">Tracks</button>
           <button type="button" data-dim="album" aria-pressed="false">Albums</button>
         </div>
-        <div class="period">
-          <button id="year-prev" class="ghost step" type="button" aria-label="Previous period">‹</button>
-          <!-- The hidden select holds the presets; the button and menu are what's shown (main.js) -->
-          <select id="year-filter" aria-label="Period" hidden></select>
-          <div class="year-picker">
-            <button id="year-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="year-menu" aria-label="Period preset"><span id="year-label"></span></button>
-            <ul id="year-menu" class="year-menu" role="listbox" aria-label="Period" hidden></ul>
-          </div>
-          <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
-        </div>
         <div id="period-range" class="period-range" aria-live="off"></div>
         <!-- How many artists (or tracks, or albums) every graph shows -->
         <div class="bar-opts">
@@ -101,6 +91,17 @@
         </div>
         <!-- Sets the window's length, keeping its right edge where it is; the lengths are the view's (main.js RESIZES) -->
         <div id="period-resize" class="segmented solid period-resize" role="group" aria-label="Window length"></div>
+        <!-- The period's presets, at the end of the row beside the lengths -->
+        <div class="period">
+          <button id="year-prev" class="ghost step" type="button" aria-label="Previous period">‹</button>
+          <!-- The hidden select holds the presets; the button and menu are what's shown (main.js) -->
+          <select id="year-filter" aria-label="Period" hidden></select>
+          <div class="year-picker">
+            <button id="year-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="year-menu" aria-label="Period preset"><span id="year-label"></span></button>
+            <ul id="year-menu" class="year-menu" role="listbox" aria-label="Period" hidden></ul>
+          </div>
+          <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
+        </div>
         <div class="brush">
           <div id="brush-track" class="brush-track">
             <svg id="brush-svg" aria-hidden="true"></svg>
