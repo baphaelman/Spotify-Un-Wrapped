@@ -15,6 +15,7 @@ let ctx = null; // { table, names, slots, hasOther, lo, hi } from the last updat
 let hover = () => {};
 let rendered = { key: null, bounds: null };
 let segs = [];
+let items = []; // legend entries, in the same order as segs
 let raf = 0;
 
 const fmt = (d, opts) => dayToDate(d).toLocaleDateString(undefined, opts);
@@ -50,6 +51,10 @@ function setMonth(k) {
 
 const monthOfSpan = () => monthKey(span.kind === "month" ? span.start : span.start + Math.floor(span.len / 2));
 
+// "Everyone else" can't be pinned
+const canPin = (i) => !(ctx.hasOther && i === ctx.names.length - 1);
+const isPinned = (i) => canPin(i) && ctx.pins.has(ctx.names[i]);
+
 // ---------- Painting ----------
 
 function paint() {
@@ -71,7 +76,9 @@ function paint() {
     const seg = segs[i];
     seg.style.flexGrow = share;
     seg.firstChild.textContent = share >= 0.04 ? Math.round(share * 100) + "%" : "";
-    seg.title = `${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
+    seg.classList.toggle("pinned", isPinned(i));
+    items[i].classList.toggle("pinned", isPinned(i));
+    seg.title = `${isPinned(i) ? "Click to unpin · " : canPin(i) ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
 
   const slider = $("mix-slider");
@@ -107,13 +114,18 @@ function build() {
     seg.append(document.createElement("span"));
     seg.addEventListener("pointerenter", () => hover(name));
     seg.addEventListener("pointerleave", () => hover(null));
+    // Clicking a part of the bar pins or unpins its artist, like clicking its band in the chart
+    if (canPin(i)) {
+      seg.classList.add("pinnable");
+      seg.addEventListener("click", () => ctx.pins.toggle(name));
+    }
     return seg;
   });
   $("mix-bar").replaceChildren(...segs);
-  $("mix-legend").replaceChildren(
-    ...names.map((name, i) => {
+  items = names.map((name, i) => {
       const item = document.createElement("span");
       item.className = "legend-item mix-legend-item";
+      item.style.setProperty("--c", color(i));
       item.title = name;
       const sw = document.createElement("span");
       sw.className = "swatch";
@@ -125,8 +137,8 @@ function build() {
       item.addEventListener("pointerenter", () => hover(name));
       item.addEventListener("pointerleave", () => hover(null));
       return item;
-    })
-  );
+  });
+  $("mix-legend").replaceChildren(...items);
 }
 
 function buildMonths() {
@@ -140,7 +152,7 @@ function buildMonths() {
 }
 
 // Called on every (non-sweep) render of the rolling chart. table: aggregate.dailyTable for the shown
-// artists; names/slots/hasOther: the chart's artists and their palette slots; lo/hi: the period's first and
+// artists; pins: {has, toggle} for the chart's pinned artists; names/slots/hasOther: the chart's artists and their palette slots; lo/hi: the period's first and
 // last day.
 export function updateMix(next) {
   ctx = next;

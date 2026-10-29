@@ -676,3 +676,9 @@ dialog pre {
 .slider.mix-slider { width: 100%; margin-top: 10px; gap: 0; }
 .mix-ends { display: flex; justify-content: space-between; font-size: 11px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .mix-seg { transition: none; } }
+
+/* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
+.mix-seg.pinnable { cursor: pointer; }
+.mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
+.mix-seg.pinned:hover { background: color-mix(in srgb, var(--c) 44%, var(--surface)); }
+.mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
