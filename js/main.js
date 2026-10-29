@@ -622,8 +622,8 @@ function renderRollingChart(zoom, morph = false, look = null) {
 let brushFocus = null; // the artist lit by hover, in the chart, a legend or a list
 let brushMemo = null;
 let brushMorph = null; // set while a preset or step renders: the new bands wait for the window, then morph in
-function paintBrush() {
-  const raw = rawMemo?.raw;
+// raw: another rolling result to draw instead of the chart's (the end of a window sweep); morph: see setBrushBands
+function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   if (!raw || !state.chartNames || !raw.dates.length) return;
   if (brushMemo?.raw !== raw) brushMemo = { raw, data: agg.blur(raw, 12) };
   const { dates, share } = brushMemo.data;
@@ -648,7 +648,7 @@ function paintBrush() {
   // The timeline begins where the drawn artists' listening does, not where the chart's data does (that's the
   // same for every artist set, so charts can morph), so a smaller window can cut off more
   const lead = Math.max(0, agg.leadIn(dates.map((_, k) => names.reduce((t, _n, i) => t + (raw.hours[i][k] ?? 0), 0))));
-  setBrushBands({ start: Math.max(extent().lo, days[lead]), days, bands }, brushMorph);
+  setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
@@ -778,6 +778,8 @@ function sweepWindow() {
   if (!from || from === to) return renderRollingChart(zoom());
   cancelSweep();
   renderRollingChart(zoom(), false, { window: from, grid: to });
+  // The brush glides to the new window's shape over the same time as the chart's sweep
+  paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: MORPH_MS });
   sweep((t, ms) => {
     const window = t === 1 ? to : Math.round(from * (to / from) ** t);
     renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });

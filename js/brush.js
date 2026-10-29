@@ -99,7 +99,7 @@ function emit(lo, hi) {
 // Called when the data loads: the day the timeline starts and ends on (day indices), and the history's
 // real first day if the timeline starts later (the sparse start is cut off, as in the rolling chart)
 export function setBrushData(first, last, min = first) {
-  model = { first, last, min };
+  model = { first, last, min, end: last };
   draw();
   position();
 }
@@ -110,15 +110,15 @@ export function setBrushData(first, last, min = first) {
 // hovered), "dim" (something else is lit) or "rest".
 //
 // morph: { delay, ms } to keep the old bands for `delay` ms (while the window slides over), then tween
-// their edges and colors into the new ones over `ms`, as the rolling chart does after it pans.
+// their edges and colors into the new ones over `ms`, as the rolling chart does after it pans. Bands of
+// another window size sit on other days, so the old ones are first read off on the new days.
 export function setBrushBands(next, morph) {
   clearTimeout(morphTimer);
   cancelAnimationFrame(morphRaf);
   $("brush-track").classList.remove("morphing");
-  const prev = bands;
   const ms = dur(morph?.ms ?? 0);
-  const same = prev && next.days.length === prev.days.length && next.days[0] === prev.days[0] && next.bands.length === prev.bands.length;
-  if (!ms || !same) return applyBands(next);
+  const prev = bands && bands.bands.length === next.bands.length ? resample(bands, next.days) : null;
+  if (!ms || !prev) return applyBands(next);
   morphTimer = setTimeout(() => {
     const t0 = performance.now();
     // The window is repositioned every frame as the timeline's left end moves, so it mustn't also ease
@@ -137,7 +137,11 @@ function applyBands(next) {
   bands = next;
   // The timeline starts where the bands do (`start`, a day index), but not under the reader's hand: the
   // pointer is mapped to days by it, so it waits for the drag to end
-  if (next.start != null && !drag && model) model.first = Math.min(Math.round(next.start), model.last);
+  // The end is the same: a large window leaves no points near it, and the timeline shrinks to match
+  if (model && !drag) {
+    if (next.end != null) model.last = Math.max(model.first, Math.min(Math.round(next.end), model.end));
+    if (next.start != null) model.first = Math.min(Math.round(next.start), model.last);
+  }
   draw();
   position();
 }
@@ -147,13 +151,26 @@ function blend(a, b, e) {
   const mix = (x, y) => y.map((v, i) => (v == null || x[i] == null ? v : x[i] + (v - x[i]) * e));
   return {
     ...b,
-    start: a.start + (b.start - a.start) * e, // the timeline's left end glides too
+    start: a.start + (b.start - a.start) * e, // the timeline's ends glide too
+    end: a.end + (b.end - a.end) * e,
     bands: b.bands.map((band, k) => ({
       ...band,
       lo: mix(a.bands[k].lo, band.lo),
       hi: mix(a.bands[k].hi, band.hi),
       color: a.bands[k].color === band.color ? band.color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
     })),
+  };
+}
+
+// The old bands' edges on the new points' days; days the old bands don't reach take the new value
+function resample(old, days) {
+  if (old.days.length === days.length && old.days[0] === days[0]) return old;
+  const at = new Map(old.days.map((d, i) => [d, i]));
+  const pick = (arr) => days.map((d) => (at.has(d) ? arr[at.get(d)] : null));
+  return {
+    ...old,
+    days,
+    bands: old.bands.map((b) => ({ ...b, lo: pick(b.lo), hi: pick(b.hi) })),
   };
 }
 
@@ -168,7 +185,7 @@ function position() {
   // A window before the timeline's cut-off start still shows, as a sliver at its left end
   const W = trackW();
   const l = Math.min(Math.max(0, xOf(range.lo)), Math.max(0, W - 8));
-  const r = Math.max(xOf(range.hi + 1), l + 8);
+  const r = Math.min(Math.max(xOf(range.hi + 1), l + 8), W); // a range past the trimmed end stops at the edge
   const win = $("brush-win");
   win.style.left = `${l}px`;
   win.style.width = `${Math.max(0, r - l)}px`;
