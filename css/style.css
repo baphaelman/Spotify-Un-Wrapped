@@ -22,11 +22,6 @@
   --series-8: #f0786c;
   --series-9: #35b0c4;
   --series-10: #b07a4f;
-  --series-11: #8aa83a;
-  --series-12: #c26bd1;
-  --series-13: #6c8be8;
-  --series-14: #e0a38a;
-  --series-15: #8e9aa5;
   --seq-0: #1a1d20;
   --seq-1: #2e3338;
   --seq-2: #4a5057;
@@ -65,11 +60,6 @@
   --series-8: #e34948;
   --series-9: #0f93a8;
   --series-10: #9a5f35;
-  --series-11: #6f8f12;
-  --series-12: #a63fb8;
-  --series-13: #4a62d6;
-  --series-14: #d17b5c;
-  --series-15: #6b7b88;
   --seq-0: #f0efec;
   --seq-1: #cde2fb;
   --seq-2: #86b6ef;
@@ -300,7 +290,9 @@ button.ghost:hover { background: var(--border); }
 .tav-controls .pinned-legend { width: 100%; min-width: 0; }
 .tav-controls .legend-item.pinned { flex: none; max-width: 100%; white-space: nowrap; }
 .tav-legend { display: flex; align-items: center; gap: 8px 12px; margin: 18px 0 8px; }
-.tav-legend .palette-picker { margin-right: -6px; }
+/* Same height as the select-all box (13px + 4px padding each side), pinned to the first legend row, so
+   the dot and the box stay level even when the legend wraps */
+.tav-legend .palette-picker { margin-right: -6px; align-self: flex-start; align-items: center; height: 21px; }
 .tav-legend .other-toggle { flex: none; }
 .tav-legend .chart-legend { flex: 0 1 auto; min-width: 0; gap: 4px 12px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }

@@ -15,14 +15,14 @@ a stale cached stylesheet or script. The files in git stay unstamped.)
   (see Testing), and ask before major changes.
 - **Artist and track names come from user files.** Put them in the DOM with `textContent`, and escape
   them (`esc`) in tooltip HTML.
-- **Colors live as CSS tokens in `css/style.css`** (`--series-1..15`, `--seq-*`, surfaces, inks), with
+- **Colors live as CSS tokens in `css/style.css`** (`--series-1..10`, `--seq-*`, surfaces, inks), with
   light and dark blocks. `charts.js` reads them via `tokens()`. A user-chosen palette (`PALETTES` in
   `main.js`, stored in localStorage) overrides `--series-*` on `<body>`.
 - **Commit when a change seems to work, before handing back to the owner.** You don't need to ask
   first. Small commits with clear messages, so any change can be undone. **Don't push unless asked:**
   pushing `main` deploys the live site.
 - **Several agents work on this project at once, so each one works in its own worktree** (see below).
-- **Chart palette rules:** at most 15 categorical colors (palettes define the first 8; slots 9-15 always come from the stylesheet); color follows the artist, never the rank;
+- **Chart palette rules:** at most 10 categorical colors; color follows the artist, never the rank;
   "Everyone else" is always the gray `--other`.
 
 ## Working alongside other agents
