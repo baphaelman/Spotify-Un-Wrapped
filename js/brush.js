@@ -18,6 +18,7 @@ let drag = null;
 let keyTimer = 0;
 let morphTimer = 0;
 let morphRaf = 0;
+let morphAt = { start: 0, end: 0 }; // when the morph in flight starts (after its delay) and ends (performance.now())
 
 const days = () => model.last - model.first + 1;
 const trackW = () => $("brush-track").clientWidth;
@@ -113,26 +114,37 @@ export function setBrushData(first, last, min = first) {
 // morph: { delay, ms, ease } to keep the old bands for `delay` ms (while the window slides over), then tween
 // their edges and colors into the new ones over `ms` (easing in and out by default), as the rolling chart
 // does after it pans. A morph cut short by the next one carries on from the bands on screen. Bands of
-// another window size sit on other days, so the old ones are first read off on the new days.
+// another window size sit on other days, so the old ones are first read off on the new days. Nor does a
+// quick one (a hover's) rush a slower one in flight (hiding an artist hands focus on, which repaints): it
+// waits as long and ends as late, so the change keeps its pace.
 export function setBrushBands(next, morph) {
   clearTimeout(morphTimer);
   cancelAnimationFrame(morphRaf);
   $("brush-track").classList.remove("morphing");
-  const ms = dur(morph?.ms ?? 0);
+  const now = performance.now();
+  const flying = now < morphAt.end;
+  const delay = Math.max(morph?.delay ?? 0, flying ? morphAt.start - now : 0);
+  const ms = Math.max(dur(morph?.ms ?? 0), flying ? morphAt.end - now - delay : 0);
   const prev = bands && bands.bands.length === next.bands.length ? resample(bands, next.days) : null;
-  if (!ms || !prev) return applyBands(next);
+  if (!ms || !prev) {
+    morphAt = { start: 0, end: 0 };
+    return applyBands(next);
+  }
+  // Taking over a morph already moving, it carries on without first slowing to a stop
+  const ease = flying && now >= morphAt.start ? (t) => 1 - Math.pow(1 - t, 3) : morph?.ease ?? easeInOut;
+  morphAt = { start: now + delay, end: now + delay + ms };
   morphTimer = setTimeout(() => {
     const t0 = performance.now();
     // The window is repositioned every frame as the timeline's left end moves, so it mustn't also ease
     $("brush-track").classList.add("morphing");
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / ms);
-      applyBands(t === 1 ? next : blend(prev, next, (morph.ease ?? easeInOut)(t)));
+      applyBands(t === 1 ? next : blend(prev, next, ease(t)));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
       else $("brush-track").classList.remove("morphing");
     };
     morphRaf = requestAnimationFrame(tick);
-  }, morph.delay ?? 0);
+  }, delay);
 }
 
 function applyBands(next) {
