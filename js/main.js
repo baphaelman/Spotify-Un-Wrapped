@@ -559,6 +559,18 @@ function paintTopLists() {
   paintFocus();
 }
 
+// Neighbouring lit rows of the same artist (a pinned artist's consecutive tracks) read as one box; lit rows of
+// different artists keep the hairline gap between their tints
+function joinLitRows(ol) {
+  const lit = (li, i) => (li.classList.contains("pinned") || li.classList.contains("focus")) ? ol._artists?.[i] : null;
+  const kids = [...ol.children];
+  kids.forEach((li, i) => {
+    const a = lit(li, i);
+    li.classList.toggle("join-up", a != null && i > 0 && lit(kids[i - 1], i - 1) === a);
+    li.classList.toggle("join-down", a != null && i < kids.length - 1 && lit(kids[i + 1], i + 1) === a);
+  });
+}
+
 // The hovered artist lights everything that belongs to them, as pinning does: their rows in both lists, and
 // their entries in the legends (the chart's own, and the monthly key; the mix key and bar are lit in mix.js)
 let listFocus = null;
@@ -566,6 +578,7 @@ function paintFocus(name = listFocus) {
   listFocus = name;
   for (const id of ["top-artists", "top-tracks"]) {
     [...$(id).children].forEach((li, i) => li.classList.toggle("focus", name != null && $(id)._artists?.[i] === name));
+    joinLitRows($(id));
   }
   for (const item of document.querySelectorAll("#monthly-legend [data-artist], .chart-legend [data-artist]")) {
     item.classList.toggle("focus", name != null && item.dataset.artist === name);

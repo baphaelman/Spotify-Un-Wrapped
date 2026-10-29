@@ -553,6 +553,9 @@ dialog pre {
 .toplist li .name small { color: var(--text-muted); }
 .toplist li[style*="--c"] .name small { color: var(--c); }
 .toplist.pinnable li { cursor: pointer; }
+/* Joined rows trade the transparent border on the shared edge for padding, so the tint runs on unbroken */
+.toplist li.join-up { border-top-width: 0; padding-top: 6px; border-top-left-radius: 0; border-top-right-radius: 0; }
+.toplist li.join-down { border-bottom-width: 0; padding-bottom: 6px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .toplist.pinnable li:hover { background-color: color-mix(in srgb, var(--c, var(--text-muted)) 8%, transparent); }
 .toplist li.pinned, .toplist li.focus { background-color: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); }
 .toplist li.pinned:hover { background-color: color-mix(in srgb, var(--c, var(--text-muted)) 20%, transparent); }
