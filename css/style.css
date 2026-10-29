@@ -367,13 +367,15 @@ button.ghost:hover { background: var(--border); }
 /* The window: a full-size label and a long track under the description, the value beneath the thumb */
 .slider.tav-window { grid-template-columns: auto 220px; column-gap: 12px; align-items: center; width: auto; justify-content: start; margin-top: 12px; }
 .tav-window .slider-label { font-size: 13px; color: var(--text-secondary); }
-/* Every window size is marked: a notch and its value under the track, the current one in full ink */
+/* Every window size is marked with a notch under the track; only the current one shows its value */
 .tav-window .ticks { grid-column: 2; height: 20px; font-size: 11px; color: var(--text-muted); }
 .tav-window .ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; white-space: nowrap; transition: color var(--motion-fade) var(--ease-out); }
-.tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--axis); }
+.tav-window .ticks span:not(.on) { color: transparent; }
+.tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--text-muted); }
 .tav-window .ticks span.on { color: var(--text-primary); font-weight: 600; }
 .tav-window .ticks span.on::before { background: var(--text-primary); }
-.tav-smooth select { height: 24px; box-sizing: border-box; }
+/* No vertical padding, so the browser centers the text in the box */
+.tav-smooth select { height: 24px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; line-height: 22px; }
 
 /* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist,
    in the same chips the graphs' keys used. The chips share one row, shrinking rather than wrapping so the bar
