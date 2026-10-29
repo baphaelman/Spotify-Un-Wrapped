@@ -2,7 +2,9 @@
 
 Static site: users drop their Spotify streaming-history export and get interactive charts, all computed
 in the browser. An opt-in Community tab pools anonymous summaries in Supabase. Live at
-https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, served from `main`, root folder).
+https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, deployed from `main` by `.github/workflows/pages.yml`, which copies `index.html`, `css/` and `js/`
+and runs `dev/stamp.py` on the copy to add `?v=<hash>` to every asset URL, so a deploy can't be shown with
+a stale cached stylesheet or script. The files in git stay unstamped.)
 `rolling_window.py` is the original pandas/Plotly prototype the main chart is ported from.
 
 ## Ground rules
