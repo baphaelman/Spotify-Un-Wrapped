@@ -133,3 +133,27 @@ export function rolling(plays, artists, window, includeOther) {
   }
   return { dates, hours, share };
 }
+
+// Aggressive extra smoothing for the rolling chart: a Gaussian blur of every series along the time axis,
+// on top of the rolling window. sigma (days) grows with the window, so a wide window blurs more. Gaps
+// (null, nothing played) stay gaps and don't leak into their neighbors; every series is blurred with the
+// same weights, so shares still add up to 1 wherever there's a value.
+export function smoothify({ dates, hours, share }, window) {
+  const sigma = Math.max(14, window * 0.75);
+  const r = Math.ceil(sigma * 3);
+  const kernel = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-((k - r) ** 2) / (2 * sigma * sigma)));
+  const n = dates.length;
+  const blur = (arr) =>
+    arr.map((_, i) => {
+      if (arr[i] == null) return null;
+      let sum = 0, w = 0;
+      for (let k = Math.max(0, i - r); k <= Math.min(n - 1, i + r); k++) {
+        if (arr[k] == null) continue;
+        const g = kernel[k - i + r];
+        sum += arr[k] * g;
+        w += g;
+      }
+      return sum / w;
+    });
+  return { dates, hours: hours.map(blur), share: share.map(blur) };
+}

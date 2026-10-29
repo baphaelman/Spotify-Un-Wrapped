@@ -307,7 +307,9 @@ function renderRollingChart(zoom, morph = false) {
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
   const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
-  const data = agg.rolling(state.plays, artists, window, includeOther);
+  const smooth = $("smoothify").checked;
+  const raw = agg.rolling(state.plays, artists, window, includeOther);
+  const data = smooth ? agg.smoothify(raw, window) : raw;
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
@@ -321,7 +323,7 @@ function renderRollingChart(zoom, morph = false) {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
-  }, assignSlots(artists));
+  }, assignSlots(artists), smooth);
 }
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
@@ -380,7 +382,7 @@ otherToggle.addEventListener("pointerenter", () => {
 otherToggle.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
 
 let pending = 0;
-for (const id of ["n-artists", "window", "include-other"]) {
+for (const id of ["n-artists", "window", "include-other", "smoothify"]) {
   $(id).addEventListener("input", () => {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling"))));
