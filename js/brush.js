@@ -3,6 +3,7 @@
 // everything from that range, so nothing is rounded to a year.
 
 import { dayToDate } from "./aggregate.js";
+import { dur, easeInOut } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -15,6 +16,8 @@ let range = null; // { lo, hi }: the window, day indices, inclusive
 let onChange = () => {};
 let drag = null;
 let keyTimer = 0;
+let morphTimer = 0;
+let morphRaf = 0;
 
 const days = () => model.last - model.first + 1;
 const trackW = () => $("brush-track").clientWidth;
@@ -105,13 +108,48 @@ export function setBrushData(first, last, min = first) {
 // whole history. { start, days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
 // edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
 // hovered), "dim" (something else is lit) or "rest".
-export function setBrushBands(next) {
+//
+// morph: { delay, ms } to keep the old bands for `delay` ms (while the window slides over), then tween
+// their edges and colors into the new ones over `ms`, as the rolling chart does after it pans.
+export function setBrushBands(next, morph) {
+  clearTimeout(morphTimer);
+  cancelAnimationFrame(morphRaf);
+  const prev = bands;
+  const ms = dur(morph?.ms ?? 0);
+  const same = prev && next.days.length === prev.days.length && next.days[0] === prev.days[0] && next.bands.length === prev.bands.length;
+  if (!ms || !same) return applyBands(next);
+  morphTimer = setTimeout(() => {
+    const t0 = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      applyBands(t === 1 ? next : blend(prev, next, easeInOut(t)));
+      if (t < 1) morphRaf = requestAnimationFrame(tick);
+    };
+    morphRaf = requestAnimationFrame(tick);
+  }, morph.delay ?? 0);
+}
+
+function applyBands(next) {
   bands = next;
   // The timeline starts where the bands do (`start`, a day index), but not under the reader's hand: the
   // pointer is mapped to days by it, so it waits for the drag to end
   if (next.start != null && !drag && model) model.first = Math.min(next.start, model.last);
   draw();
   position();
+}
+
+// The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade
+function blend(a, b, e) {
+  const mix = (x, y) => y.map((v, i) => (v == null || x[i] == null ? v : x[i] + (v - x[i]) * e));
+  return {
+    ...b,
+    bands: b.bands.map((band, k) => ({
+      ...band,
+      lo: mix(a.bands[k].lo, band.lo),
+      hi: mix(a.bands[k].hi, band.hi),
+      color: a.bands[k].color === band.color ? band.color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
+    })),
+  };
 }
 
 // Moves the window to a range chosen elsewhere (a preset, the step buttons)

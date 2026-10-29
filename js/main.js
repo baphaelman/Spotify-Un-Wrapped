@@ -255,9 +255,13 @@ function setRange(range, animate = true) {
   const was = state.range;
   state.range = range;
   // The brush window slides in step with the chart's pan
-  $("brush-track").style.setProperty("--slide-ms", `${panMs(animate && was ? was : false)}ms`);
+  const pan = panMs(animate && was ? was : false);
+  $("brush-track").style.setProperty("--slide-ms", `${pan}ms`);
   syncPeriod();
+  // Like the chart: the window slides across first, then the bands behind it morph to the new artists
+  brushMorph = pan ? { delay: pan, ms: MORPH_MS } : null;
   renderAll(undefined, animate && was ? was : false);
+  brushMorph = null;
 }
 
 function setPeriod(value) {
@@ -617,6 +621,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
 // (pinned, or hovered anywhere) artists strong while the rest dim, as in the chart.
 let brushFocus = null; // the artist lit by hover, in the chart, a legend or a list
 let brushMemo = null;
+let brushMorph = null; // set while a preset or step renders: the new bands wait for the window, then morph in
 function paintBrush() {
   const raw = rawMemo?.raw;
   if (!raw || !state.chartNames || !raw.dates.length) return;
@@ -642,7 +647,7 @@ function paintBrush() {
   const days = dates.map(agg.dayIndex);
   // The timeline begins where the chart's data does, which depends on the artists shown (the chart cuts
   // off the stretch before they were listened to), so a smaller window can cut off more
-  setBrushBands({ start: Math.max(extent().lo, days[0]), days, bands });
+  setBrushBands({ start: Math.max(extent().lo, days[0]), days, bands }, brushMorph);
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
