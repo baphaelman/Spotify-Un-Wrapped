@@ -272,13 +272,13 @@ button.ghost:hover { background: var(--border); }
 .tav-sliders .slider { grid-template-columns: 56px 96px; column-gap: 8px; align-items: center; width: auto; }
 .tav-sliders .slider-label { text-align: right; font-size: 11px; color: var(--text-muted); }
 .tav-sliders .ticks { grid-column: 2; }
-.tav-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0 0; }
+.tav-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 14px 0 0; }
 .tav-controls .artist-search { flex: none; width: 200px; }
 /* Pinned chips: each stays on one line (long names ellipsize), and the row wraps between chips */
-.tav-controls .pinned-legend { flex: 1 1 0; min-width: 0; }
+.tav-controls .pinned-legend { width: 100%; min-width: 0; }
 .tav-controls .legend-pin { flex: none; max-width: 100%; }
 .tav-controls .legend-pin .legend-item { white-space: nowrap; }
-.tav-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
+.tav-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 18px 0 8px; }
 .tav-legend .chart-legend { gap: 4px 14px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
 .tav-legend .legend-item:hover { background: transparent; color: var(--text-primary); }
@@ -585,12 +585,12 @@ dialog pre {
    pausing where it is when the pointer leaves. */
 .palette-picker { position: relative; flex: none; display: flex; }
 .palette-dot {
-  width: 44px;
-  height: 14px;
+  width: 72px;
+  height: 10px;
   padding: 0;
   border: 2px solid var(--surface);
-  border-radius: 7px;
-  background-size: 88px 100%;
+  border-radius: 5px;
+  background-size: 144px 100%;
   background-repeat: repeat-x;
   box-shadow: 0 0 0 1px var(--axis);
   cursor: pointer;
@@ -598,7 +598,7 @@ dialog pre {
 }
 .palette-dot:hover, .palette-dot[aria-expanded="true"] { animation-play-state: running; }
 .palette-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@keyframes palette-drift { to { background-position: -88px 0; } }
+@keyframes palette-drift { to { background-position: -144px 0; } }
 @media (prefers-reduced-motion: reduce) { .palette-dot { animation: none; } }
 /* Tall enough to show every palette on most screens; it still scrolls on short ones, without a bar */
 .palette-menu {
