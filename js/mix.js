@@ -19,26 +19,61 @@ let raf = 0;
 const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
 
+const span = (cls) => {
+  const el = document.createElement("span");
+  el.className = cls;
+  return el;
+};
+
+// A segment reads, top to bottom: its share, a box and the artist's name, then their plays and hours.
+// The box hides the artist everywhere (as in the period bar's key); a click anywhere else pins them.
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
-  const label = document.createElement("span");
-  seg.append(label);
-  const e = { name, seg, label, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const label = span("mix-pct");
+  const box = document.createElement("button");
+  box.type = "button";
+  box.className = "mix-box";
+  box.setAttribute("aria-pressed", "true");
+  const nameEl = span("mix-name");
+  nameEl.textContent = name; // from the user's files
+  const who = span("mix-who");
+  who.append(box, nameEl);
+  const playsEl = span("mix-plays");
+  const hoursEl = span("mix-hours");
+  const meta = span("mix-meta");
+  meta.append(playsEl, hoursEl);
+  seg.append(label, who, meta);
+  const e = { name, seg, label, box, playsEl, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
+  box.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    hover(null);
+    if (e.pinnable) return ctx.pins.hide(name);
+    // Everyone else isn't an artist: its box turns off the gray, like its chip in the key
+    $("include-other").checked = false;
+    $("include-other").dispatchEvent(new Event("input"));
+  });
   return e;
 }
 
-// Puts every segment where its x and w say, and writes the percentage that fits
+// What fits in a segment this wide (px): the share from SHARE_PX, the name and numbers from DETAIL_PX
+const SHARE_PX = 30;
+const DETAIL_PX = 80;
+
+// Puts every segment where its x and w say, and shows the share and details that fit
 function place() {
   const bar = $("mix-bar");
   const W = bar.clientWidth + GAP;
   for (const e of entries.values()) {
+    const px = Math.max(0, e.w * W - GAP);
     e.seg.style.left = `${e.x * W}px`;
-    e.seg.style.width = `${Math.max(0, e.w * W - GAP)}px`;
-    e.label.textContent = e.w >= 0.04 && !e.leaving ? Math.round(e.w * 100) + "%" : "";
+    e.seg.style.width = `${px}px`;
+    e.label.textContent = Math.round(e.w * 100) + "%";
+    e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
+    e.seg.classList.toggle("fits-detail", px >= DETAIL_PX && !e.leaving);
   }
 }
 
@@ -75,8 +110,8 @@ function glide() {
 }
 
 // Called on every (non-sweep) render of the rolling chart. table: aggregate.dailyTable for the shown
-// artists; pins: {has, toggle} for the chart's pinned artists; names/slots/hasOther: the chart's artists and
-// their palette slots; lo/hi: the period's first and last day.
+// artists; pins: {has, toggle, hide} for the chart's pinned artists; names/slots/hasOther: the chart's artists and
+// their palette slots; plays: name -> plays over the period; lo/hi: the period's first and last day.
 export function updateMix(next) {
   ctx = next;
   const { table, names, slots, hasOther, lo, hi, hidden } = ctx;
@@ -140,6 +175,10 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
+    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `${Math.round(n).toLocaleString()} plays` });
+    tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
+    e.box.title = e.pinnable ? "Hide this artist everywhere" : "Hide everyone else";
+    e.box.setAttribute("aria-label", e.pinnable ? `Hide ${name}` : e.box.title);
     const share = e.to.w;
     e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });

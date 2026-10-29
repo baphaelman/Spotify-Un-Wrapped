@@ -615,25 +615,15 @@ dialog pre {
 .toplist .val { transition: margin-right var(--motion-fade) var(--ease-out); }
 .toplist li.pinned .val { margin-right: 16px; }
 
-/* The mix's box: the same swatch as the key, filled while the artist is shown and an outline when hidden */
-.toplist .show-box {
-  width: 10px; height: 10px; padding: 0; border: 0; border-radius: 2px; flex: none; align-self: start; margin-top: 7px;
-  background: var(--c, var(--other)); box-shadow: inset 0 0 0 1.5px var(--c, var(--other)); cursor: pointer;
-  transition: background var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out);
-}
-.toplist .show-box[aria-pressed="false"] { background: transparent; }
-.toplist .show-box:hover { box-shadow: inset 0 0 0 1.5px var(--c, var(--other)), 0 0 0 2px color-mix(in srgb, var(--c, var(--other)) 30%, transparent); }
-.toplist li.off { opacity: 0.4; }
-.toplist li:has(.show-box) { grid-template-columns: 10px 2ch 1fr auto; }
 /* Hovering a filled box (the artist is shown) cuts a minus out of it, so a click reads as "leave them out".
    (.hover stands in for :hover on a box rebuilt under the pointer, see paintArtistKey.) */
-:is(.toplist .show-box, .artist-key .swatch, .all-box) { position: relative; }
-:is(.toplist .show-box, .artist-key .swatch)::before {
+:is(.mix-box, .artist-key .swatch, .all-box) { position: relative; }
+:is(.mix-box, .artist-key .swatch)::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 2px; margin: -1px 0 0 -3px; border-radius: 1px;
   background: var(--surface); opacity: 0; pointer-events: none;
   transition: opacity var(--motion-fade) var(--ease-out);
 }
-:is(.toplist .show-box:not(:disabled), .artist-key .swatch[aria-pressed="true"]):is(:hover, .hover)::before { opacity: 1; }
+:is(.mix-box, .artist-key .swatch[aria-pressed="true"]):is(:hover, .hover)::before { opacity: 1; }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
@@ -865,29 +855,44 @@ dialog pre {
 .mix-legend-item.pinnable { cursor: pointer; }
 .mix-legend-item.pinnable:hover { background: var(--border); }
 /* Segments are placed by mix.js (left and width), so they can slide and resize as one animation */
-.mix-bar { position: relative; height: 44px; }
-#mix-card .toplist { margin-top: 16px; }
+.mix-bar { position: relative; height: 104px; margin-top: 12px; }
 .mix-bar.empty { position: relative; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 4px; }
 .mix-bar.empty::after { content: "No listening in this span"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: var(--text-muted); }
 .mix-seg {
   position: absolute;
   top: 0;
   bottom: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
   overflow: hidden;
   border-radius: 3px;
   background: color-mix(in srgb, var(--c) 18%, var(--surface));
   color: var(--c);
-  font-family: var(--mono);
   font-size: 12px;
   font-weight: 500;
   transition: background var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out);
 }
+/* Each line shows once the segment is wide enough for it (mix.js sets fits-*), fading rather than popping */
+.mix-seg > * { max-width: 100%; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+.mix-seg.fits-share .mix-pct, .mix-seg.fits-detail > * { opacity: 1; }
+.mix-seg:not(.fits-detail) :is(.mix-who, .mix-meta) { pointer-events: none; }
+.mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.mix-who { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mix-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
+.mix-meta { display: grid; justify-items: center; font-family: var(--mono); font-size: 10.5px; font-weight: 400; line-height: 1.35; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mix-meta > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mix-box {
+  flex: none; width: 10px; height: 10px; padding: 0; border: 0; border-radius: 2px;
+  background: var(--c); cursor: pointer;
+}
 .mix-seg:hover { background: color-mix(in srgb, var(--c) 32%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
-@media (prefers-reduced-motion: reduce) { .mix-seg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .mix-seg, .mix-seg > * { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }

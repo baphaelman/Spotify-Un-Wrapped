@@ -1,5 +1,5 @@
 // Ranked list with inline bars: every value is readable without hovering.
-// rows: [{ name, detail, value, frac, tag?, muted?, key?, rank? }] (rank defaults to the row's place; null leaves it blank). Names come from user files, so textContent only.
+// rows: [{ name, detail, value, frac, tag?, muted?, key? }]. Names come from user files, so textContent only.
 // Rows are matched across renders by `key` (default: the name): one that stays glides to its new rank while
 // its bar and number tween, and one that is new rises in with its bar growing from nothing.
 
@@ -18,7 +18,7 @@ export function renderList(ol, rows) {
     const li = document.createElement("li");
     const rank = document.createElement("span");
     rank.className = "rank";
-    rank.textContent = r.rank === undefined ? i + 1 : r.rank ?? "";
+    rank.textContent = i + 1;
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = r.name;
