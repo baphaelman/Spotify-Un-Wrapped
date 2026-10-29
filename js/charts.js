@@ -731,7 +731,7 @@ export function focusArtist(el, name) {
 // page, through focusMonthly) fill in more strongly while the rest dim. names/slots are the artists and their palette
 // slots; pins is {has, toggle}; hover(name|null) reports the pointer.
 const monthlyState = new WeakMap();
-export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}) {
+export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set()) {
   const t = tokens();
   const label = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
   // One year: label every month. Longer: label each January with its year.
@@ -745,7 +745,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const valueOf = (r, k) => (k < names.length ? r.by[k] : Math.max(0, r.hours - sum(r)));
   const c = chart(el);
   const prev = monthlyState.get(el);
-  const st = { names, all, rows, colors, t, pinned: new Set(names.filter((n) => pins?.has(n))), hovered: prev?.hovered ?? null };
+  const st = { names, all, rows, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
   monthlyState.set(el, st);
   const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
   c.setOption(
@@ -804,6 +804,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
 // The style of artist k's series: lit (pinned or hovered), dim (something else is lit) or at rest
 function monthlyLook(st, k) {
   const { t, names, colors } = st;
+  // A deselected artist has no data, so no outline either (a zero-height bar would still draw its border)
+  if (st.off.has(names[k])) return { itemStyle: { color: "transparent", borderWidth: 0 } };
   const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
   const rest = k === names.length; // the gray series is never lit
   const on = !rest && lit.has(names[k]);
@@ -825,7 +827,7 @@ export function focusMonthly(el, name) {
   const st = monthlyState.get(el);
   const c = instances.get(el);
   if (!st || !c) return;
-  st.hovered = name != null && st.names.includes(name) ? name : null;
+  st.hovered = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
   c.setOption({ series: st.all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
 }
 

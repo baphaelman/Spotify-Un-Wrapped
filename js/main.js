@@ -693,10 +693,10 @@ function paintMonthly(plays = shownPlays()) {
   const [artists, , , pins] = mixArgs;
   // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
   const keyed = artists.filter((a) => state.colorSlots.has(a));
-  const names = keyed.filter((a) => !state.hidden.includes(a));
-  const slots = names.map((n) => state.colorSlots.get(n));
+  // Deselected artists keep their (empty) series, so unticking one shrinks its bars in place instead of redrawing the chart
+  const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderMonthly($("chart-monthly"), agg.monthly(plays, names), names, slots, pins, hover);
+  renderMonthly($("chart-monthly"), agg.monthly(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden));
   // Deselected artists stay in the key, dimmed, so they can be ticked back on
   const key = keyed.map((n) => {
     const off = state.hidden.includes(n);
