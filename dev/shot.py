@@ -85,7 +85,8 @@ try:
         t_click = time.time()
         for k, at in enumerate(times):
             time.sleep(max(0, at - (time.time() - t_click)))
-            shot = call("Page.captureScreenshot", format="png", clip={"x": 56, "y": 380, "width": 1170, "height": 450, "scale": 0.5})
+            cx, cy, cw, ch = map(int, os.environ.get("CLIP", "56,380,1170,450").split(","))  # CLIP="x,y,w,h" to frame another area
+            shot = call("Page.captureScreenshot", format="png", clip={"x": cx, "y": cy, "width": cw, "height": ch, "scale": 0.5})
             open(os.path.join(os.environ.get("CLICK_OUT", "."), f"click_{k}.png"), "wb").write(base64.b64decode(shot["data"]))
     if os.environ.get("HOVER_SEL"):
         # Scroll so the chart's top sits at y=0-ish, then hover the element (its center)

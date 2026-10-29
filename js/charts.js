@@ -266,6 +266,22 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     cancelAnimationFrame(prev.panRaf);
     prev.panRaf = 0;
   }
+  // Hours mode: lines are matched by series id (their rank), so an artist who moves up or down the ranking
+  // would tween through a neighbour's line, and one who stays would seem to regrow. Seat the drawn lines by
+  // artist first (an instant, invisible re-draw), so each returning artist's line is its own series and only
+  // the artists who change places move into each other's. Share mode's bands are ranked, so it can't.
+  if (morph && !morph.pan && mode === "hours" && prev?.mode === "hours" && prev.args && prev.hasOther === hasOther && prev.window === window &&
+      prev.names.length === names.length && prev.names.join("\u0000") !== names.join("\u0000")) {
+    const n = artistsOf(names, hasOther).length;
+    const old = artistsOf(prev.names, hasOther);
+    const from = names.slice(0, n).map((a) => old.indexOf(a));
+    const free = old.map((_, j) => j).filter((j) => !from.includes(j));
+    const seat = from.map((j) => (j >= 0 ? j : free.shift()));
+    const [oldData, , , , , , , , oldSmooth] = prev.args;
+    const pick = (rows) => rows.map((_, k) => rows[k < n ? seat[k] : k]);
+    renderRolling(el, { ...oldData, share: pick(oldData.share), hours: pick(oldData.hours) }, names, window, currentZoom(el), mode, hasOther, false, pins, slots, oldSmooth);
+    return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
+  }
   const liveFrom =
     morph?.live && prev?.mode === mode && prev.hasOther === hasOther && prev.window === window &&
     prev.names.length === names.length && prev.values?.dates === data.dates.length ? liveValues(prev) : null;
