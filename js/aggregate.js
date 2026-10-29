@@ -139,7 +139,7 @@ export function rolling(plays, artists, window, includeOther) {
 // window blurs more; 0 returns the data as is. Gaps
 // (null, nothing played) stay gaps and don't leak into their neighbors; every series is blurred with the
 // same weights, so shares still add up to 1 wherever there's a value.
-const SMOOTHIFY_SIGMA = [0, 0.1, 0.2, 0.35, 0.75]; // x the window, per strength
+const SMOOTHIFY_SIGMA = [0, 0.05, 0.1, 0.275, 0.75]; // x the window, per strength
 export function smoothify({ dates, hours, share }, window, strength) {
   if (!strength) return { dates, hours, share };
   const sigma = Math.max(2, window * SMOOTHIFY_SIGMA[strength]);
