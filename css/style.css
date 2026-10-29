@@ -83,6 +83,9 @@
 }
 
 * { box-sizing: border-box; }
+/* The period bar bleeds to the window's edges with 100vw, which counts a classic scrollbar too; clip the
+   sliver that would overhang (clip, unlike hidden, leaves sticky positioning working) */
+html { overflow-x: clip; }
 
 body {
   margin: 0;
@@ -208,22 +211,30 @@ button.ghost:hover { background: var(--border); }
 .filters .period { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
 .filters .step { padding: 6px 10px; }
 .filters .step:disabled { opacity: 0.3; cursor: default; }
-/* The period bar is a panel of its own, a step lighter than the page and the cards, outlined and rounded.
-   Pinned to the top it floats a little below the edge with a soft shadow, and a band of page color above
-   it (the first shadow) hides the content scrolling past in that gap. */
+/* The period bar spans the whole window (its content stays in the page's column), a step lighter than the
+   page, with a hairline above and a firmer line below, then a short fade into the page beneath it. Once it's
+   pinned to the top, the content scrolling under the fade softens into it. */
 .filters.sticky {
   position: sticky;
-  top: 8px;
+  top: 0;
   z-index: 10;
-  margin: 0 0 16px;
-  padding: 12px 14px;
+  margin: 0 calc(50% - 50vw) 16px;
+  padding: 12px calc(50vw - 50%);
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: box-shadow var(--motion-fade) var(--ease-out);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--axis);
 }
-.filters.sticky.stuck { box-shadow: 0 -9px 0 0 var(--page), 0 10px 28px -6px rgba(0, 0, 0, 0.45); }
-:root[data-theme="light"] .filters.sticky.stuck { box-shadow: 0 -9px 0 0 var(--page), 0 10px 28px -8px rgba(0, 0, 0, 0.16); }
+.filters.sticky::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 16px;
+  margin-top: 1px;
+  background: linear-gradient(color-mix(in srgb, var(--surface-2) 70%, transparent), transparent);
+  pointer-events: none;
+}
 
 /* The period bar is the page's one navigation: presets and the exact dates on the first row, then the brush
    (js/brush.js), a timeline of listening with a window on it. Dragging the window picks any stretch of days. */

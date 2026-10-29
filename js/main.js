@@ -347,13 +347,6 @@ $("year-menu").addEventListener("keydown", (e) => {
   }
 });
 
-// Shadow under the period bar once it's pinned near the top (its sticky offset)
-window.addEventListener("scroll", () => {
-  const bar = document.querySelector(".filters.sticky");
-  const top = parseFloat(getComputedStyle(bar).top) || 0;
-  bar.classList.toggle("stuck", bar.getBoundingClientRect().top <= top + 0.5 && window.scrollY > 0);
-}, { passive: true });
-
 // A preset or step pans the chart sideways between periods of about the same length, and zooms (a longer
 // trip, ZOOM_MS) when the length changes a lot, as between all time and a year
 
