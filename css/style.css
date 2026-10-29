@@ -276,8 +276,7 @@ button.ghost:hover { background: var(--border); }
 .tav-controls .artist-search { flex: none; width: 200px; }
 /* Pinned chips: each stays on one line (long names ellipsize), and the row wraps between chips */
 .tav-controls .pinned-legend { width: 100%; min-width: 0; }
-.tav-controls .legend-pin { flex: none; max-width: 100%; }
-.tav-controls .legend-pin .legend-item { white-space: nowrap; }
+.tav-controls .legend-item.pinned { flex: none; max-width: 100%; white-space: nowrap; }
 .tav-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 18px 0 8px; }
 .tav-legend .chart-legend { gap: 4px 14px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
@@ -499,35 +498,30 @@ dialog pre {
   background: transparent;
   color: var(--text-primary);
   font-size: 13px;
+  min-width: 0;
+  max-width: 220px;
+  text-align: left;
 }
 .legend-item:hover { background: var(--border); }
-.legend-item .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.legend-item[aria-pressed="false"] { opacity: 0.4; }
-.legend-item[aria-pressed="false"] .swatch { background: transparent !important; box-shadow: inset 0 0 0 1px currentColor; }
-.legend-item { min-width: 0; max-width: 220px; text-align: left; }
-.legend-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A pinned artist's chip and its unpin × are one chip, outlined in the artist's color (--c) */
-.legend-pin {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  border: 1px solid var(--c);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--c) 12%, transparent);
+.legend-item button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+/* The swatch is the artist's color as an outline; it fills in on hover and stays filled while pinned */
+.chart-legend .legend-item .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+  box-shadow: inset 0 0 0 1.5px var(--c);
+  transition: background 0.12s;
 }
-.legend-pin .legend-item { border: 0; padding-right: 4px; }
-.legend-pin:hover { background: color-mix(in srgb, var(--c) 22%, transparent); }
-.legend-pin .legend-item:hover { background: transparent; }
-.legend-unpin {
-  padding: 4px 10px 4px 2px;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}
-.legend-unpin:hover { color: var(--text-primary); }
+.chart-legend .legend-item:hover .swatch, .chart-legend .legend-item.pinned .swatch { background: var(--c); }
+.chart-legend .legend-item .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-legend .legend-item.hidden-artist { opacity: 0.4; }
+.chart-legend .legend-item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+/* A pinned artist's chip is outlined and tinted in the artist's color (--c), with an x that unpins */
+.chart-legend .legend-item.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); padding-right: 4px; }
+.chart-legend .legend-item.pinned:hover { background: color-mix(in srgb, var(--c) 22%, transparent); }
+.chart-legend .legend-item .legend-unpin { padding: 4px 6px 4px 2px; color: var(--text-muted); font-size: 14px; line-height: 1; }
+.chart-legend .legend-item .legend-unpin:hover { color: var(--text-primary); }
 
 /* Artist search under the chips: a combobox that pins any artist into the chart */
 .artist-search { position: relative; width: min(100%, 340px); }
