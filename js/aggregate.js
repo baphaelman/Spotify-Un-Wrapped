@@ -171,7 +171,7 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
     const sums = prefix.map((pre) => pre[end] - pre[start]);
     const total = sums.reduce((a, b) => a + b, 0);
     dates.push(dayToDate(first + center).getTime());
-    everyoneTotals.push(everyone[end] - everyone[start]);
+    everyoneTotals.push(everyone[gridStart + gridWindow] - everyone[gridStart]);
     for (let s = 0; s < nSeries; s++) {
       hours[s].push(sums[s]);
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
@@ -182,6 +182,7 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
   // typical window's listening (the median over points with any). A chart with nothing is left alone.
   // The totals are all listening, not just the artists drawn, so every artist set (and "Everyone else" on or
   // off) starts on the same date. Charts tween point by point, and shifted dates would pair the wrong points.
+  // They are measured on the grid window, not this one, so every step of a window sweep trims the same start.
   const lead = leadIn(everyoneTotals);
   if (lead > 0) {
     dates.splice(0, lead);

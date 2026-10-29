@@ -553,7 +553,7 @@ function paintSlider(input) {
 }
 
 // Smoothing windows in days; the slider steps through these, evenly spaced
-const WINDOWS = [7, 30, 45, 90, 180];
+const WINDOWS = [7, 15, 30, 45, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 let rawMemo = null;
