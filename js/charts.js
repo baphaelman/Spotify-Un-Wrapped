@@ -503,7 +503,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       .filter((r) => r.share >= 0.005)
       // Top band first, so the rows read in the same order as the bands under the pointer
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
-      .map((r) => row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused));
+      .map((r) => row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))));
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
   const hoursTooltip = (params) => {
@@ -512,7 +512,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const rows = params
       .filter((p) => sIdx(p) !== otherIdx && p.value[1] >= 0.05)
       .sort((a, b) => b.value[1] - a.value[1])
-      .map((p) => row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused));
+      .map((p) => row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))));
     return `<div style="color:${t.muted};margin-bottom:4px">Hours per week, ${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
 
