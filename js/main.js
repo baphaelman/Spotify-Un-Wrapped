@@ -748,7 +748,7 @@ function paintMonthly(plays = shownPlays()) {
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
 // colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
-// them everywhere. Pinned chips are tinted and bold. It's led by a box that shows or hides every
+// them everywhere. Pinned chips are tinted and outlined. It's led by a box that shows or hides every
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
 function paintArtistKey() {
   if (!mixArgs) return;
@@ -794,6 +794,34 @@ function paintArtistKey() {
     item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));
     return item;
   });
+  // Everyone else comes last, in gray, like its band on top of the stack. It isn't an artist, so it can't be
+  // pinned: a click anywhere on it shows or hides it, and it's dimmed while hidden, like a hidden artist
+  const otherOn = $("include-other").checked;
+  const rest = document.createElement("span");
+  rest.className = "legend-item mix-legend-item pinnable other-chip" + (otherOn ? "" : " hidden-artist");
+  rest.style.setProperty("--c", "var(--other)");
+  rest.dataset.artist = "Everyone else";
+  const restSw = document.createElement("button");
+  restSw.type = "button";
+  restSw.className = "swatch";
+  restSw.setAttribute("aria-pressed", otherOn);
+  restSw.tabIndex = -1; // the name is the one control, so it's a single tab stop
+  const restName = document.createElement("button");
+  restName.type = "button";
+  restName.className = "name";
+  restName.textContent = restName.dataset.text = "Everyone else";
+  restName.setAttribute("aria-pressed", otherOn);
+  rest.title = otherOn ? "Hide everyone else" : "Show everyone else, in gray";
+  restName.setAttribute("aria-label", rest.title);
+  rest.append(restSw, restName);
+  rest.addEventListener("pointerenter", () => otherOn && hover("Everyone else"));
+  rest.addEventListener("pointerleave", () => hover(null));
+  rest.addEventListener("click", () => {
+    hover(null);
+    $("include-other").checked = !otherOn;
+    $("include-other").dispatchEvent(new Event("input"));
+  });
+  items.push(rest);
   // As in the rolling chart, the box leaves pinned artists alone. Checked when every unpinned artist is
   // shown, mixed when some are; a click shows them all, or hides them all once they're all shown
   const top = keyed.filter((n) => !pins.has(n));
@@ -928,13 +956,6 @@ onZoomChange($("chart-rolling"), () => {
     renderRollingChart(zoom, { ms: GROW_MS, easing: EASE_OUT.echarts }, { sigma, smooth: curve });
   }, 150);
 });
-
-// The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
-const otherToggle = $("include-other").closest("label");
-otherToggle.addEventListener("pointerenter", () => {
-  if ($("include-other").checked) focusArtist($("chart-rolling"), "Everyone else");
-});
-otherToggle.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
 
 // A new window size: sweep through the sizes in between, evenly spaced on a log scale like the slider's
 // ticks. Every step uses the points of the final chart (the window fixed on `grid`), so ECharts can tween

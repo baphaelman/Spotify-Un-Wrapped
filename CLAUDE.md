@@ -190,8 +190,8 @@ week), and switching between them morphs.
   **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every
   shape into the highlight state.
 - **The legend is HTML, and there's one for the whole page:** the artist key in the sticky period bar
-  (`paintArtistKey` in `main.js`), beside the search that pins and, on the bar's first row, "Everyone else"
-  and the Artists slider. No graph has a key of its own. The ECharts legend is hidden and only holds which
+  (`paintArtistKey` in `main.js`), beside the search that pins, and the Artists slider on the bar's first row.
+  Its last chip, "Everyone else", flips the hidden `#include-other` checkbox. No graph has a key of its own. The ECharts legend is hidden and only holds which
   artists are shown. Hover calls `focusArtist`; a box click goes through `toggleArtist`/`showArtists`, which
   dispatch `legendToggleSelect` and re-stack the bands as a morph. Repaint the key wherever the chart's
   artists, pins or selection change (the rolling chart's followers, `onSelectionChange`, `liveTail`).

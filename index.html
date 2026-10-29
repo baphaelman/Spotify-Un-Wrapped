@@ -76,9 +76,8 @@
           <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
         </div>
         <div id="period-range" class="period-range" aria-live="off"></div>
-        <!-- Artist settings for every graph: the gray "Everyone else" and how many artists to show -->
+        <!-- How many artists every graph shows -->
         <div class="bar-opts">
-          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
           <div class="slider">
             <label class="slider-label" for="n-artists">Artists</label>
             <input id="n-artists" type="range" min="3" max="10" step="1" value="8">
@@ -92,6 +91,7 @@
           <button type="button" data-months="3" aria-pressed="false">3m</button>
           <button type="button" data-months="6" aria-pressed="false">6m</button>
           <button type="button" data-months="12" aria-pressed="false">1y</button>
+          <button type="button" data-months="24" aria-pressed="false">2y</button>
         </div>
         <div class="brush">
           <div id="brush-track" class="brush-track">
@@ -115,6 +115,8 @@
             <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
           </div>
           <div id="artist-key" class="chart-legend artist-key"></div>
+          <!-- Whether the graphs show everyone else in gray; the key's "Everyone else" chip flips it -->
+          <input id="include-other" type="checkbox" hidden>
         </div>
       </div>
 
