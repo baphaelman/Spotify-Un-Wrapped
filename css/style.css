@@ -379,7 +379,10 @@ button.ghost:hover { background: var(--border); }
 .artist-key .legend-item { flex: 1 1 0; max-width: max-content; }
 .artist-key .legend-item .swatch { flex: none; }
 .artist-key .legend-item .name { padding: 0; }
+/* Pinned and hovered chips are marked by their tint and outline, not bold, which would ellipsize more of a
+   squeezed name */
 .artist-key .legend-item.pinned { padding-right: 10px; }
+.artist-key .legend-item.pinned, .artist-key .legend-item.focus { font-weight: 400; }
 /* "Everyone else" and the artist count, on the bar's first row beside the window lengths */
 .bar-opts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
 .bar-opts + .period-resize { margin-left: 0; }
