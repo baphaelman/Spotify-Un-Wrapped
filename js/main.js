@@ -345,30 +345,34 @@ const WINDOWS = [7, 30, 45, 90, 180];
 let rawMemo = null;
 const SMOOTH_CURVE = [0, 0.5, 0.75]; // curve rounding per smoothify strength
 
-// look: optional { sigma, smooth } overriding the smoothify strength's blur radius and curve rounding
+// look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
+// size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
 function renderRollingChart(zoom, morph = false, look = null) {
-  if (!look) cancelSweep(); // any other render ends a smoothify sweep in progress
+  if (!look) cancelSweep(); // any other render ends a sweep in progress
   const n = Number($("n-artists").value);
-  const window = WINDOWS[$("window").value];
+  const target = WINDOWS[$("window").value];
+  const window = look?.window ?? target;
+  state.shownWindow = window; // where a window sweep starts from, even if it interrupts another
   const includeOther = $("include-other").checked;
-  $("window").setAttribute("aria-valuetext", `${window} days`);
+  $("window").setAttribute("aria-valuetext", `${target} days`);
   for (const id of ["n-artists", "window"]) paintSlider($(id));
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
   const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
   const strength = state.smoothify;
-  const key = [state.plays.length, window, includeOther, ...artists].join("\u0000");
-  if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther) };
+  const grid = look?.grid ?? window;
+  const key = [state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
+  if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid) };
   const raw = rawMemo.raw;
-  const data = look ? agg.blur(raw, look.sigma) : strength ? agg.smoothify(raw, window, strength) : raw;
+  const data = agg.blur(raw, look?.sigma ?? agg.smoothifySigma(window, strength));
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
   $("rolling-sub").textContent =
     (state.rollingMode === "share"
-      ? `Share of listening time, ${window}-day rolling window` +
+      ? `Share of listening time, ${target}-day rolling window` +
         (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
-      : `Hours per week, ${window}-day rolling average`) +
+      : `Hours per week, ${target}-day rolling average`) +
     (state.year === "all" ? "" : `, top artists of ${state.year}`);
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, {
     has: (name) => state.pinned.includes(name),
@@ -451,13 +455,29 @@ otherToggle.addEventListener("pointerenter", () => {
 });
 otherToggle.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
 
+// A new window size: sweep through the sizes in between, evenly spaced on a log scale like the slider's
+// ticks. Every step uses the points of the final chart (the window fixed on `grid`), so ECharts can tween
+// each point; the first step is drawn without animation to put the old window on those points. Edges
+// the old window didn't reach appear at once there.
+function sweepWindow() {
+  const zoom = () => currentZoom($("chart-rolling"));
+  const from = state.shownWindow, to = WINDOWS[$("window").value];
+  if (!from || from === to) return renderRollingChart(zoom());
+  cancelSweep();
+  renderRollingChart(zoom(), false, { window: from, grid: to });
+  sweep((t, ms) => {
+    const window = t === 1 ? to : Math.round(from * (to / from) ** t);
+    renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });
+  });
+}
+
 let pending = 0;
 for (const id of ["n-artists", "window", "include-other"]) {
   $(id).addEventListener("input", () => {
     cancelAnimationFrame(pending);
-    // Only the "Everyone else" switch animates: the sliders re-render continuously as they drag
-    const morph = id === "include-other";
-    pending = requestAnimationFrame(() => renderRollingChart(currentZoom($("chart-rolling")), morph));
+    // The artist-count slider re-renders continuously as it drags, so it doesn't animate
+    pending = requestAnimationFrame(() =>
+      id === "window" ? sweepWindow() : renderRollingChart(currentZoom($("chart-rolling")), id === "include-other"));
   });
 }
 

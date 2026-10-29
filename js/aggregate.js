@@ -94,7 +94,12 @@ export function clock(plays) {
 // Port of rolling_window.py: a centered rolling sum of daily hours per artist,
 // converted to each artist's share of listening at that point in time.
 // Edges where the window doesn't fully fit are dropped (pandas min_periods=window).
-export function rolling(plays, artists, window, includeOther) {
+//
+// gridWindow: the window that decides which dates get a point (default: `window` itself). A different one
+// gives the points of another window's chart, filled in with this window; where this window sticks out
+// past the data, it's cut off there. That lets a chart tween between window sizes with the same points
+// throughout.
+export function rolling(plays, artists, window, includeOther, gridWindow = window) {
   const first = dayIndex(plays[0].t);
   const last = dayIndex(plays[plays.length - 1].t);
   const len = last - first + 1;
@@ -119,13 +124,16 @@ export function rolling(plays, artists, window, includeOther) {
   });
 
   const half = Math.floor(window / 2);
+  const gridHalf = Math.floor(gridWindow / 2);
   const dates = [];
   const hours = Array.from({ length: nSeries }, () => []);
   const share = Array.from({ length: nSeries }, () => []);
-  for (let start = 0; start + window <= len; start++) {
-    const sums = prefix.map((pre) => pre[start + window] - pre[start]);
+  for (let gridStart = 0; gridStart + gridWindow <= len; gridStart++) {
+    const center = gridStart + gridHalf;
+    const start = Math.max(0, center - half), end = Math.min(len, center - half + window);
+    const sums = prefix.map((pre) => pre[end] - pre[start]);
     const total = sums.reduce((a, b) => a + b, 0);
-    dates.push(dayToDate(first + start + half).getTime());
+    dates.push(dayToDate(first + center).getTime());
     for (let s = 0; s < nSeries; s++) {
       hours[s].push(sums[s]);
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
