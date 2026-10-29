@@ -61,7 +61,14 @@ own folder, so no agent sees another's half-finished edits.
   artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
   matched across renders the same way (`lists.js`).
 - `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
-  sharing, theme.
+  sharing, theme. **The period is `state.range`, `{lo, hi}` day indices (inclusive), not a year.** The
+  dropdown's years and "All time" are presets that set it (`presetRange`); anything else the brush picks
+  shows as "Custom". Every graph, list and stat reads `rangePlays()` / `state.range`.
+- `js/brush.js`: the sticky bar's timeline (listening hours over the whole history, with a draggable window
+  and edges). It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
+  moved by `setBrushRange`. Drags go through `liveRender` in `main.js`, which slides the rolling chart's
+  range every frame (`setZoom`) but redraws artists, lists, stats and the mix bar at most every ~90 ms, or
+  3x the last redraw's cost, so dragging stays smooth.
 - `js/lists.js`: ranked lists and stat tiles.
 - `js/store.js`: the parsed plays persist in IndexedDB, so return visits skip the upload. "Forget my
   data" clears them.
@@ -97,7 +104,10 @@ week), and switching between them morphs.
   Pinned artists are placed first, so they keep their color for as long as they're pinned. Stack order is
   still rank, so don't use the series index as a color index.
 - **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
-- **A period change is two steps (`morph.pan`, `panTo`).** First the zoom range travels to the new
+- **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
+  period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first
+  window fills).
+- **A preset or step change is two steps (`morph.pan`, `panTo`).** First the zoom range travels to the new
   period, a frame at a time via `dispatchAction` (like dragging the slider), with the old artists still
   on screen, so it reads as a real scroll or zoom; then the bands morph into the new period's artists.
   Don't let ECharts tween the zoom and the data together: with the point set changing (a filtered
@@ -128,7 +138,7 @@ week), and switching between them morphs.
 - **`focusArtist(el, name)`** (exported) lets the page highlight an artist from outside the chart. The
   Top artists and Top tracks rows use it.
 - **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom: it swallows
-  wheel events. Zoom only through the slider.
+  wheel events. Zoom only through the period brush.
 
 ## Community pool
 

@@ -137,6 +137,11 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
   return true;
 }
 
+// Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
+export function setZoom(el, [start, end]) {
+  instances.get(el)?.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
+}
+
 // Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
 // a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
 function panTo(el, from, to, { ms, easing }, done) {
@@ -441,7 +446,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationDurationUpdate: ms,
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
-      grid: { left: 48, right: 16, top: 12, bottom: 72 },
+      grid: { left: 48, right: 16, top: 12, bottom: 28 },
       // Hidden: it only holds which artists are shown. The visible legend is HTML (renderLegend), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },
@@ -468,24 +473,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },
       },
-      // Slider only: an "inside" dataZoom swallows wheel events even with wheel zoom off,
-      // which stops the page scrolling while the pointer is over the chart
-      dataZoom: [
-        {
-          type: "slider",
-          startValue: zoom?.[0],
-          endValue: zoom?.[1],
-          bottom: 12,
-          height: 32,
-          borderColor: t.grid,
-          fillerColor: "rgba(127,127,127,0.12)",
-          handleStyle: { color: t.surface, borderColor: t.axis },
-          moveHandleStyle: { color: t.axis },
-          textStyle: { color: t.muted },
-          dataBackground: { lineStyle: { color: t.axis }, areaStyle: { color: t.grid } },
-          selectedDataBackground: { lineStyle: { color: t.accent }, areaStyle: { color: t.accent, opacity: 0.15 } },
-        },
-      ],
+      // The range is chosen in the page's period brush (main.js), which moves it with setZoom. A hidden
+      // slider is still a dataZoom, so the plot shows exactly that range. Never an "inside" one: it
+      // swallows wheel events even with wheel zoom off, which stops the page scrolling over the chart
+      dataZoom: [{ type: "slider", show: false, startValue: zoom?.[0], endValue: zoom?.[1] }],
       series,
     },
     // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade

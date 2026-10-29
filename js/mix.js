@@ -1,4 +1,4 @@
-// The listening mix: one bar showing each shown artist's share of the selected period (a year, or all time).
+// The listening mix: one bar showing each shown artist's share of the selected period (any stretch of days the brush picks).
 // It reads the same per-day artist table as the rolling chart (aggregate.dailyTable), so the two always agree.
 // Hovering an artist anywhere (chart, legends, lists, this bar) lights their segment; clicking pins them.
 // Segments and legend entries are kept per artist, so changing the period slides and resizes the ones

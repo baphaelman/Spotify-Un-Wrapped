@@ -208,6 +208,74 @@ button.ghost:hover { background: var(--border); }
   transition: border-color 0.15s;
 }
 .filters.sticky.stuck { border-bottom-color: var(--border); }
+
+/* The period bar is the page's one navigation: presets and the exact dates on the first row, then the brush
+   (js/brush.js), a timeline of listening with a window on it. Dragging the window picks any stretch of days. */
+.period-bar { row-gap: 8px; padding-bottom: 8px; }
+.period-range { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.period-range .days { color: var(--text-muted); margin-left: 8px; }
+.brush { flex: 1 0 100%; }
+.brush-track {
+  position: relative;
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.brush-track svg { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 7px; overflow: hidden; pointer-events: none; }
+.brush-area { fill: var(--accent); opacity: 0.22; }
+.brush-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+.brush-tick { stroke: var(--border); stroke-width: 1; }
+/* Outside the window, the history is dimmed */
+.brush-dim { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--page) 62%, transparent); pointer-events: none; }
+.brush-dim.a { left: 0; border-radius: 7px 0 0 7px; }
+.brush-dim.b { right: 0; border-radius: 0 7px 7px 0; }
+.brush-win {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  border-top: 2px solid var(--text-primary);
+  border-bottom: 2px solid var(--text-primary);
+  cursor: grab;
+}
+.brush-track.dragging, .brush-track.dragging .brush-win { cursor: grabbing; }
+.brush-win:focus-visible, .bh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bh {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 16px;
+  cursor: ew-resize;
+}
+.bh.l { left: -9px; }
+.bh.r { right: -9px; }
+/* The grip: a rounded bar centered on the window's edge, with a hit area much wider than it looks */
+.bh::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--text-primary);
+}
+.bh::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 7px);
+  left: 7.5px;
+  width: 1px;
+  height: 14px;
+  background: var(--page);
+}
+@media (max-width: 600px) { .brush-track { height: 52px; } }
+.brush-years { position: relative; height: 18px; margin-top: 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.brush-years span { position: absolute; top: 0; transform: translateX(3px); }
+.brush-years span:first-child { transform: none; }
 .chart-wrap { position: relative; }
 /* One flat layer: a faint tint for the track, a stronger one for the chosen option. Tints of the text
    color rather than surfaces, so it never reads as a hole cut into the panel in either theme. */
@@ -385,7 +453,7 @@ button.ghost:hover { background: var(--border); }
 }
 
 .chart { width: 100%; height: 320px; margin-top: 8px; }
-.chart.tall { height: 520px; }
+.chart.tall { height: 480px; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-2 .card { margin-bottom: 16px; }
@@ -417,7 +485,7 @@ button.ghost:hover { background: var(--border); }
   .stat .value { font-size: 20px; }
   .stat.hero { grid-column: 1 / -1; }
   .grid-2 { grid-template-columns: 1fr; }
-  .chart.tall { height: 420px; }
+  .chart.tall { height: 380px; }
 }
 
 /* Nav */
@@ -434,6 +502,7 @@ button.ghost:hover { background: var(--border); }
 .share-optin input { margin-top: 4px; accent-color: var(--accent); }
 .share-note { margin: 4px 0 0 24px; }
 .filters .spacer { flex: 1; }
+.dash-actions { margin-bottom: 8px; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 dialog {

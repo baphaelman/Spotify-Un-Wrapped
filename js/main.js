@@ -1,6 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { setupBrush, setBrushData, setBrushRange } from "./brush.js";
 import { sweep, cancelSweep, dur } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
@@ -11,10 +12,12 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 
+// range: the period every graph shows, { lo, hi } as inclusive day indices (see agg.dayIndex). The brush picks
+// it, and the presets in the dropdown are just ranges (a year, or all time).
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
 const state = {
-  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
+  plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(),
 };
 
@@ -157,32 +160,104 @@ $("preview-close").addEventListener("click", () => $("preview-dialog").close());
 
 // ---------- Dashboard ----------
 
+// The days the history covers, as day indices
+const extent = () => ({ lo: agg.dayIndex(state.plays[0].t), hi: agg.dayIndex(state.plays[state.plays.length - 1].t) });
+
+// A preset's range: "all" is the whole history, a year is January 1 to December 31 (or as much of it as exists)
+function presetRange(value) {
+  const e = extent();
+  if (value === "all") return e;
+  const lo = agg.dayIndex(new Date(+value, 0, 1).getTime()), hi = agg.dayIndex(new Date(+value, 11, 31).getTime());
+  return { lo: Math.max(lo, e.lo), hi: Math.min(hi, e.hi) };
+}
+
+// The preset the range is exactly, or null for a stretch the reader chose with the brush
+function presetOf(range) {
+  for (const o of $("year-filter").options) {
+    const r = presetRange(o.value);
+    if (r.lo === range.lo && r.hi === range.hi) return o.value;
+  }
+  return null;
+}
+
+const fmtDay = (d, opts = { month: "short", day: "numeric", year: "numeric" }) => agg.dayToDate(d).toLocaleDateString(undefined, opts);
+const rangeText = () => `${fmtDay(state.range.lo)} – ${fmtDay(state.range.hi)}`;
+const spanOf = (r) => r.hi - r.lo + 1;
+// "All time", a year, or "Custom" for anything the brush picked
+const presetLabel = () => {
+  const p = presetOf(state.range);
+  return p === null ? "Custom" : p === "all" ? "All time" : p;
+};
+
 function showDashboard() {
   showView("you");
   const sel = $("year-filter");
   sel.replaceChildren(new Option("All time", "all"), ...agg.years(state.plays).map((y) => new Option(y, y)));
+  const e = extent();
+  setBrushData(e.lo, e.hi, agg.dailyHours(state.plays, e.lo, e.hi));
   // Open on the most recent year; "All time" is one click (or ‹ steps) away
+  state.range = null;
   setPeriod(sel.options[sel.options.length - 1].value);
 }
 
-function setPeriod(value) {
-  const was = state.year;
-  $("year-filter").value = state.year = value;
-  const i = $("year-filter").selectedIndex;
+// The bar's text and buttons, and the brush's window, for the current range
+function syncPeriod() {
   const label = $("year-label");
-  label.textContent = $("year-filter").options[i].text;
-  label.classList.remove("swap");
-  void label.offsetWidth; // restart the swap animation
-  label.classList.add("swap");
-  $("year-prev").disabled = i <= 0;
-  $("year-next").disabled = i >= $("year-filter").options.length - 1;
-  renderAll(undefined, was != null && was !== value ? was : false); // the period we're leaving, to animate from
+  const text = presetLabel();
+  if (label.textContent !== text) {
+    label.textContent = text;
+    label.classList.remove("swap");
+    void label.offsetWidth; // restart the swap animation
+    label.classList.add("swap");
+  }
+  const p = presetOf(state.range);
+  const sel = $("year-filter");
+  sel.selectedIndex = p === null ? -1 : [...sel.options].findIndex((o) => o.value === p);
+  const e = extent();
+  $("year-prev").disabled = p === null ? state.range.lo <= e.lo : sel.selectedIndex <= 0;
+  $("year-next").disabled = p === null ? state.range.hi >= e.hi : sel.selectedIndex >= sel.options.length - 1;
+  const n = spanOf(state.range);
+  $("period-range").replaceChildren(
+    rangeText(),
+    Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
+  );
+  setBrushRange(state.range);
+}
+
+// A preset or a step: the chart scrolls (or zooms) to the new period, then the artists change
+function setRange(range, animate = true) {
+  const was = state.range;
+  state.range = range;
+  syncPeriod();
+  renderAll(undefined, animate && was ? was : false);
+}
+
+function setPeriod(value) {
+  setRange(presetRange(value));
 }
 
 $("year-filter").addEventListener("change", (e) => setPeriod(e.target.value));
-// Options run All time, oldest year … newest year, so stepping walks through them in order
-$("year-prev").addEventListener("click", () => setPeriod($("year-filter").options[$("year-filter").selectedIndex - 1].value));
-$("year-next").addEventListener("click", () => setPeriod($("year-filter").options[$("year-filter").selectedIndex + 1].value));
+// Presets run All time, oldest year … newest year, so stepping walks through them in order. From a stretch
+// the brush picked there's no next preset, so a step moves the window along by its own length instead.
+function stepPeriod(dir) {
+  const sel = $("year-filter");
+  if (sel.selectedIndex >= 0) return setPeriod(sel.options[sel.selectedIndex + dir].value);
+  const e = extent(), n = spanOf(state.range);
+  const lo = Math.min(e.hi - n + 1, Math.max(e.lo, state.range.lo + dir * n));
+  setRange({ lo, hi: lo + n - 1 });
+}
+$("year-prev").addEventListener("click", () => stepPeriod(-1));
+$("year-next").addEventListener("click", () => stepPeriod(1));
+
+// The brush: the graphs follow the window as it's dragged. The chart's range only slides when the artists
+// stay the same (liveRender), so a drag is cheap and the rest settles as the artists change.
+let livePending = 0;
+setupBrush((range) => {
+  state.range = range;
+  syncPeriod();
+  cancelAnimationFrame(livePending);
+  livePending = requestAnimationFrame(liveRender);
+});
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
 // moves with the bar on scroll (a native dropdown can end up off screen)
@@ -216,7 +291,7 @@ function closeYearMenu(refocus = false) {
 
 function chooseYear(value) {
   closeYearMenu(true);
-  if (value !== state.year) setPeriod(value);
+  if (value !== presetOf(state.range)) setPeriod(value);
 }
 
 $("year-button").addEventListener("click", () => ($("year-menu").hidden ? openYearMenu() : closeYearMenu()));
@@ -246,20 +321,61 @@ window.addEventListener("scroll", () => {
   bar.classList.toggle("stuck", bar.getBoundingClientRect().top <= 0 && window.scrollY > 0);
 }, { passive: true });
 
-// A period change pans the chart sideways between years, and zooms (a longer trip) between all time and a year
+// A preset or step pans the chart sideways between periods of about the same length, and zooms (a longer
+// trip) when the length changes a lot, as between all time and a year
 const PAN_MS = 900;
 const ZOOM_MS = 1400;
 
-function renderAll(keepZoom, animate = false) {
+// `from` is the range being left, to animate from (false to just draw)
+function renderAll(keepZoom, from = false) {
   renderDependents();
-  const zooming = state.year === "all" || animate === "all";
-  const ms = dur(zooming ? ZOOM_MS : PAN_MS);
-  renderRollingChart(keepZoom ?? periodZoom(), animate && ms > 0 && { ms, easing: "cubicInOut", pan: true });
+  const ratio = from ? spanOf(from) / spanOf(state.range) : 1;
+  const ms = dur(ratio > 1.5 || ratio < 1 / 1.5 ? ZOOM_MS : PAN_MS);
+  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: "cubicInOut", pan: true });
 }
+
+// The brush moved the window. Everything the range feeds is redrawn; the rolling chart only slides to the
+// new range while its artists stay the same, and redraws (with the new artists) when they change.
+// The chart's range slides every frame, which is cheap. The rest (new artists, lists, stats, the other
+// charts) is a few frames of work, so it runs at most every LIVE_MS while the window moves, and once more
+// when it stops.
+// How often depends on how slow this machine finds it: the work gets at most a third of the time.
+const LIVE_MS = 90;
+let liveAt = 0;
+let liveCost = 0;
+let liveTimer = 0;
+function liveRender() {
+  if (!state.plays || !state.range) return;
+  setZoom($("chart-rolling"), clampZoom(periodZoom(), rawMemo?.raw.dates));
+  clearTimeout(liveTimer);
+  const wait = liveAt + Math.max(LIVE_MS, liveCost * 3) - performance.now();
+  if (wait <= 0) liveSettle();
+  else liveTimer = setTimeout(liveSettle, wait);
+}
+
+function liveSettle() {
+  liveAt = performance.now();
+  liveSettleWork();
+  liveCost = performance.now() - liveAt;
+  liveAt += liveCost;
+}
+
+function liveSettleWork() {
+  renderDependents();
+  const n = Number($("n-artists").value);
+  const artists = chartArtists(rangePlays(), n);
+  if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && mixArgs) {
+    $("rolling-sub").textContent = rollingSub(n, WINDOWS[$("window").value], $("include-other").checked);
+    renderMix(...mixArgs);
+  } else renderRollingChart(periodZoom());
+}
+
+// The plays in the period
+const rangePlays = () => agg.filterRange(state.plays, state.range.lo, state.range.hi);
 
 // The period's plays without the artists deselected in the rolling chart's legend
 function shownPlays() {
-  const plays = agg.filterYear(state.plays, state.year);
+  const plays = rangePlays();
   if (!state.hidden.length) return plays;
   const hidden = new Set(state.hidden);
   return plays.filter((p) => !hidden.has(p.artist));
@@ -369,9 +485,24 @@ function paintTopLists() {
 
 // ---------- Rolling chart (the original rolling_window.py) ----------
 
+// The period as the chart's zoom range, start of the first day to end of the last
 function periodZoom() {
-  if (state.year === "all") return undefined;
-  return [new Date(+state.year, 0, 1).getTime(), new Date(+state.year, 11, 31).getTime()];
+  return [agg.dayToDate(state.range.lo).getTime(), agg.dayToDate(state.range.hi + 1).getTime() - 1];
+}
+
+// The rolling chart has no points before its first window is full or after its last, so a range reaching
+// past them (all time, or a period at either end of the history) is trimmed to the points that exist
+function clampZoom(zoom, dates) {
+  if (!dates?.length) return zoom;
+  return [Math.max(zoom[0], dates[0]), Math.min(zoom[1], dates[dates.length - 1])];
+}
+
+function rollingSub(n, target, includeOther) {
+  return (state.rollingMode === "share"
+    ? `Share of listening time, ${target}-day rolling window` +
+      (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
+    : `Hours per week, ${target}-day rolling average`) +
+    (presetOf(state.range) === "all" ? "" : `, top artists of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
 }
 
 // Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
@@ -410,13 +541,16 @@ function renderRollingChart(zoom, morph = false, look = null) {
   $("window").setAttribute("aria-valuetext", `${target} days`);
   for (const id of ["n-artists", "window"]) paintSlider($(id));
 
-  // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
-  const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
+  // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
+  // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
+  let artists = chartArtists(rangePlays(), n);
+  if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
   const key = [state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid) };
   const raw = rawMemo.raw;
+  if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
   const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
   const curve = look?.smooth ?? smoothCurve(strength, span);
@@ -428,12 +562,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
-  $("rolling-sub").textContent =
-    (state.rollingMode === "share"
-      ? `Share of listening time, ${target}-day rolling window` +
-        (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
-      : `Hours per week, ${target}-day rolling average`) +
-    (state.year === "all" ? "" : `, top artists of ${state.year}`);
+  $("rolling-sub").textContent = rollingSub(n, target, includeOther);
   const slots = assignSlots(artists);
   const pins = {
     has: (name) => state.pinned.includes(name),
@@ -454,7 +583,6 @@ let mixMemo = null;
 let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
 function renderMix(artists, slots, includeOther, pins) {
   mixArgs = [artists, slots, includeOther, pins];
-  const inPeriod = agg.filterYear(state.plays, state.year);
   const key = [state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
   // Deselected artists drop out of the bar, and the rest fill it
@@ -466,9 +594,9 @@ function renderMix(artists, slots, includeOther, pins) {
     slots: slots && rows.map((i) => slots[i]),
     pins,
     hasOther: includeOther,
-    periodLabel: $("year-label").textContent,
-    lo: agg.dayIndex(inPeriod[0].t),
-    hi: agg.dayIndex(inPeriod[inPeriod.length - 1].t),
+    periodLabel: presetLabel(),
+    lo: state.range.lo,
+    hi: state.range.hi,
   });
 }
 setupMix((name) => focusArtist($("chart-rolling"), name));

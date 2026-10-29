@@ -49,23 +49,40 @@
 
     <!-- Dashboard -->
     <section id="dashboard" class="dashboard" hidden>
-      <div class="filters sticky">
-        <div class="period">
-          <span>Period</span>
-          <button id="year-prev" class="ghost step" type="button" aria-label="Previous year">‹</button>
-          <!-- The hidden select holds the period; the button and menu are what's shown (main.js) -->
-          <select id="year-filter" aria-label="Period" hidden></select>
-          <div class="year-picker">
-            <button id="year-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="year-menu" aria-label="Period"><span id="year-label"></span></button>
-            <ul id="year-menu" class="year-menu" role="listbox" aria-label="Period" hidden></ul>
-          </div>
-          <button id="year-next" class="ghost step" type="button" aria-label="Next year">›</button>
-        </div>
+      <div class="filters dash-actions">
         <button id="reset" class="ghost" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
         <span class="spacer"></span>
         <span id="share-state" class="muted small"></span>
         <button id="share-preview" class="ghost" type="button">Preview shared data</button>
         <button id="share-toggle" class="primary" type="button" hidden>Share with community</button>
+      </div>
+
+      <!-- The period: presets on top, and the brush below, which can pick any stretch of days (js/brush.js) -->
+      <div class="filters sticky period-bar">
+        <div class="period">
+          <span>Period</span>
+          <button id="year-prev" class="ghost step" type="button" aria-label="Previous period">‹</button>
+          <!-- The hidden select holds the presets; the button and menu are what's shown (main.js) -->
+          <select id="year-filter" aria-label="Period" hidden></select>
+          <div class="year-picker">
+            <button id="year-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="year-menu" aria-label="Period preset"><span id="year-label"></span></button>
+            <ul id="year-menu" class="year-menu" role="listbox" aria-label="Period" hidden></ul>
+          </div>
+          <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
+        </div>
+        <div id="period-range" class="period-range" aria-live="off"></div>
+        <div class="brush">
+          <div id="brush-track" class="brush-track">
+            <svg id="brush-svg" aria-hidden="true"></svg>
+            <div id="brush-dim-a" class="brush-dim a"></div>
+            <div id="brush-dim-b" class="brush-dim b"></div>
+            <div id="brush-win" class="brush-win" tabindex="0" role="group" aria-label="Selected period. Arrow keys move it.">
+              <span class="bh l" tabindex="0" role="slider" aria-label="Start of period. Arrow keys move it."></span>
+              <span class="bh r" tabindex="0" role="slider" aria-label="End of period. Arrow keys move it."></span>
+            </div>
+          </div>
+          <div id="brush-years" class="brush-years" aria-hidden="true"></div>
+        </div>
       </div>
 
       <div id="stats" class="stats"></div>

@@ -18,9 +18,27 @@ export function years(plays) {
   return [...new Set(plays.map((p) => new Date(p.t).getFullYear()))].sort();
 }
 
-export function filterYear(plays, year) {
-  if (year === "all") return plays;
-  return plays.filter((p) => new Date(p.t).getFullYear() === Number(year));
+// First index whose play is at or after time t (plays are sorted by time)
+function lowerBound(plays, t) {
+  let lo = 0, hi = plays.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (plays[mid].t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// The plays on days lo..hi (day indices, inclusive)
+export function filterRange(plays, lo, hi) {
+  return plays.slice(lowerBound(plays, dayToDate(lo).getTime()), lowerBound(plays, dayToDate(hi + 1).getTime()));
+}
+
+// Hours listened on each day from `first` to `last` (day indices), for the period brush's backdrop
+export function dailyHours(plays, first, last) {
+  const out = new Float64Array(last - first + 1);
+  for (const p of plays) out[dayIndex(p.t) - first] += p.ms / HOUR;
+  return out;
 }
 
 function sumBy(plays, keyFn) {
