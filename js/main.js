@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
 const state = {
-  plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", monthlyMode: "bars", smoothify: "auto",
+  plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(),
 };
 
@@ -652,7 +652,7 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
-// Total hours per month with the chart's artists picked out (same colors, pins and hover), as bars or lines, with its own key beneath
+// Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -660,7 +660,7 @@ function paintMonthly(plays = shownPlays()) {
   const names = artists.filter((a) => !state.hidden.includes(a) && state.colorSlots.has(a));
   const slots = names.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderMonthly($("chart-monthly"), agg.monthly(plays, names), names, slots, state.monthlyMode, pins, hover);
+  renderMonthly($("chart-monthly"), agg.monthly(plays, names), names, slots, pins, hover);
   const key = names.map((n, k) => {
     const pinned = pins.has(n);
     const item = document.createElement("span");
@@ -695,14 +695,6 @@ function paintMonthly(plays = shownPlays()) {
   rest.append(restSw, restName);
   $("monthly-legend").replaceChildren(...key, rest);
 }
-
-$("monthly-mode").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn || !state.plays) return;
-  state.monthlyMode = btn.dataset.mode;
-  for (const b of $("monthly-mode").children) b.setAttribute("aria-pressed", b === btn);
-  paintMonthly();
-});
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
 let mixMemo = null;

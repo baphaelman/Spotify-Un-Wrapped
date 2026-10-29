@@ -716,31 +716,29 @@ export function focusArtist(el, name) {
 }
 
 // Total hours per month with the chart's artists picked out of it: stacked bars (the rest of the month is a gray
-// "Everyone else" segment, so each bar is the month's total) or stacked areas, one band per artist under a gray
-// "Everyone else" band, whose top edge is the month's total (mode).
+// "Everyone else" segment, so each bar is the month's total).
 // This is always about the whole month, whatever the "Everyone else" switch says. Drawn like the rolling chart:
 // each artist is a pale tint of their color with an outline; pinned artists and the one hovered (anywhere on the
 // page, through focusMonthly) fill in more strongly while the rest dim. names/slots are the artists and their palette
 // slots; pins is {has, toggle}; hover(name|null) reports the pointer.
 const monthlyState = new WeakMap();
-export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", pins = null, hover = () => {}) {
+export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}) {
   const t = tokens();
   const label = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
   // One year: label every month. Longer: label each January with its year.
   const oneYear = rows.length <= 13;
   const tick = (r) =>
     oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
-  const bars = mode === "bars";
-  // The artists, then what's left of the month (bars) or the month itself (lines) in gray
+  // The artists, then what's left of the month in gray
   const all = [...names, "Everyone else"];
   const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
   const sum = (r) => r.by.reduce((a, b) => a + b, 0);
   const valueOf = (r, k) => (k < names.length ? r.by[k] : Math.max(0, r.hours - sum(r)));
   const c = chart(el);
   const prev = monthlyState.get(el);
-  const st = { names, all, rows, bars, colors, t, pinned: new Set(names.filter((n) => pins?.has(n))), hovered: prev?.hovered ?? null };
+  const st = { names, all, rows, colors, t, pinned: new Set(names.filter((n) => pins?.has(n))), hovered: prev?.hovered ?? null };
   monthlyState.set(el, st);
-  const fresh = !prev || prev.bars !== bars || prev.names.join("\u0000") !== names.join("\u0000");
+  const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
   c.setOption(
     {
       animationDuration: 600,
@@ -749,23 +747,13 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
       grid: { left: 48, right: 16, top: 16, bottom: 32 },
       tooltip: {
         ...tooltipBase(t),
-        trigger: bars ? "item" : "axis",
-        axisPointer: { type: "line", lineStyle: { color: t.muted, width: 1 } },
+        trigger: "item",
         formatter: (p) => {
-          if (bars) {
-            const r = rows[p.dataIndex];
-            const h = valueOf(r, p.seriesIndex);
-            return (
-              `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${label(r.month)}</span><br>` +
-              `<b>${fmtHours(h)}</b> <span style="opacity:.75">${r.hours ? Math.round((h / r.hours) * 100) : 0}% of ${fmtHours(r.hours)}</span>`
-            );
-          }
-          const lit = (n) => st.pinned.has(n) || n === st.hovered;
-          const list = p.filter((x) => x.value > 0).reverse(); // top of the stack first
-          const r = rows[p[0].dataIndex];
+          const r = rows[p.dataIndex];
+          const h = valueOf(r, p.seriesIndex);
           return (
-            `<div style="opacity:.75">${label(r.month)} · <b>${fmtHours(r.hours)}</b></div>` +
-            list.map((x) => row(x.color, fmtHours(x.value), x.seriesName, lit(x.seriesName))).join("")
+            `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${label(r.month)}</span><br>` +
+            `<b>${fmtHours(h)}</b> <span style="opacity:.75">${r.hours ? Math.round((h / r.hours) * 100) : 0}% of ${fmtHours(r.hours)}</span>`
           );
         },
       },
@@ -773,7 +761,6 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
         type: "category",
         data: rows.map(tick),
         ...baseAxis(t),
-        boundaryGap: bars,
         axisLabel: { color: t.muted, interval: 0 },
         splitLine: { show: false },
       },
@@ -786,10 +773,9 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
       series: all.map((n, k) => ({
         id: `m${k}`,
         name: n,
-        type: bars ? "bar" : "line",
+        type: "bar",
         stack: "month",
-        ...(bars ? { barCategoryGap: oneYear ? "30%" : "8%" } : { showSymbol: false, triggerLineEvent: true, emphasis: { disabled: true } }),
-        silent: false,
+        barCategoryGap: oneYear ? "30%" : "8%",
         cursor: pins && k < names.length ? "pointer" : "default",
         ...monthlyLook(st, k),
         data: rows.map((r) => valueOf(r, k)),
@@ -808,29 +794,20 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
 
 // The style of artist k's series: lit (pinned or hovered), dim (something else is lit) or at rest
 function monthlyLook(st, k) {
-  const { t, names, colors, bars } = st;
+  const { t, names, colors } = st;
   const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
   const rest = k === names.length; // the gray series is never lit
   const on = !rest && lit.has(names[k]);
   const dim = lit.size && !on;
   const col = colors[k];
-  if (bars) {
-    // The gray remainder is the month's total, so it stays readable while an artist is lit, and always has an outline
-    if (rest) return { itemStyle: { color: mix(t.surface, col, 0.22), borderColor: mix(t.surface, col, 0.6), borderWidth: 1 } };
-    return {
-      itemStyle: {
-        color: mix(t.surface, col, on ? t.shade.hover : dim ? t.shade.dim : t.shade.band),
-        borderColor: dim ? mix(t.surface, col, 0.35) : col,
-        borderWidth: on ? 2 : 1,
-      },
-    };
-  }
-  // Stacked areas: a tinted band outlined along its top edge, like the rolling chart's share bands
-  const fill = rest ? 0.22 : on ? t.shade.hover : dim ? t.shade.dim : t.shade.band;
+  // The gray remainder is the month's total, so it stays readable while an artist is lit, and always has an outline
+  if (rest) return { itemStyle: { color: mix(t.surface, col, 0.22), borderColor: mix(t.surface, col, 0.6), borderWidth: 1 } };
   return {
-    lineStyle: { color: rest ? mix(t.surface, col, 0.6) : dim ? mix(t.surface, col, 0.35) : col, width: on ? 2.5 : 1.5 },
-    itemStyle: { color: col },
-    areaStyle: { color: mix(t.surface, col, fill), opacity: 1 },
+    itemStyle: {
+      color: mix(t.surface, col, on ? t.shade.hover : dim ? t.shade.dim : t.shade.band),
+      borderColor: dim ? mix(t.surface, col, 0.35) : col,
+      borderWidth: on ? 2 : 1,
+    },
   };
 }
 
