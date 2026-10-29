@@ -188,3 +188,68 @@ grant execute on function public.delete_summary(text) to anon, authenticated;
 grant execute on function public.is_shared(text) to anon, authenticated;
 grant execute on function public.community_stats() to anon, authenticated;
 grant execute on function public.artist_ranks(text[], numeric[]) to anon, authenticated;
+
+-- ---------- Feedback ("Missing something?") ----------
+-- Anyone can submit a request. Only someone with the admin passphrase can read or manage them.
+-- Set the passphrase once, here in the SQL editor (pick a long one; it's stored hashed):
+--   insert into public.admin_secret (id, key_hash) values (true, public._key_hash('your passphrase'))
+--   on conflict (id) do update set key_hash = excluded.key_hash;
+
+create table if not exists public.feedback (
+  id         bigint generated always as identity primary key,
+  message    text not null,
+  contact    text,
+  done       boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.admin_secret (
+  id       boolean primary key default true check (id),
+  key_hash text not null
+);
+alter table public.feedback enable row level security;
+alter table public.admin_secret enable row level security;
+revoke all on public.feedback, public.admin_secret from anon, authenticated;
+
+create or replace function public._is_admin(p_admin text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from admin_secret where key_hash = _key_hash(p_admin))
+$$;
+revoke execute on function public._is_admin(text) from public, anon, authenticated;
+
+create or replace function public.submit_feedback(p_message text, p_contact text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  p_message := btrim(coalesce(p_message, ''));
+  if p_message = '' or length(p_message) > 2000 then raise exception 'invalid message'; end if;
+  -- Crude spam brake until there's a real bot check: at most 30 requests an hour, sitewide
+  if (select count(*) from feedback where created_at > now() - interval '1 hour') >= 30 then
+    raise exception 'too many requests right now, try again later';
+  end if;
+  insert into feedback (message, contact) values (p_message, nullif(left(btrim(coalesce(p_contact, '')), 200), ''));
+end $$;
+
+create or replace function public.list_feedback(p_admin text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not _is_admin(p_admin) then raise exception 'wrong passphrase'; end if;
+  return coalesce((select jsonb_agg(to_jsonb(f) order by f.done, f.created_at desc) from feedback f), '[]'::jsonb);
+end $$;
+
+create or replace function public.set_feedback_done(p_admin text, p_id bigint, p_done boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not _is_admin(p_admin) then raise exception 'wrong passphrase'; end if;
+  update feedback set done = p_done where id = p_id;
+end $$;
+
+create or replace function public.delete_feedback(p_admin text, p_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not _is_admin(p_admin) then raise exception 'wrong passphrase'; end if;
+  delete from feedback where id = p_id;
+end $$;
+
+grant execute on function public.submit_feedback(text, text) to anon, authenticated;
+grant execute on function public.list_feedback(text) to anon, authenticated;
+grant execute on function public.set_feedback_done(text, bigint, boolean) to anon, authenticated;
+grant execute on function public.delete_feedback(text, bigint) to anon, authenticated;

@@ -21,3 +21,8 @@ export const isShared = (key) => rpc("is_shared", { p_key: key });
 export const communityStats = () => rpc("community_stats");
 export const artistRanks = (artists) =>
   rpc("artist_ranks", { p_artists: artists.map((a) => a.name), p_hours: artists.map((a) => a.hours) });
+
+export const submitFeedback = (message, contact) => rpc("submit_feedback", { p_message: message, p_contact: contact || null });
+export const listFeedback = (admin) => rpc("list_feedback", { p_admin: admin });
+export const setFeedbackDone = (admin, id, done) => rpc("set_feedback_done", { p_admin: admin, p_id: id, p_done: done });
+export const deleteFeedback = (admin, id) => rpc("delete_feedback", { p_admin: admin, p_id: id });

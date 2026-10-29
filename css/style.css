@@ -680,3 +680,29 @@ dialog pre {
 .mix-bar.focusing .mix-seg:not(.focus) { opacity: 0.45; }
 .mix-seg.focus { background: color-mix(in srgb, var(--c) 40%, var(--surface)); }
 .mix-legend-item.focus { background: var(--border); }
+
+/* Feedback */
+.site-footer { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; text-align: center; }
+#feedback-form { display: flex; flex-direction: column; gap: 10px; }
+dialog textarea, dialog input[type="text"], dialog input[type="password"] {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+dialog textarea:focus-visible, dialog input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.form-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.form-row input { flex: 1; }
+#feedback-status { margin: 0; text-align: left; }
+.inbox-list { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; max-height: 55vh; }
+.inbox-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.inbox-item.done { opacity: 0.5; }
+.inbox-item p { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.inbox-meta { display: flex; gap: 8px; align-items: center; }
+.inbox-meta span { margin-right: auto; }
+.inbox-meta button { padding: 2px 8px; }
