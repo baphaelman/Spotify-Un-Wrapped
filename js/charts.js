@@ -291,7 +291,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // artists already on screen, as if dragging the zoom slider, then morphs the bands into the new
   // period's artists. That needs the same series on screen; otherwise it redraws.
   if (morph?.pan) {
-    const same = prev && prev.mode === mode && prev.hasOther === hasOther && prev.window === window && prev.names.length === names.length;
+    // (the window can differ: switching to the tracks view changes it, and the pan is drawn with the old one)
+    const same = prev && prev.mode === mode && prev.hasOther === hasOther && prev.names.length === names.length;
     const from = same && currentZoom(el);
     // All time has no zoom range of its own; give it the whole timeline so there's a range to travel to
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];

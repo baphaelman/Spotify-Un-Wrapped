@@ -248,6 +248,8 @@ button.ghost:hover { background: var(--border); }
    (js/brush.js), a timeline of listening with a window on it. Dragging the window picks any stretch of days. */
 .period-bar { row-gap: 8px; padding-bottom: 8px; }
 .period-resize { margin-left: auto; }
+/* Artists, tracks or albums: the page's views, at the head of the bar */
+.view-tabs { flex: none; }
 .period-range { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .period-range .dates, .period-range .days { display: inline-block; }
 .period-range .days { color: var(--text-muted); margin-left: 8px; }
@@ -338,10 +340,6 @@ button.ghost:hover { background: var(--border); }
   background: #e6e8e7;
   color: #0a0c0e;
 }
-
-/* Artists, tracks or albums: the page's own views, above the stats */
-.view-tabs { width: fit-content; margin-bottom: 12px; }
-.view-tabs button { padding: 6px 16px; font-size: 14px; }
 
 .stats {
   display: grid;

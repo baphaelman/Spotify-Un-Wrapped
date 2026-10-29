@@ -51,6 +51,8 @@ async function open(plays) {
   state.hidden = [];
   state.colorSlots = new Map();
   state.dims = new Map();
+  state.dim = "artist";
+  $("window").value = VIEW_START.artist.window;
   setHidden($("chart-rolling"), []);
   applyDim();
   state.key = await submissionKey(plays);
@@ -213,6 +215,22 @@ const NOUN = {
 };
 const noun = () => NOUN[state.dim];
 
+// What each view starts on, and the lengths its period buttons offer. Tracks come and go faster than
+// artists, so their view looks closer: a 30-day slice over the last three months, smoothed sooner.
+// window: the "Days per slice" slider's step (see WINDOWS); period: the length the view first opens on, or
+// null to keep the period as it is.
+const VIEW_START = {
+  artist: { window: 3, period: null },
+  track: { window: 2, period: "3m" },
+  album: { window: 3, period: null },
+};
+const RESIZES = {
+  artist: ["3m", "6m", "1y", "2y"],
+  track: ["30d", "3m", "6m", "1y"],
+  album: ["3m", "6m", "1y", "2y"],
+};
+const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined);
+
 // A track or album is called by its name, with its artist after it where more than one artist has that name
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
@@ -257,25 +275,45 @@ function applyDim() {
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
   for (const b of $("view-tabs").children) b.setAttribute("aria-pressed", b.dataset.dim === state.dim);
+  $("period-resize").replaceChildren(
+    ...RESIZES[state.dim].map((len) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.len = len;
+      b.textContent = len;
+      b.setAttribute("aria-pressed", "false");
+      return b;
+    })
+  );
 }
 
 // Another view: its pins, hidden names and colors come back as the reader left them, and every graph morphs
 // from the old view's names to the new one's
 function setDim(dim) {
   if (dim === state.dim || !state.raw) return;
-  // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not
-  state.dims.set(state.dim, { pinned: state.pinned, hidden: state.hidden, kept: hiddenIn($("chart-rolling")), colorSlots: state.colorSlots });
-  const saved = state.dims.get(dim) ?? { pinned: [], hidden: [], kept: [], colorSlots: new Map() };
+  // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not;
+  // window: the slice slider's step
+  state.dims.set(state.dim, {
+    pinned: state.pinned, hidden: state.hidden, kept: hiddenIn($("chart-rolling")), colorSlots: state.colorSlots, window: $("window").value,
+  });
+  const saved = state.dims.get(dim);
+  const start = VIEW_START[dim];
   state.dim = dim;
-  state.pinned = saved.pinned;
-  state.colorSlots = saved.colorSlots;
-  state.hidden = saved.hidden;
-  setHidden($("chart-rolling"), saved.kept);
+  state.pinned = saved?.pinned ?? [];
+  state.colorSlots = saved?.colorSlots ?? new Map();
+  state.hidden = saved?.hidden ?? [];
+  setHidden($("chart-rolling"), saved?.kept ?? []);
+  $("window").value = saved?.window ?? start.window;
   closeResults();
   applyDim();
   // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
   // old view's names over the new plays first
   mixArgs = null;
+  // A view's first visit opens on its own length of period, ending where the period ends now: the chart travels
+  // there with the old view's bands, then they morph into the new view's, as for a preset
+  const range = !saved && start.period ? resized(state.range, start.period) : state.range;
+  if (!sameRange(range, state.range)) return setRange(range);
+  syncPeriod(); // the period buttons are the view's own
   renderDependents();
   brushMorph = { ms: MORPH_MS };
   renderRollingChart(periodZoom(), true);
@@ -358,17 +396,20 @@ function syncPeriod() {
     Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
   );
   if (before.size) flip(before, slid());
-  for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, +b.dataset.months)));
+  for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, b.dataset.len)));
   setBrushRange(state.range);
 }
 
 const sameRange = (a, b) => a.lo === b.lo && a.hi === b.hi;
 
-// The window `months` calendar months long, ending where it ends now: the right edge stays put and the
-// left edge moves, so the buttons rescale the window back from the most recent day. A history shorter than
-// that gives what there is.
-function resized(range, months) {
+// The window `len` long ("30d", "3m" or "1y"), ending where it ends now: the right edge stays put and the
+// left edge moves, so the buttons rescale the window back from the most recent day. Months and years are
+// calendar ones. A history shorter than that gives what there is.
+function resized(range, len) {
   const e = extent();
+  const [, n, unit] = len.match(/(\d+)([dmy])/);
+  if (unit === "d") return { lo: Math.max(e.lo, range.hi - n + 1), hi: range.hi };
+  const months = unit === "y" ? n * 12 : +n;
   const after = agg.dayToDate(range.hi + 1); // the day after the window; the new window starts `months` before it
   const lo = agg.dayIndex(new Date(after.getFullYear(), after.getMonth() - months, after.getDate()).getTime());
   return { lo: Math.max(e.lo, lo), hi: range.hi };
@@ -376,7 +417,7 @@ function resized(range, months) {
 
 $("period-resize").addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (b) setRange(resized(state.range, +b.dataset.months));
+  if (b) setRange(resized(state.range, b.dataset.len));
 });
 
 // A preset or a step: the chart scrolls (or zooms) to the new period, then the artists change
@@ -732,7 +773,7 @@ const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify 
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
 // Auto's curve rounding: scaled with the amount up to high, then on toward max
 const autoCurve = (a) => (a <= 1 ? a * SMOOTH_CURVE[3] : SMOOTH_CURVE[3] + (a - 1) * (SMOOTH_CURVE[4] - SMOOTH_CURVE[3]));
-const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span)) : SMOOTH_CURVE[strength]);
+const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span, autoSpans())) : SMOOTH_CURVE[strength]);
 // Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
@@ -761,11 +802,11 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
   const raw = rawMemo.raw;
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
-  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
+  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span, autoSpans());
   const curve = look?.smooth ?? smoothCurve(strength, span);
   state.shownSmooth = { sigma, curve }; // what the zoom hook compares against
   // Auto says which strength it has landed on
-  const amount = agg.autoAmount(span);
+  const amount = agg.autoAmount(span, autoSpans());
   $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
   const data = agg.blur(raw, sigma);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
@@ -1118,7 +1159,7 @@ $("smoothify").addEventListener("change", (e) => {
   const days = WINDOWS[$("window").value];
   const zoom = currentZoom($("chart-rolling"));
   const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
-  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span));
+  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span, autoSpans()));
   const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
   sweep((t, ms) => {
     const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
@@ -1135,7 +1176,7 @@ onZoomChange($("chart-rolling"), () => {
     const zoom = currentZoom($("chart-rolling"));
     if (!rawMemo || !state.shownSmooth || !Number.isFinite(zoom?.[0])) return;
     const span = spanDays(zoom, rawMemo.raw.dates);
-    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span);
+    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span, autoSpans());
     const curve = smoothCurve("auto", span);
     if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
     cancelSweep();

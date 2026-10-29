@@ -272,6 +272,8 @@ const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275, 0.55]; // x the window, per stren
 // from three years out, and twice that (the max strength) from six years out, in between on a log scale.
 // Returns 0..2, in units of the high strength.
 const AUTO_SPAN = [[365, 0], [1095, 1], [2190, 2]]; // [visible days, how much of the high strength]
+// Tracks come and go faster, so their auto smoothing starts sooner: none up to three months, high at a year
+export const TRACK_AUTO_SPAN = [[92, 0], [365, 1], [730, 2]];
 export function interpLog(points, x) {
   if (x <= points[0][0]) return points[0][1];
   for (let i = 1; i < points.length; i++) {
@@ -280,11 +282,12 @@ export function interpLog(points, x) {
   }
   return points[points.length - 1][1];
 }
-export const autoAmount = (span) => interpLog(AUTO_SPAN, span);
+export const autoAmount = (span, spans = AUTO_SPAN) => interpLog(spans, span);
 // span: days on screen, for "auto"
-export const smoothifySigma = (window, strength, span) =>
+// spans: the auto points to use (AUTO_SPAN, or TRACK_AUTO_SPAN)
+export const smoothifySigma = (window, strength, span, spans) =>
   strength === "auto"
-    ? autoAmount(span) * Math.max(1, window * SMOOTHIFY_SIGMA[3])
+    ? autoAmount(span, spans) * Math.max(1, window * SMOOTHIFY_SIGMA[3])
     : strength ? Math.max(1, window * SMOOTHIFY_SIGMA[strength]) : 0;
 export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
 
