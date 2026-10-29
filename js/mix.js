@@ -25,8 +25,9 @@ const span = (cls) => {
   return el;
 };
 
-// A segment reads, top to bottom: its share, a box and the artist's name, then their plays and hours.
-// The box hides the artist everywhere (as in the period bar's key); a click anywhere else pins them.
+// A segment reads, top to bottom: its share, a box and the artist's name, then their plays; their hours sit
+// below it, under the bar. The box hides the artist everywhere (as in the period bar's key); a click anywhere
+// else pins them.
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
@@ -42,7 +43,7 @@ function makeEntry(name) {
   const playsEl = span("mix-plays");
   const hoursEl = span("mix-hours");
   const meta = span("mix-meta");
-  meta.append(playsEl, hoursEl);
+  meta.append(playsEl);
   seg.append(label, who, meta);
   const e = { name, seg, label, box, playsEl, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
@@ -59,21 +60,30 @@ function makeEntry(name) {
   return e;
 }
 
-// What fits in a segment this wide (px): the share from SHARE_PX, the name and numbers from DETAIL_PX
+// What fits in a segment this wide (px): the share from SHARE_PX, the hours under it from HOURS_PX, the name
+// and plays from DETAIL_PX
 const SHARE_PX = 30;
+const HOURS_PX = 40;
 const DETAIL_PX = 80;
+const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
-// Puts every segment where its x and w say, and shows the share and details that fit
+// Puts every segment and its hours where its x and w say, and shows what fits. The segments at either end
+// round the bar's outer corners.
 function place() {
   const bar = $("mix-bar");
   const W = bar.clientWidth + GAP;
   for (const e of entries.values()) {
     const px = Math.max(0, e.w * W - GAP);
-    e.seg.style.left = `${e.x * W}px`;
-    e.seg.style.width = `${px}px`;
+    for (const el of [e.seg, e.hoursEl]) {
+      el.style.left = `${e.x * W}px`;
+      el.style.width = `${px}px`;
+    }
     e.label.textContent = Math.round(e.w * 100) + "%";
     e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
     e.seg.classList.toggle("fits-detail", px >= DETAIL_PX && !e.leaving);
+    e.hoursEl.classList.toggle("fits", px >= HOURS_PX && !e.leaving && !e.off);
+    e.seg.classList.toggle("outer-l", e.x <= EDGE);
+    e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
 }
 
@@ -95,6 +105,7 @@ function glide() {
     for (const [name, e] of entries) {
       if (!e.leaving) continue;
       e.seg.remove();
+      e.hoursEl.remove();
       entries.delete(name);
     }
   };
@@ -159,7 +170,7 @@ export function updateMix(next) {
     if (!e) {
       e = makeEntry(name);
       entries.set(name, e);
-      bar.append(e.seg);
+      bar.append(e.seg, e.hoursEl);
       const t = target.get(name);
       Object.assign(e, { x: t.x, w: 0 }); // grows from nothing where it will sit
     }
