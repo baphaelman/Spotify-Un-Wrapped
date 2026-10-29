@@ -194,7 +194,8 @@ function showDashboard() {
   const sel = $("year-filter");
   sel.replaceChildren(new Option("All time", "all"), ...agg.years(state.plays).map((y) => new Option(y, y)));
   const e = extent();
-  setBrushData(e.lo, e.hi);
+  // The timeline starts where the chart does, not at a few stray plays long before the real listening
+  setBrushData(Math.min(e.hi, Math.max(e.lo, agg.activeStart(state.plays))), e.hi, e.lo);
   // Open on the most recent year; "All time" is one click (or ‹ steps) away
   state.range = null;
   setPeriod(sel.options[sel.options.length - 1].value);

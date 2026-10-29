@@ -9,7 +9,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const MIN_DAYS = 7; // the smallest window
 const DAY = 86400000;
 
-let model = null; // { first, last }: the history's first and last day (day indices)
+let model = null; // { first, last, min }: the timeline's first and last day (day indices), and the earliest day the window may reach (before `first` when the sparse start of the history is cut off)
 let bands = null; // see setBrushBands
 let range = null; // { lo, hi }: the window, day indices, inclusive
 let onChange = () => {};
@@ -35,7 +35,7 @@ export function setupBrush(cb) {
       // A click on the track puts the window there, centered, and carries on as a drag of the window
       const x = e.clientX - track.getBoundingClientRect().left;
       const span = range.hi - range.lo;
-      const lo = clamp(Math.round(model.first + (x / trackW()) * days()) - Math.floor(span / 2), model.first, model.last - span);
+      const lo = clamp(Math.round(model.first + (x / trackW()) * days()) - Math.floor(span / 2), model.min, model.last - span);
       emit(lo, lo + span);
       mode = "m";
     }
@@ -49,9 +49,13 @@ export function setupBrush(cb) {
     if (!drag) return;
     const d = Math.round(((e.clientX - drag.x) / trackW()) * days());
     if (drag.mode === "m") {
-      const shift = clamp(d, model.first - drag.lo, model.last - drag.hi);
+      const shift = clamp(d, model.min - drag.lo, model.last - drag.hi);
       emit(drag.lo + shift, drag.hi + shift);
-    } else if (drag.mode === "l") emit(clamp(drag.lo + d, model.first, drag.hi - (MIN_DAYS - 1)), drag.hi);
+    } else if (drag.mode === "l") {
+      // Dragged to the timeline's left end, the edge goes on to the very first day, which the cut-off start hides
+      const lo = clamp(Math.max(drag.lo, model.first) + d, model.first, drag.hi - (MIN_DAYS - 1));
+      emit(lo <= model.first ? model.min : lo, drag.hi);
+    }
     else emit(drag.lo, clamp(drag.hi + d, drag.lo + MIN_DAYS - 1, model.last));
   });
 
@@ -68,10 +72,10 @@ export function setupBrush(cb) {
     if (!dir || !model || !range) return;
     e.preventDefault();
     const t = e.target;
-    if (t.classList.contains("l")) emit(clamp(range.lo + dir * (e.shiftKey ? 30 : 1), model.first, range.hi - (MIN_DAYS - 1)), range.hi);
+    if (t.classList.contains("l")) emit(clamp(range.lo + dir * (e.shiftKey ? 30 : 1), model.min, range.hi - (MIN_DAYS - 1)), range.hi);
     else if (t.classList.contains("r")) emit(range.lo, clamp(range.hi + dir * (e.shiftKey ? 30 : 1), range.lo + MIN_DAYS - 1, model.last));
     else {
-      const shift = clamp(dir * (e.shiftKey ? 30 : 7), model.first - range.lo, model.last - range.hi);
+      const shift = clamp(dir * (e.shiftKey ? 30 : 7), model.min - range.lo, model.last - range.hi);
       emit(range.lo + shift, range.hi + shift);
     }
   });
@@ -84,9 +88,10 @@ function emit(lo, hi) {
   onChange({ lo, hi });
 }
 
-// Called when the data loads: the history's first and last day (day indices)
-export function setBrushData(first, last) {
-  model = { first, last };
+// Called when the data loads: the day the timeline starts and ends on (day indices), and the history's
+// real first day if the timeline starts later (the sparse start is cut off, as in the rolling chart)
+export function setBrushData(first, last, min = first) {
+  model = { first, last, min };
   draw();
   position();
 }
@@ -108,7 +113,10 @@ export function setBrushRange(r) {
 
 function position() {
   if (!model || !range) return;
-  const l = xOf(range.lo), r = xOf(range.hi + 1);
+  // A window before the timeline's cut-off start still shows, as a sliver at its left end
+  const W = trackW();
+  const l = Math.min(Math.max(0, xOf(range.lo)), Math.max(0, W - 8));
+  const r = Math.max(xOf(range.hi + 1), l + 8);
   const win = $("brush-win");
   win.style.left = `${l}px`;
   win.style.width = `${Math.max(0, r - l)}px`;
@@ -116,7 +124,7 @@ function position() {
   $("brush-dim-b").style.left = `${r}px`;
   for (const [cls, value] of [["l", range.lo], ["r", range.hi]]) {
     const h = win.querySelector(`.bh.${cls}`);
-    h.setAttribute("aria-valuemin", model.first);
+    h.setAttribute("aria-valuemin", model.min);
     h.setAttribute("aria-valuemax", model.last);
     h.setAttribute("aria-valuenow", value);
     h.setAttribute("aria-valuetext", fmtDay(value));
