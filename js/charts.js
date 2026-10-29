@@ -211,7 +211,9 @@ function paintLive(c, st) {
 
 // Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
 // a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
-function panTo(el, from, to, { ms, easing }, done) {
+// yMax: optional { from, to } for the y-axis top (Hours mode), which tweens along with the range; otherwise
+// it would step from one whole number to the next each time the window's tallest line changes
+function panTo(el, from, to, { ms, easing }, done, yMax) {
   const c = chart(el);
   const st = rollingState.get(el);
   c.setOption({ animationDurationUpdate: 0 }); // each frame is a plain redraw, not a tween
@@ -219,7 +221,11 @@ function panTo(el, from, to, { ms, easing }, done) {
   const tick = (now) => {
     const t = Math.min(1, (now - t0) / ms);
     const e = easeInOut(t);
-    c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: from[0] + (to[0] - from[0]) * e, endValue: from[1] + (to[1] - from[1]) * e });
+    const startValue = from[0] + (to[0] - from[0]) * e, endValue = from[1] + (to[1] - from[1]) * e;
+    if (yMax) {
+      const max = yMax.from + (yMax.to - yMax.from) * e;
+      c.setOption({ yAxis: { max: () => max }, dataZoom: [{ startValue, endValue }] });
+    } else c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue, endValue });
     if (t < 1) st.panRaf = requestAnimationFrame(tick);
     else {
       st.panRaf = 0;
@@ -274,7 +280,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // All time has no zoom range of its own; give it the whole timeline so there's a range to travel to
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
     if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
-      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth));
+      // Hours: the axis top the final chart will have, to travel to alongside the range
+      let yMax = null;
+      if (mode === "hours") {
+        const idx = data.dates.map((d, i) => i).filter((i) => data.dates[i] >= zoom[0] && data.dates[i] <= zoom[1]);
+        const hide = prev.selected;
+        let m = 0;
+        names.forEach((n, s) => {
+          if (hasOther && s === names.length - 1) return;
+          if (hide?.[n] === false) return;
+          for (const i of idx) if (data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
+        });
+        const now = chart(el).getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
+        if (Number.isFinite(now)) yMax = { from: now, to: Math.max(1, Math.ceil(m)) };
+      }
+      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth), yMax);
       return;
     }
     morph = same;
