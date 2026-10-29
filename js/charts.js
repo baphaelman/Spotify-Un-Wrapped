@@ -752,8 +752,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl, sm);
   };
   // Several at once in a single re-stack, rather than one morph per artist
+  // Showing them all starts over: artists hidden while in another period don't come back hidden
   st.showAll = (list, show) => {
     for (const name of list) if (name in st.selected) st.selected[name] = show;
+    if (show) for (const n of hiddenNames.get(el) ?? []) if (!st.names.includes(n)) hiddenNames.get(el).delete(n);
     restack();
   };
 

@@ -810,6 +810,11 @@ function paintArtistKey() {
     return { borderColor: cs.borderColor, backgroundColor: cs.backgroundColor, opacity: cs.opacity };
   };
   const looked = new Map([...chips(key)].map(([n, el]) => [n, looks(el)]));
+  // The boxes' minus and plus (and the all box's tick) turn into each other the same way. The box under the
+  // pointer is rebuilt too, and a new element can miss :hover until the pointer moves, so .hover stands in
+  const boxes = (root) => [...chips(root), ["\u0000all", root.querySelector(".legend-all")]].filter(([, el]) => el);
+  const boxOf = (unit) => unit.querySelector(".swatch") ?? unit;
+  const marked = new Map(boxes(key).map(([n, el]) => [n, { parts: markLooks(el), hover: boxOf(el).matches(":hover, .hover") }]));
   // Rebuilding drops keyboard focus, so it goes back to the same control in the new chip
   const focused = key.contains(document.activeElement) ? document.activeElement : null;
   const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];
@@ -884,9 +889,22 @@ function paintArtistKey() {
   box.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
   box.title = on === top.length ? "Hide all top artists" : "Show all top artists";
   box.setAttribute("aria-label", box.title);
+  const mark = document.createElement("span");
+  mark.className = "all-box";
+  const glyph = document.createElement("span");
+  glyph.className = "all-glyph";
+  glyph.textContent = on === top.length ? "✓" : on ? "–" : "";
+  mark.append(glyph);
+  box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
   key.replaceChildren(...(top.length ? [box] : []), ...items);
   flip(before, chips(key));
+  for (const [n, el] of boxes(key)) {
+    if (!marked.get(n)?.hover) continue;
+    const b = boxOf(el);
+    b.classList.add("hover");
+    b.addEventListener("pointerleave", () => b.classList.remove("hover"), { once: true });
+  }
   if (refocus) {
     const [n, cls] = refocus;
     const chip = n == null ? null : chips(key).get(n);
@@ -901,6 +919,26 @@ function paintArtistKey() {
     if (Object.keys(now).every((k) => now[k] === was[k])) continue;
     el.animate([was, now], { duration: GROW_MS, easing: EASE_OUT.css });
   }
+  for (const [n, el] of boxes(key)) {
+    const was = marked.get(n)?.parts;
+    if (!was) continue;
+    markLooks(el).forEach((now, i) => {
+      if (Object.keys(now.look).every((k) => now.look[k] === was[i].look[k])) return;
+      now.el.animate([was[i].look, now.look], { duration: GROW_MS, easing: EASE_OUT.css, pseudoElement: now.pseudo });
+    });
+  }
+}
+
+// How a key box's hover marks look: the box's fill, its minus (::before) and the plus's upright (::after), and
+// the all box's tick
+const MARK_PARTS = [[".swatch", undefined], [".swatch", "::before"], [".swatch", "::after"], [".all-box", "::before"], [".all-box", "::after"], [".all-glyph", undefined]];
+function markLooks(unit) {
+  return MARK_PARTS.flatMap(([sel, pseudo]) => {
+    const el = unit.querySelector(sel);
+    if (!el) return [];
+    const cs = getComputedStyle(el, pseudo);
+    return [{ el, pseudo, look: { backgroundColor: cs.backgroundColor, opacity: cs.opacity, height: cs.height } }];
+  });
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period

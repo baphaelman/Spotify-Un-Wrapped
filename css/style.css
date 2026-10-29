@@ -621,14 +621,26 @@ dialog pre {
 .toplist .show-box:disabled { opacity: 0.45; cursor: default; }
 .toplist .show-box:not(:disabled):hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
 .toplist li:has(.show-box) { grid-template-columns: 10px 2ch 1fr auto; }
-/* Hovering a filled box (the artist is shown) cuts a minus out of it, so the click reads as "leave them out" */
-:is(.toplist .show-box, .artist-key .swatch) { position: relative; }
-:is(.toplist .show-box, .artist-key .swatch)::after {
-  content: ""; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px;
+/* Hovering a box shows what a click does: a minus cut out of a filled box (the artist is shown, so a click
+   leaves them out), a plus in an empty one (hidden, so a click brings them back). The all box does the same
+   for everyone at once, in place of its tick. A click turns one into the other as the plus's upright grows or
+   folds. (.hover stands in for :hover on a box rebuilt under the pointer, see paintArtistKey.) */
+:is(.toplist .show-box, .artist-key .swatch, .all-box) { position: relative; }
+:is(.toplist .show-box, .artist-key .swatch, .all-box)::before,
+:is(.toplist .show-box, .artist-key .swatch, .all-box)::after {
+  content: ""; position: absolute; left: 50%; top: 50%; border-radius: 1px;
   background: var(--surface); opacity: 0; pointer-events: none;
-  transition: opacity var(--motion-fade) var(--ease-out);
+  transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out), height var(--motion-fade) var(--ease-out);
 }
-:is(.toplist .show-box:not(:disabled), .artist-key .swatch[aria-pressed="true"]):hover::after { opacity: 1; }
+:is(.toplist .show-box, .artist-key .swatch, .all-box)::before { width: 6px; height: 2px; margin: -1px 0 0 -3px; }
+:is(.toplist .show-box, .artist-key .swatch, .all-box)::after { width: 2px; height: 0; margin-left: -1px; transform: translateY(-50%); }
+:is(.toplist .show-box:not(:disabled), .artist-key .swatch, .legend-all .all-box):is(:hover, .hover, .legend-all:hover > *, .legend-all.hover > *)::before,
+:is(.toplist .show-box:not(:disabled), .artist-key .swatch, .legend-all .all-box):is(:hover, .hover, .legend-all:hover > *, .legend-all.hover > *)::after { opacity: 1; }
+.artist-key .swatch[aria-pressed="false"]::before, .artist-key .swatch[aria-pressed="false"]::after { background: var(--c); }
+.artist-key .swatch[aria-pressed="false"]::after { height: 6px; }
+.legend-all .all-box::before, .legend-all .all-box::after { background: currentColor; }
+.legend-all .all-box::before { width: 7px; margin-left: -3.5px; }
+.legend-all:not([aria-checked="true"]) .all-box::after { height: 7px; }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
@@ -648,8 +660,7 @@ dialog pre {
    no text; its title says what a click does. */
 .legend-item.legend-all { align-self: center; padding: 4px; border: 0; color: var(--text-muted); }
 .legend-item.legend-all:hover { background: transparent; color: var(--text-primary); }
-.legend-all::before {
-  content: "";
+.all-box {
   display: grid;
   place-items: center;
   width: 13px;
@@ -660,8 +671,8 @@ dialog pre {
   font-weight: 700;
   line-height: 1;
 }
-.legend-all[aria-checked="true"]::before { content: "✓"; }
-.legend-all[aria-checked="mixed"]::before { content: "–"; }
+.all-glyph { transition: opacity var(--motion-fade) var(--ease-out); }
+.legend-all:is(:hover, .hover) .all-glyph { opacity: 0; }
 .legend-item {
   display: inline-flex;
   align-items: center;
