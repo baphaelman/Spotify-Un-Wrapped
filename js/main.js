@@ -1331,6 +1331,7 @@ $("theme-toggle").addEventListener("click", async () => {
   const x = b.left + b.width / 2, y = b.top + b.height / 2;
   const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
   const toDark = !isDark();
+  const icon = $("theme-toggle").querySelector("svg"), ink = getComputedStyle(icon).color;
   themeSwapping = true;
   root.classList.add("theme-swap");
   root.classList.toggle("to-dark", toDark);
@@ -1344,7 +1345,10 @@ $("theme-toggle").addEventListener("click", async () => {
       { clipPath: toDark ? [open, shut] : [shut, open] },
       { duration: MORPH_MS, easing: EASE_IN_OUT.css, fill: "forwards", pseudoElement: toDark ? "::view-transition-old(root)" : "::view-transition-new(root)" }
     );
+    // Going dark the icon still sits on the light page until the circle closes, so its ink follows the circle
+    const inked = toDark && icon.animate({ color: [ink, getComputedStyle(icon).color] }, { duration: MORPH_MS, easing: EASE_IN_OUT.css });
     await t.finished;
+    if (inked) inked.cancel();
     anim.cancel(); // or its held end carries into the next flip, hiding that one's old page
   } catch {}
   root.classList.remove("theme-swap", "to-dark");

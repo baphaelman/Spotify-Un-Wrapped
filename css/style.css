@@ -959,6 +959,11 @@ button:not(:disabled):active { transform: scale(0.96); }
 .theme-swap:not(.to-dark)::view-transition-new(root) { clip-path: circle(0); }
 .to-dark::view-transition-old(root) { z-index: 2; }
 .to-dark::view-transition-new(root) { z-index: 1; }
+/* The toggle's icon rides above both pages, live, so its turn shows in both directions: going dark it would
+   otherwise sit under the old light page, frozen as a sun, until the circle closes on it */
+.theme-swap #theme-toggle svg { view-transition-name: theme-icon; }
+::view-transition-group(theme-icon), ::view-transition-new(theme-icon) { animation: none; z-index: 3; }
+::view-transition-old(theme-icon) { display: none; }
 .theme-swap :is(body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu) { transition: none !important; }
 
 /* The period label swaps with a quick slide when the period changes */
