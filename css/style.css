@@ -619,13 +619,13 @@ dialog pre {
 
 /* Hovering a filled box (the artist is shown) cuts a minus out of it, so a click reads as "leave them out".
    (.hover stands in for :hover on a box rebuilt under the pointer, see paintArtistKey.) */
-:is(.mix-box, .artist-key .swatch, .all-box) { position: relative; }
-:is(.mix-box, .artist-key .swatch)::before {
+:is(.artist-key .swatch, .all-box) { position: relative; }
+.artist-key .swatch::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 2px; margin: -1px 0 0 -3px; border-radius: 1px;
   background: var(--surface); opacity: 0; pointer-events: none;
   transition: opacity var(--motion-fade) var(--ease-out);
 }
-:is(.mix-box, .artist-key .swatch[aria-pressed="true"]):is(:hover, .hover)::before { opacity: 1; }
+.artist-key .swatch[aria-pressed="true"]:is(:hover, .hover)::before { opacity: 1; }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
@@ -900,10 +900,6 @@ dialog pre {
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 .mix-who { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .mix-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
-.mix-box {
-  flex: none; width: 10px; height: 10px; padding: 0; border: 0; border-radius: 2px;
-  background: var(--c); cursor: pointer;
-}
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }

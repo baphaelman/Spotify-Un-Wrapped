@@ -25,38 +25,25 @@ const span = (cls) => {
   return el;
 };
 
-// A segment reads, top to bottom: its share, then a box and the artist's name; their hours and (plays) sit
-// below it, under the bar. The box hides the artist everywhere (as in the period bar's key); a click anywhere
-// else pins them.
+// A segment reads, top to bottom: its share, then the artist's name; their hours and (plays) sit below it,
+// under the bar. A click pins them.
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
   const label = span("mix-pct");
-  const box = document.createElement("button");
-  box.type = "button";
-  box.className = "mix-box";
-  box.setAttribute("aria-pressed", "true");
   const nameEl = span("mix-name");
   nameEl.textContent = name; // from the user's files
   const who = span("mix-who");
-  who.append(box, nameEl);
+  who.append(nameEl);
   seg.append(label, who);
   const hoursEl = span("mix-hours");
   const playsEl = span("mix-plays");
   const under = span("mix-under");
   under.append(hoursEl, playsEl);
-  const e = { name, seg, label, box, under, hoursEl, playsEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const e = { name, seg, label, under, hoursEl, playsEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
-  box.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    hover(null);
-    if (e.pinnable) return ctx.pins.hide(name);
-    // Everyone else isn't an artist: its box turns off the gray, like its chip in the key
-    $("include-other").checked = false;
-    $("include-other").dispatchEvent(new Event("input"));
-  });
   return e;
 }
 
@@ -194,8 +181,6 @@ export function updateMix(next) {
     e.seg.classList.toggle("off", off);
     tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()})` });
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
-    e.box.title = e.pinnable ? `Hide this ${ctx.noun?.one ?? "artist"} everywhere` : "Hide everyone else";
-    e.box.setAttribute("aria-label", e.pinnable ? `Hide ${name}` : e.box.title);
     const share = e.to.w;
     e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
