@@ -763,7 +763,7 @@ dialog pre {
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 /* The chart legend's pinned chip trims its right padding to make room for an unpin x; this legend has
    none, so keep the box the size it was */
-#mix-legend .mix-legend-item.pinned { padding-right: 10px; }
+#mix-legend .mix-legend-item.pinned, #monthly-legend .mix-legend-item.pinned { padding-right: 10px; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
 .mix-legend-item .name::after {

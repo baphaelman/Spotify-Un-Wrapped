@@ -652,7 +652,7 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
 }
 
-// Hours per month for the chart's artists (same colors, pins and hover), as bars or lines, with its own key beneath
+// Total hours per month with the chart's artists picked out (same colors, pins and hover), as bars or lines, with its own key beneath
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -674,13 +674,26 @@ function paintMonthly(plays = shownPlays()) {
     const label = document.createElement("span");
     label.className = "name";
     label.textContent = n; // artist names come from user files
+    label.dataset.text = n; // read by the CSS that reserves the bold width
     item.append(sw, label);
     item.addEventListener("pointerenter", () => hover(n));
     item.addEventListener("pointerleave", () => hover(null));
     item.addEventListener("click", () => pins.toggle(n));
     return item;
   });
-  $("monthly-legend").replaceChildren(...key);
+  // The month's total isn't an artist, so it's keyed but not pinnable
+  const rest = document.createElement("span");
+  rest.className = "legend-item mix-legend-item";
+  rest.title = state.monthlyMode === "bars" ? "Everyone else" : "Total hours";
+  const restSw = document.createElement("span");
+  restSw.className = "swatch";
+  restSw.style.background = "var(--other)";
+  const restName = document.createElement("span");
+  restName.className = "name";
+  restName.textContent = rest.title;
+  restName.dataset.text = rest.title;
+  rest.append(restSw, restName);
+  $("monthly-legend").replaceChildren(...key, rest);
 }
 
 $("monthly-mode").addEventListener("click", (e) => {

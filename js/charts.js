@@ -715,7 +715,9 @@ export function focusArtist(el, name) {
   rollingState.get(el)?.focusArtist?.(name);
 }
 
-// Hours per month for the chart's artists, as stacked bars or one line each (mode). Drawn like the rolling chart:
+// Total hours per month with the chart's artists picked out of it: stacked bars (the rest of the month is a gray
+// "Everyone else" segment, so each bar is the month's total) or one line per artist plus a gray total line (mode).
+// This is always about the whole month, whatever the "Everyone else" switch says. Drawn like the rolling chart:
 // each artist is a pale tint of their color with an outline; pinned artists and the one hovered (anywhere on the
 // page, through focusMonthly) fill in more strongly while the rest dim. names/slots are the artists and their palette
 // slots; pins is {has, toggle}; hover(name|null) reports the pointer.
@@ -728,13 +730,17 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
   const tick = (r) =>
     oneYear ? r.month.toLocaleDateString(undefined, { month: "short" }) : r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
   const bars = mode === "bars";
-  const colors = names.map((n, k) => t.series[slots[k]]);
+  // The artists, then what's left of the month (bars) or the month itself (lines) in gray
+  const restName = bars ? "Everyone else" : "Total hours";
+  const all = [...names, restName];
+  const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
+  const sum = (r) => r.by.reduce((a, b) => a + b, 0);
+  const valueOf = (r, k) => (k < names.length ? r.by[k] : bars ? Math.max(0, r.hours - sum(r)) : r.hours);
   const c = chart(el);
   const prev = monthlyState.get(el);
-  const st = { names, rows, bars, colors, t, pinned: new Set(names.filter((n) => pins?.has(n))), hovered: prev?.hovered ?? null };
+  const st = { names, all, rows, bars, colors, t, pinned: new Set(names.filter((n) => pins?.has(n))), hovered: prev?.hovered ?? null };
   monthlyState.set(el, st);
   const fresh = !prev || prev.bars !== bars || prev.names.join("\u0000") !== names.join("\u0000");
-  const total = (r) => r.by.reduce((a, b) => a + b, 0);
   c.setOption(
     {
       animationDuration: 600,
@@ -748,11 +754,10 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
         formatter: (p) => {
           if (bars) {
             const r = rows[p.dataIndex];
-            const h = r.by[p.seriesIndex];
-            const all = total(r);
+            const h = valueOf(r, p.seriesIndex);
             return (
               `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${label(r.month)}</span><br>` +
-              `<b>${fmtHours(h)}</b> <span style="opacity:.75">${all ? Math.round((h / all) * 100) : 0}% of these artists' ${fmtHours(all)}</span>`
+              `<b>${fmtHours(h)}</b> <span style="opacity:.75">${r.hours ? Math.round((h / r.hours) * 100) : 0}% of ${fmtHours(r.hours)}</span>`
             );
           }
           const lit = (n) => st.pinned.has(n) || n === st.hovered;
@@ -777,15 +782,15 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: (v) => `${v} h` },
       },
-      series: names.map((n, k) => ({
+      series: all.map((n, k) => ({
         id: `m${k}`,
         name: n,
         type: bars ? "bar" : "line",
         ...(bars ? { stack: "month", barCategoryGap: oneYear ? "30%" : "8%" } : { showSymbol: false, symbol: "circle", symbolSize: 6, smooth: false, triggerLineEvent: true }),
         silent: false,
-        cursor: pins ? "pointer" : "default",
+        cursor: pins && k < names.length ? "pointer" : "default",
         ...monthlyLook(st, k),
-        data: rows.map((r) => r.by[k]),
+        data: rows.map((r) => valueOf(r, k)),
       })),
     },
     { notMerge: fresh }
@@ -793,19 +798,23 @@ export function renderMonthly(el, rows, names = [], slots = [], mode = "bars", p
   c.off("mouseover");
   c.off("mouseout");
   c.off("click");
-  c.on("mouseover", (p) => p.seriesName && hover(p.seriesName));
+  // Only the artists are pinnable (and shared with the rest of the page); the gray series isn't
+  c.on("mouseover", (p) => names.includes(p.seriesName) && hover(p.seriesName));
   c.on("mouseout", () => hover(null));
-  c.on("click", (p) => p.seriesName && pins?.toggle(p.seriesName));
+  c.on("click", (p) => names.includes(p.seriesName) && pins?.toggle(p.seriesName));
 }
 
 // The style of artist k's series: lit (pinned or hovered), dim (something else is lit) or at rest
 function monthlyLook(st, k) {
   const { t, names, colors, bars } = st;
   const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
-  const on = lit.has(names[k]);
+  const rest = k === names.length; // the gray series is never lit
+  const on = !rest && lit.has(names[k]);
   const dim = lit.size && !on;
   const col = colors[k];
   if (bars) {
+    // The gray remainder is the month's total, so it stays readable while an artist is lit, and always has an outline
+    if (rest) return { itemStyle: { color: mix(t.surface, col, 0.22), borderColor: mix(t.surface, col, 0.6), borderWidth: 1 } };
     return {
       itemStyle: {
         color: mix(t.surface, col, on ? t.shade.hover : dim ? t.shade.dim : t.shade.band),
@@ -815,10 +824,10 @@ function monthlyLook(st, k) {
     };
   }
   return {
-    lineStyle: { color: col, width: on ? 3 : 2, opacity: dim ? 0.2 : 1 },
+    lineStyle: { color: col, width: on ? 3 : 2, type: rest ? "dashed" : "solid", opacity: dim ? (rest ? 0.4 : 0.2) : 1 },
     itemStyle: { color: col, opacity: dim ? 0.2 : 1 },
     areaStyle: { color: mix(t.surface, col, t.shade.hover), opacity: on ? t.shade.line / t.shade.hover : 0 },
-    z: on ? 3 : 2,
+    z: on ? 3 : rest ? 1 : 2,
   };
 }
 
@@ -828,7 +837,7 @@ export function focusMonthly(el, name) {
   const c = instances.get(el);
   if (!st || !c) return;
   st.hovered = name != null && st.names.includes(name) ? name : null;
-  c.setOption({ series: st.names.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
+  c.setOption({ series: st.all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
 }
 
 export function renderClock(el, grid) {
