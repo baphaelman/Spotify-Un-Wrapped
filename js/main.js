@@ -747,6 +747,11 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
       look: hidden[i] ? "hidden" : lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
     };
   });
+  // Without "Everyone else" its band stays on top with no thickness, so toggling it morphs
+  if (!$("include-other").checked) {
+    const top = total.map((t) => (t > 0 ? 1 : null));
+    bands.push({ lo: top, hi: top, color: "var(--other)", look: "hidden" });
+  }
   const days = dates.map(agg.dayIndex);
   // The timeline begins where the drawn artists' listening does, not where the chart's data does (that's the
   // same for every artist set, so charts can morph), so a smaller window can cut off more
@@ -1078,8 +1083,13 @@ for (const id of ["n-artists", "window", "include-other"]) {
   $(id).addEventListener("input", () => {
     cancelAnimationFrame(pending);
     // The artist-count slider re-renders continuously as it drags, so it doesn't animate
-    pending = requestAnimationFrame(() =>
-      id === "window" ? sweepWindow() : renderRollingChart(currentZoom($("chart-rolling")), id === "include-other"));
+    pending = requestAnimationFrame(() => {
+      if (id === "window") return sweepWindow();
+      const other = id === "include-other";
+      brushMorph = other ? { ms: MORPH_MS } : null; // the bar's backdrop morphs with the chart
+      renderRollingChart(currentZoom($("chart-rolling")), other);
+      brushMorph = null;
+    });
   });
 }
 
