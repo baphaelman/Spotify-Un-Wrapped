@@ -67,9 +67,8 @@ own folder, so no agent sees another's half-finished edits.
 - `js/brush.js`: the sticky bar's timeline (the rolling chart's stack graph in miniature over the whole
   history, drawn by `paintBrush` in `main.js` from the same data, artists and colors, with pinned or hovered
   artists lit and the rest dimmed; and a draggable window and edges). The 3m/6m/1y buttons rescale the
-  window with its right edge fixed (`resized`). The timeline starts at `agg.activeStart` (the chart's
-  own cut-off of the sparse start, computed over every play so it doesn't move with the artists), while the
-  window can still reach the real first day: dragging the left edge to the end snaps to it. It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
+  window with its right edge fixed (`resized`). The timeline starts where the chart's data does for the artists shown (`start` in `setBrushBands`), so a smaller
+  window can cut off more of the empty left; it only moves between drags. The window can still reach the real first day: dragging the left edge to the end snaps to it. It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
   moved by `setBrushRange`. Drags go through `liveRender` in `main.js`, which slides the rolling chart's
   range every frame (`setZoom`) but redraws artists, lists, stats and the mix bar at most every ~90 ms, or
   3x the last redraw's cost, so dragging stays smooth.

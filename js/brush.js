@@ -14,6 +14,7 @@ let bands = null; // see setBrushBands
 let range = null; // { lo, hi }: the window, day indices, inclusive
 let onChange = () => {};
 let drag = null;
+let keyTimer = 0;
 
 const days = () => model.last - model.first + 1;
 const trackW = () => $("brush-track").clientWidth;
@@ -21,8 +22,8 @@ const xOf = (day) => ((day - model.first) / days()) * trackW();
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-// cb(range) runs on every change the reader makes, as they make it
-export function setupBrush(cb) {
+// cb(range) runs on every change the reader makes, as they make it; done() once they let go
+export function setupBrush(cb, done = () => {}) {
   onChange = cb;
   const track = $("brush-track");
   new ResizeObserver(() => draw()).observe(track);
@@ -60,8 +61,10 @@ export function setupBrush(cb) {
   });
 
   const end = () => {
+    if (!drag) return;
     drag = null;
     track.classList.remove("dragging");
+    done();
   };
   track.addEventListener("pointerup", end);
   track.addEventListener("pointercancel", end);
@@ -71,6 +74,8 @@ export function setupBrush(cb) {
     const dir = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
     if (!dir || !model || !range) return;
     e.preventDefault();
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(done, 250);
     const t = e.target;
     if (t.classList.contains("l")) emit(clamp(range.lo + dir * (e.shiftKey ? 30 : 1), model.min, range.hi - (MIN_DAYS - 1)), range.hi);
     else if (t.classList.contains("r")) emit(range.lo, clamp(range.hi + dir * (e.shiftKey ? 30 : 1), range.lo + MIN_DAYS - 1, model.last));
@@ -97,12 +102,16 @@ export function setBrushData(first, last, min = first) {
 }
 
 // The stack graph in miniature, behind the window: the rolling chart's own artists and colors over the
-// whole history. { days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
+// whole history. { start, days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
 // edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
 // hovered), "dim" (something else is lit) or "rest".
 export function setBrushBands(next) {
   bands = next;
+  // The timeline starts where the bands do (`start`, a day index), but not under the reader's hand: the
+  // pointer is mapped to days by it, so it waits for the drag to end
+  if (next.start != null && !drag && model) model.first = Math.min(next.start, model.last);
   draw();
+  position();
 }
 
 // Moves the window to a range chosen elsewhere (a preset, the step buttons)
@@ -187,6 +196,8 @@ function draw() {
     const x = Math.max(0, xOf(Math.round(Date.UTC(yr, 0, 1) / DAY)));
     if (yr > startYear) el("line", { class: "brush-tick", x1: x, x2: x, y1: 0, y2: H });
     if ((yr - startYear) % every) continue;
+    // The first year's label sits at the left end, so it's left out when the next year's is close behind it
+    if (yr === startYear && xOf(Math.round(Date.UTC(yr + 1, 0, 1) / DAY)) < 40) continue;
     const s = document.createElement("span");
     s.textContent = yr;
     s.style.left = `${x}px`;

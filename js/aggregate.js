@@ -137,22 +137,6 @@ export function rangeHours(table, from, to) {
 
 const START_MIN_SHARE = 0.2; // of the median window's hours, for the chart to begin
 
-// The first day the rolling chart can start on for the whole history: the same rule `rolling` cuts its own
-// start by, but over every play, so it stays put whichever artists are shown. Used for the period brush's
-// left end.
-export function activeStart(plays, window = 45) {
-  const first = dayIndex(plays[0].t);
-  const len = dayIndex(plays[plays.length - 1].t) - first + 1;
-  const pre = new Float64Array(len + 1);
-  for (const p of plays) pre[dayIndex(p.t) - first + 1] += p.ms / HOUR;
-  for (let i = 0; i < len; i++) pre[i + 1] += pre[i];
-  const totals = [];
-  for (let i = 0; i + window <= len; i++) totals.push(pre[i + window] - pre[i]);
-  const active = totals.filter((x) => x > 0).sort((a, b) => a - b);
-  const typical = active[Math.floor(active.length / 2)];
-  const lead = typical ? totals.findIndex((x) => x >= typical * START_MIN_SHARE) : -1;
-  return lead > 0 ? first + lead + Math.floor(window / 2) : first;
-}
 
 // Port of rolling_window.py: a centered rolling sum of daily hours per artist,
 // converted to each artist's share of listening at that point in time.

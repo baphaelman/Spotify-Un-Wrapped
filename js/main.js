@@ -194,8 +194,7 @@ function showDashboard() {
   const sel = $("year-filter");
   sel.replaceChildren(new Option("All time", "all"), ...agg.years(state.plays).map((y) => new Option(y, y)));
   const e = extent();
-  // The timeline starts where the chart does, not at a few stray plays long before the real listening
-  setBrushData(Math.min(e.hi, Math.max(e.lo, agg.activeStart(state.plays))), e.hi, e.lo);
+  setBrushData(e.lo, e.hi);
   // Open on the most recent year; "All time" is one click (or ‹ steps) away
   state.range = null;
   setPeriod(sel.options[sel.options.length - 1].value);
@@ -276,7 +275,7 @@ setupBrush((range) => {
   syncPeriod();
   cancelAnimationFrame(livePending);
   livePending = requestAnimationFrame(liveRender);
-});
+}, paintBrush);
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
 // moves with the bar on scroll (a native dropdown can end up off screen)
@@ -626,7 +625,10 @@ function paintBrush() {
       look: lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
     };
   });
-  setBrushBands({ days: dates.map(agg.dayIndex), bands });
+  const days = dates.map(agg.dayIndex);
+  // The timeline begins where the chart's data does, which depends on the artists shown (the chart cuts
+  // off the stretch before they were listened to), so a smaller window can cut off more
+  setBrushBands({ start: Math.max(extent().lo, days[0]), days, bands });
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
