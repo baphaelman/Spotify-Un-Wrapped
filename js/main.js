@@ -1337,11 +1337,12 @@ $("theme-toggle").addEventListener("click", async () => {
   const t = document.startViewTransition(flipTheme);
   try {
     await t.ready;
-    // Light spreads out from the toggle; going dark, the light is drawn back into it
+    // Light spreads out from the toggle; going dark, the light is drawn back into it. Held at its end (fill), or the
+    // old light page shows whole for a frame before the transition is torn down.
     const open = `circle(${r}px at ${x}px ${y}px)`, shut = `circle(0px at ${x}px ${y}px)`;
     root.animate(
       { clipPath: toDark ? [open, shut] : [shut, open] },
-      { duration: MORPH_MS, easing: EASE_IN_OUT.css, pseudoElement: toDark ? "::view-transition-old(root)" : "::view-transition-new(root)" }
+      { duration: MORPH_MS, easing: EASE_IN_OUT.css, fill: "forwards", pseudoElement: toDark ? "::view-transition-old(root)" : "::view-transition-new(root)" }
     );
     await t.finished;
   } catch {}

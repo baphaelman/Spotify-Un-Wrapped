@@ -951,8 +951,9 @@ body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: bac
 button:not(:disabled):active { transform: scale(0.96); }
 .toplist li { transition: background-color var(--motion-fade) var(--ease-out); }
 
-/* Flipping the theme reveals the new one in a circle growing from the toggle (main.js, a view transition). The
-   colors snap underneath it, so the usual cross-fade is off while it runs. */
+/* Flipping the theme runs a circle at the toggle (main.js, a view transition): light grows out of it, and going dark
+   the old light page shrinks back into it, so it sits on top. The colors snap underneath, so the usual cross-fade
+   is off while it runs. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 .to-dark::view-transition-old(root) { z-index: 2; }
 .to-dark::view-transition-new(root) { z-index: 1; }
