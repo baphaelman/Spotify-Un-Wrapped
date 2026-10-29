@@ -40,6 +40,14 @@ own folder, so no agent sees another's half-finished edits.
   conflicts, re-test, then run `git -C "<main checkout>" merge --ff-only <branch>`. To find the main
   checkout path, run `git worktree list` and use the first row. If the merge refuses, tell the owner
   and don't force it.
+- **Check the rebased branch before merging,** because other agents merge too and a bad rebase has
+  reached `main` before (conflict markers in `index.html`, a page that threw on load):
+  1. `git grep -nE '^(<{7}|={7}|>{7})( |$)' -- index.html css js` must print nothing.
+  2. `python3 dev/harness.py`, then
+     `python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM" /tmp/merge.png 1280 900`
+     must end with the title `DONE` and print no uncaught exceptions.
+  If either fails, fix it on your branch first. After merging, if the owner looks at `main` on 8765,
+  re-run `python3 dev/harness.py` in the main checkout, since its `dev/site/index.html` is a copy.
 - **After merging,** remove the worktree with `ExitWorktree` (`remove`) if you created it in this
   session. Otherwise, from the main checkout, run `git worktree remove <path>` and `git branch -d <branch>`.
 
@@ -62,6 +70,14 @@ reply. They judge the result in their own browser, so don't hand back without a 
 5. **Leave the server running** while the owner reviews and asks for tweaks, and re-use the same port
    and link. Tell them to refresh (Cmd+Shift+R if it looks stale). Stop only your own server
    (`pkill -f "http.server <port>"`) once the work is merged or the owner says they're done.
+
+### Quick tweak mode
+
+When the owner says you're their "tweaker" or asks for quick tweaks (copy, spacing, sizes, a color),
+go fast: make the edit, commit, reply with the link. Skip screenshots and exploration, and read only
+the lines you're changing. Still use a worktree and your own server, and still run the pre-merge
+check when they say "merge". If a tweak turns out to touch chart logic or motion, say so and handle
+it as a normal change.
 
 ## Files
 
