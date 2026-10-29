@@ -199,16 +199,26 @@ export function updateMix(next) {
     for (const e of entries.values()) { e.x = e.to.x; e.w = e.to.w; e.from = e.to; }
     place();
   } else glide();
+  dim();
+}
+
+// The hovered artist's segment and hours stay lit and the rest dim; with no hover, pinned artists stay lit
+let focusName = null;
+function dim() {
+  const focus = focusName == null ? undefined : entries.get(focusName);
+  const pinning = [...entries.values()].some((e) => e.seg.classList.contains("pinned"));
+  for (const e of entries.values()) {
+    const lit = focus ? e === focus : !pinning || e.seg.classList.contains("pinned");
+    e.seg.classList.toggle("dim", !lit);
+    e.hoursEl.classList.toggle("dim", !lit);
+  }
 }
 
 // Light one artist's segment (and dim the rest), from a hover anywhere on the page; null clears
 export function highlightMix(name) {
-  const k = name == null || !ctx ? undefined : entries.get(name);
-  $("mix-bar").classList.toggle("focusing", !!k);
-  for (const e of entries.values()) {
-    const on = e === k;
-    e.seg.classList.toggle("focus", on);
-  }
+  focusName = ctx ? name : null;
+  for (const e of entries.values()) e.seg.classList.toggle("focus", e.name === focusName);
+  dim();
 }
 
 export function setupMix(onHover) {

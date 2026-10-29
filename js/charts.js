@@ -481,8 +481,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       )
     );
 
-  // The band (share) or line (hours) under the pointer, set by the mouse handlers below
+  // The band (share) or line (hours) under the pointer, set by the mouse handlers below. A re-render starts
+  // with nothing focused, so the page is told if something was (clicking to pin re-renders under the pointer),
+  // or the highlights it drew for that artist would stay after the pointer leaves.
   let focused = null;
+  const tellFocus = (name) => {
+    st.focused = name;
+    focusHooks.get(el)?.(name);
+  };
+  if (st.focused != null) tellFocus(null);
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   const shareTooltip = (params) => {
@@ -633,7 +640,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;
     focused = sIndex;
-    focusHooks.get(el)?.(focused == null ? null : names[focused]);
+    tellFocus(focused == null ? null : names[focused]);
     const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
@@ -651,7 +658,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const focusLine = (k) => {
     if (k === focused) return;
     focused = k;
-    focusHooks.get(el)?.(focused == null ? null : names[focused]);
+    tellFocus(focused == null ? null : names[focused]);
     const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
