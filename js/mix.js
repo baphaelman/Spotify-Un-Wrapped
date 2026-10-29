@@ -29,7 +29,7 @@ function makeEntry(name) {
   const e = { name, seg, label, item: null, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
-  seg.addEventListener("click", () => e.pinnable && ctx.pins.toggle(name));
+  seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
   return e;
 }
 
@@ -40,8 +40,6 @@ function makeItem(e) {
   const sw = document.createElement("button");
   sw.type = "button";
   sw.className = "swatch";
-  sw.title = `Hide ${e.name}`;
-  sw.setAttribute("aria-label", sw.title);
   sw.addEventListener("click", (ev) => {
     ev.stopPropagation();
     hover(null);
@@ -54,7 +52,7 @@ function makeItem(e) {
   item.append(sw, label);
   item.addEventListener("pointerenter", () => hover(e.name));
   item.addEventListener("pointerleave", () => hover(null));
-  item.addEventListener("click", () => e.pinnable && ctx.pins.toggle(e.name));
+  item.addEventListener("click", () => e.pinnable && (e.off ? ctx.pins.hide(e.name) : ctx.pins.toggle(e.name)));
   return item;
 }
 
@@ -106,8 +104,11 @@ function glide() {
 // their palette slots; lo/hi: the period's first and last day.
 export function updateMix(next) {
   ctx = next;
-  const { table, names, slots, hasOther, lo, hi } = ctx;
-  const { hours, total } = rangeHours(table, lo, hi);
+  const { table, names, slots, hasOther, lo, hi, hidden } = ctx;
+  const range = rangeHours(table, lo, hi);
+  // Deselected artists keep their legend entry (dimmed) but have no share of the bar, and the rest fill it
+  const hours = range.hours.map((h, i) => (hidden.has(names[i]) ? 0 : h));
+  const total = hours.reduce((a, b) => a + b, 0);
   const bar = $("mix-bar");
   const legend = $("mix-legend");
 
@@ -179,10 +180,17 @@ export function updateMix(next) {
       el.classList.toggle("pinnable", e.pinnable);
       el.classList.toggle("pinned", pinned);
     }
-    e.item.firstChild.style.background = color;
-    e.item.firstChild.disabled = !e.pinnable; // "Everyone else" has no box to untick
+    const off = hidden.has(name);
+    e.off = off;
+    e.item.classList.toggle("hidden-artist", off);
+    e.seg.classList.toggle("off", off);
+    const sw = e.item.firstChild;
+    sw.setAttribute("aria-pressed", !off);
+    sw.title = off ? `Show ${name}` : `Hide ${name}`;
+    sw.setAttribute("aria-label", sw.title);
+    sw.disabled = !e.pinnable; // "Everyone else" has no box to untick
     const share = e.to.w;
-    e.seg.title = `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
+    e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
   for (const e of entries.values()) if (e.leaving) e.from = { x: e.x, w: e.w };
 

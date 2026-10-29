@@ -553,37 +553,20 @@ dialog pre {
 .toplist li.pinned .pin-mark { display: block; }
 .toplist.pinnable .val { margin-right: 16px; }
 
-/* The box that shows or hides an artist everywhere: filled with their color and ticked while they're shown. Only
-   shown artists are in the lists, so it's always ticked here; unticking drops them from the list */
-.show-box, .mix-legend-item .swatch {
-  position: relative;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: var(--c, var(--other));
-  color: var(--surface);
-  cursor: pointer;
-  flex: none;
+/* Top artists' box: the same swatch as the legends (filled while shown); only shown artists are listed, so it's always filled */
+.toplist .show-box {
+  width: 10px; height: 10px; padding: 0; border: 0; border-radius: 2px; flex: none; align-self: center;
+  background: var(--c, var(--other)); cursor: pointer;
 }
-.show-box::after, .mix-legend-item .swatch:not(:disabled)::after {
-  content: "";
-  position: absolute;
-  left: 3.5px;
-  top: 1px;
-  width: 3px;
-  height: 6px;
-  border: solid currentColor;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
-}
-.show-box:disabled, .mix-legend-item .swatch:disabled { cursor: default; }
-.show-box:disabled { opacity: 0.45; }
-.show-box:not(:disabled):hover, .mix-legend-item .swatch:not(:disabled):hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
-.show-box:focus-visible, .mix-legend-item .swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.toplist li:has(.show-box) { grid-template-columns: 12px 2ch 1fr auto; }
-.toplist .show-box { align-self: center; }
+.toplist .show-box:disabled { opacity: 0.45; cursor: default; }
+.toplist .show-box:not(:disabled):hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
+.toplist li:has(.show-box) { grid-template-columns: 10px 2ch 1fr auto; }
+/* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
+.mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
+.mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
+.mix-legend-item .swatch:disabled { cursor: default; }
+.mix-legend-item.hidden-artist { opacity: 0.4; }
+.mix-seg.off { pointer-events: none; }
 
 @media (max-width: 600px) {
   .topbar { flex-wrap: wrap; row-gap: 8px; }

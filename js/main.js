@@ -487,7 +487,8 @@ function renderTopList(ol, items, detail, artistOf, pinnable = false) {
       });
       const box = document.createElement("button");
       box.type = "button";
-      box.className = "show-box";
+      box.className = "swatch show-box";
+      box.setAttribute("aria-pressed", "true");
       box.addEventListener("click", (e) => {
         e.stopPropagation();
         focusArtist($("chart-rolling"), null);
@@ -673,22 +674,25 @@ function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
   // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
-  const names = artists.filter((a) => !state.hidden.includes(a) && state.colorSlots.has(a));
+  const keyed = artists.filter((a) => state.colorSlots.has(a));
+  const names = keyed.filter((a) => !state.hidden.includes(a));
   const slots = names.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   renderMonthly($("chart-monthly"), agg.monthly(plays, names), names, slots, pins, hover);
-  const key = names.map((n, k) => {
-    const pinned = pins.has(n);
+  // Deselected artists stay in the key, dimmed, so they can be ticked back on
+  const key = keyed.map((n) => {
+    const off = state.hidden.includes(n);
+    const pinned = !off && pins.has(n);
     const item = document.createElement("span");
-    item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "");
-    const color = `var(--series-${slots[k] + 1})`;
+    item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "") + (off ? " hidden-artist" : "");
+    const color = `var(--series-${state.colorSlots.get(n) + 1})`;
     item.style.setProperty("--c", color);
-    item.title = pinned ? `Unpin ${n}` : `Pin ${n}`;
+    item.title = off ? `Show ${n}` : pinned ? `Unpin ${n}` : `Pin ${n}`;
     const sw = document.createElement("button");
     sw.type = "button";
     sw.className = "swatch";
-    sw.style.background = color;
-    sw.title = `Hide ${n}`;
+    sw.setAttribute("aria-pressed", !off);
+    sw.title = off ? `Show ${n}` : `Hide ${n}`;
     sw.setAttribute("aria-label", sw.title);
     sw.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -702,7 +706,7 @@ function paintMonthly(plays = shownPlays()) {
     item.append(sw, label);
     item.addEventListener("pointerenter", () => hover(n));
     item.addEventListener("pointerleave", () => hover(null));
-    item.addEventListener("click", () => pins.toggle(n));
+    item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));
     return item;
   });
   // The month's total isn't an artist, so it's keyed but not pinnable
@@ -727,13 +731,13 @@ function renderMix(artists, slots, includeOther, pins) {
   mixArgs = [artists, slots, includeOther, pins];
   const key = [state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
-  // Deselected artists drop out of the bar, and the rest fill it
+  // Deselected artists stay in the key but drop out of the bar (see updateMix)
   const all = includeOther ? [...artists, "Everyone else"] : artists;
-  const rows = all.map((_, i) => i).filter((i) => !state.hidden.includes(all[i]));
   updateMix({
-    table: { ...mixMemo.table, prefix: rows.map((i) => mixMemo.table.prefix[i]) },
-    names: rows.map((i) => all[i]),
-    slots: slots && rows.map((i) => slots[i]),
+    table: mixMemo.table,
+    names: all,
+    slots,
+    hidden: new Set(state.hidden),
     pins,
     hasOther: includeOther,
     periodLabel: presetLabel(),
