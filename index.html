@@ -76,9 +76,34 @@
             <h2>Top Artists View</h2>
             <p class="muted" id="rolling-sub"></p>
           </div>
-          <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
-            <button type="button" data-mode="share" aria-pressed="true">Share</button>
-            <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+          <div class="tav-side">
+            <div class="tav-toggles">
+              <div id="smoothify" class="segmented" role="group" aria-label="Smoothify: round off the curves">
+                <button type="button" data-level="0" aria-pressed="true">Off</button>
+                <button type="button" data-level="1" aria-pressed="false">Low</button>
+                <button type="button" data-level="2" aria-pressed="false">High</button>
+              </div>
+              <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
+                <button type="button" data-mode="share" aria-pressed="true">Share</button>
+                <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+              </div>
+            </div>
+            <div class="tav-sliders">
+            <div class="slider">
+              <label class="slider-label" for="n-artists">Artists</label>
+              <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
+              <div class="ticks" aria-hidden="true">
+                <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
+              </div>
+            </div>
+            <div class="slider">
+              <label class="slider-label" for="window">Smoothing</label>
+              <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
+              <div class="ticks" aria-hidden="true">
+                <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
+              </div>
+            </div>
+            </div>
           </div>
         </div>
         <div class="tav-controls">
@@ -90,26 +115,6 @@
             <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
           </div>
           <div class="chart-legend pinned-legend"></div>
-          <span class="spacer"></span>
-          <div class="slider" title="Artists">
-            <label class="sr-only" for="n-artists">Artists</label>
-            <input id="n-artists" type="range" min="3" max="8" step="1" value="8">
-            <div class="ticks" aria-hidden="true">
-              <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span>
-            </div>
-          </div>
-          <div class="slider" title="Smoothing, days per point">
-            <label class="sr-only" for="window">Smoothing, days per point</label>
-            <input id="window" type="range" min="0" max="4" step="1" value="2" aria-valuetext="45 days">
-            <div class="ticks" aria-hidden="true">
-              <span data-v="0">7</span><span data-v="1">30</span><span data-v="2">45</span><span data-v="3">90</span><span data-v="4">180</span>
-            </div>
-          </div>
-          <div id="smoothify" class="segmented" role="group" aria-label="Smoothify: round off the curves">
-            <button type="button" data-level="0" aria-pressed="true">Off</button>
-            <button type="button" data-level="1" aria-pressed="false">Low</button>
-            <button type="button" data-level="2" aria-pressed="false">High</button>
-          </div>
         </div>
         <div class="tav-legend">
           <div class="chart-legend top-legend"></div>
