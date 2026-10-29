@@ -126,8 +126,8 @@ button.ghost:hover { background: var(--border); }
 /* Period picker: a button with its label on the left and chevron on the right (flipping up while open), and a menu that hangs
    from it inside the sticky bar. Fixed width so the bar doesn't shift between "All time" and a year. */
 .year-picker { position: relative; }
-#year-button { display: flex; align-items: center; gap: 10px; min-width: 104px; text-align: left; }
-#year-label { flex: 1; }
+#year-button { display: flex; align-items: center; gap: 8px; min-width: 82px; padding: 6px 9px 6px 10px; text-align: left; }
+#year-label { flex: 1; font-weight: 600; }
 #year-button::after {
   content: "";
   flex: none;
