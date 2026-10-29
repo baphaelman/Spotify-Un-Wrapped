@@ -181,7 +181,13 @@
       </div>
 
       <article class="card">
-        <h2>Hours per month</h2>
+        <div class="card-head">
+          <h2>Hours per month</h2>
+          <div id="monthly-mode" class="segmented solid" role="group" aria-label="Chart type">
+            <button type="button" data-mode="bars" aria-pressed="true">Bars</button>
+            <button type="button" data-mode="lines" aria-pressed="false">Lines</button>
+          </div>
+        </div>
         <div id="chart-monthly" class="chart"></div>
         <div class="chart-legend" id="monthly-legend"></div>
       </article>

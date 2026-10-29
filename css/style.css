@@ -844,3 +844,5 @@ button:not(:disabled):active { transform: scale(0.96); }
   .landing > *, .dashboard .stat, .dashboard .card, .year-menu, .palette-menu, .artist-results, dialog[open], dialog[open]::backdrop, #year-label.swap { animation: none !important; }
   .stat:hover, button:active { transform: none !important; }
 }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.card-head h2 { margin: 0; }
