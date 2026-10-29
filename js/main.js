@@ -1340,11 +1340,12 @@ $("theme-toggle").addEventListener("click", async () => {
     // Light spreads out from the toggle; going dark, the light is drawn back into it. Held at its end (fill), or the
     // old light page shows whole for a frame before the transition is torn down.
     const open = `circle(${r}px at ${x}px ${y}px)`, shut = `circle(0px at ${x}px ${y}px)`;
-    root.animate(
+    const anim = root.animate(
       { clipPath: toDark ? [open, shut] : [shut, open] },
       { duration: MORPH_MS, easing: EASE_IN_OUT.css, fill: "forwards", pseudoElement: toDark ? "::view-transition-old(root)" : "::view-transition-new(root)" }
     );
     await t.finished;
+    anim.cancel(); // or its held end carries into the next flip, hiding that one's old page
   } catch {}
   root.classList.remove("theme-swap", "to-dark");
   themeSwapping = false;
