@@ -111,6 +111,17 @@ code { font-size: 0.9em; }
   margin: 0 auto;
   padding: 16px;
 }
+/* The top of the page (this bar, the dashboard's actions and the period bar) is one band in --surface-2
+   across the whole window, ending in the period bar's line and fade. A shadow as wide as the window, clipped
+   to the element's own height (and its gap below), paints the band behind each one's column. Where there's
+   no period bar (landing, community) the band ends in the same line under this bar. */
+.topbar, .dash-actions { background: var(--surface-2); box-shadow: 0 0 0 100vmax var(--surface-2); clip-path: inset(0 -100vmax); }
+.dash-actions { clip-path: inset(0 -100vmax -8px); }
+.topbar { position: relative; }
+body:not(:has(#dashboard:not([hidden]))) .topbar { clip-path: inset(0 -100vmax -1px); }
+/* The line is the column's width, painted out to the window's edges by a border image's outset, which (unlike
+   a wider box) doesn't make the page scroll sideways */
+body:not(:has(#dashboard:not([hidden]))) .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; border-image: linear-gradient(var(--axis), var(--axis)) fill 0 / 0 / 0 100vmax; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
 
@@ -212,7 +223,7 @@ button.ghost:hover { background: var(--border); }
 .filters .step { padding: 6px 10px; }
 .filters .step:disabled { opacity: 0.3; cursor: default; }
 /* The period bar spans the whole window (its content stays in the page's column), a step lighter than the
-   page, with a hairline above and a firmer line below, then a short fade into the page beneath it. Once it's
+   page like the rest of the top band, with a firm line below, then a short fade into the page beneath it. Once it's
    pinned to the top, the content scrolling under the fade softens into it. */
 .filters.sticky {
   position: sticky;
@@ -221,7 +232,6 @@ button.ghost:hover { background: var(--border); }
   margin: 0 calc(50% - 50vw) 16px;
   padding: 12px calc(50vw - 50%);
   background: var(--surface-2);
-  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--axis);
 }
 .filters.sticky::after {
