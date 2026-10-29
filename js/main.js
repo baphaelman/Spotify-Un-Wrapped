@@ -810,7 +810,7 @@ function paintArtistKey() {
     return { borderColor: cs.borderColor, backgroundColor: cs.backgroundColor, opacity: cs.opacity };
   };
   const looked = new Map([...chips(key)].map(([n, el]) => [n, looks(el)]));
-  // The boxes' minus and plus (and the all box's tick) turn into each other the same way. The box under the
+  // The boxes' minus (and the all box's tick or plus) fades the same way. The box under the
   // pointer is rebuilt too, and a new element can miss :hover until the pointer moves, so .hover stands in
   const boxes = (root) => [...chips(root), ["\u0000all", root.querySelector(".legend-all")]].filter(([, el]) => el);
   const boxOf = (unit) => unit.querySelector(".swatch") ?? unit;
@@ -878,9 +878,10 @@ function paintArtistKey() {
     $("include-other").dispatchEvent(new Event("input"));
   });
   items.push(rest);
-  // As in the rolling chart, the box leaves pinned artists alone. Checked when every unpinned artist is
-  // shown, mixed when some are; a click shows them all, or hides them all once they're all shown
-  const top = keyed.filter((n) => !pins.has(n));
+  // As in the rolling chart, the box leaves shown pinned artists alone (a hidden one it brings back like the
+  // rest). Checked when they're all shown, a plus when some can come back; a click shows them all, or hides
+  // them all once they're all shown
+  const top = keyed.filter((n) => !pins.has(n) || state.hidden.includes(n));
   const on = top.filter((n) => !state.hidden.includes(n)).length;
   const box = document.createElement("button");
   box.type = "button";
@@ -893,7 +894,7 @@ function paintArtistKey() {
   mark.className = "all-box";
   const glyph = document.createElement("span");
   glyph.className = "all-glyph";
-  glyph.textContent = on === top.length ? "✓" : on ? "–" : "";
+  glyph.textContent = on === top.length ? "✓" : "+";
   mark.append(glyph);
   box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
@@ -924,20 +925,19 @@ function paintArtistKey() {
     if (!was) continue;
     markLooks(el).forEach((now, i) => {
       if (Object.keys(now.look).every((k) => now.look[k] === was[i].look[k])) return;
-      now.el.animate([was[i].look, now.look], { duration: GROW_MS, easing: EASE_OUT.css, pseudoElement: now.pseudo });
+      now.el.animate([was[i]?.look ?? now.look, now.look], { duration: GROW_MS, easing: EASE_OUT.css, pseudoElement: now.pseudo });
     });
   }
 }
 
-// How a key box's hover marks look: the box's fill, its minus (::before) and the plus's upright (::after), and
-// the all box's tick
-const MARK_PARTS = [[".swatch", undefined], [".swatch", "::before"], [".swatch", "::after"], [".all-box", "::before"], [".all-box", "::after"], [".all-glyph", undefined]];
+// How a key box's hover marks look: the box's fill and its minus (::before), and the all box's tick or plus
+const MARK_PARTS = [[".swatch", undefined], [".swatch", "::before"], [".all-box", "::before"], [".all-glyph", undefined]];
 function markLooks(unit) {
   return MARK_PARTS.flatMap(([sel, pseudo]) => {
     const el = unit.querySelector(sel);
     if (!el) return [];
     const cs = getComputedStyle(el, pseudo);
-    return [{ el, pseudo, look: { backgroundColor: cs.backgroundColor, opacity: cs.opacity, height: cs.height } }];
+    return [{ el, pseudo, look: { backgroundColor: cs.backgroundColor, opacity: cs.opacity } }];
   });
 }
 
