@@ -381,8 +381,8 @@ button.ghost:hover { background: var(--border); }
 .artist-key .legend-item .name { padding: 0; }
 /* Pinned and hovered chips are marked by their tint and outline, not bold, which would ellipsize more of a
    squeezed name */
-.artist-key .legend-item.pinned { padding-right: 10px; }
-.artist-key .legend-item.pinned, .artist-key .legend-item.focus { font-weight: 400; }
+.bar-artists .artist-key .legend-item.pinned { padding-right: 10px; }
+.bar-artists .artist-key .legend-item.pinned, .bar-artists .artist-key .legend-item.focus { font-weight: 400; }
 /* Everyone else is the key's last chip and always reads in full */
 .artist-key .other-chip { flex: none; }
 /* The artist count, on the bar's first row beside the window lengths. The track is centered on the row, with
