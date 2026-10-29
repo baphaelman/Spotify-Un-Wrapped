@@ -34,10 +34,7 @@ own folder, so no agent sees another's half-finished edits.
   `artist-search`). This creates `.claude/worktrees/<name>/` on a new branch from local `main`.
   `.claude/settings.json` sets `worktree.baseRef: head` because `origin/main` lags behind local `main`.
   Skip this step only if `git worktree list` shows you're already in one.
-- **Use your own server port.** The main folder uses 8765. In a worktree, pick 8766 or higher after
-  checking that `lsof -i :<port>` shows nothing. Run `python3 dev/harness.py` first, since `dev/site/`
-  isn't in git. Stop only your own server (`pkill -f "http.server <your port>"`).
-  Give the owner the `http://localhost:<port>/` link so they can check it in a real browser.
+- **Use your own server port** (see "Showing changes to the owner").
 - **Commit on your branch** whenever something works (see Ground rules).
 - **Merge into `main` only when the owner approves.** In the worktree, run `git rebase main`, fix any
   conflicts, re-test, then run `git -C "<main checkout>" merge --ff-only <branch>`. To find the main
@@ -45,6 +42,26 @@ own folder, so no agent sees another's half-finished edits.
   and don't force it.
 - **After merging,** remove the worktree with `ExitWorktree` (`remove`) if you created it in this
   session. Otherwise, from the main checkout, run `git worktree remove <path>` and `git branch -d <branch>`.
+
+## Showing changes to the owner
+
+Whenever the owner asks for a change, finish it, start a live server and send them the link in your
+reply. They judge the result in their own browser, so don't hand back without a link.
+
+1. **Build the test site:** `python3 dev/harness.py` (`dev/site/` isn't in git, so each worktree needs
+   its own). `dev/site/` links to your `css/` and `js/`, so later edits to those show on a browser
+   refresh. Only `index.html` changes need the harness re-run.
+2. **Pick your own port.** The main folder uses 8765. In a worktree, pick 8766 or higher after checking
+   that `lsof -i :<port>` shows nothing, so agents don't collide.
+3. **Start it in the background:** `(cd dev/site && python3 -m http.server <port> >/dev/null 2>&1 &)`
+4. **Check it responds** (`curl -sI http://localhost:<port>/test.html | head -1`), then send the link:
+   - `http://localhost:<port>/test.html`: loads the owner's history automatically, so they see the
+     change with real data. Add a hash to land on the right view (`#hours`, `#community`, `#n5`; see
+     `dev/harness.py`).
+   - Say in one line what to look at and what to try (for example "hover a band in Hours mode").
+5. **Leave the server running** while the owner reviews and asks for tweaks, and re-use the same port
+   and link. Tell them to refresh (Cmd+Shift+R if it looks stale). Stop only your own server
+   (`pkill -f "http.server <port>"`) once the work is merged or the owner says they're done.
 
 ## Files
 
