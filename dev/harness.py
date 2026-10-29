@@ -4,6 +4,7 @@
 # Then serve it:  cd dev/site && python3 -m http.server 8765
 #   test.html  loads the data, then runs the hash actions below, then sets document.title = "DONE"
 #              #hours  switch to Hours · #community  open Community · #preview  open the share preview
+#              #tracks / #albums  the Tracks or Albums view
 #              #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-hours)
 #   plain.html reopens data remembered from an earlier test.html visit; title "DONE <ms>" once shown
 import json, os, subprocess, sys
@@ -39,6 +40,8 @@ const h = location.hash;
 const setArtists = (n) => { q("n-artists").value = n; q("n-artists").dispatchEvent(new Event("input")); };
 if (h.includes("five")) { q("include-other").checked = true; setArtists(5); await sleep(600); }
 if (h.includes("n5")) { setArtists(5); await sleep(600); }
+if (h.includes("tracks")) { document.querySelector('#view-tabs [data-dim="track"]').click(); await sleep(1500); }
+if (h.includes("albums")) { document.querySelector('#view-tabs [data-dim="album"]').click(); await sleep(1500); }
 if (h.includes("hours")) { document.querySelector('#rolling-mode [data-mode="hours"]').click(); await sleep(1500); }
 if (h.includes("community")) { q("tab-community").click(); await sleep(2500); }
 if (h.includes("preview")) q("share-preview").click();

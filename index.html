@@ -83,10 +83,10 @@
           <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
         </div>
         <div id="period-range" class="period-range" aria-live="off"></div>
-        <!-- How many artists every graph shows -->
+        <!-- How many artists (or tracks, or albums) every graph shows -->
         <div class="bar-opts">
           <div class="slider">
-            <label class="slider-label" for="n-artists">Artists</label>
+            <label id="n-label" class="slider-label" for="n-artists">Artists</label>
             <input id="n-artists" type="range" min="3" max="10" step="1" value="8">
             <div class="ticks" aria-hidden="true">
               <span data-v="3">3</span><span data-v="4">4</span><span data-v="5">5</span><span data-v="6">6</span><span data-v="7">7</span><span data-v="8">8</span><span data-v="9">9</span><span data-v="10">10</span>
@@ -131,12 +131,19 @@
         </div>
       </div>
 
+      <!-- What every graph is about: the period bar's slider, search and key follow it (main.js setDim) -->
+      <div id="view-tabs" class="segmented solid view-tabs" role="group" aria-label="Graphs by">
+        <button type="button" data-dim="artist" aria-pressed="true">Artists</button>
+        <button type="button" data-dim="track" aria-pressed="false">Tracks</button>
+        <button type="button" data-dim="album" aria-pressed="false">Albums</button>
+      </div>
+
       <div id="stats" class="stats"></div>
 
       <article class="card">
         <div class="tav-head">
           <div>
-            <h2>Top Artists View</h2>
+            <h2 id="rolling-title">Top Artists View</h2>
             <p class="muted" id="rolling-sub"></p>
             <div class="slider tav-window">
               <label class="slider-label" for="window">Days per slice</label>
@@ -199,7 +206,7 @@
 
       <article class="card">
         <h2>When you listened</h2>
-        <p class="muted">Who you listen to through each day of the week, as a share of that time, in your local time zone (better with a smaller window size)</p>
+        <p class="muted" id="clock-note">Who you listen to through each day of the week, as a share of that time, in your local time zone (better with a smaller window size)</p>
         <div id="chart-clock" class="chart"></div>
       </article>
     </section>

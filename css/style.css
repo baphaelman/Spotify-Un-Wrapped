@@ -339,6 +339,10 @@ button.ghost:hover { background: var(--border); }
   color: #0a0c0e;
 }
 
+/* Artists, tracks or albums: the page's own views, above the stats */
+.view-tabs { width: fit-content; margin-bottom: 12px; }
+.view-tabs button { padding: 6px 16px; font-size: 14px; }
+
 .stats {
   display: grid;
   grid-template-columns: 2fr repeat(3, 1fr);

@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
@@ -16,9 +16,12 @@ const $ = (id) => document.getElementById(id);
 // it, and the presets in the dropdown are just ranges (a year, or all time).
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
+// raw: the plays as loaded. plays: the same plays as the current view (dim) sees them, where "artist" can be a
+// track or an album (see keyedPlays); owner: each track's or album's artist in that view. dims: the pins,
+// hidden names and colors each view had when the reader left it.
 const state = {
-  plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
-  pinned: [], hidden: [], artists: [], colorSlots: new Map(),
+  raw: null, plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
+  pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
 };
 
 // ---------- Loading ----------
@@ -43,10 +46,13 @@ async function load(files) {
 }
 
 async function open(plays) {
-  state.plays = plays;
-  state.artists = agg.topArtists(plays, Infinity);
+  state.raw = plays;
   state.pinned = [];
+  state.hidden = [];
   state.colorSlots = new Map();
+  state.dims = new Map();
+  setHidden($("chart-rolling"), []);
+  applyDim();
   state.key = await submissionKey(plays);
   state.shared = null;
   setStatus("");
@@ -76,10 +82,11 @@ $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 
 $("reset").addEventListener("click", () => {
   clearPlays();
-  state.plays = state.key = state.shared = null;
+  state.raw = state.plays = state.key = state.shared = null;
   state.pinned = [];
   state.artists = [];
   state.colorSlots = new Map();
+  state.dims = new Map();
   $("file-input").value = "";
   showView("you");
 });
@@ -96,7 +103,7 @@ function showView(view) {
   // The settings act on loaded data, so there's nothing to show before an upload
   $("settings-button").hidden = !state.plays;
   closeSettings();
-  if (view === "community") renderCommunity(state.plays);
+  if (view === "community") renderCommunity(state.raw);
 }
 
 // The settings menu: sharing and forgetting the loaded data, behind the gear in the top bar
@@ -158,7 +165,7 @@ async function refreshShareState() {
 async function share() {
   renderShareState("Sharing…");
   try {
-    await api.submitSummary(state.key, buildSummary(state.plays));
+    await api.submitSummary(state.key, buildSummary(state.raw));
     state.shared = true;
     renderShareState();
   } catch (err) {
@@ -174,7 +181,7 @@ async function unshare() {
     await api.deleteSummary(state.key);
     state.shared = false;
     renderShareState();
-    if (state.view === "community") renderCommunity(state.plays);
+    if (state.view === "community") renderCommunity(state.raw);
   } catch (err) {
     console.error(err);
     renderShareState(`Couldn't remove: ${err.message}`);
@@ -185,7 +192,7 @@ $("share-toggle").addEventListener("click", share);
 $("share-remove").addEventListener("click", unshare);
 $("share-preview").addEventListener("click", () => {
   // One line per artist/track entry so it's easy to scan
-  const entries = Object.entries(buildSummary(state.plays)).map(([k, v]) =>
+  const entries = Object.entries(buildSummary(state.raw)).map(([k, v]) =>
     `  "${k}": ` +
     (Array.isArray(v) && Array.isArray(v[0]) ? `[\n${v.map((x) => "    " + JSON.stringify(x)).join(",\n")}\n  ]` : JSON.stringify(v))
   );
@@ -193,6 +200,92 @@ $("share-preview").addEventListener("click", () => {
   $("preview-dialog").showModal();
 });
 $("preview-close").addEventListener("click", () => $("preview-dialog").close());
+
+// ---------- Artists, tracks or albums ----------
+
+// Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
+// `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period
+// bar's slider, search, key and pins work on any of them unchanged. Only the words differ.
+const NOUN = {
+  artist: { one: "artist", many: "artists", Many: "Artists", a: "an artist", who: "Who" },
+  track: { one: "track", many: "tracks", Many: "Tracks", a: "a track", who: "What" },
+  album: { one: "album", many: "albums", Many: "Albums", a: "an album", who: "What" },
+};
+const noun = () => NOUN[state.dim];
+
+// A track or album is called by its name, with its artist after it where more than one artist has that name
+// (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
+let keyedMemo = new Map();
+function keyedPlays(dim) {
+  if (dim === "artist") return { plays: state.raw, owner: null };
+  const memo = keyedMemo.get(dim);
+  if (memo?.raw === state.raw) return memo;
+  const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
+  const artistsOf = new Map();
+  for (const p of state.raw) {
+    const n = nameOf(p);
+    if (!artistsOf.has(n)) artistsOf.set(n, new Set());
+    artistsOf.get(n).add(p.artist);
+  }
+  const keys = new Map(); // name + artist -> what the view calls it
+  const owner = new Map(); // what the view calls it -> artist
+  const plays = state.raw.map((p) => {
+    const n = nameOf(p), id = n + "\u0000" + p.artist;
+    let key = keys.get(id);
+    if (key === undefined) {
+      key = artistsOf.get(n).size > 1 || n === "Everyone else" ? `${n} · ${p.artist}` : n;
+      keys.set(id, key);
+      owner.set(key, p.artist);
+    }
+    return { ...p, artist: key, by: p.artist };
+  });
+  const out = { raw: state.raw, plays, owner };
+  keyedMemo.set(dim, out);
+  return out;
+}
+
+// Puts the view's plays and words in place (the graphs are drawn by the caller)
+function applyDim() {
+  ({ plays: state.plays, owner: state.owner } = keyedPlays(state.dim));
+  state.artists = agg.topArtists(state.plays, Infinity);
+  const w = noun();
+  $("n-label").textContent = w.Many;
+  $("artist-search").placeholder = `Pin ${w.a}…`;
+  $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
+  $("rolling-title").textContent = `Top ${w.Many} View`;
+  $("clock-note").textContent = `${w.who} you listen to through each day of the week, as a share of that time, in your local time zone (better with a smaller window size)`;
+  // The older account-data export has no albums
+  $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
+  for (const b of $("view-tabs").children) b.setAttribute("aria-pressed", b.dataset.dim === state.dim);
+}
+
+// Another view: its pins, hidden names and colors come back as the reader left them, and every graph morphs
+// from the old view's names to the new one's
+function setDim(dim) {
+  if (dim === state.dim || !state.raw) return;
+  // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not
+  state.dims.set(state.dim, { pinned: state.pinned, hidden: state.hidden, kept: hiddenIn($("chart-rolling")), colorSlots: state.colorSlots });
+  const saved = state.dims.get(dim) ?? { pinned: [], hidden: [], kept: [], colorSlots: new Map() };
+  state.dim = dim;
+  state.pinned = saved.pinned;
+  state.colorSlots = saved.colorSlots;
+  state.hidden = saved.hidden;
+  setHidden($("chart-rolling"), saved.kept);
+  closeResults();
+  applyDim();
+  // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
+  // old view's names over the new plays first
+  mixArgs = null;
+  renderDependents();
+  brushMorph = { ms: MORPH_MS };
+  renderRollingChart(periodZoom(), true);
+  brushMorph = null;
+}
+
+$("view-tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setDim(b.dataset.dim);
+});
 
 // ---------- Dashboard ----------
 
@@ -471,7 +564,9 @@ function shownPlays() {
 function renderDependents() {
   const plays = shownPlays();
   renderStats(plays);
-  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist, { pin: true });
+  // Each track row belongs to what the view is about: its artist, the track itself, or its album
+  const detail = state.dim === "album" ? (t) => `${t.artist} · ${t.album || "Unknown album"}` : (t) => t.artist;
+  renderTopList($("top-tracks"), agg.topTracks(plays, 10), detail, (t) => t.key, { pin: true });
   paintMonthly(plays);
   paintClock(plays);
   paintTopLists();
@@ -491,7 +586,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
 function renderStats(plays) {
   if (!plays.length) {
     renderTiles($("stats"), [
-      { label: "Hours listened", value: "0", sub: "no artists shown", hero: true },
+      { label: "Hours listened", value: "0", sub: `no ${noun().many} shown`, hero: true },
       { label: "Plays", value: "0", sub: "" },
       { label: "Artists", value: "0", sub: "unique" },
       { label: "Tracks", value: "0", sub: "unique" },
@@ -613,9 +708,9 @@ function clampZoom(zoom, dates) {
 function rollingSub(n, target, includeOther) {
   return (state.rollingMode === "share"
     ? `Share of listening time, ${target}-day rolling window` +
-      (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
+      (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`)
     : `Hours per week, ${target}-day rolling average`) +
-    (presetOf(state.range) === "all" ? "" : `, top artists of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
+    (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
 }
 
 // Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
@@ -661,7 +756,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
-  const key = [state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
+  const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid) };
   const raw = rawMemo.raw;
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
@@ -768,7 +863,7 @@ function paintMonthly(plays = shownPlays()) {
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const span = agg.monthSpan(plays);
   $("monthly-title").textContent = `Hours ${SPAN_WORDS[span][0]}`;
-  $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top artist on top`;
+  $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top ${noun().one} on top`;
   const other = $("monthly-other").checked;
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span, other);
 }
@@ -872,7 +967,7 @@ function paintArtistKey() {
   box.className = "legend-item legend-all";
   box.setAttribute("role", "checkbox");
   box.setAttribute("aria-checked", on === top.length ? "true" : on ? "mixed" : "false");
-  box.title = on === top.length ? "Hide all top artists" : "Show all top artists";
+  box.title = `${on === top.length ? "Hide" : "Show"} all top ${noun().many}`;
   box.setAttribute("aria-label", box.title);
   const mark = document.createElement("span");
   mark.className = "all-box";
@@ -931,7 +1026,7 @@ let mixMemo = null;
 let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
 function renderMix(artists, slots, includeOther, pins) {
   mixArgs = [artists, slots, includeOther, pins];
-  const key = [state.plays.length, includeOther, ...artists].join("\u0000");
+  const key = [state.dim, state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
   // Deselected artists stay in the key but drop out of the bar (see updateMix)
   const all = includeOther ? [...artists, "Everyone else"] : artists;
@@ -951,6 +1046,7 @@ function renderMix(artists, slots, includeOther, pins) {
     pins,
     hasOther: includeOther,
     periodLabel: presetLabel(),
+    noun: noun(),
     lo: state.range.lo,
     hi: state.range.hi,
   });
@@ -1112,6 +1208,8 @@ function searchArtists(query) {
   const found = [];
   for (const a of state.artists) {
     const at = fold(a.name).indexOf(q);
+    // Tracks and albums are found by their artist too, after every match on the name
+    if (at < 0 && state.owner && fold(state.owner.get(a.name)).includes(q)) found.push({ ...a, at: -1, rank: 3 });
     if (at < 0) continue;
     const rank = at === 0 ? 0 : /[\s\-&(./,]/.test(a.name[at - 1]) ? 1 : 2;
     found.push({ ...a, at, len: q.length, rank });
@@ -1153,14 +1251,17 @@ function showResults() {
     const name = document.createElement("span");
     name.className = "name";
     // Bold the match. Folding can change a name's length (rarely), and then the indexes don't line up
-    if (fold(a.name).length === a.name.length) {
+    if (a.at >= 0 && fold(a.name).length === a.name.length) {
       const mark = document.createElement("mark");
       mark.textContent = a.name.slice(a.at, a.at + a.len);
       name.append(a.name.slice(0, a.at), mark, a.name.slice(a.at + a.len));
     } else name.textContent = a.name;
     const detail = document.createElement("span");
     detail.className = "detail";
-    detail.textContent = pinned ? "Pinned" : state.chartNames?.includes(a.name) ? "In chart" : fmtArtistHours(a.hours);
+    const status = pinned ? "Pinned" : state.chartNames?.includes(a.name) ? "In chart" : fmtArtistHours(a.hours);
+    // A track or album says whose it is, unless its name already does
+    const by = state.owner?.get(a.name);
+    detail.textContent = by && !a.name.endsWith(` · ${by}`) ? `${by} · ${status}` : status;
     li.append(name, detail);
     // pointerdown would blur the input and close the list before the click lands
     li.addEventListener("pointerdown", (e) => e.preventDefault());
@@ -1169,8 +1270,8 @@ function showResults() {
     return li;
   });
   list.replaceChildren(
-    ...(full ? [note(`${MAX_PINS} artists pinned. Unpin one to add another.`)] : []),
-    ...(items.length ? items : [note("No artists match")])
+    ...(full ? [note(`${MAX_PINS} ${noun().many} pinned. Unpin one to add another.`)] : []),
+    ...(items.length ? items : [note(`No ${noun().many} match`)])
   );
   list.hidden = false;
   input.setAttribute("aria-expanded", "true");
@@ -1411,5 +1512,5 @@ function rerenderForTheme() {
   const zoom = state.plays ? currentZoom($("chart-rolling")) : undefined;
   disposeAll();
   if (state.plays) renderAll(zoom);
-  if (state.view === "community") renderCommunity(state.plays);
+  if (state.view === "community") renderCommunity(state.raw);
 }

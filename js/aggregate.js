@@ -53,11 +53,22 @@ export function topArtists(plays, n) {
     .slice(0, n);
 }
 
+// A track view's or album view's plays (main.js keyedPlays) have the track or album in `artist` and the artist
+// in `by`. Tracks are always told apart by their real artist; `key` is what the view calls the track's first
+// play (its artist, the track itself or its album), and `album` that play's album.
+const artistOf = (p) => p.by ?? p.artist;
+
 export function topTracks(plays, n) {
-  return [...sumBy(plays, (p) => p.track + "\u0000" + p.artist)]
+  const first = new Map();
+  const sums = sumBy(plays, (p) => {
+    const k = p.track + "\u0000" + artistOf(p);
+    if (!first.has(k)) first.set(k, p);
+    return k;
+  });
+  return [...sums]
     .map(([k, v]) => {
       const [name, artist] = k.split("\u0000");
-      return { name, artist, ...v };
+      return { name, artist, key: first.get(k).artist, album: first.get(k).album, ...v };
     })
     .sort((a, b) => b.hours - a.hours)
     .slice(0, n);
@@ -69,8 +80,8 @@ export function summary(plays) {
   return {
     hours,
     plays: plays.length,
-    artists: new Set(plays.map((p) => p.artist)).size,
-    tracks: new Set(plays.map((p) => p.track + "\u0000" + p.artist)).size,
+    artists: new Set(plays.map(artistOf)).size,
+    tracks: new Set(plays.map((p) => p.track + "\u0000" + artistOf(p))).size,
     activeDays: days.size,
     first: new Date(plays[0].t),
     last: new Date(plays[plays.length - 1].t),

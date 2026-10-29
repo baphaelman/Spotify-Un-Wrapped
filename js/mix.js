@@ -127,7 +127,8 @@ function glide() {
 
 // Called on every (non-sweep) render of the rolling chart. table: aggregate.dailyTable for the shown
 // artists; pins: {has, toggle, hide} for the chart's pinned artists; names/slots/hasOther: the chart's artists and
-// their palette slots; plays: name -> plays over the period; lo/hi: the period's first and last day.
+// their palette slots; plays: name -> plays over the period; lo/hi: the period's first and last day; noun: what the
+// names are ({ one, many }, artists by default).
 export function updateMix(next) {
   ctx = next;
   const { table, names, slots, hasOther, lo, hi, hidden } = ctx;
@@ -139,7 +140,7 @@ export function updateMix(next) {
 
   $("mix-sub").textContent = `${ctx.periodLabel} · ${fmtDay(lo)} – ${fmtDay(hi)}`;
   // Without "Everyone else" the bar only counts the artists shown
-  $("mix-total-label").textContent = hasOther ? "Total listening" : "Shown artists";
+  $("mix-total-label").textContent = hasOther ? "Total listening" : `Shown ${ctx.noun?.many ?? "artists"}`;
   const totalEl = $("mix-total");
   if (total) tweenNumber(totalEl, total, { format: fmtHours });
   else {
@@ -193,7 +194,7 @@ export function updateMix(next) {
     e.seg.classList.toggle("off", off);
     tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()})` });
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
-    e.box.title = e.pinnable ? "Hide this artist everywhere" : "Hide everyone else";
+    e.box.title = e.pinnable ? `Hide this ${ctx.noun?.one ?? "artist"} everywhere` : "Hide everyone else";
     e.box.setAttribute("aria-label", e.pinnable ? `Hide ${name}` : e.box.title);
     const share = e.to.w;
     e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;

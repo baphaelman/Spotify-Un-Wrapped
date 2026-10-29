@@ -780,6 +780,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
 }
 
+// The names a rolling chart keeps hidden, including ones not in it now (they stay hidden when they come back),
+// and setting them afresh, as when the page switches to another view's artists
+export const hiddenIn = (el) => [...(hiddenNames.get(el) ?? [])];
+export function setHidden(el, names) {
+  hiddenNames.set(el, new Set(names));
+}
+
 // Show or hide an artist in a rolling chart from elsewhere on the page (what unticking their legend box does)
 export function toggleArtist(el, name) {
   rollingState.get(el)?.toggleArtist?.(name);
