@@ -113,6 +113,22 @@ export function clock(plays) {
   return grid;
 }
 
+// The week in blocks of `block` hours (24 / block of them a day), with each of `artists`' hours picked out:
+// [weekday (Mon=0)][block] = { hours, by }, where whatever is left of `hours` is everyone else.
+export function clockBy(plays, artists = [], block = 3) {
+  const col = new Map(artists.map((a, i) => [a, i]));
+  const grid = Array.from({ length: 7 }, () => Array.from({ length: 24 / block }, () => ({ hours: 0, by: new Array(artists.length).fill(0) })));
+  for (const p of plays) {
+    const d = new Date(p.t);
+    const e = grid[(d.getDay() + 6) % 7][Math.floor(d.getHours() / block)];
+    const h = p.ms / HOUR;
+    e.hours += h;
+    const i = col.get(p.artist);
+    if (i !== undefined) e.by[i] += h;
+  }
+  return grid;
+}
+
 // Hours per day for each artist (plus "Everyone else" last, if included), as prefix sums so any span of days
 // is O(1). The rolling chart and the mix bar both read from this, so they always agree.
 // Each artist's row is worked out once per set of plays and kept, so a new artist set (as when dragging the

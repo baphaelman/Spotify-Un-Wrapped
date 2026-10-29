@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, focusMonthly, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, MORPH_MS, CHASE_MS } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
@@ -445,7 +445,7 @@ function renderDependents() {
   renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, { pin: true, box: true });
   renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist, { pin: true });
   paintMonthly(plays);
-  renderClock($("chart-clock"), agg.clock(plays));
+  paintClock(plays);
   paintTopLists();
 }
 
@@ -669,6 +669,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
     paintTopLists();
     renderMix(artists, slots, includeOther, pins);
     paintMonthly();
+    paintClock();
     paintBrush();
   }
 }
@@ -706,6 +707,16 @@ function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
   // same for every artist set, so charts can morph), so a smaller window can cut off more
   const lead = Math.max(0, agg.leadIn(dates.map((_, k) => names.reduce((t, _n, i) => t + (raw.hours[i][k] ?? 0), 0))));
   setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
+}
+
+// When you listen, split into the chart's artists (same colors, pins and hover)
+function paintClock(plays = shownPlays()) {
+  if (!mixArgs) return;
+  const [artists, , includeOther, pins] = mixArgs;
+  const keyed = artists.filter((a) => state.colorSlots.has(a));
+  const slots = keyed.map((n) => state.colorSlots.get(n));
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed), keyed, slots, pins, hover, new Set(state.hidden), includeOther);
 }
 
 // Total hours per month with the chart's artists picked out (same colors, pins and hover), as stacked bars, with its own key beneath
@@ -791,6 +802,7 @@ onFocusChange($("chart-rolling"), (name) => {
   highlightMix(name);
   paintFocus(name);
   focusMonthly($("chart-monthly"), name);
+  focusClock($("chart-clock"), name);
   brushFocus = name;
   paintBrush();
 });

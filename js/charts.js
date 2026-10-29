@@ -928,51 +928,122 @@ export function focusMonthly(el, name) {
   c.setOption({ series: st.all.map((n, k) => ({ id: `m${k}`, ...monthlyLook(st, k) })) }, undefined, true);
 }
 
-export function renderClock(el, grid) {
+// When you listen: the week as a grid of weekdays by blocks of hours, each cell a column split into the share
+// of that time each artist took, bottom up in rank order. With includeOther, what's left is a gray "Everyone
+// else" on top; without, the shares are among the artists shown, as in the rolling chart. Quieter cells fade, so
+// the grid still shows when you listen. grid is clockBy's. Drawn like renderMonthly (same pins and hover, through
+// focusClock): names/slots are the artists and their palette slots, off the deselected ones (already left out
+// of grid's plays, so shares are of what's shown).
+const clockState = new WeakMap();
+const hourLabel = (h) => (h % 24 === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
+export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true) {
   const t = tokens();
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const hours = Array.from({ length: 24 }, (_, h) => (h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`));
-  const data = [];
-  let max = 0;
-  grid.forEach((row, d) => row.forEach((v, h) => { data.push([h, d, v]); max = Math.max(max, v); }));
-
-  chart(el).setOption(
+  const block = 24 / grid[0].length;
+  const span = (b) => `${hourLabel(b * block)}–${hourLabel((b + 1) * block)}`;
+  const all = [...names, "Everyone else"];
+  const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
+  const c = chart(el);
+  const prev = clockState.get(el);
+  const st = { names, all, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
+  const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
+  clockState.set(el, st);
+  // Each series' points: [block, weekday, bottom, top, hours, cell hours, cell opacity], the shares stacked in
+  // rank order. Opacity follows the square root of the cell's hours, so quiet cells fade without vanishing.
+  const totals = grid.map((row) => row.map((e) => (includeOther ? e.hours : e.by.reduce((x, y) => x + y, 0))));
+  const max = Math.max(...totals.flat()) || 1;
+  const data = all.map(() => []);
+  grid.forEach((row, d) =>
+    row.forEach((e, b) => {
+      const total = totals[d][b];
+      const alpha = 0.2 + 0.8 * Math.sqrt(total / max);
+      let acc = 0;
+      all.forEach((_, k) => {
+        const h = k < names.length ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0;
+        const share = total > 0 ? h / total : 0;
+        data[k].push([b, d, acc, acc + share, h, total, alpha]);
+        acc += share;
+      });
+    })
+  );
+  const renderItem = (params, api) => {
+    const [x, y] = api.coord([api.value(0), api.value(1)]);
+    const [w, h] = api.size([1, 1]);
+    const cw = w - 4, ch = h - 4; // a gap between cells
+    const lo = api.value(2), hi = api.value(3);
+    const bottom = y + ch / 2;
+    return {
+      type: "rect",
+      shape: { x: x - cw / 2, y: bottom - hi * ch, width: cw, height: (hi - lo) * ch },
+      style: { ...api.style(), opacity: api.value(6) },
+    };
+  };
+  c.setOption(
     {
       animationDuration: 600,
       animationDurationUpdate: MORPH_MS,
       animationEasingUpdate: "cubicInOut",
-      grid: { left: 48, right: 16, top: 8, bottom: 56 },
+      grid: { left: 48, right: 16, top: 8, bottom: 28 },
       tooltip: {
         ...tooltipBase(t),
         trigger: "item",
-        formatter: (p) => `<b>${fmtHours(p.value[2])}</b> <span style="opacity:.75">${days[p.value[1]]} ${hours[p.value[0]]}</span>`,
-      },
-      xAxis: { type: "category", data: hours, ...baseAxis(t), axisLine: { show: false }, splitLine: { show: false } },
-      yAxis: { type: "category", data: days, inverse: true, ...baseAxis(t), axisLine: { show: false }, splitLine: { show: false } },
-      visualMap: {
-        min: 0,
-        max,
-        calculable: false,
-        orient: "horizontal",
-        left: "center",
-        bottom: 0,
-        itemHeight: 160,
-        itemWidth: 10,
-        text: [fmtHours(max), "0 h"],
-        textStyle: { color: t.muted },
-        inRange: { color: t.seq },
-      },
-      series: [
-        {
-          type: "heatmap",
-          data,
-          itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 4 },
-          emphasis: { itemStyle: { borderColor: t.primary, borderWidth: 1 } },
+        formatter: (p) => {
+          const [b, d, , , h, total] = p.value;
+          return (
+            `<b>${esc(p.seriesName)}</b> <span style="opacity:.75">${days[d]} ${span(b)}</span><br>` +
+            `<b>${fmtHours(h)}</b> <span style="opacity:.75">${total ? Math.round((h / total) * 100) : 0}% of ${fmtHours(total)}</span>`
+          );
         },
-      ],
+      },
+      xAxis: {
+        type: "category",
+        data: grid[0].map((_, b) => span(b)),
+        ...baseAxis(t),
+        axisLine: { show: false },
+        splitLine: { show: false },
+      },
+      yAxis: { type: "category", data: days, inverse: true, ...baseAxis(t), axisLine: { show: false }, splitLine: { show: false } },
+      series: all.map((n, k) => ({
+        id: `c${k}`,
+        name: n,
+        type: "custom",
+        renderItem,
+        cursor: pins && k < names.length ? "pointer" : "default",
+        encode: { x: 0, y: 1, tooltip: [] },
+        ...clockLook(st, k),
+        data: data[k],
+      })),
     },
-    { notMerge: false } // merge, so a new period tweens from the old one
+    { notMerge: fresh }
   );
+  c.off("mouseover");
+  c.off("mouseout");
+  c.off("click");
+  // Only the artists are pinnable (and shared with the rest of the page); the gray series isn't
+  c.on("mouseover", (p) => names.includes(p.seriesName) && hover(p.seriesName));
+  c.on("mouseout", () => hover(null));
+  c.on("click", (p) => names.includes(p.seriesName) && pins?.toggle(p.seriesName));
+}
+
+// The style of artist k's cells: lit (pinned or hovered), dim (something else is lit) or at rest
+function clockLook(st, k) {
+  const { t, names, colors } = st;
+  const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
+  const rest = k === names.length; // the gray series is never lit
+  const on = !rest && lit.has(names[k]);
+  const dim = lit.size && !on;
+  const col = colors[k];
+  if (rest) return { itemStyle: { color: mix(t.surface, col, 0.4) } };
+  return { itemStyle: { color: mix(t.surface, col, on ? 1 : dim ? 0.2 : 0.75) } };
+}
+
+// Light one artist (and dim the rest) from a hover elsewhere on the page; null clears
+export function focusClock(el, name) {
+  const st = clockState.get(el);
+  const c = instances.get(el);
+  if (!st || !c) return;
+  st.hovered = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
+  c.setOption({ series: st.all.map((n, k) => ({ id: `c${k}`, ...clockLook(st, k) })) }, undefined, true);
 }
 
 // Contributors by total hours, with the viewer's bin picked out in the accent.
