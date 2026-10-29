@@ -42,6 +42,7 @@ function makeItem(e) {
   const label = document.createElement("span");
   label.className = "name";
   label.textContent = e.name; // artist names come from user files
+  label.dataset.text = e.name; // read by the CSS that reserves the bold width
   item.append(sw, label);
   item.addEventListener("pointerenter", () => hover(e.name));
   item.addEventListener("pointerleave", () => hover(null));

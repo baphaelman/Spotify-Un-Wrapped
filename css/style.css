@@ -690,6 +690,16 @@ dialog pre {
 .mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
 .mix-seg.pinned:hover { background: color-mix(in srgb, var(--c) 44%, var(--surface)); }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
+/* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
+   nudge its neighbors */
+.mix-legend-item .name::after {
+  content: attr(data-text);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: 600;
+}
 
 /* Hover anywhere on an artist (chart, legends, lists, this bar) lights their segment and dims the rest */
 .mix-bar.focusing .mix-seg:not(.focus) { opacity: 0.45; }
