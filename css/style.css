@@ -755,10 +755,10 @@ dialog pre {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .palette-menu::-webkit-scrollbar { display: none; }
-/* At the head of the period bar's artist line, as tall as the search beside it; the menu opens rightward */
+/* At the head of the period bar's artist line, centered on the search beside it; the menu opens rightward */
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
-.bar-artists .palette-dot { width: 28px; height: 28px; background-size: 56px 100%; animation-name: palette-drift-lg; }
-@keyframes palette-drift-lg { to { background-position: -56px 0; } }
+.bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
+@keyframes palette-drift-lg { to { background-position: -40px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
 .palette-option {
   display: flex;
