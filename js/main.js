@@ -229,6 +229,13 @@ const RESIZES = {
   track: ["30d", "3m", "6m", "1y"],
   album: ["3m", "6m", "1y", "2y"],
 };
+// What each period button also sets on the graphs: the days per slice, and the smoothing where it names one
+// (Off 0 … Max 4); left out, the smoothing stays as it is. A shorter period gets a finer slice.
+const RESIZE_LOOK = {
+  artist: { "3m": { window: 15 }, "6m": { window: 30 }, "1y": { window: 45 }, "2y": { window: 75 } },
+  track: { "30d": { window: 15 }, "3m": { window: 30 }, "6m": { window: 45, smooth: 1 }, "1y": { window: 45, smooth: 2 } },
+};
+RESIZE_LOOK.album = RESIZE_LOOK.artist;
 const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined);
 
 // A track or album is called by its name, with its artist after it where more than one artist has that name
@@ -425,7 +432,23 @@ function resized(range, len) {
 
 $("period-resize").addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (b) setRange(resized(state.range, b.dataset.len));
+  if (!b) return;
+  // The button's window and smoothing go in first, so the trip to the new period draws with them: the chart
+  // pans there and its bands morph into the new period's artists at the new slice size, as one movement
+  const look = RESIZE_LOOK[state.dim][b.dataset.len];
+  const range = resized(state.range, b.dataset.len);
+  const windowWas = $("window").value;
+  if (look) {
+    $("window").value = WINDOWS.indexOf(look.window);
+    if (look.smooth !== undefined) {
+      state.smoothify = look.smooth;
+      $("smoothify").value = String(look.smooth);
+    }
+  }
+  if (!sameRange(range, state.range)) return setRange(range);
+  // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
+  if ($("window").value !== windowWas) return sweepWindow();
+  renderRollingChart(currentZoom($("chart-rolling")), true);
 });
 
 // A preset or a step: the chart scrolls (or zooms) to the new period, then the artists change
@@ -773,7 +796,7 @@ function paintSlider(input) {
 }
 
 // Smoothing windows in days; the slider steps through these, evenly spaced
-const WINDOWS = [7, 15, 30, 45, 90, 180];
+const WINDOWS = [7, 15, 30, 45, 75, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 let rawMemo = null;
