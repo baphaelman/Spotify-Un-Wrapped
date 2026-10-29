@@ -17,7 +17,7 @@ function tokens() {
     axis: v("--axis"),
     accent: v("--accent"),
     other: v("--other"),
-    series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--series-${i}`)),
+    series: Array.from({ length: 15 }, (_, i) => i + 1).map((i) => v(`--series-${i}`)),
     seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
     // Rolling chart fills, set per theme: the share of the artist's color mixed into the surface for a
     // band at rest, a hovered band, and the other bands while one is hovered; and the opacity under a

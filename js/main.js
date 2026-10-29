@@ -589,7 +589,7 @@ for (const id of ["n-artists", "window", "include-other"]) {
 
 // ---------- Artist search: pin any artist into the rolling chart ----------
 
-const MAX_PINS = 8; // one per series color
+const MAX_PINS = 15; // one per series color
 // Case- and accent-insensitive, so "beyonce" finds Beyoncé
 const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const fmtArtistHours = (h) => (h < 1 ? "<1 h" : `${Math.round(h).toLocaleString()} h`);
@@ -766,7 +766,7 @@ const isDark = () => {
   return root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 };
 
-// The 8 colors a palette shows in the current theme
+// The 8 colors a palette defines (slots 9-15 always come from the stylesheet) in the current theme
 function paletteColors(key) {
   const p = PALETTES[key];
   if (p.colors) return p.colors;
