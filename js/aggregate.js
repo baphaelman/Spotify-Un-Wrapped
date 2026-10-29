@@ -140,13 +140,17 @@ export function rolling(plays, artists, window, includeOther) {
 // (null, nothing played) stay gaps and don't leak into their neighbors; every series is blurred with the
 // same weights, so shares still add up to 1 wherever there's a value.
 const SMOOTHIFY_SIGMA = [0, 0.1, 0.275]; // x the window, per strength
-export function smoothify({ dates, hours, share }, window, strength) {
-  if (!strength) return { dates, hours, share };
-  const sigma = Math.max(2, window * SMOOTHIFY_SIGMA[strength]);
+// The blur radius (days) for a strength, so callers can step through the radii in between
+export const smoothifySigma = (window, strength) => (strength ? Math.max(2, window * SMOOTHIFY_SIGMA[strength]) : 0);
+export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
+
+// Gaussian blur of every series with the given sigma in days; below half a day it changes nothing
+export function blur({ dates, hours, share }, sigma) {
+  if (sigma < 0.5) return { dates, hours, share };
   const r = Math.ceil(sigma * 3);
   const kernel = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-((k - r) ** 2) / (2 * sigma * sigma)));
   const n = dates.length;
-  const blur = (arr) =>
+  const run = (arr) =>
     arr.map((_, i) => {
       if (arr[i] == null) return null;
       let sum = 0, w = 0;
@@ -158,5 +162,5 @@ export function smoothify({ dates, hours, share }, window, strength) {
       }
       return sum / w;
     });
-  return { dates, hours: hours.map(blur), share: share.map(blur) };
+  return { dates, hours: hours.map(run), share: share.map(run) };
 }

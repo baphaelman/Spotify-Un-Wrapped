@@ -23,7 +23,7 @@ export function drawnShapes(c) {
 
 // setOption, then fade every drawn shape from its old style to its new one over `ms`. Also tweens the
 // curve rounding (`shape.smooth`), which ECharts would otherwise swap instantly while the points move.
-export function setOptionFaded(c, option, opts, ms) {
+export function setOptionFaded(c, option, opts, ms, easing = "cubicInOut") {
   const shapes = drawnShapes(c);
   const before = new Map([...shapes].map(([k, e]) => [k, { style: pickStyle(e.style), smooth: +e.shape.smooth || 0 }]));
   // Stop earlier fades first: zrender moves a running animation onto the new style object ECharts
@@ -45,7 +45,30 @@ export function setOptionFaded(c, option, opts, ms) {
     const smoothTo = +e.shape.smooth || 0;
     if (was && was.smooth !== smoothTo) {
       e.setShape({ smooth: was.smooth });
-      e.animateTo({ shape: { smooth: smoothTo } }, { duration: ms, easing: "cubicInOut", scope: "fade", done: () => e.setShape({ smooth: smoothTo }) });
+      e.animateTo({ shape: { smooth: smoothTo } }, { duration: ms, easing, scope: "fade", done: () => e.setShape({ smooth: smoothTo }) });
     }
   }
+}
+
+// Steps a value through keyframes by chaining short morphs: `apply(t, segMs)` is called at the start of
+// each of `steps` equal segments with t in (0, 1], already eased, and should morph to that value over
+// segMs with a linear easing. For changes where tweening each point straight between the ends would look
+// wrong, like a blur radius, which should sweep through every radius in between. A newer sweep (or
+// cancel()) stops the one before; returns when it finished via the promise.
+let sweepToken = 0;
+export const cancelSweep = () => void sweepToken++;
+export function sweep(apply, ms = MORPH_MS, steps = 8, ease = (t) => t * t * (3 - 2 * t)) {
+  const token = ++sweepToken;
+  const segMs = ms / steps;
+  const start = performance.now();
+  return new Promise((resolve) => {
+    const step = (k) => {
+      if (token !== sweepToken) return resolve(false);
+      apply(ease(k / steps), segMs);
+      if (k === steps) return setTimeout(() => resolve(token === sweepToken), segMs);
+      // Aim for the next segment's slot on the clock, so the time apply() takes doesn't pile up
+      setTimeout(() => step(k + 1), Math.max(0, start + (k * ms) / steps - performance.now()));
+    };
+    step(1);
+  });
 }

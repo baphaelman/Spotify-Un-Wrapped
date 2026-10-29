@@ -1,6 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist } from "./charts.js";
+import { sweep, cancelSweep } from "./motion.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
@@ -340,7 +341,13 @@ function paintSlider(input) {
 // Smoothing windows in days; the slider steps through these, evenly spaced
 const WINDOWS = [7, 30, 45, 90, 180];
 
-function renderRollingChart(zoom, morph = false) {
+// The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
+let rawMemo = null;
+const SMOOTH_CURVE = [0, 0.5, 0.75]; // curve rounding per smoothify strength
+
+// look: optional { sigma, smooth } overriding the smoothify strength's blur radius and curve rounding
+function renderRollingChart(zoom, morph = false, look = null) {
+  if (!look) cancelSweep(); // any other render ends a smoothify sweep in progress
   const n = Number($("n-artists").value);
   const window = WINDOWS[$("window").value];
   const includeOther = $("include-other").checked;
@@ -350,8 +357,10 @@ function renderRollingChart(zoom, morph = false) {
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period
   const artists = chartArtists(agg.filterYear(state.plays, state.year), n);
   const strength = state.smoothify;
-  const raw = agg.rolling(state.plays, artists, window, includeOther);
-  const data = strength ? agg.smoothify(raw, window, strength) : raw;
+  const key = [state.plays.length, window, includeOther, ...artists].join("\u0000");
+  if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther) };
+  const raw = rawMemo.raw;
+  const data = look ? agg.blur(raw, look.sigma) : strength ? agg.smoothify(raw, window, strength) : raw;
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
@@ -365,8 +374,8 @@ function renderRollingChart(zoom, morph = false) {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
-  }, assignSlots(artists), [0, 0.5, 0.75][strength]);
-  paintTopLists();
+  }, assignSlots(artists), look?.smooth ?? SMOOTH_CURVE[strength]);
+  if (!look) paintTopLists(); // the steps of a sweep change neither the artists nor their colors
 }
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
@@ -419,9 +428,19 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
 
 for (const btn of document.querySelectorAll("#smoothify button")) {
   btn.addEventListener("click", () => {
+    const from = state.smoothify;
     state.smoothify = Number(btn.dataset.level);
     for (const b of document.querySelectorAll("#smoothify button")) b.setAttribute("aria-pressed", b === btn);
-    renderRollingChart(currentZoom($("chart-rolling")), true);
+    if (state.smoothify === from) return;
+    // Sweep through every blur radius in between, rather than tweening each point straight from the old
+    // curve to the new, which would just crossfade them
+    const days = WINDOWS[$("window").value];
+    const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k));
+    const [c0, c1] = [from, state.smoothify].map((k) => SMOOTH_CURVE[k]);
+    sweep((t, ms) => {
+      const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
+      renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
+    });
   });
 }
 

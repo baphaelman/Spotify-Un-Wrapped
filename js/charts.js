@@ -144,11 +144,11 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
 // an artist's color is their position.
 // smooth: 0..1, how much each curve is rounded into a spline (the data itself is blurred by the caller).
 //
-// morph: false to redraw without animation, or true (or a duration in ms) to tween from what's drawn to the
+// morph: false to redraw without animation, or true (or a duration in ms, or {ms, easing}) to tween from what's drawn to the
 // new data, styles and smoothing. Switching "Everyone else" on or off morphs too, through a stand-in band
 // of zero thickness (see withOtherMorph).
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
-  const ms = morph ? (morph === true ? MORPH_MS : morph) : 0;
+  const { ms, easing = "cubicInOut" } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
   const c = chart(el);
@@ -380,7 +380,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animation: true,
       animationDuration: 0,
       animationDurationUpdate: ms,
-      animationEasingUpdate: "cubicInOut",
+      animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: 12, bottom: 72 },
       // Hidden: it only holds which artists are shown. The visible legend is HTML (renderLegend), so
@@ -431,7 +431,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     },
     // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade
     { notMerge: !morph },
-    ms
+    ms,
+    easing
   );
   clipEdges();
   // The held-back pinned fills fade in once the morph has finished, unless the chart re-rendered since
