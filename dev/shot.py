@@ -75,6 +75,18 @@ try:
                 time.sleep(delay if k == 0 else delay - [0.15, 0.35, 0.9][k-1])
                 shot = call("Page.captureScreenshot", format="png", clip={"x": 56, "y": 380, "width": 1170, "height": 450, "scale": 0.5})
                 open(f"frame_{mode}_{k}.png", "wb").write(base64.b64decode(shot["data"]))
+    if os.environ.get("CLICK_SEL") or os.environ.get("CLICK_JS"):
+        # CLICK_SEL clicks an element, then saves the chart area at each CLICK_TIMES second (default 0.2,0.5,0.9,1.4,2.2) as click_<k>.png
+        times = [float(x) for x in os.environ.get("CLICK_TIMES", "0.2,0.5,0.9,1.4,2.2").split(",")]
+        if os.environ.get("CLICK_PRE"):  # JS to run (and wait for) first, e.g. to move to another period
+            call("Runtime.evaluate", expression=os.environ["CLICK_PRE"], awaitPromise=True)
+        # CLICK_JS runs arbitrary JS at the click instant instead of clicking CLICK_SEL
+        call("Runtime.evaluate", expression=os.environ.get("CLICK_JS") or f"document.querySelector({json.dumps(os.environ['CLICK_SEL'])}).click()")
+        t_click = time.time()
+        for k, at in enumerate(times):
+            time.sleep(max(0, at - (time.time() - t_click)))
+            shot = call("Page.captureScreenshot", format="png", clip={"x": 56, "y": 380, "width": 1170, "height": 450, "scale": 0.5})
+            open(os.path.join(os.environ.get("CLICK_OUT", "."), f"click_{k}.png"), "wb").write(base64.b64decode(shot["data"]))
     if os.environ.get("HOVER_SEL"):
         # Scroll so the chart's top sits at y=0-ish, then hover the element (its center)
         sel = os.environ["HOVER_SEL"]

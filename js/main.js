@@ -1,7 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange } from "./charts.js";
-import { sweep, cancelSweep } from "./motion.js";
+import { sweep, cancelSweep, dur } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -166,6 +166,7 @@ function showDashboard() {
 }
 
 function setPeriod(value) {
+  const was = state.year;
   $("year-filter").value = state.year = value;
   const i = $("year-filter").selectedIndex;
   const label = $("year-label");
@@ -175,7 +176,7 @@ function setPeriod(value) {
   label.classList.add("swap");
   $("year-prev").disabled = i <= 0;
   $("year-next").disabled = i >= $("year-filter").options.length - 1;
-  renderAll();
+  renderAll(undefined, was != null && was !== value ? was : false); // the period we're leaving, to animate from
 }
 
 $("year-filter").addEventListener("change", (e) => setPeriod(e.target.value));
@@ -245,12 +246,18 @@ window.addEventListener("scroll", () => {
   bar.classList.toggle("stuck", bar.getBoundingClientRect().top <= 0 && window.scrollY > 0);
 }, { passive: true });
 
-function renderAll(keepZoom) {
+// A period change pans the chart sideways between years, and zooms (a longer trip) between all time and a year
+const PAN_MS = 900;
+const ZOOM_MS = 1400;
+
+function renderAll(keepZoom, animate = false) {
   const plays = agg.filterYear(state.plays, state.year);
   renderStats(plays);
   renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, true);
   renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist);
-  renderRollingChart(keepZoom ?? periodZoom());
+  const zooming = state.year === "all" || animate === "all";
+  const ms = dur(zooming ? ZOOM_MS : PAN_MS);
+  renderRollingChart(keepZoom ?? periodZoom(), animate && ms > 0 && { ms, easing: "cubicInOut", pan: true });
   renderMonthly($("chart-monthly"), agg.monthly(plays));
   renderClock($("chart-clock"), agg.clock(plays));
 }
