@@ -91,6 +91,38 @@ export function clock(plays) {
   return grid;
 }
 
+// Hours per day for each artist (plus "Everyone else" last, if included), as prefix sums so any span of days
+// is O(1). The rolling chart and the mix bar both read from this, so they always agree.
+export function dailyTable(plays, artists, includeOther) {
+  const first = dayIndex(plays[0].t);
+  const last = dayIndex(plays[plays.length - 1].t);
+  const len = last - first + 1;
+  const idx = new Map(artists.map((a, i) => [a, i]));
+  const nSeries = artists.length + (includeOther ? 1 : 0);
+  const daily = Array.from({ length: nSeries }, () => new Float64Array(len));
+  for (const p of plays) {
+    let s = idx.get(p.artist);
+    if (s === undefined) {
+      if (!includeOther) continue;
+      s = artists.length;
+    }
+    daily[s][dayIndex(p.t) - first] += p.ms / HOUR;
+  }
+  const prefix = daily.map((arr) => {
+    const out = new Float64Array(len + 1);
+    for (let i = 0; i < len; i++) out[i + 1] = out[i] + arr[i];
+    return out;
+  });
+  return { first, last, len, prefix };
+}
+
+// Each series' hours over the days [from, to] (day indices, inclusive, clipped to the data), and their sum
+export function rangeHours(table, from, to) {
+  const a = Math.max(0, from - table.first), b = Math.min(table.len, to - table.first + 1);
+  const hours = table.prefix.map((pre) => (b > a ? pre[b] - pre[a] : 0));
+  return { hours, total: hours.reduce((x, y) => x + y, 0) };
+}
+
 // Port of rolling_window.py: a centered rolling sum of daily hours per artist,
 // converted to each artist's share of listening at that point in time.
 // Edges where the window doesn't fully fit are dropped (pandas min_periods=window).
@@ -100,28 +132,8 @@ export function clock(plays) {
 // past the data, it's cut off there. That lets a chart tween between window sizes with the same points
 // throughout.
 export function rolling(plays, artists, window, includeOther, gridWindow = window) {
-  const first = dayIndex(plays[0].t);
-  const last = dayIndex(plays[plays.length - 1].t);
-  const len = last - first + 1;
-  const idx = new Map(artists.map((a, i) => [a, i]));
-  const nSeries = artists.length + (includeOther ? 1 : 0);
-  const daily = Array.from({ length: nSeries }, () => new Float64Array(len));
-
-  for (const p of plays) {
-    let s = idx.get(p.artist);
-    if (s === undefined) {
-      if (!includeOther) continue;
-      s = artists.length;
-    }
-    daily[s][dayIndex(p.t) - first] += p.ms / HOUR;
-  }
-
-  // Prefix sums make every window O(1)
-  const prefix = daily.map((arr) => {
-    const out = new Float64Array(len + 1);
-    for (let i = 0; i < len; i++) out[i + 1] = out[i] + arr[i];
-    return out;
-  });
+  const { first, len, prefix } = dailyTable(plays, artists, includeOther);
+  const nSeries = prefix.length;
 
   const half = Math.floor(window / 2);
   const gridHalf = Math.floor(gridWindow / 2);

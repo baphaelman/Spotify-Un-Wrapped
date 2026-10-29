@@ -2,6 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist } from "./charts.js";
 import { sweep, cancelSweep } from "./motion.js";
+import { updateMix, setupMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
@@ -374,13 +375,35 @@ function renderRollingChart(zoom, morph = false, look = null) {
         (includeOther ? "" : state.pinned.length ? ", among the artists shown" : `, among your top ${n} artists`)
       : `Hours per week, ${target}-day rolling average`) +
     (state.year === "all" ? "" : `, top artists of ${state.year}`);
+  const slots = assignSlots(artists);
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, {
     has: (name) => state.pinned.includes(name),
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
-  }, assignSlots(artists), look?.smooth ?? SMOOTH_CURVE[strength]);
-  if (!look) paintTopLists(); // the steps of a sweep change neither the artists nor their colors
+  }, slots, look?.smooth ?? SMOOTH_CURVE[strength]);
+  if (!look) {
+    // the steps of a sweep change neither the artists nor their colors
+    paintTopLists();
+    renderMix(artists, slots, includeOther);
+  }
 }
+
+// The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
+let mixMemo = null;
+function renderMix(artists, slots, includeOther) {
+  const inPeriod = agg.filterYear(state.plays, state.year);
+  const key = [state.plays.length, includeOther, ...artists].join("\u0000");
+  if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
+  updateMix({
+    table: mixMemo.table,
+    names: includeOther ? [...artists, "Everyone else"] : artists,
+    slots,
+    hasOther: includeOther,
+    lo: agg.dayIndex(inPeriod[0].t),
+    hi: agg.dayIndex(inPeriod[inPeriod.length - 1].t),
+  });
+}
+setupMix((name) => focusArtist($("chart-rolling"), name));
 
 // Palette slot for each artist in the chart, so a color follows the artist instead of their position
 // in the stack (which is their rank, and shifts with the period, the artist count and the pins).

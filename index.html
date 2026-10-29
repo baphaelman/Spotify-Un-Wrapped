@@ -132,6 +132,38 @@
         </div>
       </article>
 
+      <article class="card" id="mix-card">
+        <div class="mix-head">
+          <div>
+            <h2>Listening mix</h2>
+            <p class="muted" id="mix-sub"></p>
+          </div>
+          <div class="mix-total"><span id="mix-total-label" class="panel-title">Total listening</span><span id="mix-total" class="mix-total-value"></span></div>
+        </div>
+        <div class="chart-legend" id="mix-legend"></div>
+        <div id="mix-bar" class="mix-bar" role="img"></div>
+        <div class="mix-controls">
+          <button id="mix-play" class="ghost mix-play" type="button" aria-label="Play through time" title="Play through time">▶</button>
+          <div class="mix-month" role="group" aria-label="Month">
+            <button id="mix-prev" class="ghost step" type="button" aria-label="Previous month">‹</button>
+            <select id="mix-month" aria-label="Jump to a month"></select>
+            <button id="mix-next" class="ghost step" type="button" aria-label="Next month">›</button>
+          </div>
+          <div id="mix-span" class="segmented" role="group" aria-label="Span">
+            <button type="button" data-len="7" aria-pressed="false">7 d</button>
+            <button type="button" data-len="30" aria-pressed="false">30 d</button>
+            <button type="button" data-len="90" aria-pressed="false">90 d</button>
+            <button type="button" data-len="180" aria-pressed="false">180 d</button>
+            <button type="button" data-len="all" aria-pressed="false">All</button>
+          </div>
+          <button id="mix-latest" class="ghost" type="button" title="Jump to the end of the period">Latest</button>
+        </div>
+        <div class="slider mix-slider">
+          <input id="mix-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Start day of the span">
+          <div class="mix-ends muted"><span id="mix-lo"></span><span id="mix-hi"></span></div>
+        </div>
+      </article>
+
       <div class="grid-2">
         <article class="card">
           <h2>Top artists</h2>
