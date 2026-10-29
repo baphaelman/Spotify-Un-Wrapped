@@ -109,22 +109,24 @@
               </div>
             </div>
             </div>
-            <div class="tav-smooth">
-              <span class="toggle-label" id="smoothify-label">Smoothing</span>
-              <div id="smoothify" class="segmented" role="group" aria-labelledby="smoothify-label">
-                <button type="button" data-level="0" aria-pressed="true">Off</button>
-                <button type="button" data-level="1" aria-pressed="false">Low</button>
-                <button type="button" data-level="2" aria-pressed="false">High</button>
-              </div>
-            </div>
           </div>
         </div>
         <div class="tav-legend">
-          <div class="chart-legend top-legend"></div>
-          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
           <div class="palette-picker">
             <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
             <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
+          </div>
+          <div class="chart-legend top-legend"></div>
+          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
+          <div class="tav-smooth">
+            <span class="toggle-label" id="smoothify-label">Smoothing</span>
+            <select id="smoothify" aria-labelledby="smoothify-label">
+              <option value="auto" selected>Auto</option>
+              <option value="0">Off</option>
+              <option value="1">Low</option>
+              <option value="2">Med</option>
+              <option value="3">High</option>
+            </select>
           </div>
         </div>
         <div class="chart-wrap">

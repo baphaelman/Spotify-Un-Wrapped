@@ -1,6 +1,6 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, focusArtist, onFocusChange, onZoomChange } from "./charts.js";
 import { sweep, cancelSweep, dur } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
@@ -14,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
 // colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
 const state = {
-  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", smoothify: 0,
+  plays: null, year: "all", view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
   pinned: [], artists: [], colorSlots: new Map(),
 };
 
@@ -356,7 +356,12 @@ const WINDOWS = [7, 30, 45, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 let rawMemo = null;
-const SMOOTH_CURVE = [0, 0.5, 0.75]; // curve rounding per smoothify strength
+const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75]; // curve rounding per smoothify strength
+// "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
+const smoothCurve = (strength, span) => (strength === "auto" ? agg.autoAmount(span) * SMOOTH_CURVE[3] : SMOOTH_CURVE[strength]);
+// Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
+const spanDays = (zoom, dates) =>
+  (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
@@ -377,7 +382,14 @@ function renderRollingChart(zoom, morph = false, look = null) {
   const key = [state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid) };
   const raw = rawMemo.raw;
-  const data = agg.blur(raw, look?.sigma ?? agg.smoothifySigma(window, strength));
+  const span = spanDays(zoom, raw.dates);
+  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
+  const curve = look?.smooth ?? smoothCurve(strength, span);
+  state.shownSmooth = { sigma, curve }; // what the zoom hook compares against
+  // Auto says which strength it has landed on
+  const amount = agg.autoAmount(span);
+  $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : "High"}`;
+  const data = agg.blur(raw, sigma);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
@@ -393,7 +405,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
   };
-  renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, look?.smooth ?? SMOOTH_CURVE[strength]);
+  renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
   if (!look) {
     // the steps of a sweep change neither the artists nor their colors
     paintTopLists();
@@ -469,23 +481,39 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
   });
 }
 
-for (const btn of document.querySelectorAll("#smoothify button")) {
-  btn.addEventListener("click", () => {
-    const from = state.smoothify;
-    state.smoothify = Number(btn.dataset.level);
-    for (const b of document.querySelectorAll("#smoothify button")) b.setAttribute("aria-pressed", b === btn);
-    if (state.smoothify === from) return;
-    // Sweep through every blur radius in between, rather than tweening each point straight from the old
-    // curve to the new, which would just crossfade them
-    const days = WINDOWS[$("window").value];
-    const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k));
-    const [c0, c1] = [from, state.smoothify].map((k) => SMOOTH_CURVE[k]);
-    sweep((t, ms) => {
-      const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
-      renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
-    });
+$("smoothify").addEventListener("change", (e) => {
+  const from = state.smoothify;
+  state.smoothify = e.target.value === "auto" ? "auto" : Number(e.target.value);
+  if (state.smoothify === from) return;
+  // Sweep through every blur radius in between, rather than tweening each point straight from the old
+  // curve to the new, which would just crossfade them
+  const days = WINDOWS[$("window").value];
+  const zoom = currentZoom($("chart-rolling"));
+  const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
+  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span));
+  const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
+  sweep((t, ms) => {
+    const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
+    renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
   });
-}
+});
+
+// In auto, the smoothing follows the zoom: once the range settles, ease to the blur it now calls for
+let zoomTimer = 0;
+onZoomChange($("chart-rolling"), () => {
+  if (state.smoothify !== "auto") return;
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => {
+    const zoom = currentZoom($("chart-rolling"));
+    if (!rawMemo || !state.shownSmooth || !Number.isFinite(zoom?.[0])) return;
+    const span = spanDays(zoom, rawMemo.raw.dates);
+    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span);
+    const curve = smoothCurve("auto", span);
+    if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
+    cancelSweep();
+    renderRollingChart(zoom, { ms: 250, easing: "linear" }, { sigma, smooth: curve });
+  }, 150);
+});
 
 // The "Everyone else" toggle stands in for its legend entry, so hovering it highlights the band
 const otherToggle = $("include-other").closest("label");

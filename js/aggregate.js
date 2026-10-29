@@ -155,13 +155,29 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
 }
 
 // Aggressive extra smoothing for the rolling chart: a Gaussian blur of every series along the time axis,
-// on top of the rolling window. strength 1 (low) or 2 (high) sets sigma (days) as a fraction of the window, so a wide
+// on top of the rolling window. strength 1 (low), 2 (med) or 3 (high), or "auto" sets sigma (days) as a fraction of the window, so a wide
 // window blurs more; 0 returns the data as is. Gaps
 // (null, nothing played) stay gaps and don't leak into their neighbors; every series is blurred with the
 // same weights, so shares still add up to 1 wherever there's a value.
-const SMOOTHIFY_SIGMA = [0, 0.1, 0.275]; // x the window, per strength
+const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275]; // x the window, per strength
 // The blur radius (days) for a strength, so callers can step through the radii in between
-export const smoothifySigma = (window, strength) => (strength ? Math.max(2, window * SMOOTHIFY_SIGMA[strength]) : 0);
+// "auto" scales the blur with how much time is on screen instead: none at a year or less, the high strength
+// from three years out, in between on a log scale. Returns 0..1.
+const AUTO_SPAN = [[365, 0], [1095, 1]]; // [visible days, how much of the high strength]
+export function interpLog(points, x) {
+  if (x <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0] = points[i - 1], [x1, y1] = points[i];
+    if (x <= x1) return y0 + (y1 - y0) * (Math.log(x / x0) / Math.log(x1 / x0));
+  }
+  return points[points.length - 1][1];
+}
+export const autoAmount = (span) => interpLog(AUTO_SPAN, span);
+// span: days on screen, for "auto"
+export const smoothifySigma = (window, strength, span) =>
+  strength === "auto"
+    ? autoAmount(span) * Math.max(1, window * SMOOTHIFY_SIGMA[3])
+    : strength ? Math.max(1, window * SMOOTHIFY_SIGMA[strength]) : 0;
 export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
 
 // Gaussian blur of every series with the given sigma in days; below half a day it changes nothing

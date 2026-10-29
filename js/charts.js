@@ -96,6 +96,9 @@ const rollingState = new WeakMap();
 // lit it (the plot, a legend, a list); lets other parts of the page follow the highlight.
 const focusHooks = new WeakMap();
 export const onFocusChange = (el, fn) => focusHooks.set(el, fn);
+// fn runs whenever the chart's zoom range changes, however it got there
+const zoomHooks = new Map();
+export const onZoomChange = (el, fn) => zoomHooks.set(el, fn);
 
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
@@ -422,6 +425,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     c.off(ev);
     c.on(ev, clipEdges);
   }
+  c.on("datazoom", () => zoomHooks.get(el)?.());
 
   setOptionFaded(
     c,

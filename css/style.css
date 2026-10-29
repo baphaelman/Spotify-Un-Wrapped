@@ -265,8 +265,16 @@ button.ghost:hover { background: var(--border); }
 .segmented.solid button[aria-pressed="true"] { background: #e6e8e7; color: #0a0c0e; }
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .tav-toggles { display: flex; align-items: center; gap: 10px; }
-.tav-smooth { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
-.tav-side #smoothify button { padding: 2px 8px; font-size: 11px; }
+.tav-smooth { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.tav-smooth select {
+  appearance: none;
+  padding: 4px 22px 4px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%239a9fa4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+}
+.tav-smooth select { font-size: 11px; color: var(--text-primary); background-color: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
 .tav-sliders { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .toggle-label { font-size: 11px; color: var(--text-muted); }
 .tav-sliders .slider { grid-template-columns: 56px 96px; column-gap: 8px; align-items: center; width: auto; }
@@ -277,14 +285,15 @@ button.ghost:hover { background: var(--border); }
 /* Pinned chips: each stays on one line (long names ellipsize), and the row wraps between chips */
 .tav-controls .pinned-legend { width: 100%; min-width: 0; }
 .tav-controls .legend-item.pinned { flex: none; max-width: 100%; white-space: nowrap; }
-.tav-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 18px 0 8px; }
-.tav-legend .chart-legend { gap: 4px 14px; }
+.tav-legend { display: flex; align-items: center; gap: 8px 12px; margin: 18px 0 8px; }
+.tav-legend .palette-picker { margin-right: -6px; }
+.tav-legend .other-toggle { flex: none; }
+.tav-legend .chart-legend { flex: 0 1 auto; min-width: 0; gap: 4px 12px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
 .tav-legend .legend-item:hover { background: transparent; color: var(--text-primary); }
 .tav-legend .other-toggle { margin-left: 0; padding: 0; background: transparent; font-size: 11px; user-select: none; }
 /* No pill when checked here: the swatch's fill already says so, and the pill would hug the text */
 .tav-legend .other-toggle:has(input:checked) { background: transparent; }
-.tav-legend .palette-picker { margin-left: auto; }
 
 /* "Everyone else": a pill in the Share/Hours toggle's style, the faint track tint when off and the
    chosen option's stronger tint when on, with its band's gray swatch. The checkbox inside is hidden. */
@@ -575,18 +584,18 @@ dialog pre {
 .artist-results .detail { flex: none; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .artist-results .note { padding: 6px 8px; font-size: 12px; color: var(--text-muted); }
 
-/* Palette picker: a pill of the artists' colors as a left-to-right gradient (set in main.js), ringed
+/* Palette picker: a dot of the artists' colors as a left-to-right gradient (set in main.js), ringed
    by a thin gap and outline, opening a menu of palettes with a strip of each. The gradient ends on its
-   first color and tiles at twice the pill's width, so on hover it drifts along in a seamless loop,
+   first color and tiles at twice the dot's width, so on hover it drifts along in a seamless loop,
    pausing where it is when the pointer leaves. */
 .palette-picker { position: relative; flex: none; display: flex; }
 .palette-dot {
-  width: 72px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 2px solid var(--surface);
-  border-radius: 5px;
-  background-size: 144px 100%;
+  border-radius: 50%;
+  background-size: 32px 100%;
   background-repeat: repeat-x;
   box-shadow: 0 0 0 1px var(--axis);
   cursor: pointer;
@@ -594,7 +603,7 @@ dialog pre {
 }
 .palette-dot:hover, .palette-dot[aria-expanded="true"] { animation-play-state: running; }
 .palette-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@keyframes palette-drift { to { background-position: -144px 0; } }
+@keyframes palette-drift { to { background-position: -32px 0; } }
 @media (prefers-reduced-motion: reduce) { .palette-dot { animation: none; } }
 /* Tall enough to show every palette on most screens; it still scrolls on short ones, without a bar */
 .palette-menu {
@@ -633,9 +642,6 @@ dialog pre {
 .palette-option .name { flex: 1; }
 .palette-option .strip { display: flex; flex: none; border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
 .palette-option .strip span { width: 12px; height: 14px; }
-
-/* The picker sits at the card right edge, so its menu opens leftward */
-.tav-legend .palette-menu { left: auto; right: 0; }
 
 /* Listening mix (mix.js): one bar of shares for a span of days, with the time controls below it. Each
    segment takes its artist's color through --c, so a chosen palette carries over. */
