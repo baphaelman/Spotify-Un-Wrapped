@@ -798,17 +798,18 @@ const monthlyState = new WeakMap();
 export function renderMonthly(el, rows, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), span = 1) {
   const t = tokens();
   const short = (d) => d.toLocaleDateString(undefined, { month: "short" });
-  // A bar's period: "Mar 2024", "Jan–Jun 2024" or "2024"
+  // A bar's period: "Mar 2024", "Jan–Jun 2024", "2024" or "2024–2025"
   const label = (d) =>
-    span === 12
-      ? String(d.getFullYear())
-      : span > 1
-        ? `${short(d)}–${short(new Date(d.getFullYear(), d.getMonth() + span - 1, 1))} ${d.getFullYear()}`
-        : d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
-  // One year of months: label every month. Years: every bar. Otherwise: each January with its year.
-  const oneYear = span === 1 && rows.length <= 13;
+    span === 24
+      ? `${d.getFullYear()}–${d.getFullYear() + 1}`
+      : span === 12
+        ? String(d.getFullYear())
+        : span > 1
+          ? `${short(d)}–${short(new Date(d.getFullYear(), d.getMonth() + span - 1, 1))} ${d.getFullYear()}`
+          : d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  // Months: every month, January as its year. Years: every bar. Quarters and halves: each January with its year.
   const tick = (r) =>
-    oneYear ? short(r.month) : span === 12 || r.month.getMonth() === 0 ? String(r.month.getFullYear()) : "";
+    span >= 12 || r.month.getMonth() === 0 ? String(r.month.getFullYear()) : span === 1 ? short(r.month) : "";
   const grid = { left: 48, right: 16, top: 28, bottom: 32 };
   // Room for a caption above each bar; too narrow and they're left off (the tooltip still names the top artist)
   const slotW = rows.length ? (el.clientWidth - grid.left - grid.right) / rows.length : 0;
@@ -826,7 +827,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const rich = { n: { color: t.secondary, fontSize: 11, align: "center" }, o: { color: t.other, fontSize: 9, align: "center" } };
   slots.forEach((s) => (rich[`s${s}`] = { color: t.series[s], fontSize: 9, align: "center" }));
   const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
-  const bar = { type: "bar", stack: "month", barCategoryGap: rows.length <= 20 ? "30%" : "12%" };
+  const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   setOptionFaded(
     c,

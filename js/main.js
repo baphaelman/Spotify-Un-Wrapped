@@ -764,9 +764,15 @@ function paintClock(plays = shownPlays()) {
   renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, 0.5);
 }
 
-// Total hours per month (per half-year or year over a long period, see agg.monthSpan) with the chart's artists
-// picked out (same colors, pins and hover), each bar's top artist on top
-const SPAN_WORDS = { 1: ["month", "month's"], 6: ["6 months", "half-year's"], 12: ["year", "year's"] };
+// Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
+// out (same colors, pins and hover), each bar's top artist on top
+const SPAN_WORDS = {
+  1: ["month", "month's"],
+  3: ["3 months", "quarter's"],
+  6: ["6 months", "half-year's"],
+  12: ["year", "year's"],
+  24: ["2 years", "two years'"],
+};
 function paintMonthly(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;

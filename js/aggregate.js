@@ -77,16 +77,19 @@ export function summary(plays) {
   };
 }
 
-// How many months each bar of the monthly chart covers, so a long period doesn't crowd into slivers: a month up
-// to three years, half a year up to ten, then a year
+// How many months each bar of the monthly chart covers, so a long period doesn't crowd into slivers: the shortest
+// of a month, 3 months, 6 months, a year or 2 years that keeps it to MAX_BARS bars (blocks align to the year, as
+// in monthly)
+export const SPANS = [1, 3, 6, 12, 24];
+const MAX_BARS = 18;
 export function monthSpan(plays) {
   if (!plays.length) return 1;
   const k = (t) => new Date(t).getFullYear() * 12 + new Date(t).getMonth();
-  const months = k(plays[plays.length - 1].t) - k(plays[0].t) + 1;
-  return months <= 36 ? 1 : months <= 120 ? 6 : 12;
+  const lo = k(plays[0].t), hi = k(plays[plays.length - 1].t);
+  return SPANS.find((s) => Math.floor(hi / s) - Math.floor(lo / s) + 1 <= MAX_BARS) ?? SPANS[SPANS.length - 1];
 }
 
-// [{ month: Date, hours, by, top }] with empty months filled in, in blocks of `span` calendar months (1, 6 or 12,
+// [{ month: Date, hours, by, top }] with empty months filled in, in blocks of `span` calendar months (one of SPANS,
 // aligned to the year; `month` is the block's first). `by` is the hours each of `artists` contributed that block,
 // in the same order; whatever is left of `hours` is everyone else. `top` is the block's `n` biggest artists of
 // all, as [{ name, hours }].
