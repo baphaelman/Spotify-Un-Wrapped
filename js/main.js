@@ -466,13 +466,12 @@ function shownPlays() {
   return plays.filter((p) => !hidden.has(p.artist));
 }
 
-// Everything that follows the legend's selection: stats, top lists, monthly hours and the clock
-// (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
+// Everything that follows the legend's selection: stats, top tracks, monthly hours and the clock
+// (the mix bar and its artist rows do too, in renderMix, since they're drawn from the chart's artists)
 function renderDependents() {
   const plays = shownPlays();
   renderStats(plays);
-  renderTopList($("top-artists"), agg.topArtists(plays, 10), (a) => `${a.plays.toLocaleString()} plays`, (a) => a.name, { pin: true, box: true });
-  renderTopList($("top-tracks"), agg.topTracks(plays, 10), (t) => t.artist, (t) => t.artist, { pin: true });
+  renderTopTracks(plays);
   paintMonthly(plays);
   paintClock(plays);
   paintTopLists();
@@ -509,50 +508,92 @@ function renderStats(plays) {
   ]);
 }
 
-// artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered.
-// pinnable: clicking a row pins or unpins that artist. paintTopLists colors the rows afterwards.
-function renderTopList(ol, items, detail, artistOf, { pin: pinnable = false, box: withBox = false } = {}) {
-  const max = items[0]?.hours || 1;
-  renderList(
-    ol,
-    items.map((item) => ({
-      name: item.name,
-      key: `${item.name}\u0000${artistOf(item)}`, // the same row in another period glides instead of being redrawn
-      detail: detail(item),
-      value: `${Math.round(item.hours).toLocaleString()} h`,
-      frac: item.hours / max,
-    }))
-  );
-  ol.classList.toggle("pinnable", pinnable);
-  ol._artists = items.map(artistOf);
+// rows: renderList rows, each with the artist it belongs to (highlighted in the rolling chart while the row is
+// hovered). onClick: what clicking a row does (makes the rows buttons); onBox: what its leading box does (no
+// box without it). A row with `other` is "Everyone else", which can't be pinned. paintTopLists colors the rows afterwards.
+function renderTopList(ol, rows, { onClick, onBox } = {}) {
+  renderList(ol, rows);
+  ol.classList.toggle("pinnable", !!onClick);
+  ol._artists = rows.map((r) => r.artist);
   [...ol.children].forEach((li, i) => {
-    li.addEventListener("pointerenter", () => focusArtist($("chart-rolling"), artistOf(items[i])));
+    const { artist, other } = rows[i];
+    li._other = !!other;
+    li.addEventListener("pointerenter", () => !li.classList.contains("off") && focusArtist($("chart-rolling"), artist));
     li.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
-    if (pinnable) {
-      li.tabIndex = 0;
-      li.setAttribute("role", "button");
-      li.addEventListener("click", () => togglePin(artistOf(items[i])));
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePin(artistOf(items[i])); }
+    if (!onClick) return;
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    li.addEventListener("click", () => onClick(artist, li));
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(artist, li); }
+    });
+    if (onBox) {
+      const box = document.createElement("button");
+      box.type = "button";
+      box.className = "swatch show-box";
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+        focusArtist($("chart-rolling"), null);
+        onBox(artist, li);
       });
-      if (withBox) {
-        const box = document.createElement("button");
-        box.type = "button";
-        box.className = "swatch show-box";
-        box.setAttribute("aria-pressed", "true");
-        box.addEventListener("click", (e) => {
-          e.stopPropagation();
-          focusArtist($("chart-rolling"), null);
-          toggleArtist($("chart-rolling"), artistOf(items[i]));
-        });
-        box.addEventListener("keydown", (e) => e.stopPropagation());
-        li.prepend(box);
-      }
-      const mark = document.createElement("span");
-      mark.className = "pin-mark";
-      mark.innerHTML = PIN_SVG; // constant markup, no user data
-      li.append(mark);
+      box.addEventListener("keydown", (e) => e.stopPropagation());
+      li.prepend(box);
     }
+    if (other) return;
+    const mark = document.createElement("span");
+    mark.className = "pin-mark";
+    mark.innerHTML = PIN_SVG; // constant markup, no user data
+    li.append(mark);
+  });
+}
+
+function renderTopTracks(plays) {
+  const items = agg.topTracks(plays, 10);
+  const max = items[0]?.hours || 1;
+  renderTopList(
+    $("top-tracks"),
+    items.map((t) => ({
+      name: t.name,
+      artist: t.artist,
+      key: `${t.name}\u0000${t.artist}`, // the same row in another period glides instead of being redrawn
+      detail: t.artist,
+      value: `${Math.round(t.hours).toLocaleString()} h`,
+      frac: t.hours / max,
+    })),
+    { onClick: togglePin }
+  );
+}
+
+// The listening mix's rows: the bar's artists in its order, with their plays and hours over the period, then
+// "Everyone else". Hidden artists keep their row, dimmed with an empty box, so they can be brought back here.
+function renderMixList(artists, includeOther) {
+  const totals = new Map(agg.topArtists(rangePlays(), Infinity).map((a) => [a.name, a]));
+  const shown = new Set(artists);
+  const rest = { plays: 0, hours: 0 };
+  for (const [name, a] of totals) {
+    if (shown.has(name)) continue;
+    rest.plays += a.plays;
+    rest.hours += a.hours;
+  }
+  const items = artists.map((name) => ({ name, plays: totals.get(name)?.plays ?? 0, hours: totals.get(name)?.hours ?? 0 }));
+  const max = Math.max(0, ...items.map((a) => a.hours)) || 1;
+  const row = (a) => ({
+    name: a.name,
+    artist: a.name,
+    detail: `${a.plays.toLocaleString()} plays`,
+    value: `${Math.round(a.hours).toLocaleString()} h`,
+    frac: a.hours / max,
+  });
+  // Everyone else has no rank and no bar: its share is in the bar above, and its bar would dwarf the artists'
+  const rows = [...items.map(row), { ...row({ name: "Everyone else", ...rest }), key: "\u0000other", rank: null, frac: 0, other: true }];
+  const flipOther = () => {
+    $("include-other").checked = !includeOther;
+    $("include-other").dispatchEvent(new Event("input"));
+  };
+  renderTopList($("top-artists"), rows, {
+    // As in the key: clicking a hidden artist brings them back, otherwise it pins or unpins them
+    onClick: (name, li) => (li._other ? flipOther() : state.hidden.includes(name) ? toggleArtist($("chart-rolling"), name) : togglePin(name)),
+    onBox: (name, li) => (li._other ? flipOther() : toggleArtist($("chart-rolling"), name)),
   });
 }
 
@@ -573,18 +614,20 @@ function paintTopLists() {
       const slot = state.chartNames?.includes(name) ? state.colorSlots.get(name) : undefined;
       if (slot === undefined) li.style.removeProperty("--c");
       else li.style.setProperty("--c", `var(--series-${slot + 1})`);
-      const pinned = state.pinned.includes(name);
+      const box = li.querySelector(".show-box");
+      // Only the mix's rows have a box; a hidden artist's row is dimmed and its box emptied, as in the key
+      const on = !box || (li._other ? $("include-other").checked : !state.hidden.includes(name));
+      const pinned = on && state.pinned.includes(name);
       li.classList.toggle("pinned", pinned);
+      li.classList.toggle("off", !on);
       if (ol.classList.contains("pinnable")) {
-        const box = li.querySelector(".show-box");
         if (box) {
-          const inChart = slot !== undefined;
-          box.disabled = !inChart;
-          box.setAttribute("aria-label", inChart ? `Hide ${name}` : `${name} isn't in the chart`);
-          box.title = inChart ? "Hide this artist everywhere" : "Not in the chart, so it can't be hidden";
+          box.setAttribute("aria-pressed", on);
+          box.title = li._other ? (on ? "Hide everyone else" : "Show everyone else, in gray") : on ? "Hide this artist everywhere" : "Show this artist again";
+          box.setAttribute("aria-label", li._other ? box.title : `${on ? "Hide" : "Show"} ${name}`);
         }
-        li.setAttribute("aria-pressed", pinned);
-        li.title = pinned ? "Click to unpin" : "Click to pin to the chart";
+        if (!li._other) li.setAttribute("aria-pressed", pinned);
+        li.title = li._other ? box.title : !on ? "Click to show again" : pinned ? "Click to unpin" : "Click to pin to the chart";
       }
     });
   }
@@ -967,6 +1010,8 @@ function renderMix(artists, slots, includeOther, pins) {
     lo: state.range.lo,
     hi: state.range.hi,
   });
+  renderMixList(artists, includeOther);
+  paintTopLists();
 }
 setupMix((name) => focusArtist($("chart-rolling"), name));
 onFocusChange($("chart-rolling"), (name) => {
