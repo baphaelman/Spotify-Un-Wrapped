@@ -1199,7 +1199,12 @@ function openPaletteMenu() {
   );
   menu.hidden = false;
   $("palette-button").setAttribute("aria-expanded", "true");
-  menu.querySelector('[aria-checked="true"]')?.focus();
+  // Bring the chosen palette into view inside the menu, without scrolling the page down to it
+  const chosen = menu.querySelector('[aria-checked="true"]');
+  if (chosen) {
+    chosen.focus({ preventScroll: true });
+    menu.scrollTop = Math.max(0, chosen.offsetTop - (menu.clientHeight - chosen.offsetHeight) / 2);
+  }
 }
 
 function closePaletteMenu(refocus = false) {

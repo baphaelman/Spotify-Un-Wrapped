@@ -15,7 +15,13 @@
       <button id="tab-you" type="button" class="tab active">Your stats</button>
       <button id="tab-community" type="button" class="tab">Community</button>
     </nav>
-    <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
+    <div class="topbar-actions">
+      <div class="palette-picker">
+        <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
+        <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
+      </div>
+      <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
+    </div>
   </header>
 
   <main>
@@ -134,10 +140,6 @@
           </div>
         </div>
         <div class="tav-legend">
-          <div class="palette-picker">
-            <button id="palette-button" type="button" class="palette-dot" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-menu" aria-label="Artist colors" title="Artist colors"></button>
-            <div id="palette-menu" class="palette-menu" role="menu" aria-label="Artist colors" hidden></div>
-          </div>
           <div class="chart-legend top-legend"></div>
           <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span>Everyone else</label>
           <div class="tav-smooth">

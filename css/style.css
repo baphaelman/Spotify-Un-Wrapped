@@ -362,9 +362,7 @@ button.ghost:hover { background: var(--border); }
 .tav-legend { display: flex; align-items: flex-start; gap: 8px 12px; margin: 18px 0 8px; }
 /* Every item shares a 24px first row, centered, so the palette dot, the select-all box, the toggle and the
    smoothing select stay level whether the legend takes one row or wraps to two */
-.tav-legend .palette-picker { margin-right: -6px; }
 .tav-legend > * { min-height: 24px; }
-.tav-legend .palette-picker { align-items: center; }
 .tav-legend .other-toggle { flex: none; }
 .tav-smooth select { height: 24px; box-sizing: border-box; }
 .tav-legend .chart-legend { flex: 0 1 auto; min-width: 0; gap: 4px 12px; }
@@ -718,6 +716,11 @@ dialog pre {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .palette-menu::-webkit-scrollbar { display: none; }
+/* In the top bar, beside the theme toggle at the right edge, so the menu opens leftward */
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.topbar-actions .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
+@keyframes palette-drift-lg { to { background-position: -40px 0; } }
+.topbar-actions .palette-menu, .topbar-actions .palette-menu:not([hidden]) { left: auto; right: 0; transform-origin: top right; }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
 .palette-option {
   display: flex;
