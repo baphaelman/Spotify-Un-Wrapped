@@ -346,11 +346,13 @@ button.ghost:hover { background: var(--border); }
    right corner with the smoothing select beneath it. The sliders are black and white and show only the
    current value beneath the thumb. */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.tav-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.tav-head { display: flex; align-items: stretch; justify-content: space-between; gap: 24px; }
 .tav-head > div:first-child { flex: 1; min-width: 0; }
 .segmented.solid { padding: 2px; background: var(--surface-2); border: 1px solid var(--border); }
 .segmented.solid button[aria-pressed="true"] { background: #e6e8e7; color: #0a0c0e; }
-.tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+/* Share/Hours in the corner; smoothing at the foot of the header, just above the graph */
+.tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.tav-side .tav-smooth { margin-bottom: 6px; }
 .tav-smooth { flex: none; display: flex; align-items: center; gap: 8px; }
 .tav-smooth select {
   appearance: none;
@@ -365,7 +367,12 @@ button.ghost:hover { background: var(--border); }
 /* The window: a full-size label and a long track under the description, the value beneath the thumb */
 .slider.tav-window { grid-template-columns: auto 220px; column-gap: 12px; align-items: center; width: auto; justify-content: start; margin-top: 12px; }
 .tav-window .slider-label { font-size: 13px; color: var(--text-secondary); }
-.tav-window .ticks { grid-column: 2; font-size: 11px; }
+/* Every window size is marked: a notch and its value under the track, the current one in full ink */
+.tav-window .ticks { grid-column: 2; height: 20px; font-size: 11px; color: var(--text-muted); }
+.tav-window .ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; white-space: nowrap; transition: color var(--motion-fade) var(--ease-out); }
+.tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--axis); }
+.tav-window .ticks span.on { color: var(--text-primary); font-weight: 600; }
+.tav-window .ticks span.on::before { background: var(--text-primary); }
 .tav-smooth select { height: 24px; box-sizing: border-box; }
 
 /* The artists every graph shows, at the foot of the period bar: the search that pins, then a chip per artist,
