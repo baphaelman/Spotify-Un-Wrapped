@@ -70,9 +70,9 @@ reply. They judge the result in their own browser, so don't hand back without a 
 - `js/aggregate.js`: pure functions for top lists, monthly totals, the 7×24 clock and `rolling()`, a
   port of the Python script that uses prefix sums.
 - `js/charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling`.
-- `js/motion.js`: shared chart motion. Durations (`MORPH_MS`, `FADE_MS`), `setOptionFaded` (style and
-  curve-rounding tweens) and `sweep` (steps a value through keyframes with chained morphs). New charts
-  should take their timings and animation helpers from here. It also holds the DOM helpers `tweenNumber`,
+- `js/motion.js`: the page's motion (see Motion below). The timing tiers and easings, `setOptionFaded`
+  (style and curve-rounding tweens for line and bar series) and `sweep` (steps a value through keyframes
+  with chained morphs). It also holds the DOM helpers `tweenNumber`,
   `flip` (FLIP glide keyed by name) and `dur` (0 under reduced motion). The mix bar (`mix.js`) keeps one
   segment and legend entry per artist and animates `left`/`width` itself, so a period change slides the
   artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
@@ -96,6 +96,46 @@ reply. They judge the result in their own browser, so don't hand back without a 
 - `supabase/schema.sql`: the pool's tables and functions. Paste into the Supabase SQL editor to apply
   changes; it's safe to re-run.
 - `dev/`: test tools (see Testing).
+
+## Motion
+
+Everything on the page moves on one set of timings, so a single action reads as one movement. Durations
+and easings live in `js/motion.js` and, mirrored, as the `--motion-*` and `--ease-*` tokens at the top of
+`css/style.css` (keep the two in step). **Never write a duration or easing literal:** pick the tier that
+matches what is moving.
+
+| Tier | ms | Easing | For |
+|---|---|---|---|
+| `FADE_MS` / `--motion-fade` | 200 | out | A highlight: hover, focus, a pressed or hovered control, a menu opening |
+| `GROW_MS` / `--motion-grow` | 250 | out | A small reflow: a row of chips appearing, a dialog, re-blurring after a zoom |
+| `CHASE_MS` | 450 | out | A morph following a moving input (a dragged period window), each cut short by the next |
+| `ENTER_MS` / `--motion-enter` | 550 | out | First appearance: the dashboard rising in, a chart's first draw, a new list row |
+| `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
+| `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
+| `ZOOM_MS` | 1400 | in-out | The view travels to a period of another length |
+| `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
+
+- **Two easings.** In-out (`EASE_IN_OUT`, `--ease-in-out`) for things that travel on their own from one
+  state to another. Out (`EASE_OUT`, `--ease-out`) for anything that answers the pointer or arrives, so it
+  responds at once and settles. Each comes as a JS function, an ECharts name and a CSS curve. The only
+  other is `sweep`'s smoothstep, because its linear segments would make a cubic jump.
+- **Nothing snaps.** Every change on screen tweens: positions, sizes, colors, outlines, opacity. Only a
+  drag tracks the pointer directly. ECharts applies style changes instantly, so restyle charts with
+  `setOptionFaded` (`FADE_MS` for hover, `MORPH_MS` alongside a data morph), never a bare `setOption`.
+  Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
+- **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
+  timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
+  the exception by design: the view pans first (`PAN_MS`/`ZOOM_MS`), then the new artists morph in.
+- **Things come and go by shrinking or fading, not by appearing.** A hidden artist collapses to zero
+  thickness; a series that leaves fades its outline as it goes. Series can't tween in or out, so keep them
+  in place with no thickness (see `withOtherMorph`, the timeline's `hidden` bands).
+- **Interruptions carry on from what's on screen.** A new animation starts from the current frame, not
+  the old target. A quick one (a hover) never cuts short a slower one in flight: it lasts until that one
+  would have ended (see `setBrushBands`).
+- **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all. The CSS
+  entrance staggers are hand-set within the same range.
+- **Reduced motion:** wrap every JS duration in `dur()` (0 when the visitor asked for less motion), and
+  give every CSS animation an entry in the `prefers-reduced-motion` blocks.
 
 ## The rolling chart (`renderRolling`): read this before touching it
 

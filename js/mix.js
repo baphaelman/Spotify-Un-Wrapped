@@ -5,12 +5,11 @@
 // that stay (colors and identity preserved), grows newcomers from nothing and collapses whoever leaves.
 
 import { dayToDate, rangeHours } from "./aggregate.js";
-import { FADE_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
+import { FADE_MS, MORPH_MS, EASE_OUT, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 
 const GAP = 2; // px between segments
-const MIX_MS = 650;
 
 let ctx = null; // { table, names, slots, pins, hasOther, periodLabel, lo, hi } from the last updateMix
 let hover = () => {};
@@ -77,7 +76,7 @@ function frame(p) {
 
 function glide() {
   cancelAnimationFrame(raf);
-  const ms = dur(MIX_MS);
+  const ms = dur(MORPH_MS);
   const moving = [...entries.values()].some((e) => e.from.x !== e.to.x || e.from.w !== e.to.w);
   const done = () => {
     raf = 0;
@@ -154,7 +153,7 @@ export function updateMix(next) {
       before.delete(e.name);
       e.item = null;
       const gone = () => item.remove();
-      if (dur(FADE_MS)) item.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS * 1.5 }).finished.then(gone, gone);
+      if (dur(FADE_MS)) item.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, easing: EASE_OUT.css }).finished.then(gone, gone);
       else gone();
     }
   });
@@ -197,7 +196,7 @@ export function updateMix(next) {
   // Legend in the new order, gliding from where each entry was
   const els = new Map(names.map((n) => [n, entries.get(n).item]));
   legend.append(...els.values());
-  if (!first) flip(before, els, { ms: MIX_MS });
+  if (!first) flip(before, els);
 
   if (first) {
     for (const e of entries.values()) { e.x = e.to.x; e.w = e.to.w; e.from = e.to; }

@@ -3,7 +3,7 @@
 // Rows are matched across renders by `key` (default: the name): one that stays glides to its new rank while
 // its bar and number tween, and one that is new rises in with its bar growing from nothing.
 
-import { MORPH_MS, dur, flip, tweenNumber } from "./motion.js";
+import { MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_IN_OUT, dur, flip, tweenNumber } from "./motion.js";
 
 const countOf = (text) => {
   const m = /^([\d,]+)(.*)$/.exec(text);
@@ -51,7 +51,7 @@ export function renderList(ol, rows) {
     const total = dur(MORPH_MS);
     if (total) {
       bar.animate([{ width: `${(was?._frac ?? 0) * 100}%` }, { width: `${frac * 100}%` }], {
-        duration: total, delay: was ? 0 : Math.min(i * 18, 240), easing: "cubic-bezier(.65,0,.35,1)", fill: "backwards",
+        duration: total, delay: was ? 0 : Math.min(i * STAGGER_MS, STAGGER_MAX_MS), easing: EASE_IN_OUT.css, fill: "backwards",
       });
       if (was?._count && li._count) {
         tweenNumber(val, li._count.n, { from: was._count.n, format: (n) => Math.round(n).toLocaleString() + li._count.suffix });

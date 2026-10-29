@@ -1,6 +1,16 @@
 /* Dark is the design: the default for everyone. [data-theme="light"] is kept as an opt-in. */
 :root {
   color-scheme: dark;
+  /* Motion: the same tiers and easings as js/motion.js (keep them in step; rules under "Motion" in
+     CLAUDE.md). Highlights fade, small reflows grow, first appearances enter, data changes morph. Theme is
+     CSS only: the page's colors cross-fade when the theme flips. */
+  --motion-fade: 200ms;
+  --motion-grow: 250ms;
+  --motion-enter: 550ms;
+  --motion-morph: 750ms;
+  --motion-theme: 350ms;
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
+  --ease-out: cubic-bezier(.2,.7,.2,1);
   --page: #0a0c0e;
   --surface: #101316;
   --surface-2: #161a1e;
@@ -125,7 +135,7 @@ button.ghost:hover { background: var(--border); }
   border-right: 1.5px solid var(--text-muted);
   border-bottom: 1.5px solid var(--text-muted);
   transform: rotate(45deg);
-  transition: transform 0.15s, margin 0.15s;
+  transition: transform var(--motion-fade) var(--ease-out), margin var(--motion-fade) var(--ease-out);
 }
 #year-button[aria-expanded="true"]::before { margin-top: 3px; transform: rotate(-135deg); }
 .year-menu {
@@ -172,7 +182,7 @@ button.ghost:hover { background: var(--border); }
   border: 2px dashed var(--axis);
   border-radius: 16px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out);
 }
 .dropzone strong { font-size: 20px; }
 .dropzone span { color: var(--text-secondary); }
@@ -204,7 +214,7 @@ button.ghost:hover { background: var(--border); }
   padding: 10px 16px;
   background: var(--page);
   border-bottom: 1px solid transparent;
-  transition: border-color 0.15s;
+  transition: border-color var(--motion-fade) var(--ease-out);
 }
 .filters.sticky.stuck { border-bottom-color: var(--border); }
 
@@ -233,7 +243,7 @@ button.ghost:hover { background: var(--border); }
 .brush-dim.a { left: 0; border-radius: 7px 0 0 7px; }
 .brush-dim.b { right: 0; border-radius: 0 7px 7px 0; }
 /* A preset or step slides the window over; while it's being dragged it follows the pointer exactly */
-.brush-track:not(.dragging, .morphing) :is(.brush-win, .brush-dim) { transition: left var(--slide-ms, 0.5s) cubic-bezier(.65,0,.35,1), width var(--slide-ms, 0.5s) cubic-bezier(.65,0,.35,1); }
+.brush-track:not(.dragging, .morphing) :is(.brush-win, .brush-dim) { transition: left var(--slide-ms, var(--motion-morph)) var(--ease-in-out), width var(--slide-ms, var(--motion-morph)) var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .brush-track :is(.brush-win, .brush-dim) { transition: none !important; } }
 .brush-win {
   position: absolute;
@@ -295,7 +305,7 @@ button.ghost:hover { background: var(--border); }
   padding: 4px 12px;
   font-size: 13px;
   border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out);
 }
 .segmented button:hover { color: var(--text-primary); }
 .segmented button[aria-pressed="true"] {
@@ -386,7 +396,7 @@ button.ghost:hover { background: var(--border); }
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out);
 }
 .other-toggle:hover { color: var(--text-primary); }
 .other-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -428,7 +438,7 @@ button.ghost:hover { background: var(--border); }
   border-radius: 50%;
   background: #e6e8e7;
   border: 0;
-  transition: transform 0.1s;
+  transition: transform var(--motion-fade) var(--ease-out);
 }
 .slider input[type="range"]::-moz-range-thumb {
   width: 10px;
@@ -616,7 +626,7 @@ dialog pre {
   border-radius: 2px;
   flex: none;
   box-shadow: inset 0 0 0 1.5px var(--c);
-  transition: background 0.12s;
+  transition: background var(--motion-fade) var(--ease-out);
 }
 .chart-legend .legend-item .swatch[aria-pressed="true"] { background: var(--c); }
 .chart-legend .legend-item .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -641,7 +651,7 @@ dialog pre {
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out);
 }
 .artist-search input::placeholder { color: var(--text-muted); }
 .artist-search input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
@@ -769,11 +779,11 @@ dialog pre {
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 500;
-  transition: background 0.15s, opacity 0.15s, box-shadow 0.2s;
+  transition: background var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out);
 }
 .mix-seg:hover { background: color-mix(in srgb, var(--c) 32%, var(--surface)); }
-.mix-legend-item { transition: background 0.15s; }
-.mix-legend-item .swatch { transition: background 0.3s; }
+.mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
+.mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .mix-seg { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
@@ -834,12 +844,12 @@ dialog textarea:focus-visible, dialog input:focus-visible { outline: 2px solid v
 @keyframes fade { from { opacity: 0; } }
 @keyframes settle { from { opacity: 0; transform: translateY(16px) scale(0.985); } }
 
-.landing > * { animation: rise 0.55s cubic-bezier(.2,.7,.2,1) backwards; }
+.landing > * { animation: rise var(--motion-enter) var(--ease-out) backwards; }
 .landing > :nth-child(2) { animation-delay: 0.06s; }
 .landing > :nth-child(3) { animation-delay: 0.1s; }
 .landing > :nth-child(n+4) { animation-delay: 0.14s; }
 
-.dashboard .stat, .dashboard .card, .dashboard .community-leave { animation: rise 0.6s cubic-bezier(.2,.7,.2,1) backwards; }
+.dashboard .stat, .dashboard .card, .dashboard .community-leave { animation: rise var(--motion-enter) var(--ease-out) backwards; }
 .stats .stat:nth-child(2) { animation-delay: 0.05s; }
 .stats .stat:nth-child(3) { animation-delay: 0.1s; }
 .stats .stat:nth-child(4) { animation-delay: 0.15s; }
@@ -848,18 +858,18 @@ dialog textarea:focus-visible, dialog input:focus-visible { outline: 2px solid v
 .dashboard > .card:nth-of-type(3), #community-body > .card:nth-of-type(3) { animation-delay: 0.24s; }
 .grid-2 .card:nth-child(2) { animation-delay: 0.08s; }
 
-.year-menu:not([hidden]), .palette-menu:not([hidden]), .artist-results:not([hidden]) { animation: pop 0.16s cubic-bezier(.2,.7,.2,1); transform-origin: top left; }
-dialog[open] { animation: settle 0.28s cubic-bezier(.2,.7,.2,1); }
-dialog[open]::backdrop { animation: fade 0.28s ease-out; }
+.year-menu:not([hidden]), .palette-menu:not([hidden]), .artist-results:not([hidden]) { animation: pop var(--motion-fade) var(--ease-out); transform-origin: top left; }
+dialog[open] { animation: settle var(--motion-grow) var(--ease-out); }
+dialog[open]::backdrop { animation: fade var(--motion-grow) var(--ease-out); }
 
-body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: background-color 0.35s, border-color 0.35s, color 0.35s; }
-.stat { transition: background-color 0.35s, border-color 0.2s, color 0.35s, transform 0.2s; }
+body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: background-color var(--motion-theme), border-color var(--motion-theme), color var(--motion-theme); }
+.stat { transition: background-color var(--motion-theme), border-color var(--motion-fade) var(--ease-out), color var(--motion-theme), transform var(--motion-fade) var(--ease-out); }
 .stat:hover { transform: translateY(-2px); border-color: var(--axis); }
 button:not(:disabled):active { transform: scale(0.96); }
-.toplist li { transition: background 0.15s; }
+.toplist li { transition: background var(--motion-fade) var(--ease-out); }
 
 /* The period label swaps with a quick slide when the period changes */
-#year-label.swap { animation: pop 0.22s cubic-bezier(.2,.7,.2,1); }
+#year-label.swap { animation: pop var(--motion-fade) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
   .landing > *, .dashboard .stat, .dashboard .card, .year-menu, .palette-menu, .artist-results, dialog[open], dialog[open]::backdrop, #year-label.swap { animation: none !important; }

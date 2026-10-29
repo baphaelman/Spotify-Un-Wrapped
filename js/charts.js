@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
+import { FADE_MS, GROW_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
 
 const instances = new Map();
 
@@ -279,7 +279,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     }
     morph = same;
   }
-  const { ms, easing = "cubicInOut" } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
+  const { ms, easing = EASE_IN_OUT.echarts } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
   const c = chart(el);
@@ -789,8 +789,8 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
   const heightBefore = controls.offsetHeight;
   card.querySelector(".pinned-legend").replaceChildren(...pinned.map(([n, k]) => item(n, k)));
   const heightAfter = controls.offsetHeight;
-  if (heightBefore !== heightAfter && dur(200)) {
-    controls.animate([{ height: `${heightBefore}px`, overflow: "hidden" }, { height: `${heightAfter}px`, overflow: "hidden" }], { duration: 250, easing: "ease-out" });
+  if (heightBefore !== heightAfter && dur(GROW_MS)) {
+    controls.animate([{ height: `${heightBefore}px`, overflow: "hidden" }, { height: `${heightAfter}px`, overflow: "hidden" }], { duration: GROW_MS, easing: EASE_OUT.css });
   }
   const top = shown.filter(([name]) => !pins?.has(name));
   // Checked when every unpinned artist is shown, mixed when some are; a click shows them all, or hides
@@ -856,11 +856,12 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
   const bar = { type: "bar", stack: "month", barCategoryGap: oneYear ? "30%" : "12%" };
   const looks = monthlySeries(st);
-  c.setOption(
+  setOptionFaded(
+    c,
     {
-      animationDuration: 600,
+      animationDuration: ENTER_MS,
       animationDurationUpdate: MORPH_MS,
-      animationEasingUpdate: "cubicInOut",
+      animationEasingUpdate: EASE_IN_OUT.echarts,
       grid,
       tooltip: {
         ...tooltipBase(t),
@@ -918,7 +919,9 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         },
       ],
     },
-    { notMerge: fresh }
+    // Colors and outlines fade with the bars' morph rather than snapping before it
+    { notMerge: fresh },
+    fresh ? 0 : dur(MORPH_MS)
   );
   // Only the chart's artists are pinnable (and shared with the rest of the page). The gray top series names its
   // artist per bar.
@@ -1008,7 +1011,7 @@ export function focusMonthly(el, name) {
   if (next === st.hovered) return;
   st.hovered = next;
   const series = monthlySeries(st);
-  c.setOption({ series }, undefined, true);
+  setOptionFaded(c, { series }, undefined, dur(FADE_MS)); // faded, as hover in the other charts is
   settleMonthly(el, st, series);
 }
 
@@ -1090,9 +1093,9 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
     c,
     {
       animation: true,
-      animationDuration: 600,
+      animationDuration: ENTER_MS,
       animationDurationUpdate: MORPH_MS,
-      animationEasingUpdate: "cubicInOut",
+      animationEasingUpdate: EASE_IN_OUT.echarts,
       grid: grids,
       tooltip: {
         ...tooltipBase(t),
@@ -1241,7 +1244,7 @@ export function renderHistogram(el, hours, yours) {
 
   chart(el).setOption(
     {
-      animationDuration: 400,
+      animationDuration: ENTER_MS,
       grid: { left: 40, right: 16, top: 24, bottom: 32 },
       tooltip: {
         ...tooltipBase(t),
@@ -1289,7 +1292,7 @@ export function renderHourLines(el, community, yours) {
 
   chart(el).setOption(
     {
-      animationDuration: 400,
+      animationDuration: ENTER_MS,
       grid: { left: 40, right: 16, top: 40, bottom: 32 },
       legend: { top: 0, left: 0, icon: "roundRect", itemWidth: 14, itemHeight: 2, itemStyle: { borderWidth: 0 }, textStyle: { color: t.secondary } },
       tooltip: {

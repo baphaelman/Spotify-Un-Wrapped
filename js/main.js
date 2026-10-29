@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, MORPH_MS, FADE_MS, CHASE_MS } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -228,7 +228,7 @@ function syncPeriod() {
     Object.assign(document.createElement("span"), { className: "dates", textContent: rangeText() }),
     Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
   );
-  if (before.size) flip(before, slid(), { ms: MORPH_MS * 0.7 });
+  if (before.size) flip(before, slid());
   for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, +b.dataset.months)));
   setBrushRange(state.range);
 }
@@ -354,9 +354,7 @@ window.addEventListener("scroll", () => {
 }, { passive: true });
 
 // A preset or step pans the chart sideways between periods of about the same length, and zooms (a longer
-// trip) when the length changes a lot, as between all time and a year
-const PAN_MS = 900;
-const ZOOM_MS = 1400;
+// trip, ZOOM_MS) when the length changes a lot, as between all time and a year
 
 // `from` is the range being left, to animate from (false to just draw)
 function panMs(from) {
@@ -367,7 +365,7 @@ function panMs(from) {
 function renderAll(keepZoom, from = false) {
   renderDependents();
   const ms = panMs(from);
-  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: "cubicInOut", pan: true });
+  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true });
 }
 
 // The brush moved the window. Everything the range feeds is redrawn; the rolling chart only slides to the
@@ -421,7 +419,7 @@ function liveSettleChart() {
     renderRollingChart(periodZoom(), ms && { ms, live: true }, null, false);
     liveTail = () => {
       if (mixArgs) renderMix(...mixArgs);
-      paintBrush(undefined, ms ? { ms, ease: (t) => 1 - Math.pow(1 - t, 3) } : null);
+      paintBrush(undefined, ms ? { ms, ease: EASE_OUT.js } : null);
     };
   }
 }
@@ -908,7 +906,7 @@ onZoomChange($("chart-rolling"), () => {
     const curve = smoothCurve("auto", span);
     if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
     cancelSweep();
-    renderRollingChart(zoom, { ms: 250, easing: "linear" }, { sigma, smooth: curve });
+    renderRollingChart(zoom, { ms: GROW_MS, easing: EASE_OUT.echarts }, { sigma, smooth: curve });
   }, 150);
 });
 

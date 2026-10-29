@@ -3,7 +3,7 @@
 // everything from that range, so nothing is rounded to a year.
 
 import { dayToDate } from "./aggregate.js";
-import { dur, easeInOut } from "./motion.js";
+import { dur, easeInOut, easeOut } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -131,7 +131,7 @@ export function setBrushBands(next, morph) {
     return applyBands(next);
   }
   // Taking over a morph already moving, it carries on without first slowing to a stop
-  const ease = flying && now >= morphAt.start ? (t) => 1 - Math.pow(1 - t, 3) : morph?.ease ?? easeInOut;
+  const ease = flying && now >= morphAt.start ? easeOut : morph?.ease ?? easeInOut;
   morphAt = { start: now + delay, end: now + delay + ms };
   morphTimer = setTimeout(() => {
     const t0 = performance.now();
