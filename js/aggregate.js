@@ -152,6 +152,8 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
 
   const half = Math.floor(window / 2);
   const gridHalf = Math.floor(gridWindow / 2);
+  const everyone = dailyTable(plays, [], true).prefix[0];
+  const everyoneTotals = [];
   const dates = [];
   const hours = Array.from({ length: nSeries }, () => []);
   const share = Array.from({ length: nSeries }, () => []);
@@ -161,6 +163,7 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
     const sums = prefix.map((pre) => pre[end] - pre[start]);
     const total = sums.reduce((a, b) => a + b, 0);
     dates.push(dayToDate(first + center).getTime());
+    everyoneTotals.push(everyone[end] - everyone[start]);
     for (let s = 0; s < nSeries; s++) {
       hours[s].push(sums[s]);
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
@@ -169,7 +172,9 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
   // Drop the near-empty stretch at the start: exports often begin with a few stray plays long before
   // the real listening. The chart starts at the first point whose window holds at least a fifth of the
   // typical window's listening (the median over points with any). A chart with nothing is left alone.
-  const totals = dates.map((_, i) => hours.reduce((a, h) => a + h[i], 0));
+  // The totals are all listening, not just the artists drawn, so every artist set (and "Everyone else" on or
+  // off) starts on the same date. Charts tween point by point, and shifted dates would pair the wrong points.
+  const totals = everyoneTotals;
   const typical = totals.filter((x) => x > 0).sort((a, b) => a - b)[Math.floor(totals.filter((x) => x > 0).length / 2)];
   const lead = typical ? totals.findIndex((x) => x >= typical * START_MIN_SHARE) : -1;
   if (lead > 0) {

@@ -122,32 +122,16 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
     share: [...d.share, d.dates.map((_, i) => (d.share[0][i] == null ? null : 0))],
     hours: [...d.hours, d.dates.map(() => 0)],
   });
-  // Points tween by index, and the chart's near-empty lead-in is trimmed by total listening, which
-  // "Everyone else" changes. So the old and new data can start on different dates; tween only the dates
-  // both have, then draw the full data once it lands
-  const [oldData, oldNames, , , , oldHasOther, , , oldSmooth] = st.args;
-  const aligned = oldData.dates.length !== data.dates.length || oldData.dates[0] !== data.dates[0];
-  const have = new Set(oldData.dates);
-  const shared = new Set(data.dates.filter((d) => have.has(d)));
-  const pick = (d) => {
-    const keep = d.dates.map((x, i) => (shared.has(x) ? i : -1)).filter((i) => i >= 0);
-    const by = (arr) => keep.map((i) => arr[i]);
-    return { dates: by(d.dates), hours: d.hours.map(by), share: d.share.map(by) };
-  };
-  const before = aligned ? pick(oldData) : oldData;
-  const after = aligned ? pick(data) : data;
-  if (aligned) renderRolling(el, before, oldNames, window, zoom, mode, oldHasOther, false, pins, slots, oldSmooth);
   if (hasOther) {
-    renderRolling(el, flat(before), names, window, zoom, mode, true, false, pins, slots, oldSmooth);
-    renderRolling(el, after, names, window, zoom, mode, true, ms, pins, slots, smooth);
+    const [oldData, , , , , , , , oldSmooth] = st.args;
+    renderRolling(el, flat(oldData), names, window, zoom, mode, true, false, pins, slots, oldSmooth);
+    renderRolling(el, data, names, window, zoom, mode, true, ms, pins, slots, smooth);
   } else {
-    renderRolling(el, flat(after), [...names, "Everyone else"], window, zoom, mode, true, ms, pins, slots, smooth);
-  }
-  if (!hasOther || aligned) {
+    renderRolling(el, flat(data), [...names, "Everyone else"], window, zoom, mode, true, ms, pins, slots, smooth);
     const token = rollingState.get(el).renderToken;
     setTimeout(() => {
       if (rollingState.get(el)?.renderToken !== token) return; // something re-rendered since
-      renderRolling(el, data, names, window, currentZoom(el), mode, hasOther, false, pins, slots, smooth);
+      renderRolling(el, data, names, window, currentZoom(el), mode, false, false, pins, slots, smooth);
     }, ms);
   }
   return true;
