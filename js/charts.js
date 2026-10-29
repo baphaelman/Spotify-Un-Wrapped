@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded, easeInOut } from "./motion.js";
+import { MORPH_MS, FADE_MS, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
 
 const instances = new Map();
 
@@ -686,7 +686,15 @@ function renderLegend(el, names, colors, visible, otherIdx, { hover, toggle, sho
   };
   const shown = names.map((name, k) => [name, k]).filter(([, k]) => k !== otherIdx);
   const pinned = shown.filter(([name]) => pins?.has(name));
+  // Pinning can add a chip row (or remove one), so the controls grow or shrink instead of snapping, and
+  // everything below slides with them
+  const controls = card.querySelector(".tav-controls");
+  const heightBefore = controls.offsetHeight;
   card.querySelector(".pinned-legend").replaceChildren(...pinned.map(([n, k]) => item(n, k)));
+  const heightAfter = controls.offsetHeight;
+  if (heightBefore !== heightAfter && dur(200)) {
+    controls.animate([{ height: `${heightBefore}px`, overflow: "hidden" }, { height: `${heightAfter}px`, overflow: "hidden" }], { duration: 250, easing: "ease-out" });
+  }
   const top = shown.filter(([name]) => !pins?.has(name));
   // Checked when every unpinned artist is shown, mixed when some are; a click shows them all, or hides
   // them all once they're all shown
