@@ -156,15 +156,16 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
 }
 
 // Aggressive extra smoothing for the rolling chart: a Gaussian blur of every series along the time axis,
-// on top of the rolling window. strength 1 (low), 2 (med) or 3 (high), or "auto" sets sigma (days) as a fraction of the window, so a wide
+// on top of the rolling window. strength 1 (low), 2 (med), 3 (high) or 4 (max), or "auto" sets sigma (days) as a fraction of the window, so a wide
 // window blurs more; 0 returns the data as is. Gaps
 // (null, nothing played) stay gaps and don't leak into their neighbors; every series is blurred with the
 // same weights, so shares still add up to 1 wherever there's a value.
-const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275]; // x the window, per strength
+const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275, 0.55]; // x the window, per strength
 // The blur radius (days) for a strength, so callers can step through the radii in between
 // "auto" scales the blur with how much time is on screen instead: none at a year or less, the high strength
-// from three years out, in between on a log scale. Returns 0..1.
-const AUTO_SPAN = [[365, 0], [1095, 1]]; // [visible days, how much of the high strength]
+// from three years out, and twice that (the max strength) from six years out, in between on a log scale.
+// Returns 0..2, in units of the high strength.
+const AUTO_SPAN = [[365, 0], [1095, 1], [2190, 2]]; // [visible days, how much of the high strength]
 export function interpLog(points, x) {
   if (x <= points[0][0]) return points[0][1];
   for (let i = 1; i < points.length; i++) {

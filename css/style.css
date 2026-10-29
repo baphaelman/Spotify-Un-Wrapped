@@ -289,11 +289,14 @@ button.ghost:hover { background: var(--border); }
 /* Pinned chips: each stays on one line (long names ellipsize), and the row wraps between chips */
 .tav-controls .pinned-legend { width: 100%; min-width: 0; }
 .tav-controls .legend-item.pinned { flex: none; max-width: 100%; white-space: nowrap; }
-.tav-legend { display: flex; align-items: center; gap: 8px 12px; margin: 18px 0 8px; }
-/* Same height as the select-all box (13px + 4px padding each side), pinned to the first legend row, so
-   the dot and the box stay level even when the legend wraps */
-.tav-legend .palette-picker { margin-right: -6px; align-self: flex-start; align-items: center; height: 21px; }
+.tav-legend { display: flex; align-items: flex-start; gap: 8px 12px; margin: 18px 0 8px; }
+/* Every item shares a 24px first row, centered, so the palette dot, the select-all box, the toggle and the
+   smoothing select stay level whether the legend takes one row or wraps to two */
+.tav-legend .palette-picker { margin-right: -6px; }
+.tav-legend > * { min-height: 24px; }
+.tav-legend .palette-picker { align-items: center; }
 .tav-legend .other-toggle { flex: none; }
+.tav-smooth select { height: 24px; box-sizing: border-box; }
 .tav-legend .chart-legend { flex: 0 1 auto; min-width: 0; gap: 4px 12px; }
 .tav-legend .legend-item { padding: 0; border: 0; border-radius: 0; font-size: 11px; color: var(--text-secondary); }
 .tav-legend .legend-item:hover { background: transparent; color: var(--text-primary); }

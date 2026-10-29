@@ -389,9 +389,11 @@ const WINDOWS = [7, 30, 45, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 let rawMemo = null;
-const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75]; // curve rounding per smoothify strength
+const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify strength
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
-const smoothCurve = (strength, span) => (strength === "auto" ? agg.autoAmount(span) * SMOOTH_CURVE[3] : SMOOTH_CURVE[strength]);
+// Auto's curve rounding: scaled with the amount up to high, then on toward max
+const autoCurve = (a) => (a <= 1 ? a * SMOOTH_CURVE[3] : SMOOTH_CURVE[3] + (a - 1) * (SMOOTH_CURVE[4] - SMOOTH_CURVE[3]));
+const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span)) : SMOOTH_CURVE[strength]);
 // Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
@@ -421,7 +423,7 @@ function renderRollingChart(zoom, morph = false, look = null) {
   state.shownSmooth = { sigma, curve }; // what the zoom hook compares against
   // Auto says which strength it has landed on
   const amount = agg.autoAmount(span);
-  $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : "High"}`;
+  $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
   const data = agg.blur(raw, sigma);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
