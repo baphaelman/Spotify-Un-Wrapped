@@ -894,7 +894,8 @@ function paintArtistKey() {
   mark.className = "all-box";
   const glyph = document.createElement("span");
   glyph.className = "all-glyph";
-  glyph.textContent = on === top.length ? "✓" : "+";
+  if (on === top.length) glyph.textContent = "✓";
+  else glyph.classList.add("plus");
   mark.append(glyph);
   box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));

@@ -632,7 +632,7 @@ dialog pre {
 }
 :is(.toplist .show-box:not(:disabled), .artist-key .swatch[aria-pressed="true"]):is(:hover, .hover)::before,
 .legend-all[aria-checked="true"]:is(:hover, .hover) .all-box::before { opacity: 1; }
-.legend-all .all-box::before { width: 7px; margin-left: -3.5px; background: currentColor; }
+.legend-all .all-box::before { width: 8px; margin-left: -4px; background: currentColor; }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
@@ -655,8 +655,8 @@ dialog pre {
 .all-box {
   display: grid;
   place-items: center;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px currentColor;
   font-size: 10px;
@@ -664,6 +664,10 @@ dialog pre {
   line-height: 1;
 }
 .all-glyph { transition: opacity var(--motion-fade) var(--ease-out); }
+/* The plus is drawn, like the minus, so it sits dead center (a text glyph rides on the font's baseline) */
+.all-glyph.plus { position: absolute; inset: 0; }
+.all-glyph.plus::before, .all-glyph.plus::after { content: ""; position: absolute; left: 3px; top: 6px; width: 8px; height: 2px; border-radius: 1px; background: currentColor; }
+.all-glyph.plus::after { transform: rotate(90deg); }
 .legend-all[aria-checked="true"]:is(:hover, .hover) .all-glyph { opacity: 0; }
 .legend-item {
   display: inline-flex;
