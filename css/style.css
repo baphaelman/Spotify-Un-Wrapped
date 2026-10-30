@@ -747,7 +747,7 @@ dialog pre {
 .artist-results .detail { flex: none; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .artist-results .note { padding: 6px 8px; font-size: 12px; color: var(--text-muted); }
 
-/* Palette picker: a dot of the artists' colors as a left-to-right gradient (set in main.js), ringed
+/* Palette picker: a dot of the artists' colors as a left-to-right gradient (set in theme.js), ringed
    by a thin gap and outline, opening a menu of palettes with a strip of each. The gradient ends on its
    first color and tiles at twice the dot's width, so on hover it drifts along in a seamless loop,
    pausing where it is when the pointer leaves. */
@@ -1024,7 +1024,7 @@ body, .topbar, .card, .stat, dialog, .year-menu, .palette-menu { transition: bac
 button:not(:disabled):active { transform: scale(0.96); }
 .toplist li { transition: background-color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
 
-/* Flipping the theme runs a circle at the toggle (main.js, a view transition): light grows out of it, and going dark
+/* Flipping the theme runs a circle at the toggle (theme.js, a view transition): light grows out of it, and going dark
    the old light page shrinks back into it, so it sits on top. The colors snap underneath, so the usual cross-fade
    is off while it runs. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

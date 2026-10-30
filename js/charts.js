@@ -5,7 +5,7 @@ import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOpt
 const instances = new Map();
 
 function tokens() {
-  // body, not the root: a chosen palette overrides the series colors there (see main.js)
+  // body, not the root: a chosen palette overrides the series colors there (see theme.js)
   const css = getComputedStyle(document.body);
   const v = (name) => css.getPropertyValue(name).trim();
   return {
@@ -578,7 +578,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: 12, bottom: 28 },
-      // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (main.js paintArtistKey), so
+      // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (key.js paintArtistKey), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },
       tooltip: {
@@ -604,7 +604,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },
       },
-      // The range is chosen in the page's period brush (main.js), which moves it with setZoom. A hidden
+      // The range is chosen in the page's period brush (period.js), which moves it with setZoom. A hidden
       // slider is still a dataZoom, so the plot shows exactly that range. Never an "inside" one: it
       // swallows wheel events even with wheel zoom off, which stops the page scrolling over the chart
       dataZoom: [{ type: "slider", show: false, startValue: zoom?.[0], endValue: zoom?.[1] }],
