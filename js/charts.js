@@ -600,18 +600,20 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
-  // listening at that date (as the bands are scaled, in either mode). valueOf gives the number shown
+  // listening at that date (as the bands are scaled, in either mode). valueOf(j, ofArtist) gives the number
+  // shown; ofArtist is true while the artist is pinned or hovered
   const PART_TIP_MIN = 0.01;
   const partTips = (k, i, valueOf, fmt, extra) => {
     if (!parts || k === otherIdx) return [];
     const on = lit();
+    const ofArtist = on.has(k);
     return partRows(k)
       .map((_, j) => j)
       .filter((j) => partShown(k, j, on) && parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)
       // In the order they're drawn: share mode stacks them up from the band's floor, so the top one comes first;
       // in hours mode the highest line does
       .sort((a, b) => (share ? b - a : valueOf(b) - valueOf(a)))
-      .map((j) => subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j), isHot(k, j)));
+      .map((j) => subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j, ofArtist)), parts.names[k][j] + extra(j), isHot(k, j)));
   };
   const shareTooltip = (params) => {
     params = bands(params);
@@ -625,8 +627,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
       .flatMap((r) => [
         row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
-        // A part's percent is of its artist's listening, not of everyone's
-        ...partTips(sIdx(r.p), i, (j) => parts.share[sIdx(r.p)][j][i] / data.share[sIdx(r.p)][i], (v) => (v * 100).toFixed(0) + "%",
+        // A part's percent is of everyone's listening, or of its artist's while the artist is pinned or hovered
+        ...partTips(sIdx(r.p), i, (j, ofArtist) => parts.share[sIdx(r.p)][j][i] * (ofArtist ? 1 / data.share[sIdx(r.p)][i] : scale[i]),
+          (v) => (v * 100).toFixed(0) + "%",
           (j) => ` · ${fmtHours(parts.hours[sIdx(r.p)][j][i])}`),
       ]);
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
