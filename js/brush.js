@@ -95,7 +95,9 @@ function emit(lo, hi) {
   if (range && lo === range.lo && hi === range.hi) return;
   range = { lo, hi };
   position();
-  onChange({ lo, hi });
+  // The page may answer with the range it settled on (a preset-length window snaps to whole months)
+  const r = onChange({ lo, hi });
+  if (r && (r.lo !== lo || r.hi !== hi)) { range = { ...r }; position(); }
 }
 
 // Called when the data loads: the day the timeline starts and ends on (day indices), and the history's

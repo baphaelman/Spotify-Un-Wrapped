@@ -536,6 +536,7 @@ setupBrush((range) => {
   syncPeriod();
   cancelAnimationFrame(livePending);
   livePending = requestAnimationFrame(liveRender);
+  return range;
 }, (...a) => { dragLen = undefined; return paintBrush(...a); });
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
