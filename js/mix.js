@@ -16,6 +16,7 @@ let hover = () => {};
 // name -> { name, seg, label, x, w, from, to, leaving, pinnable }; x and w are fractions of the bar
 const entries = new Map();
 let raf = 0;
+let under = null; // the artist whose segment or tile the pointer is on
 
 const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
@@ -56,8 +57,8 @@ function makeEntry(name) {
   row.append(tab, card);
   const e = { name, seg, label, hoursEl, row, card, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   for (const el of [seg, card]) {
-    el.addEventListener("pointerenter", () => hover(name));
-    el.addEventListener("pointerleave", () => hover(null));
+    el.addEventListener("pointerenter", () => hover((under = name)));
+    el.addEventListener("pointerleave", () => hover((under = null)));
   }
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
   // A hidden one's tile brings it back, like its chip in the period bar's key
@@ -232,6 +233,8 @@ export function updateMix(next) {
     place();
   } else glide();
   dim();
+  // Clicking to pin re-renders the chart, which drops its hover; while the pointer is still here, light them again
+  if (under && names.includes(under) && focusName !== under) hover(under);
 }
 
 // A row's cover: at once when it's known, otherwise asked for once the bar holds still (a drag redraws the bar
@@ -255,8 +258,9 @@ function showCover(e, id) {
 let focusName = null;
 function dim() {
   const focus = focusName == null ? undefined : entries.get(focusName);
-  // A pinned artist with no listening in the period isn't drawn, so it dims nobody
-  const pinned = (e) => e.seg.classList.contains("pinned") && e.to.w > 0;
+  // A pinned artist with no listening in the period isn't drawn, so it dims nobody. The pins are read live: a pin
+  // re-renders the chart, which clears its hover before this bar is told about the new pin
+  const pinned = (e) => e.pinnable && ctx.pins.has(e.name) && e.to?.w > 0;
   const any = !!focus || [...entries.values()].some(pinned);
   for (const e of entries.values()) {
     const lit = !any || e === focus || pinned(e);
@@ -267,6 +271,8 @@ function dim() {
 
 // Light one artist's segment (and dim the rest), from a hover anywhere on the page; null clears
 export function highlightMix(name) {
+  // A re-render clearing the hover doesn't unlight the one the pointer is still on (updateMix lights them again)
+  if (name == null && under && entries.has(under)) name = under;
   focusName = ctx ? name : null;
   for (const e of entries.values()) {
     e.seg.classList.toggle("focus", e.name === focusName);

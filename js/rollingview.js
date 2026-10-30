@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, toggleArtist, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -460,10 +460,13 @@ export function pin(name) {
   brushMorph = null;
 }
 
+// Unpinning is always a click on something of the artist's, so they go straight to being hovered
 function unpin(name) {
   state.pinned = state.pinned.filter((a) => a !== name);
   brushMorph = { ms: MORPH_MS };
+  holdFocus($("chart-rolling"), name);
   renderRollingChart(currentZoom($("chart-rolling")));
+  holdFocus($("chart-rolling"), null);
   brushMorph = null;
 }
 

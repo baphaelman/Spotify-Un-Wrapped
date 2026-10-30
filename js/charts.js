@@ -379,6 +379,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       selected: Object.fromEntries(names.map((n, i) => [n, !hidden?.has(n) && !fresh(n, i)])),
       zrMove: st?.zrMove,
       zrOut: st?.zrOut,
+      // the hover carries on through a change of artists (see keepFocus below)
+      focused: st?.focused,
+      keepFocus: st?.keepFocus,
     };
     rollingState.set(el, st);
   }
@@ -454,7 +457,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
   // The artist under the pointer when a click to pin or unpin re-rendered the chart stays lit from the first
-  // frame (see zrClick), rather than snapping to rest and fading back in
+  // frame (see zrClick), rather than snapping to rest and fading back in, as does one unpinned anywhere on the
+  // page (holdFocus)
   const kept = st.keepFocus == null ? -1 : names.indexOf(st.keepFocus);
   const shown = kept < 0 ? base : new Set([...base, kept]);
   // Fills are opaque tints, not transparency, because bands overlap down to the axis.
@@ -1001,6 +1005,13 @@ export function showArtists(el, list, show) {
 // Highlight an artist in a rolling chart from elsewhere on the page; null clears.
 export function focusArtist(el, name) {
   rollingState.get(el)?.focusArtist?.(name);
+}
+
+// Keeps an artist lit through the re-renders until it's called again with null, rather than clearing the
+// highlight and lighting them again (a click that unpins them is always on something of theirs)
+export function holdFocus(el, name) {
+  const st = rollingState.get(el);
+  if (st) st.keepFocus = name;
 }
 
 // Total hours per month (or per `span` months), stacked: the month's top artist on top of each bar, filled in strongly and captioned
