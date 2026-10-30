@@ -870,18 +870,10 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
   // ?capbar to the URL to put each one just above its bar instead)
   const atTop = !location.search.includes("capbar");
-  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
+  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
-  // A pinned artist's caption stands out, bold in the main ink (a name with ECharts' rich-text marks stays plain)
-  const captionText = (n) => (n && pins?.has(n) && !off.has(n) && !/[{}|]/.test(n) ? `{pin|${n}}` : n);
-  const captionStyle = {
-    color: t.secondary,
-    fontSize: 11,
-    width: slotW - 6,
-    overflow: "truncate",
-    rich: { pin: { color: t.primary, fontSize: 11, fontWeight: 700 } },
-  };
+  const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -935,7 +927,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           axisTick: { show: false },
           splitLine: { show: false },
           axisPointer: { show: false },
-          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle, formatter: captionText },
+          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle },
         },
       ],
       yAxis: {
@@ -958,7 +950,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
             distance: 6,
             align: "center",
             ...captionStyle,
-            formatter: (p) => captionText(captionOf(rows[p.dataIndex])),
+            formatter: (p) => captionOf(rows[p.dataIndex]),
           },
         },
       ],
@@ -1004,10 +996,18 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     c.getZr().setCursorStyle(n != null && pins ? "pointer" : "default");
     const l = names.includes(n) ? n : null;
     if (l !== lit) hover((lit = l));
+    if (n !== st.picked) {
+      st.picked = n;
+      paintCaptionMarks(el, st);
+    }
     return n;
   };
   const leave = () => {
     slice = null;
+    if (st.picked != null) {
+      st.picked = null;
+      paintCaptionMarks(el, st);
+    }
     if (lit != null) hover((lit = null));
     if (tipAbove != null) c.dispatchAction({ type: "hideTip" });
     tipAbove = null;
@@ -1230,6 +1230,53 @@ function paintUnderlines(el, st, still = false) {
     });
   });
   layer._drawn = { who, rects };
+  paintCaptionMarks(el, st);
+}
+
+// Behind the captions, a mark for the artist a click would pin or unpin (the one the pointer picks, or one hovered
+// elsewhere on the page) and for the pinned ones. Neighbouring marks of one artist join into one, as the lines do.
+// They're elements over the chart, so CSS fades them. Trial: ?pinlook=shade|outline|chip|column picks the look
+// (.month-caps[data-look] in the stylesheet); shade by default.
+const PIN_LOOKS = ["shade", "outline", "chip", "column"];
+function paintCaptionMarks(el, st) {
+  const c = instances.get(el);
+  let layer = el.querySelector(".month-caps");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "month-caps";
+    Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 1 });
+    el.appendChild(layer);
+  }
+  const look = new URLSearchParams(location.search).get("pinlook");
+  layer.dataset.look = PIN_LOOKS.includes(look) ? look : "shade";
+  const { rows, grid, off } = st;
+  const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
+  // The caption row, and the whole column from it down to the axis
+  layer.style.setProperty("--cap-top", `${grid.top - 25}px`);
+  layer.style.setProperty("--cap-h", "17px");
+  layer.style.setProperty("--col-h", `${el.clientHeight - grid.bottom - grid.top + 25}px`);
+  const focus = st.picked ?? st.hovered;
+  const pinned = (n) => n != null && !!st.pins?.has(n) && !off.has(n);
+  const mark = rows.map((r) => {
+    const n = barView(st, r).top[0]?.name ?? null;
+    return st.underline && n != null && (pinned(n) || n === focus) ? n : null;
+  });
+  while (layer.children.length > rows.length) layer.lastChild.remove();
+  while (layer.children.length < rows.length) layer.appendChild(document.createElement("div"));
+  mark.forEach((n, i) => {
+    const d = layer.children[i];
+    d.classList.toggle("on", n != null);
+    d.classList.toggle("pin", pinned(n));
+    d.classList.toggle("hover", n != null && n === focus);
+    if (n == null) return; // fades out where it was, in its color
+    const jl = mark[i - 1] === n, jr = mark[i + 1] === n;
+    d.classList.toggle("jl", jl);
+    d.classList.toggle("jr", jr);
+    const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
+    const l = mid - slot / 2 + (jl ? 0 : 3), r = mid + slot / 2 - (jr ? 0 : 3);
+    Object.assign(d.style, { left: `${l}px`, width: `${r - l}px` });
+    d.style.setProperty("--c", st.colorOf(n));
+  });
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off

@@ -548,7 +548,40 @@ button.ghost:hover { background: var(--border); }
     border-radius var(--motion-morph) var(--ease-in-out), background-color var(--motion-fade) var(--ease-out);
 }
 .month-lines.still > div { transition: none; }
-@media (prefers-reduced-motion: reduce) { .month-lines > div { transition: none; } }
+/* Caption marks for pinned and hovered artists (trial looks: ?pinlook=shade|outline|chip|column) */
+.month-caps { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.month-caps > div {
+  position: absolute;
+  top: var(--cap-top);
+  height: var(--cap-h);
+  box-sizing: border-box;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out),
+    border-color var(--motion-fade) var(--ease-out), height var(--motion-fade) var(--ease-out),
+    left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out);
+}
+.month-caps > div.on { opacity: 1; }
+.month-caps > div.jl { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.month-caps > div.jr { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* shade: a tint, deeper when pinned */
+.month-caps[data-look="shade"] > .hover { background: color-mix(in srgb, var(--c) 14%, transparent); }
+.month-caps[data-look="shade"] > .pin { background: color-mix(in srgb, var(--c) 24%, transparent); }
+.month-caps[data-look="shade"] > .pin.hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
+/* outline: a faint ring on hover, a full one when pinned */
+.month-caps[data-look="outline"] > .hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+.month-caps[data-look="outline"] > .pin { border-color: var(--c); }
+.month-caps[data-look="outline"] > .pin.hover { background: color-mix(in srgb, var(--c) 12%, transparent); }
+/* chip: like the key's pinned chips, a tint on hover, tint and ring when pinned */
+.month-caps[data-look="chip"] > .hover { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.month-caps[data-look="chip"] > .pin { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.month-caps[data-look="chip"] > .pin.hover { background: color-mix(in srgb, var(--c) 24%, transparent); }
+/* column: hover washes the artist's whole columns; pinned tints the caption */
+.month-caps[data-look="column"] > .pin { background: color-mix(in srgb, var(--c) 22%, transparent); }
+.month-caps[data-look="column"] > .hover { height: var(--col-h); background: color-mix(in srgb, var(--c) 8%, transparent); }
+.month-caps[data-look="column"] > .pin.hover { background: color-mix(in srgb, var(--c) 13%, transparent); }
+@media (prefers-reduced-motion: reduce) { .month-lines > div, .month-caps > div { transition: none; } }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-2 .card { margin-bottom: 16px; }
