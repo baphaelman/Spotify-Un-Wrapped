@@ -614,7 +614,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // triggerEmphasis has to be off on the axis's own pointer too (the tooltip's alone isn't enough),
       // or every hover puts all the shapes in ECharts' highlight state, which breaks the hand-drawn focus
       axisPointer: { triggerEmphasis: false },
-      xAxis: { type: "time", ...baseAxis(t), splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
+      // hideOverlap: a month's name (bold) can land beside a day's number; the day gives way
+      xAxis: { type: "time", ...baseAxis(t), axisLabel: { color: t.muted, hideOverlap: true }, splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
       yAxis: {
         type: "value",
         min: 0,
