@@ -960,8 +960,9 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
     { notMerge: fresh },
     fresh ? 0 : dur(MORPH_MS)
   );
-  // The gray top series names its artist per bar
-  const artistOf = (p) => (p.seriesId === "top" ? p.data?.name : p.seriesName);
+  // The gray top series' artist is each bar's top one (looked up, not named in its data: ECharts matches data by
+  // name, so a bar whose name changed would fade out where it stood instead of morphing with the others)
+  const artistOf = (p) => (p.seriesId === "top" ? barView(st, rows[p.dataIndex]).top[0]?.name : p.seriesName);
   settleMonthly(el, st, looks);
   paintUnderlines(el, st);
   // The pointer picks the artist whose slice it's over; anywhere else in a column, it picks the column's top
@@ -1111,8 +1112,8 @@ function monthlySeries(st) {
   const radius = { borderRadius: [1.5, 1.5, 0, 0] };
   // A zero-height bar still strokes its outline, so an emptied bar keeps it only while it shrinks (settleMonthly
   // takes it off after)
-  const items = (id, values, extra = () => ({})) =>
-    values.map((v, i) => ({ value: v, ...extra(i), ...(v > 0 || st.last?.get(id)?.[i] > 0 ? {} : { itemStyle: { borderWidth: 0 } }) }));
+  const items = (id, values) =>
+    values.map((v, i) => ({ value: v, ...(v > 0 || st.last?.get(id)?.[i] > 0 ? {} : { itemStyle: { borderWidth: 0 } }) }));
   const tops = rows.map((r) => barView(st, r).top[0]);
   const shown = names.map((n, k) =>
     rows.map((r, i) => n !== tops[i]?.name && r.by[k] > 0 && (!st.other || lit.has(n) || r.by[k] >= FOLD * r.hours))
@@ -1139,7 +1140,7 @@ function monthlySeries(st) {
   }));
   // A top artist outside the chart has no color of their own: a lighter gray than the rest, without an outline
   const uncharted = rows.map((r, i) => (tops[i] && !names.includes(tops[i].name) ? tops[i].hours : 0));
-  const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i]?.name })) };
+  const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted) };
   // The gray never dims either: it's the rest of the month, whoever is lit
   const gray = { id: "rest", itemStyle: { color: mix(t.surface, t.other, 0.35), ...edge(t.other, false) }, data: rest };
   return [gray, ...slices, ...topBlocks, top];
@@ -1282,19 +1283,27 @@ function paintCaptionMarks(el, st) {
   });
 }
 
-// Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
+// Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off.
+// It waits for the chart's animations to finish rather than a fixed MORPH_MS: the morph's first frame can come late
+// (after the work of a render), and a setOption while bars still move restarts their easing, a visible stutter.
 function settleMonthly(el, st, series) {
   const was = st.last;
   st.last = new Map(series.filter((s) => s.id !== "rest").map((s) => [s.id, s.data.map((d) => d.value)]));
-  clearTimeout(st.settle);
+  const c = instances.get(el);
+  if (st.settle) c?.off("finished", st.settle);
+  st.settle = null;
   const emptied = [...st.last].some(([id, vs]) => vs.some((v, i) => v === 0 && was?.get(id)?.[i] > 0));
-  if (!emptied) return;
-  st.settle = setTimeout(() => {
-    if (monthlyState.get(el) !== st) return;
+  if (!emptied || !c) return;
+  const settle = () => {
+    c.off("finished", settle);
+    if (monthlyState.get(el) !== st || st.settle !== settle) return;
+    st.settle = null;
     const next = monthlySeries(st);
-    instances.get(el)?.setOption({ series: next }, undefined, true);
+    c.setOption({ series: next }, undefined, true);
     settleMonthly(el, st, next);
-  }, MORPH_MS);
+  };
+  st.settle = settle;
+  c.on("finished", settle);
 }
 
 // Light one artist (and dim the rest) from a hover elsewhere on the page; null clears
