@@ -161,14 +161,14 @@ matches what is moving.
   in step, drive both from one tick: the chart's pan reports its eased progress (`morph.onFrame`) and the
   period bar's window frame is placed from it (`glideBrushRange`, with its own easing off).
 - **Few beats, each with a purpose.** Fold everything that can start together into one beat, and chain only
-  what must follow. A period button that changes the slice size is three: the slice size sweeps (with its
-  slider); then the window frame and the chart pan or zoom to the new period *together* (one clock, so the frame
-  always sits over what the chart shows); then the artists morph in with
-  the bar's backdrop (which changes once, not once per beat). A beat starts where the last ended (a token
-  drops a click's chain when a newer click arrives). Order beats so each draws data that exists there: the
-  slice size changes on the period still showing, because the old artists have nothing in the new period
-  and would leave it blank. A transition that starts while its element has them switched off (the
-  timeline's `.morphing` state) snaps instead of gliding.
+  what must follow. A period button that changes the slice size is three: the window frame and the chart pan
+  or zoom to the new period *together* (one clock, so the frame always sits over what the chart shows);
+  then the artists morph in at the old slice size; then the slice size sweeps (with its slider and the
+  bar's backdrop). A beat starts where the last ended (a token drops a click's chain when a newer click
+  arrives). Order beats so each draws data that exists there: the slice size changes last, because swept
+  while the old artists were still on screen they'd have nothing in the new period and leave it blank.
+  A transition that starts while its element has them switched off (the timeline's `.morphing` state)
+  snaps instead of gliding.
 - **Reduced motion:** wrap every JS duration in `dur()` (0 when the visitor asked for less motion), and
   give every CSS animation an entry in the `prefers-reduced-motion` blocks.
 

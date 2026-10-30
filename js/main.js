@@ -435,26 +435,37 @@ $("period-resize").addEventListener("click", (e) => {
   ++resizeRun;
   const b = e.target.closest("button");
   if (!b) return;
-  // The button's window and smoothing go in first, so the trip to the new period draws with them: the chart
-  // pans there and its bands morph into the new period's artists at the new slice size, as one movement
   const look = RESIZE_LOOK[state.dim][b.dataset.len];
   const range = resized(state.range, b.dataset.len);
   const windowWas = $("window").value;
-  if (look) {
+  // The button's slice size and smoothing
+  const apply = () => {
+    if (!look) return;
     $("window").value = WINDOWS.indexOf(look.window);
     if (look.smooth !== undefined) {
       state.smoothify = look.smooth;
       $("smoothify").value = String(look.smooth);
     }
-  }
+  };
+  const sliceChanges = look && String(WINDOWS.indexOf(look.window)) !== windowWas;
   if (!sameRange(range, state.range)) {
-    // Three beats. A new slice size sweeps first (with its slider), on the period still showing, since its
-    // artists have data across it. Then the window frame and the chart travel to the new period together,
-    // and the artists morph in, on the new slice size's points. Without a new slice size, just the last two.
-    if ($("window").value === windowWas) return setRange(range);
-    const mine = ++resizeRun;
-    return void sweepWindow(true).then((done) => done !== false && mine === resizeRun && setRange(range));
+    // The window frame and the chart travel to the new period together first, drawn at the old slice size,
+    // and the new artists morph in. Then the slice size sweeps (with its slider), when every artist has data
+    // across the period (swept earlier, the old artists would leave the new period's left edge empty).
+    if (!sliceChanges) {
+      apply();
+      return setRange(range);
+    }
+    const trip = panMs(state.range) + dur(MORPH_MS);
+    setRange(range);
+    const mine = resizeRun;
+    return void setTimeout(() => {
+      if (mine !== resizeRun) return;
+      apply();
+      sweepWindow(true);
+    }, trip + 60);
   }
+  apply();
   // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
   if ($("window").value !== windowWas) return sweepWindow(true);
   renderRollingChart(currentZoom($("chart-rolling")), true);
@@ -844,7 +855,7 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
-  let artists = look?.artists ?? chartArtists(rangePlays(), n);
+  let artists = chartArtists(rangePlays(), n);
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
@@ -1290,15 +1301,12 @@ function sweepWindow(glide = false) {
   if (!from || from === to) return Promise.resolve(renderRollingChart(zoom()));
   cancelSweep();
   if (glide) glideWindow(from, to);
-  // (a period button has already moved the period on: the sweep keeps the artists on screen)
-  const hold = glide && state.chartNames ? { artists: state.chartNames } : {};
-  renderRollingChart(zoom(), false, { window: from, grid: to, ...hold });
-  // The brush glides to the new window's shape over the same time as the chart's sweep (a period button's
-  // sweep leaves that to the morph into the new period's artists, so the backdrop changes once)
-  if (!glide) paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: MORPH_MS });
+  renderRollingChart(zoom(), false, { window: from, grid: to });
+  // The brush glides to the new window's shape over the same time as the chart's sweep
+  paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: MORPH_MS });
   return sweep((t, ms) => {
     const window = t === 1 ? to : Math.round(from * (to / from) ** t);
-    renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to, ...hold });
+    renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });
   });
 }
 
