@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands, brushRange, glideBrushRange } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, STAGGER_MS, STAGGER_MAX_MS, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -242,7 +242,7 @@ const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
 function keyedPlays(dim) {
-  if (dim === "artist") return { plays: state.raw, owner: null };
+  if (dim === "artist") return { plays: state.raw, owner: null, title: null, album: null };
   const memo = keyedMemo.get(dim);
   if (memo?.raw === state.raw) return memo;
   const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
@@ -254,6 +254,8 @@ function keyedPlays(dim) {
   }
   const keys = new Map(); // name + artist -> what the view calls it
   const owner = new Map(); // what the view calls it -> artist
+  const title = new Map(); // what the view calls it -> its own name, without the artist
+  const albums = new Map(); // a track -> plays per album it was played from
   const plays = state.raw.map((p) => {
     const n = nameOf(p), id = n + "\u0000" + p.artist;
     let key = keys.get(id);
@@ -261,17 +263,22 @@ function keyedPlays(dim) {
       key = artistsOf.get(n).size > 1 || n === "Everyone else" ? `${n} · ${p.artist}` : n;
       keys.set(id, key);
       owner.set(key, p.artist);
+      title.set(key, n);
+      if (dim === "track") albums.set(key, new Map());
     }
+    if (dim === "track" && p.album) albums.get(key).set(p.album, (albums.get(key).get(p.album) ?? 0) + 1);
     return { ...p, artist: key, by: p.artist };
   });
-  const out = { raw: state.raw, plays, owner };
+  // A track on several albums (a single, then the album) is called by the one it was played from most
+  const album = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1] - a[1])[0]?.[0]]));
+  const out = { raw: state.raw, plays, owner, title, album };
   keyedMemo.set(dim, out);
   return out;
 }
 
 // Puts the view's plays and words in place (the graphs are drawn by the caller)
 function applyDim() {
-  ({ plays: state.plays, owner: state.owner } = keyedPlays(state.dim));
+  ({ plays: state.plays, owner: state.owner, title: state.titles, album: state.albums } = keyedPlays(state.dim));
   state.artists = agg.topArtists(state.plays, Infinity);
   const w = noun();
   $("n-label").textContent = w.Many;
@@ -1000,6 +1007,52 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 // colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
 // them everywhere. Pinned chips are tinted and outlined. It's led by a box that shows or hides every
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
+// Tracks and Albums open on who made each one shown (and, for a track, the album it's on), in the chart's
+// colors. Artists needs none, so there it folds away
+function paintWhoMade(names, pins) {
+  const wrap = $("who-made");
+  const open = state.dim !== "artist" && names.length > 0;
+  wrap.classList.toggle("open", open);
+  wrap.setAttribute("aria-hidden", !open);
+  if (!open) return;
+  $("who-made-title").textContent = `Your top ${noun().many}`;
+  const list = $("who-made-list");
+  const rows = (root) => new Map([...root.children].map((li) => [li.dataset.artist, li]));
+  const before = new Map([...rows(list)].map(([n, li]) => [n, li.getBoundingClientRect()]));
+  const had = new Set(before.keys());
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  list.replaceChildren(...names.map((n, i) => {
+    const off = state.hidden.includes(n);
+    const li = document.createElement("li");
+    li.className = (pins.has(n) && !off ? "pinned" : "") + (off ? " hidden-artist" : "") + (had.has(n) ? "" : " new");
+    li.style.setProperty("--c", `var(--series-${state.colorSlots.get(n) + 1})`);
+    li.style.setProperty("--i", Math.min(i * STAGGER_MS, STAGGER_MAX_MS) + "ms");
+    li.dataset.artist = n;
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = state.titles?.get(n) ?? n; // names come from user files
+    const by = document.createElement("small");
+    const album = state.dim === "track" ? state.albums?.get(n) : null;
+    by.textContent = `by ${state.owner?.get(n) ?? ""}` + (album ? ` · ${album}` : "");
+    by.className = "by";
+    li.title = `${name.textContent} ${by.textContent}`;
+    li.append(sw, name, by);
+    const act = () => (off ? pins.hide(n) : pins.toggle(n));
+    li.addEventListener("pointerenter", () => hover(n));
+    li.addEventListener("pointerleave", () => hover(null));
+    li.addEventListener("click", act);
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); }
+    });
+    return li;
+  }));
+  flip(before, rows(list));
+}
+
 function paintArtistKey() {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -1106,6 +1159,7 @@ function paintArtistKey() {
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
   key.replaceChildren(...(top.length ? [box] : []), ...items);
   flip(before, chips(key));
+  paintWhoMade(keyed, pins);
   for (const [n, el] of boxes(key)) {
     if (!marked.get(n)?.hover) continue;
     const b = boxOf(el);
