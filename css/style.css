@@ -395,6 +395,7 @@ button.ghost:hover { background: var(--border); }
 .tav-window .ticks { grid-column: 2; height: 20px; font-size: 11px; color: var(--text-muted); }
 .tav-window .ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; white-space: nowrap; transition: color var(--motion-fade) var(--ease-out); }
 .tav-window .ticks span:not(.on) { color: transparent; }
+.tav-window .ticks.settle span { transition: none; }
 .tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--text-muted); }
 .tav-window .ticks span.on { color: var(--text-primary); font-weight: 600; }
 .tav-window .ticks span.on::before { background: var(--text-primary); }

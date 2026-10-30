@@ -1270,8 +1270,14 @@ function endGlide(to = WINDOWS[$("window").value]) {
   input.step = "1";
   input._glide = false;
   input.value = WINDOWS.indexOf(to);
+  // The glided label is the old tick's element: hand its place and text to the new tick without a cross-fade,
+  // or the old number flashes back to its own spot as the new one fades in
+  const ticks = input.closest(".slider").querySelector(".ticks");
+  ticks.classList.add("settle");
   paintSlider(input);
-  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) tick.textContent = WINDOWS[tick.dataset.v];
+  for (const tick of ticks.querySelectorAll("[data-v]")) tick.textContent = WINDOWS[tick.dataset.v];
+  getComputedStyle(ticks.querySelector(".on") ?? ticks).color; // apply the change with transitions off
+  ticks.classList.remove("settle");
 }
 function glideWindow(from, to, ms) {
   const input = $("window");
