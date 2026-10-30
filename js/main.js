@@ -855,7 +855,7 @@ const spanDays = (zoom, dates) =>
 function renderRollingChart(zoom, morph = false, look = null, followers = !look) {
   if (!look) cancelSweep(); // any other render ends a sweep in progress
   const n = Number($("n-artists").value);
-  const target = WINDOWS[$("window").value];
+  const target = $("window")._glideTo ?? WINDOWS[$("window").value]; // (the thumb is between steps mid-glide)
   const window = look?.window ?? target;
   state.shownWindow = window; // where a window sweep starts from, even if it interrupts another
   const includeOther = $("include-other").checked;
@@ -1269,6 +1269,7 @@ function endGlide(to = WINDOWS[$("window").value]) {
   if (!input._glide) return;
   input.step = "1";
   input._glide = false;
+  input._glideTo = null;
   input.value = WINDOWS.indexOf(to);
   // The travelling number is a label of its own: the new tick takes it over without a cross-fade, or the
   // number would flash as one fades out and the other in
@@ -1288,6 +1289,7 @@ function glideWindow(from, to, ms) {
     return i + Math.max(0, Math.min(1, Math.log(w / WINDOWS[i]) / Math.log(WINDOWS[i + 1] / WINDOWS[i])));
   };
   input._glide = true;
+  input._glideTo = to;
   input.step = "any";
   // The number travels as a label of its own, so every tick keeps its notch in place; the current tick hands
   // its number over (not fading)
@@ -1319,9 +1321,9 @@ function glideWindow(from, to, ms) {
 // ticks. Every step uses the points of the final chart (the window fixed on `grid`), so ECharts can tween
 // each point; the first step is drawn without animation to put the old window on those points. Edges
 // the old window didn't reach appear at once there.
-function sweepWindow(glide = false) {
+function sweepWindow(glide = false, to = WINDOWS[$("window").value]) {
   const zoom = () => currentZoom($("chart-rolling"));
-  const from = state.shownWindow, to = WINDOWS[$("window").value];
+  const from = state.shownWindow;
   endGlide(to);
   if (!from || from === to) return Promise.resolve(renderRollingChart(zoom()));
   cancelSweep();
@@ -1340,10 +1342,18 @@ function sweepWindow(glide = false) {
 let pending = 0;
 for (const id of ["n-artists", "window", "include-other"]) {
   $(id).addEventListener("input", () => {
+    // The slice size follows the pointer's step (a click or a drag) with the same eased glide and sweep as a
+    // period button: the thumb trails the pointer on the sweep's curve. Read the step now, since a glide
+    // in flight keeps moving the thumb to fractional values.
+    let to;
+    if (id === "window") {
+      to = WINDOWS[Math.max(0, Math.min(WINDOWS.length - 1, Math.round(Number($(id).value))))];
+      if ($(id)._glide && $(id)._glideTo === to) return; // already on its way there
+    }
     cancelAnimationFrame(pending);
     // The artist-count slider re-renders continuously as it drags, so it doesn't animate
     pending = requestAnimationFrame(() => {
-      if (id === "window") return sweepWindow();
+      if (id === "window") return sweepWindow(true, to);
       const other = id === "include-other";
       brushMorph = other ? { ms: MORPH_MS } : null; // the bar's backdrop morphs with the chart
       renderRollingChart(currentZoom($("chart-rolling")), other);
