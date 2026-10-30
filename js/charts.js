@@ -130,7 +130,7 @@ export function linkStrip(el, strip) {
 let relaying = false; // a hover passed from one to the other isn't passed back
 // How the strip draws its lines: width at rest (lit ones are 1px thicker); fill "none", "lit" (only lit lines) or
 // "all" (every line faintly, lit ones more); parts: whether it splits into albums or songs along with the bands
-export const stripLook = { width: 2, fill: "lit", parts: true };
+export const stripLook = { width: 2, fill: "all", parts: false };
 
 // The hours axis top for the zoom range: the tallest shown line in it, in whole hours
 function hoursTop(data, names, window, hasOther, hide, zoom) {
@@ -785,7 +785,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       // The strip has no date labels of its own: it reads them off the main chart's axis just above
-      grid: isStrip ? { left: 48, right: 16, top: 14, bottom: 4 } : { left: 48, right: 16, top: 12, bottom: 28 },
+      grid: isStrip ? { left: 48, right: 16, top: 14, bottom: 12 } : { left: 48, right: 16, top: 12, bottom: 28 },
       // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (key.js paintArtistKey), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },

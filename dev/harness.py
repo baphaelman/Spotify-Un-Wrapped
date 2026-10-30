@@ -82,7 +82,7 @@ const OPTS = {
   shading: ["none", "lit", "all"],
   breakdown: ["on", "off"],
 };
-const DEF = { height: "120", gap: "0", marker: "none", line: "2", shading: "lit", breakdown: "on" };
+const DEF = { height: "260", gap: "12", marker: "panel label", line: "2", shading: "all", breakdown: "off" };
 let cur = { ...DEF };
 try { cur = { ...DEF, ...JSON.parse(localStorage.getItem("strip-try") || "{}") }; } catch {}
 const wrap = document.getElementById("strip-wrap");
@@ -94,6 +94,7 @@ const apply = (redraw) => {
   stripLook.fill = cur.shading;
   stripLook.parts = cur.breakdown === "on";
   try { localStorage.setItem("strip-try", JSON.stringify(cur)); } catch {}
+  if (readout) readout.textContent = Object.values(cur).join(", ");
   if (redraw) renderRollingChart(currentZoom(document.getElementById("chart-rolling")), true);
 };
 const panel = document.createElement("div");
@@ -117,6 +118,10 @@ for (const [k, list] of Object.entries(OPTS)) {
   }
   panel.append(label, opts);
 }
+// The choices as text, to paste back
+var readout = document.createElement("code");
+readout.style.cssText = "grid-column: 1 / -1; user-select: all; color: var(--text-secondary)";
+panel.append(readout);
 document.body.append(panel);
 apply(false);
 const q = (id) => document.getElementById(id);
