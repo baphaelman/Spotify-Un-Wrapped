@@ -369,7 +369,6 @@ button.ghost:hover { background: var(--border); }
 /* Top Artists View: the title, its description and the window slider on the left; Share/Hours in the top
    right corner with the smoothing select beneath it. The sliders are black and white and show only the
    current value beneath the thumb. */
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tav-head { display: flex; align-items: stretch; justify-content: space-between; gap: 24px; }
 .tav-head > div:first-child { flex: 1; min-width: 0; }
 .segmented.solid { position: relative; padding: 2px; background: var(--surface-2); border: 1px solid var(--border); }
