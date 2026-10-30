@@ -1276,6 +1276,7 @@ function endGlide(to = WINDOWS[$("window").value]) {
   const ticks = input.closest(".slider").querySelector(".ticks");
   ticks.classList.add("settle");
   ticks.querySelector(".glide")?.remove();
+  ticks.querySelector(".target")?.classList.remove("target");
   paintSlider(input);
   getComputedStyle(ticks.querySelector(".on") ?? ticks).color; // apply the change with transitions off
   ticks.classList.remove("settle");
@@ -1298,6 +1299,8 @@ function glideWindow(from, to, ms) {
   label.className = "on glide";
   ticks.classList.add("settle");
   ticks.querySelector("[data-v].on")?.classList.remove("on");
+  ticks.querySelector(".target")?.classList.remove("target");
+  ticks.querySelector(`[data-v="${WINDOWS.indexOf(to)}"]`)?.classList.add("target");
   ticks.append(label);
   getComputedStyle(label).color;
   ticks.classList.remove("settle");
