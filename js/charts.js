@@ -311,7 +311,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         const now = chart(el).getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
         if (Number.isFinite(now)) yMax = { from: now, to: Math.max(1, Math.ceil(m)) };
       }
-      panTo(el, from, zoom, morph, morph.finish ?? (() => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth)), yMax);
+      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth), yMax);
       return;
     }
     morph = same;
