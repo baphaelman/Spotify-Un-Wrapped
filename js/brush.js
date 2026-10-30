@@ -30,7 +30,11 @@ const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short
 export function setupBrush(cb, done = () => {}) {
   onChange = cb;
   const track = $("brush-track");
-  new ResizeObserver(() => draw()).observe(track);
+  new ResizeObserver(() => {
+    draw();
+    track.classList.add("gliding"); // a resize places the window at once, with no slide to lag behind it
+    position();
+  }).observe(track);
 
   track.addEventListener("pointerdown", (e) => {
     if (!model || !range || e.button) return;
