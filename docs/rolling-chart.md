@@ -4,11 +4,12 @@ Read this before touching `renderRolling`. These rules were learned the hard way
 against an ECharts behaviour that breaks the hand-made stacking or the morphs.
 
 It has two modes, **Share** (stacked bands) and **Hours** (overlaid lines of hours per week), which can
-morph into each other. The page draws Share in `#chart-rolling` and, under its axis, a short Hours strip
-(`#chart-rolling-hours`, `linkStrip`) with no date labels of its own. Every render of the main chart
+morph into each other. The page draws Share in `#chart-rolling` and Hours in its own card below
+(`#chart-rolling-hours`, `linkStrip`, without the albums or songs). Every render of the main chart
 re-renders the strip with the same args in hours mode (its selection copied), `setZoom` and `panTo` move
 both on one clock, and hover in either lights the artist in the other (`tellFocus`). The page only ever
-talks to the main chart.
+talks to the main chart. Both cards have a Days per slice slider; `#window` is the one read, and
+`windowSliders` in `rollingview.js` keeps the other in step.
 
 - **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
   `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.

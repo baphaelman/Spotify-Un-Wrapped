@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, stripLook } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -55,27 +55,11 @@ const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.aut
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
 
-// Under the chart's axis, a short copy of it in hours per week that follows every render, zoom and hover
+// The Hours per week card: the chart's artists in hours per week, following its every render, zoom and hover
 linkStrip($("chart-rolling"), $("chart-rolling-hours"));
-
-// The hours card's averaging: null follows the chart's days per slice; 1 is each day as it was; more is a plain
-// average over that many days, unblurred
-let stripDays = null;
-let stripMemo = null;
-export function setStripAverage(days) {
-  stripDays = days;
-  stripLook.unit = days === 1 ? 1 : 7;
-  stripLook.source = days && ((names, hasOther) => {
-    const artists = hasOther ? names.slice(0, -1) : names;
-    const key = [state.dim, state.plays.length, days, hasOther, ...artists].join("\u0000");
-    if (stripMemo?.key !== key) {
-      const raw = agg.rolling(state.plays, artists, days, hasOther);
-      // A day with nothing played is 0 here, not a gap, so the lines don't break up
-      stripMemo = { key, data: { ...raw, share: raw.share.map((row) => row.map((v) => v ?? 0)) } };
-    }
-    return { data: stripMemo.data, window: days, smooth: 0 };
-  });
-}
+// Days per slice has a slider in each card, kept in step. #window is the one the page reads; the other passes
+// its moves on to it, and both glide together
+const windowSliders = [$("window"), $("hours-window")];
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
@@ -87,8 +71,11 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const window = look?.window ?? target;
   state.shownWindow = window; // where a window sweep starts from, even if it interrupts another
   const includeOther = $("include-other").checked;
-  $("window").setAttribute("aria-valuetext", `${target} days`);
-  for (const id of ["n-artists", "window"]) paintSlider($(id));
+  for (const input of windowSliders) {
+    if (!input._glide) input.value = $("window").value;
+    input.setAttribute("aria-valuetext", `${target} days`);
+  }
+  for (const input of [$("n-artists"), ...windowSliders]) paintSlider(input);
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
@@ -115,8 +102,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   state.chartNames = artists;
 
   $("rolling-sub").textContent = rollingSub(n, target, includeOther);
-  $("hours-title").textContent = stripDays === 1 ? "Hours per day" : "Hours per week";
-  $("hours-sub").textContent = stripDays === 1 ? `Each ${noun().one}'s hours, day by day` : `Each ${noun().one}'s hours per week, ${stripDays ?? target}-day rolling average`;
+  $("hours-sub").textContent = `Each ${noun().one}'s hours per week, ${target}-day rolling average`;
   const slots = assignSlots(artists);
   const pins = {
     has: (name) => state.pinned.includes(name),
@@ -356,55 +342,60 @@ onZoomChange($("chart-rolling"), () => {
 let glideRaf = 0;
 function endGlide(to = WINDOWS[$("window").value]) {
   cancelAnimationFrame(glideRaf);
-  const input = $("window");
-  if (!input._glide) return;
-  input.step = "1";
-  input._glide = false;
-  input._glideTo = null;
-  input.value = WINDOWS.indexOf(to);
-  // The travelling number is a label of its own: the new tick takes it over without a cross-fade, or the
-  // number would flash as one fades out and the other in
-  const ticks = input.closest(".slider").querySelector(".ticks");
-  ticks.classList.add("settle");
-  ticks.querySelector(".glide")?.remove();
-  ticks.querySelector(".target")?.classList.remove("target");
-  paintSlider(input);
-  getComputedStyle(ticks.querySelector(".on") ?? ticks).color; // apply the change with transitions off
-  ticks.classList.remove("settle");
+  if (!$("window")._glide) return;
+  for (const input of windowSliders) {
+    input.step = "1";
+    input._glide = false;
+    input._glideTo = null;
+    input.value = WINDOWS.indexOf(to);
+    // The travelling number is a label of its own: the new tick takes it over without a cross-fade, or the
+    // number would flash as one fades out and the other in
+    const ticks = input.closest(".slider").querySelector(".ticks");
+    ticks.classList.add("settle");
+    ticks.querySelector(".glide")?.remove();
+    ticks.querySelector(".target")?.classList.remove("target");
+    paintSlider(input);
+    getComputedStyle(ticks.querySelector(".on") ?? ticks).color; // apply the change with transitions off
+    ticks.classList.remove("settle");
+  }
 }
 function glideWindow(from, to, ms) {
-  const input = $("window");
   if (!ms) return;
   // A window size's place on the slider: between two steps in proportion to the log of its size
   const place = (w) => {
     const i = Math.max(0, Math.min(WINDOWS.length - 2, WINDOWS.findLastIndex((x) => x <= w)));
     return i + Math.max(0, Math.min(1, Math.log(w / WINDOWS[i]) / Math.log(WINDOWS[i + 1] / WINDOWS[i])));
   };
-  input._glide = true;
-  input._glideTo = to;
-  input.step = "any";
-  // The number travels as a label of its own, so every tick keeps its notch in place; the current tick hands
-  // its number over (not fading)
-  const ticks = input.closest(".slider").querySelector(".ticks");
-  const label = document.createElement("span");
-  label.className = "on glide";
-  ticks.classList.add("settle");
-  ticks.querySelector("[data-v].on")?.classList.remove("on");
-  ticks.querySelector(".target")?.classList.remove("target");
-  ticks.querySelector(`[data-v="${WINDOWS.indexOf(to)}"]`)?.classList.add("target");
-  ticks.append(label);
-  getComputedStyle(label).color;
-  ticks.classList.remove("settle");
+  const labels = windowSliders.map((input) => {
+    input._glide = true;
+    input._glideTo = to;
+    input.step = "any";
+    // The number travels as a label of its own, so every tick keeps its notch in place; the current tick hands
+    // its number over (not fading)
+    const ticks = input.closest(".slider").querySelector(".ticks");
+    const label = document.createElement("span");
+    label.className = "on glide";
+    ticks.classList.add("settle");
+    ticks.querySelector("[data-v].on")?.classList.remove("on");
+    ticks.querySelector(".target")?.classList.remove("target");
+    ticks.querySelector(`[data-v="${WINDOWS.indexOf(to)}"]`)?.classList.add("target");
+    ticks.append(label);
+    getComputedStyle(label).color;
+    ticks.classList.remove("settle");
+    return label;
+  });
   const t0 = performance.now();
   const tick = (now) => {
     const t = Math.max(0, Math.min(1, (now - t0) / ms));
     const e = t * t * (3 - 2 * t); // the sweep's own curve
     const w = from * (to / from) ** e;
     const at = place(w);
-    input.value = at;
-    input.style.setProperty("--p", at / (WINDOWS.length - 1));
-    label.style.setProperty("--p", at / (WINDOWS.length - 1));
-    label.textContent = Math.round(w);
+    windowSliders.forEach((input, i) => {
+      input.value = at;
+      input.style.setProperty("--p", at / (WINDOWS.length - 1));
+      labels[i].style.setProperty("--p", at / (WINDOWS.length - 1));
+      labels[i].textContent = Math.round(w);
+    });
     if (t < 1) glideRaf = requestAnimationFrame(tick);
     else endGlide(to);
   };
@@ -456,8 +447,14 @@ for (const id of ["n-artists", "window", "include-other"]) {
   });
 }
 
+// The hours card's slider moves the chart's, which carries both
+$("hours-window").addEventListener("input", () => {
+  $("window").value = $("hours-window").value;
+  $("window").dispatchEvent(new Event("input"));
+});
+
 // A click on one of the window's notches (or where its number shows) goes to that size, the way a click on the track would
-for (const tick of $("window").closest(".slider").querySelectorAll(".ticks [data-v]")) {
+for (const tick of windowSliders.flatMap((input) => [...input.closest(".slider").querySelectorAll(".ticks [data-v]")])) {
   tick.addEventListener("click", () => {
     $("window").value = tick.dataset.v;
     $("window").dispatchEvent(new Event("input"));

@@ -118,7 +118,7 @@ const hiddenNames = new WeakMap();
 
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
-// A rolling chart's hours strip: a second, short chart under its axis, drawn in hours mode from the same
+// A rolling chart's hours strip: a second chart (the Hours per week card), drawn in hours mode from the same
 // artists, that follows every render, zoom and hover of the main one (and lights the main one when hovered).
 // The main chart holds the legend selection and the pins; the strip copies them on each render.
 const stripOf = new WeakMap();
@@ -128,28 +128,14 @@ export function linkStrip(el, strip) {
   mainOf.set(strip, el);
 }
 let relaying = false; // a hover passed from one to the other isn't passed back
-// How the strip draws its lines: width at rest (lit ones are 1px thicker); fill "none", "lit" (only lit lines) or
-// "all" (every line faintly, lit ones more); parts: whether it splits into albums or songs along with the bands;
-// labels: its own date labels, for when it stands apart from the main chart; unit: hours per this many days.
-// source: optional (names, hasOther) => {data, window, smooth} giving the strip its own averaging instead of the
-// main chart's (the same artists, in the same order)
-export const stripLook = { width: 1.5, fill: "lit", parts: false, labels: true, unit: 7, source: null };
-
-// What the strip draws for a render of the main chart
-function stripDraw(data, names, window, hasOther, smooth) {
-  const own = stripLook.source?.(names, hasOther);
-  if (own) return own;
-  return { data: stripLook.parts ? data : { ...data, parts: undefined }, window, smooth };
-}
-
 // The hours axis top for the zoom range: the tallest shown line in it, in whole hours
-function hoursTop(data, names, window, hasOther, hide, zoom, unit = 7) {
+function hoursTop(data, names, window, hasOther, hide, zoom) {
   let m = 0;
   names.forEach((n, s) => {
     if (hasOther && s === names.length - 1) return;
     if (hide?.[n] === false) return;
     data.dates.forEach((d, i) => {
-      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * unit);
+      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
     });
   });
   return Math.max(1, Math.ceil(m));
@@ -378,14 +364,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
     if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
       // Hours: the axis top the final chart will have, to travel to alongside the range
-      const travelMax = (el, d = data, w = window, unit = 7) => {
+      const travelMax = (el) => {
         const now = instances.get(el)?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
-        return Number.isFinite(now) ? { from: now, to: hoursTop(d, names, w, hasOther, prev.selected, zoom, unit) } : null;
+        return Number.isFinite(now) ? { from: now, to: hoursTop(data, names, window, hasOther, prev.selected, zoom) } : null;
       };
       const strip = stripOf.get(el);
-      const sd = strip && stripDraw(data, names, window, hasOther, smooth);
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
-        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip, sd.data, sd.window, stripLook.unit) });
+        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip) });
       return;
     }
     else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
@@ -402,8 +387,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const isStrip = mainOf.has(el);
-  const unit = isStrip ? stripLook.unit : 7;
-  const perWeek = (h) => (h / window) * unit;
+  const perWeek = (h) => (h / window) * 7;
 
   let st = rollingState.get(el);
   if (!st || st.names.join("\u0000") !== names.join("\u0000")) {
@@ -513,18 +497,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // low opacity would pass through a stronger fill than either end.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
-  const fillMode = isStrip ? stripLook.fill : "lit";
-  const hoursArea = (k, lit) =>
-    k === otherIdx || fillMode === "none" || !visible(k) ? 0
-      : lit.has(k) ? hoursFillOpacity
-      : fillMode === "all" ? hoursFillOpacity * (lit.size ? 0.3 : 0.7) : 0;
+  const hoursArea = (k, lit) => (k !== otherIdx && lit.has(k) ? hoursFillOpacity : 0);
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
   // once the morph is done (below).
   const holdFill = morph && !share && st.mode === "share";
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
-  const restWidth = isStrip ? stripLook.width : 2;
+  const restWidth = isStrip ? 1.5 : 2; // the strip's lines are finer
   const lineLook =(k, lit) => ({
     width: lit.has(k) ? restWidth + 1 : restWidth,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
@@ -708,9 +688,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
         ...partTips(sIdx(p), params[0].dataIndex, (j) => perWeek(parts.hours[sIdx(p)][j][params[0].dataIndex]), (v) => `${v.toFixed(1)} h`, () => ""),
       ]);
-    const head = window === 1 ? `Hours on ${fmtDate(params[0].value[0])}`
-      : `Hours per ${unit === 1 ? "day" : "week"}, ${window} days around ${fmtDate(params[0].value[0])}`;
-    return `<div style="color:${t.muted};margin-bottom:4px">${head}</div>${rows.join("")}`;
+    return `<div style="color:${t.muted};margin-bottom:4px">Hours per week, ${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
 
   st.mode = mode;
@@ -798,8 +776,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationDurationUpdate: liveFrom ? 0 : ms,
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
-      // The strip has no date labels of its own: it reads them off the main chart's axis just above
-      grid: isStrip ? { left: 48, right: 16, top: 14, bottom: stripLook.labels ? 28 : 12 } : { left: 48, right: 16, top: 12, bottom: 28 },
+      grid: { left: 48, right: 16, top: isStrip ? 14 : 12, bottom: 28 },
       // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (key.js paintArtistKey), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },
@@ -814,7 +791,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // or every hover puts all the shapes in ECharts' highlight state, which breaks the hand-drawn focus
       axisPointer: { triggerEmphasis: false },
       // hideOverlap: a month's name (bold) can land beside a day's number; the day gives way
-      xAxis: { type: "time", ...baseAxis(t), axisLabel: { show: !isStrip || stripLook.labels, color: t.muted, hideOverlap: true }, splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
+      xAxis: { type: "time", ...baseAxis(t), axisLabel: { color: t.muted, hideOverlap: true }, splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
       yAxis: {
         type: "value",
         min: 0,
@@ -1053,11 +1030,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // An artist kept lit through a click on the main chart stays lit in the strip too
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
-    const sd = stripDraw(data, names, window, hasOther, smooth);
-    // A different set of points (its averaging changed) redraws rather than tweening point by point
-    const drawn = rollingState.get(strip)?.args?.[0];
-    const same = !drawn || drawn.dates.length === sd.data.dates.length;
-    renderRolling(strip, sd.data, names, sd.window, zoom, "hours", hasOther, same && morph, pins, slots, sd.smooth);
+    // without the albums or songs: in thin lines they'd only tangle
+    renderRolling(strip, { ...data, parts: undefined }, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
     if (keep) sst.keepFocus = null;
   }
 }

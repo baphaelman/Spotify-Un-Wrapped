@@ -189,12 +189,17 @@
 
       <!-- The same artists' hours, following the chart above: its period, artists, pins and hover (charts.js linkStrip) -->
       <article class="card" id="hours-card">
-        <h2 id="hours-title">Hours per week</h2>
+        <h2>Hours per week</h2>
         <p class="muted" id="hours-sub"></p>
-        <div class="strip-wrap" id="strip-wrap">
-          <div class="strip-label">Hours per week</div>
-          <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
+        <!-- The same slider as the chart above's, kept in step with it (rollingview.js windowSliders) -->
+        <div class="slider tav-window">
+          <label class="slider-label" for="hours-window">Days per slice</label>
+          <input id="hours-window" type="range" min="0" max="6" step="1" value="3" aria-valuetext="45 days">
+          <div class="ticks" aria-hidden="true">
+            <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
+          </div>
         </div>
+        <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
       </article>
 
       <article class="card">
