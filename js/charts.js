@@ -1137,9 +1137,9 @@ function monthlySeries(st) {
 }
 
 // Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right:
-// thicker when they're lit, and dimmed while someone else is. Neighbouring lines join into one strip, meeting
-// halfway between the bars and rounded only at its two ends; a strip that reaches across a gap reaches out as far
-// at both ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS
+// thicker when they're lit (pinned or hovered), dimmed only while another is hovered, so a pin leaves the others
+// as they are. Neighbouring lines join into one strip, meeting halfway between the bars and rounded only at its
+// two ends; a strip that reaches across a gap reaches out as far at both ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS
 // tweens them: a line comes and goes by growing from or shrinking to its bar's middle, the strips' lengths morph
 // with the bars, and thickness and color fade with a hover. still: place them without tweening (a resize).
 function paintUnderlines(el, st, still = false) {
@@ -1171,14 +1171,14 @@ function paintUnderlines(el, st, still = false) {
     const d = layer.children[i];
     const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
     if (n == null) return void Object.assign(d.style, { left: `${mid}px`, width: "0px" });
-    // Joined: halfway into the gap (and half a pixel past it, so the seam doesn't show); an end: at the bar's
+    // Joined: halfway into the gap (the right one half a pixel past it, so the seam doesn't show); an end: at the bar's
     // edge, or halfway into the gap if the strip reaches across one
     let a = i, b = i;
     while (who[a - 1] != null) a--;
     while (who[b + 1] != null) b++;
     const reach = a === b ? half : slot / 2;
     const l = who[i - 1] != null ? slot / 2 + 0.5 : reach;
-    const r = who[i + 1] != null ? slot / 2 + 0.5 : reach;
+    const r = who[i + 1] != null ? slot / 2 : reach;
     const h = lit.has(n) ? 3.5 : 2;
     const rl = who[i - 1] != null ? 0 : h / 2, rr = who[i + 1] != null ? 0 : h / 2;
     Object.assign(d.style, {
@@ -1187,7 +1187,7 @@ function paintUnderlines(el, st, still = false) {
       bottom: `${el.clientHeight - grid.top + 4}px`,
       height: `${h}px`,
       borderRadius: `${rl}px ${rr}px ${rr}px ${rl}px`,
-      background: lit.has(n) || !lit.size ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
+      background: st.hovered == null || st.hovered === n ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
     });
   });
 }

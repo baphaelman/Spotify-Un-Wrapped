@@ -540,7 +540,8 @@ button.ghost:hover { background: var(--border); }
 /* The lines under Hours per month's captions (charts.js paintUnderlines): their lengths morph with the bars,
    their thickness and color answer a hover */
 #chart-monthly { position: relative; }
-.month-lines { position: absolute; inset: 0; pointer-events: none; }
+/* Above the fading frame of a crossfade (charts.js fadeOutFrame), so the lines morph through it */
+.month-lines { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .month-lines > div {
   position: absolute;
   transition: left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out),
