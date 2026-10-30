@@ -188,11 +188,13 @@ setupBrush((range) => {
 }, (...a) => { dragLen = undefined; return paintBrush(...a); });
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
-// moves with the bar on scroll (a native dropdown can end up off screen)
+// moves with the bar on scroll (a native dropdown can end up off screen). It lists All time, then the years
+// newest first; the select itself stays oldest first, which is the order the ‹ › steps walk
 function openYearMenu() {
   const menu = $("year-menu");
+  const [all, ...years] = $("year-filter").options;
   menu.replaceChildren(
-    ...[...$("year-filter").options].map((o) => {
+    ...[all, ...years.reverse()].map((o) => {
       const li = document.createElement("li");
       li.setAttribute("role", "option");
       li.tabIndex = -1;

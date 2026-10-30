@@ -224,7 +224,9 @@ export function updateMix(next) {
     e.card.title = e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.rowName.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
   for (const e of entries.values()) if (e.leaving) { e.from = { x: e.x, w: e.w }; e.row.remove(); }
-  list.replaceChildren(...names.map((n) => entries.get(n).row));
+  // Only when the order changed: a row put back in the list skips its transitions, so its shading would snap
+  const rows = names.map((n) => entries.get(n).row);
+  if (rows.length !== list.children.length || rows.some((r, i) => list.children[i] !== r)) list.replaceChildren(...rows);
   flip(rowsBefore, new Map(names.map((n) => [n, entries.get(n).row])));
 
   if (first) {
