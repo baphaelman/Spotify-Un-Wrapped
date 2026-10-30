@@ -496,12 +496,12 @@ function setPeriod(value) {
 
 // With a length button picked (3m, 1y…) on a stretch that isn't a preset, a year keeps that length: the window
 // moves to end where the year does (its last day, or the history's for the year in progress)
-$("year-filter").addEventListener("change", (e) => {
-  const value = e.target.value;
+function pickPeriod(value) {
   const b = presetOf(state.range) === null && [...$("period-resize").children].find((c) => sameRange(state.range, resized(state.range, c.dataset.len)));
   if (b && value !== "all") return setRange(resized(presetRange(value), b.dataset.len));
   setPeriod(value);
-});
+}
+$("year-filter").addEventListener("change", (e) => pickPeriod(e.target.value));
 // Presets run All time, oldest year … newest year, so stepping walks through them in order. From a stretch
 // the brush picked there's no next preset, so a step moves the window along by its own length instead.
 function stepPeriod(dir) {
@@ -578,7 +578,7 @@ function closeYearMenu(refocus = false) {
 
 function chooseYear(value) {
   closeYearMenu(true);
-  if (value !== presetOf(state.range)) setPeriod(value);
+  if (value !== presetOf(state.range)) pickPeriod(value);
 }
 
 $("year-button").addEventListener("click", () => ($("year-menu").hidden ? openYearMenu() : closeYearMenu()));
