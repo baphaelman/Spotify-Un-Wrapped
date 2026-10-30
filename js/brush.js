@@ -196,30 +196,33 @@ function movesUpDown(a, b) {
   return b.bands.some((band, k) => differ(a.bands[k].lo, band.lo) || differ(a.bands[k].hi, band.hi));
 }
 
+// A band as numbers all the way along: its edges carry on flat through stretches with no value (null), which
+// instead have a presence of 0 (1 elsewhere). Presence is what tweens when a gap opens or closes.
+function prep(band) {
+  const fill = (arr) => {
+    const out = Array.from(arr);
+    let last = out.find((v) => v != null) ?? 0;
+    for (let i = 0; i < out.length; i++) out[i] = out[i] ?? last, last = out[i];
+    return out;
+  };
+  return { ...band, lo: fill(band.lo), hi: fill(band.hi), pres: band.pres ?? Array.from(band.hi, (v) => (v == null ? 0 : 1)) };
+}
+
 // The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade; the timeline's ends a
 // fraction `eh` of the way
 function blend(a, b, e, eh = e) {
-  // Where only one end has a value (an artist with no plays on that day, in the other slice size), the band grows
-  // from, or shrinks to, a line through its middle, so the ends of the timeline fade in and out rather than pop
-  const mixed = (alo, ahi, blo, bhi) => {
-    const lo = [], hi = [];
-    blo.forEach((bl, i) => {
-      const al = alo[i], ah = ahi[i], bh = bhi[i];
-      if (bl == null && al == null) { lo.push(null); hi.push(null); }
-      else if (bl != null && al != null) { lo.push(al + (bl - al) * e); hi.push(ah + (bh - ah) * e); }
-      else if (bl != null) { const c = (bl + bh) / 2; lo.push(c + (bl - c) * e); hi.push(c + (bh - c) * e); }
-      else if (e >= 1) { lo.push(null); hi.push(null); }
-      else { const c = (al + ah) / 2; lo.push(c + (al - c) * (1 - e)); hi.push(c + (ah - c) * (1 - e)); }
-    });
-    return { lo, hi };
-  };
+  const mixed = (x, y) => ({
+    lo: y.lo.map((v, i) => x.lo[i] + (v - x.lo[i]) * e),
+    hi: y.hi.map((v, i) => x.hi[i] + (v - x.hi[i]) * e),
+    pres: y.pres.map((v, i) => x.pres[i] + (v - x.pres[i]) * e),
+  });
   return {
     ...b,
     start: a.start + (b.start - a.start) * eh, // the timeline's ends glide too
     end: a.end + (b.end - a.end) * eh,
     bands: b.bands.map((band, k) => ({
       ...band,
-      ...mixed(a.bands[k].lo, a.bands[k].hi, band.lo, band.hi),
+      ...mixed(prep(a.bands[k]), prep(band)),
       color: a.bands[k].color === band.color || e >= 1 ? band.color : e <= 0 ? a.bands[k].color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
       mix: lookMix(a.bands[k], band, e),
     })),
@@ -259,7 +262,7 @@ function resample(old, days) {
   return {
     ...old,
     days,
-    bands: old.bands.map((b) => ({ ...b, lo: pick(b.lo), hi: pick(b.hi) })),
+    bands: old.bands.map((b) => ({ ...b, lo: pick(b.lo), hi: pick(b.hi), ...(b.pres && { pres: pick(b.pres).map((v) => v ?? 0) }) })),
   };
 }
 
@@ -330,27 +333,36 @@ function draw() {
     if (idx[idx.length - 1] !== bands.days.length - 1) idx.push(bands.days.length - 1);
     const X = (i) => xOf(bands.days[i]).toFixed(1);
     const Y = (f) => ((1 - f) * H).toFixed(1);
-    for (const band of bands.bands) {
-      // Unbroken stretches of points that have a value
-      const runs = [];
-      let run = null;
-      for (const i of idx) {
-        if (band.hi[i] == null) run = null;
-        else (run ??= (runs.push([]), runs[runs.length - 1])).push(i);
+    const defs = document.createElementNS(SVG, "defs");
+    svg.append(defs);
+    bands.bands.forEach((raw, k) => {
+      const band = prep(raw);
+      // Where a band has no value its edges carry on flat and its presence (0..1) is what hides it: a mask whose
+      // opacity follows the presence along the timeline, so a gap can fade and grow, not just be there or not
+      const keep = idx.filter((i, j) => j === 0 || j === idx.length - 1 || band.pres[i] !== band.pres[idx[j - 1]] || band.pres[i] !== band.pres[idx[j + 1]]);
+      let mask = "";
+      if (band.pres.some((v) => v < 1)) {
+        const id = `bm${k}`;
+        const stops = keep.map((i) => `<stop offset="${Math.min(1, Math.max(0, xOf(bands.days[i]) / W)).toFixed(4)}" stop-color="#fff" stop-opacity="${band.pres[i].toFixed(3)}"/>`).join("");
+        const holder = document.createElementNS(SVG, "g");
+        holder.innerHTML = `<linearGradient id="${id}g" gradientUnits="userSpaceOnUse" x1="0" x2="${W}" y1="0" y2="0">${stops}</linearGradient>` +
+          `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="url(#${id}g)"/></mask>`;
+        defs.append(...holder.childNodes);
+        mask = `url(#${id})`;
       }
-      const line = (key, r) => r.map((i, k) => `${k ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
-      const rev = (r) => [...r].reverse();
-      const fill = runs.map((r) => `${line("hi", r)}${line("lo", rev(r)).replace("M", "L")}Z`).join("");
+      const line = (key, r) => r.map((i, j) => `${j ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
+      const fill = `${line("hi", idx)}${line("lo", [...idx].reverse()).replace("M", "L")}Z`;
       const m = lookOf(band);
-      if (m.alpha < 0.01) continue;
+      if (m.alpha < 0.01) return;
       const shade = `(var(--shade-band) * ${m.band.toFixed(3)} + var(--shade-hover) * ${m.hover.toFixed(3)} + var(--shade-dim) * ${m.dim.toFixed(3)})`;
       const alpha = m.alpha < 1 ? `;opacity:${m.alpha.toFixed(3)}` : "";
-      el("path", { d: fill, style: `fill:color-mix(in srgb, ${band.color} calc(${shade} * 100%), var(--surface))${alpha}` });
+      el("path", { d: fill, mask, style: `fill:color-mix(in srgb, ${band.color} calc(${shade} * 100%), var(--surface))${alpha}` });
       el("path", {
-        d: runs.map((r) => line("hi", r) + line("lo", r)).join(""),
+        d: line("hi", idx) + line("lo", idx),
+        mask,
         style: `fill:none;stroke:${band.color};stroke-width:${m.width.toFixed(2)};stroke-linejoin:round${alpha}`,
       });
-    }
+    });
   }
 
   // A tick and a label for each January 1, thinned so the labels never touch
