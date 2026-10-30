@@ -11,7 +11,7 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
 import "./theme.js"; // its controls wire themselves up
-import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs } from "./rollingview.js";
+import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 
@@ -275,6 +275,7 @@ function applyDim() {
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
   for (const b of $("view-tabs").children) b.setAttribute("aria-pressed", b.dataset.dim === state.dim);
+  syncSplit();
   $("period-resize").replaceChildren(
     ...RESIZES[state.dim].map((len) => {
       const b = document.createElement("button");

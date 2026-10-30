@@ -5,6 +5,7 @@
 #   test.html  loads the data, then runs the hash actions below, then sets document.title = "DONE"
 #              #hours  switch to Hours · #community  open Community · #preview  open the share preview
 #              #tracks / #albums  the Tracks or Albums view
+#              #split-album / #split-track  split the rolling chart's bands into albums or songs
 #              #m18  18 monthly bars · #n10  10 artists · #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-hours)
 #   plain.html reopens data remembered from an earlier test.html visit; title "DONE <ms>" once shown
 import json, os, subprocess, sys
@@ -45,6 +46,8 @@ if (h.includes("albums")) { document.querySelector('#view-tabs [data-dim="album"
 // 18 monthly bars, the most the chart draws (a 17-month window touches 18 calendar months), through a length button made for it
 if (h.includes("m18")) { const b = document.createElement("button"); b.dataset.len = "17m"; b.hidden = true; q("period-resize").append(b); b.click(); b.remove(); await sleep(1500); }
 if (h.includes("n10")) { setArtists(10); await sleep(600); }
+if (h.includes("split-album")) { document.querySelector('#rolling-split [data-split="album"]').click(); await sleep(2000); }
+if (h.includes("split-track")) { document.querySelector('#rolling-split [data-split="track"]').click(); await sleep(2000); }
 if (h.includes("hours")) { document.querySelector('#rolling-mode [data-mode="hours"]').click(); await sleep(1500); }
 if (h.includes("community")) { q("tab-community").click(); await sleep(2500); }
 if (h.includes("preview")) q("share-preview").click();

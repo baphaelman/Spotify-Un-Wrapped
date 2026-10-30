@@ -393,6 +393,8 @@ button.ghost:hover { background: var(--border); }
 .segmented.solid button[aria-pressed="true"] { background: transparent; color: #0a0c0e; }
 /* Share/Hours in the corner; smoothing at the foot of the header, just above the graph */
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.tav-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.tav-toggles [hidden] { display: none; }
 .tav-side .tav-smooth { margin-bottom: 6px; }
 .tav-smooth { flex: none; display: flex; align-items: center; gap: 8px; }
 .tav-smooth select {

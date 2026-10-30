@@ -1,6 +1,7 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
+import { MAX_PARTS } from "./aggregate.js";
 
 const instances = new Map();
 
@@ -89,6 +90,12 @@ const row = (color, value, label, strong = false) =>
   `<span style="width:12px;height:${strong ? 4 : 2}px;background:${color};border-radius:1px"></span>` +
   `<b style="min-width:3.5em">${value}</b><span style="${strong ? "font-weight:600" : "opacity:.75"}">${esc(label)}</span></div>`;
 
+// A part's row (an album or song) under its artist's: indented and quieter
+const subRow = (color, value, label) =>
+  `<div style="display:flex;align-items:center;gap:8px;line-height:1.5;padding-left:20px;font-size:12px">` +
+  `<span style="width:8px;height:8px;background:${color};border-radius:2px"></span>` +
+  `<b style="min-width:3.5em;font-weight:500">${value}</b><span style="opacity:.75">${esc(label)}</span></div>`;
+
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
 
@@ -138,6 +145,71 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
     }, ms);
   }
   return true;
+}
+
+// Turning the split on or off (data.parts arriving or leaving, with the same artists, window and mode). The parts'
+// series exist only while split, so they arrive drawn invisibly and leave the same way, then go. Three trial
+// looks (setSplitLook): "grow" swells each part up from its band's floor; "fade" fades the dividers and shades
+// in where they belong; "draw" draws each divider across the plot from one side, then fades the shades in.
+// Leaving runs the same in reverse.
+let splitLook = "grow";
+export const setSplitLook = (look) => (splitLook = look);
+function withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth) {
+  const st = rollingState.get(el);
+  if (!st || st.mode !== mode || st.hasOther !== hasOther || st.window !== window || st.names.join("\u0000") !== names.join("\u0000")) return false;
+  const [oldData] = st.args;
+  if (!!oldData.parts === !!data.parts || oldData.dates.length !== data.dates.length) return false;
+  const on = !!data.parts;
+  const full = on ? data : { ...data, parts: oldData.parts };
+  const staged = (stage) => ({ ...full, parts: { ...full.parts, stage } });
+  const zero = (rows) => rows.map((list) => list.map((row) => row.map((v) => (v == null ? null : 0))));
+  const flat = { ...full, parts: { ...full.parts, share: zero(full.parts.share), hours: zero(full.parts.hours) } };
+  const draw = (d, morph) => renderRolling(el, d, names, window, currentZoom(el) ?? zoom, mode, hasOther, morph, pins, slots, smooth);
+  // Runs fn after `wait`, unless the chart has re-rendered since
+  const later = (wait, fn) => {
+    const token = rollingState.get(el).renderToken;
+    setTimeout(() => rollingState.get(el)?.renderToken === token && fn(), wait);
+  };
+  const gone = () => draw(data, false); // the stand-ins leave once they're invisible
+  if (on) {
+    if (splitLook === "draw") {
+      draw(staged("lines"), false);
+      wipeParts(el, true, ms);
+      later(ms, () => draw(data, ms));
+    } else {
+      draw(splitLook === "grow" ? flat : staged("none"), false);
+      draw(data, ms);
+    }
+  } else if (splitLook === "draw") {
+    draw(staged("lines"), ms);
+    later(ms, () => {
+      wipeParts(el, false, ms);
+      later(ms, gone);
+    });
+  } else {
+    draw(splitLook === "grow" ? flat : staged("none"), ms);
+    later(ms, gone);
+  }
+  return true;
+}
+
+// Draws (in) or rubs out (out) every part's divider across the plot, each from one side, alternating
+function wipeParts(el, entering, ms) {
+  const c = instances.get(el);
+  const W = c.getWidth(), H = c.getHeight();
+  let n = 0;
+  for (const [key, line] of drawnShapes(c)) {
+    if (key[0] !== "p" || !key.endsWith(":line")) continue;
+    const fromLeft = n++ % 2 === 0;
+    const open = { x: 0, width: W }, shut = { x: fromLeft ? 0 : W, width: 0 };
+    const clip = new echarts.graphic.Rect({ shape: { y: 0, height: H, ...(entering ? shut : open) } });
+    line.setClipPath(clip);
+    clip.animateTo({ shape: entering ? open : shut }, {
+      duration: ms,
+      easing: EASE_IN_OUT.echarts,
+      done: () => entering && line.getClipPath() === clip && line.removeClipPath(),
+    });
+  }
 }
 
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
@@ -282,7 +354,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const seat = from.map((j) => (j >= 0 ? j : free.shift()));
     const [oldData, , , , , , , , oldSmooth] = prev.args;
     const pick = (rows) => rows.map((_, k) => rows[k < n ? seat[k] : k]);
-    renderRolling(el, { ...oldData, share: pick(oldData.share), hours: pick(oldData.hours) }, names, window, currentZoom(el), mode, hasOther, false, pins, slots, oldSmooth);
+    const parts = oldData.parts && { ...oldData.parts, names: pick(oldData.parts.names), share: pick(oldData.parts.share), hours: pick(oldData.parts.hours) };
+    renderRolling(el, { ...oldData, share: pick(oldData.share), hours: pick(oldData.hours), parts }, names, window, currentZoom(el), mode, hasOther, false, pins, slots, oldSmooth);
     return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
   }
   const liveFrom =
@@ -322,6 +395,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   const { ms, easing = EASE_IN_OUT.echarts } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
+  if (ms && withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
   const c = chart(el);
   const share = mode === "share";
@@ -379,6 +453,28 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // gap and a value, which draws a vertical stroke at each such date mid-morph.
   const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx ? 0 : perWeek(data.hours[s][i]));
 
+  // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in MAX_PARTS slots per band. In
+  // share mode they stack up from the band's floor, biggest first, and the band's own fill above them is the
+  // rest; a slot with no part (or a hidden artist's) has no thickness. In hours mode each is a thin line.
+  // stage (set only while they arrive or leave, see withSplitMorph): "none" draws them invisibly, "lines" only
+  // their dividers.
+  const parts = data.parts;
+  const partRows = (k) => parts?.share[k] ?? [];
+  const partKeys = parts ? names.flatMap((_, k) => (k === otherIdx ? [] : Array.from({ length: MAX_PARTS }, (_, j) => [k, j]))) : [];
+  const partTop = names.map((_, k) => {
+    if (!parts || k === otherIdx) return [];
+    const rows = partRows(k);
+    const out = [];
+    let run = bottom[k];
+    for (let j = 0; j < MAX_PARTS; j++) {
+      const row = rows[j];
+      run = run.map((b, i) => (b == null ? null : Math.min(top[k][i], b + (row && visible(k) ? (row[i] ?? 0) * scale[i] : 0))));
+      out.push(run);
+    }
+    return out;
+  });
+  const partHoursAt = (k, j, i) => (data.share[k][i] == null ? null : j < partRows(k).length ? perWeek(parts.hours[k][j][i]) : 0);
+
   // Share mode outlines every band on both edges in its own color, so at each boundary the two neighbors
   // each show their own border rather than one artist's line standing for both. Each edge line is drawn
   // at twice its visible width, centered on the boundary, then clipped to its own band (clipEdges below):
@@ -421,6 +517,29 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     width: lit.has(k) ? 3 : 2,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
+  // A lit artist (pinned or hovered) shows all its parts. Otherwise each artist shows just its biggest, while
+  // no artist is pinned, and none once some are: the pinned ones are what's being looked into.
+  const partShown = (k, j, lit) => parts?.stage !== "none" && j < partRows(k).length && (lit.has(k) || (j === 0 && !base.size));
+  // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
+  // for the biggest part (and less in a dimmed band)
+  const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
+  const partShade = (k, j, w) =>
+    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * PART_DEPTH[j] * Math.min(1, w / t.shade.band)));
+  const partFill = (k, j, lit) =>
+    partShown(k, j, lit) && parts.stage !== "lines"
+      ? partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band)
+      : bandFill(k, lit);
+  // Its divider (share), or its line (hours): faint beside its artist's, and fainter while others are lit
+  const partLine = (k, j, lit) => ({
+    width: share ? 1 : lit.has(k) ? 1.5 : 1.25,
+    opacity: !partShown(k, j, lit) ? 0 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
+  });
+  const partStyles = (lit) =>
+    partKeys.map(([k, j]) => ({
+      id: `p${k}_${j}`,
+      lineStyle: partLine(k, j, lit),
+      ...(share ? { areaStyle: { color: partFill(k, j, lit) } } : {}),
+    }));
 
   const series = names
     .map((name, s) => {
@@ -467,6 +586,24 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // Top band first, matching the paint order above
     .reverse()
     .concat(
+      // Each part paints over the band it's in, and over the parts above it, but under the band below
+      partKeys.map(([k, j]) => ({
+        id: `p${k}_${j}`,
+        name: names[k], // hiding an artist hides its parts too
+        type: "line",
+        silent: true,
+        showSymbol: false,
+        symbol: "none",
+        smooth,
+        color: colors[k],
+        z: share ? 2 + (names.length - k) / 100 + (MAX_PARTS + 1 - j) / 1000 : 2.9,
+        lineStyle: { ...partLine(k, j, base), color: colors[k], cap: "butt", join: "round" },
+        areaStyle: { color: share ? partFill(k, j, base) : hoursFill[k], opacity: share ? 1 : 0, origin: "start" },
+        emphasis: { disabled: true },
+        data: data.dates.map((d, i) => [d, share ? partTop[k][j][i] : partHoursAt(k, j, i)]),
+      }))
+    )
+    .concat(
       names.flatMap((name, s) =>
         ["t", "b"].map((side) => ({
           id: `${side}${s}`,
@@ -497,6 +634,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (st.focused != null) tellFocus(null);
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
+  // A lit artist's parts in the readout, under its row: where they're at least a tenth of the artist at that
+  // date (so a part comes and goes from the list as it does from the band)
+  const PART_TIP_MIN = 0.1;
+  const partTips = (k, i, valueOf, fmt, extra) => {
+    const on = lit();
+    if (!parts || parts.stage || !on.has(k)) return [];
+    const whole = share ? data.share[k][i] * scale[i] : perWeek(data.hours[k][i]);
+    return partRows(k).flatMap((_, j) => {
+      const v = valueOf(j);
+      if (!partShown(k, j, on) || !(v >= whole * PART_TIP_MIN) || !(v >= (share ? 0.005 : 0.05))) return [];
+      return [subRow(partShade(k, j, t.shade.hover), fmt(v), parts.names[k][j] + extra(j))];
+    });
+  };
   const shareTooltip = (params) => {
     params = bands(params);
     if (!params.length || params[0].value[1] == null) return "";
@@ -507,7 +657,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       .filter((r) => r.share >= 0.005)
       // Top band first, so the rows read in the same order as the bands under the pointer
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
-      .map((r) => row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))));
+      .flatMap((r) => [
+        row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
+        ...partTips(sIdx(r.p), i, (j) => parts.share[sIdx(r.p)][j][i] * scale[i], (v) => (v * 100).toFixed(0) + "%",
+          (j) => ` · ${fmtHours(parts.hours[sIdx(r.p)][j][i])}`),
+      ]);
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
   const hoursTooltip = (params) => {
@@ -516,7 +670,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const rows = params
       .filter((p) => sIdx(p) !== otherIdx && p.value[1] >= 0.05)
       .sort((a, b) => b.value[1] - a.value[1])
-      .map((p) => row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))));
+      .flatMap((p) => [
+        row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
+        ...partTips(sIdx(p), params[0].dataIndex, (j) => perWeek(parts.hours[sIdx(p)][j][params[0].dataIndex]), (v) => `${v.toFixed(1)} h`, () => ""),
+      ]);
     return `<div style="color:${t.muted};margin-bottom:4px">Hours per week, ${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
 
@@ -677,7 +834,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
         { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
         { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
-      ]),
+      ]).concat(partStyles(on)),
     }, undefined, FADE_MS);
     clipEdges();
   };
@@ -695,7 +852,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         id: `s${j}`,
         lineStyle: lineLook(j, on),
         areaStyle: { opacity: j !== otherIdx && on.has(j) ? hoursFillOpacity : 0 },
-      })),
+      })).concat(partStyles(on)),
     }, undefined, FADE_MS);
   };
 

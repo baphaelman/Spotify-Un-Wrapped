@@ -53,6 +53,39 @@ export function topArtists(plays, n) {
     .slice(0, n);
 }
 
+// The parts an item's band splits into (see topParts): its albums, or its songs
+export const partOf = (kind) => (kind === "album" ? (p) => p.album || "Unknown album" : (p) => p.track);
+const PART_OF_ITEM = 0.15; // of the item's own hours
+const PART_OF_ALL = 0.0025; // of all the listening in the plays
+export const MAX_PARTS = 4;
+
+// For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band:
+// at least PART_OF_ITEM of the item's hours and PART_OF_ALL of everyone's, up to MAX_PARTS, biggest first
+export function topParts(plays, artists, kind) {
+  const subOf = partOf(kind);
+  const want = new Set(artists);
+  const by = new Map(); // item -> part -> ms
+  const own = new Map(); // item -> ms
+  let total = 0;
+  for (const p of plays) {
+    total += p.ms;
+    if (!want.has(p.artist)) continue;
+    const name = subOf(p);
+    own.set(p.artist, (own.get(p.artist) ?? 0) + p.ms);
+    if (name == null) continue;
+    if (!by.has(p.artist)) by.set(p.artist, new Map());
+    const m = by.get(p.artist);
+    m.set(name, (m.get(name) ?? 0) + p.ms);
+  }
+  return artists.map((a) =>
+    [...(by.get(a) ?? [])]
+      .filter(([, ms]) => ms >= PART_OF_ITEM * own.get(a) && ms >= PART_OF_ALL * total)
+      .sort((x, y) => y[1] - x[1])
+      .slice(0, MAX_PARTS)
+      .map(([name]) => name)
+  );
+}
+
 // A track view's or album view's plays (main.js keyedPlays) have the track or album in `artist` and the artist
 // in `by`. Tracks are always told apart by their real artist; `key` is what the view calls the track's first
 // play (its artist, the track itself or its album), and `album` that play's album.
@@ -160,7 +193,7 @@ export function clockBy(plays, artists = [], block = 3) {
 // is O(1). The rolling chart and the mix bar both read from this, so they always agree.
 // Each artist's row is worked out once per set of plays and kept, so a new artist set (as when dragging the
 // period window reshuffles the top artists) costs only the rows it hasn't seen.
-const tables = new WeakMap(); // plays → { first, last, len, byArtist: artist → their plays, rows: artist → prefix, everyone }
+const tables = new WeakMap(); // plays → { first, last, len, byArtist: artist → their plays, rows: artist → prefix, parts, everyone }
 export function dailyTable(plays, artists, includeOther) {
   let tb = tables.get(plays);
   if (!tb) {
@@ -172,7 +205,7 @@ export function dailyTable(plays, artists, includeOther) {
       if (list) list.push(p);
       else byArtist.set(p.artist, [p]);
     }
-    tb = { first, last, len: last - first + 1, byArtist, rows: new Map() };
+    tb = { first, last, len: last - first + 1, byArtist, rows: new Map(), parts: new Map() };
     tb.everyone = prefixOf(tb, plays);
     tables.set(plays, tb);
   }
@@ -187,7 +220,18 @@ export function dailyTable(plays, artists, includeOther) {
     for (const row of prefix) for (let i = 0; i <= tb.len; i++) rest[i] -= row[i];
     prefix.push(rest);
   }
-  return { first: tb.first, last: tb.last, len: tb.len, prefix };
+  return { first: tb.first, last: tb.last, len: tb.len, prefix, tb };
+}
+
+// One album's or song's (kind) row within an artist's, kept like the artists' own
+function partPrefix(tb, artist, kind, name) {
+  const key = [artist, kind, name].join("\u0000");
+  let row = tb.parts.get(key);
+  if (!row) {
+    const subOf = partOf(kind);
+    tb.parts.set(key, (row = prefixOf(tb, (tb.byArtist.get(artist) ?? []).filter((p) => subOf(p) === name))));
+  }
+  return row;
 }
 
 // Hours per day of some plays, as prefix sums over the table's days
@@ -224,8 +268,15 @@ export function leadIn(totals) {
 // gives the points of another window's chart, filled in with this window; where this window sticks out
 // past the data, it's cut off there. That lets a chart tween between window sizes with the same points
 // throughout.
-export function rolling(plays, artists, window, includeOther, gridWindow = window) {
-  const { first, len, prefix } = dailyTable(plays, artists, includeOther);
+//
+// split: optional { kind, names }, each artist's parts (names[s], from topParts) to work out alongside them.
+// They come back as `parts` ({ kind, names, hours, share }, rows by artist, then part); a part's share is of
+// the same total as the artists', so the parts sit inside their artist's band.
+export function rolling(plays, artists, window, includeOther, gridWindow = window, split = null) {
+  const { first, len, prefix, tb } = dailyTable(plays, artists, includeOther);
+  const partPre = split ? split.names.map((list, s) => list.map((name) => partPrefix(tb, artists[s], split.kind, name))) : [];
+  const partHours = partPre.map((list) => list.map(() => []));
+  const partShare = partPre.map((list) => list.map(() => []));
   const nSeries = prefix.length;
 
   const half = Math.floor(window / 2);
@@ -246,6 +297,11 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
       hours[s].push(sums[s]);
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
     }
+    partPre.forEach((list, s) => list.forEach((pre, j) => {
+      const sum = pre[end] - pre[start];
+      partHours[s][j].push(sum);
+      partShare[s][j].push(total > 0 ? sum / total : null);
+    }));
   }
   // Drop the near-empty stretch at the start: exports often begin with a few stray plays long before
   // the real listening. The chart starts at the first point whose window holds at least a fifth of the
@@ -256,9 +312,10 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
   const lead = leadIn(everyoneTotals);
   if (lead > 0) {
     dates.splice(0, lead);
-    for (const arr of [...hours, ...share]) arr.splice(0, lead);
+    for (const arr of [...hours, ...share, ...partHours.flat(), ...partShare.flat()]) arr.splice(0, lead);
   }
-  return { dates, hours, share };
+  const parts = split ? { kind: split.kind, names: split.names, hours: partHours, share: partShare } : undefined;
+  return { dates, hours, share, parts };
 }
 
 // Aggressive extra smoothing for the rolling chart: a Gaussian blur of every series along the time axis,
@@ -294,8 +351,8 @@ export const smoothifySigma = (window, strength, span, spans) =>
 export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
 
 // Gaussian blur of every series with the given sigma in days; below half a day it changes nothing
-export function blur({ dates, hours, share }, sigma) {
-  if (sigma < 0.5) return { dates, hours, share };
+export function blur({ dates, hours, share, parts }, sigma) {
+  if (sigma < 0.5) return { dates, hours, share, parts };
   const r = Math.ceil(sigma * 3);
   const kernel = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-((k - r) ** 2) / (2 * sigma * sigma)));
   const n = dates.length;
@@ -311,5 +368,9 @@ export function blur({ dates, hours, share }, sigma) {
       }
       return sum / w;
     });
-  return { dates, hours: hours.map(run), share: share.map(run) };
+  const nested = (rows) => rows.map((list) => list.map(run));
+  return {
+    dates, hours: hours.map(run), share: share.map(run),
+    parts: parts && { ...parts, hours: nested(parts.hours), share: nested(parts.share) },
+  };
 }

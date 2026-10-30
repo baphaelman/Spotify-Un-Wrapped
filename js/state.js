@@ -15,7 +15,13 @@ export const $ = (id) => document.getElementById(id);
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
+  split: null,
 };
+
+// split: what the rolling chart splits each band into, "album" or "track", or null for whole bands. The view
+// limits it: an artist splits into albums or songs, an album into songs, a track not at all.
+export const splitKind = () =>
+  state.dim === "artist" ? state.split : state.dim === "album" && state.split === "track" ? "track" : null;
 
 // Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
 // `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period

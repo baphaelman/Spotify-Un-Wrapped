@@ -160,9 +160,25 @@
             </div>
           </div>
           <div class="tav-side">
-            <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
-              <button type="button" data-mode="share" aria-pressed="true">Share</button>
-              <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+            <div class="tav-toggles">
+              <!-- Trial: how the parts arrive (charts.js setSplitLook). Remove once one is chosen. -->
+              <span class="tav-smooth">
+                <span class="toggle-label" id="split-look-label">Parts arrive (trial)</span>
+                <select id="split-look" aria-labelledby="split-look-label">
+                  <option value="grow">Grow</option>
+                  <option value="fade">Fade</option>
+                  <option value="draw">Draw</option>
+                </select>
+              </span>
+              <div id="rolling-split" class="segmented solid" role="group" aria-label="Split each band into">
+                <button type="button" data-split="" aria-pressed="true">Whole</button>
+                <button type="button" data-split="album" aria-pressed="false">Albums</button>
+                <button type="button" data-split="track" aria-pressed="false">Songs</button>
+              </div>
+              <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
+                <button type="button" data-mode="share" aria-pressed="true">Share</button>
+                <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
+              </div>
             </div>
             <div class="tav-smooth">
               <span class="toggle-label" id="smoothify-label">Smoothing</span>

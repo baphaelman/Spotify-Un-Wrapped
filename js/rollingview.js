@@ -2,11 +2,11 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, toggleArtist, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, toggleArtist, onZoomChange, setSplitLook } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { $, state, noun, autoSpans, extent, presetOf, presetLabel, rangePlays, shownPlays, hooks } from "./state.js";
+import { $, state, noun, autoSpans, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -76,8 +76,11 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
-  const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists].join("\u0000");
-  if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid) };
+  // Each artist's albums or songs, chosen from the period like the artists themselves
+  const kind = splitKind();
+  const split = kind && { kind, names: agg.topParts(rangePlays(), artists, kind) };
+  const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists, kind, JSON.stringify(split?.names)].join("\u0000");
+  if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid, split) };
   const raw = rawMemo.raw;
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
@@ -266,6 +269,26 @@ export function chartArtists(plays, n) {
     if (!state.pinned.includes(top[i])) top.splice(i, 1);
   }
   return [...top, ...extra];
+}
+
+// Whole bands, or each split into its albums or songs. The buttons on offer follow the view (see splitKind).
+export function syncSplit() {
+  const group = $("rolling-split");
+  group.hidden = state.dim === "track";
+  group.querySelector('[data-split="album"]').hidden = state.dim !== "artist" || !state.raw?.some((p) => p.album);
+  const kind = splitKind() ?? "";
+  for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
+}
+// Trial: how the parts arrive (see charts.js withSplitMorph)
+$("split-look").addEventListener("change", (e) => setSplitLook(e.target.value));
+for (const btn of document.querySelectorAll("#rolling-split button")) {
+  btn.addEventListener("click", () => {
+    const to = btn.dataset.split || null;
+    if (to === splitKind()) return;
+    state.split = to;
+    syncSplit();
+    renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
+  });
 }
 
 for (const btn of document.querySelectorAll("#rolling-mode button")) {
