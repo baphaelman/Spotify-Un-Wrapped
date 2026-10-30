@@ -231,8 +231,20 @@ function lookMix(a, b, e) {
 // The old bands' edges on the new points' days; days the old bands don't reach take the new value
 function resample(old, days) {
   if (old.days.length === days.length && old.days[0] === days[0]) return old;
-  const at = new Map(old.days.map((d, i) => [d, i]));
-  const pick = (arr) => days.map((d) => (at.has(d) ? arr[at.get(d)] : null));
+  // A day between two old points reads off the line joining them (another slice size has its points on other
+  // days; matching only exact days would leave holes that show as bare stretches until the morph reaches them)
+  const od = old.days, last = od.length - 1;
+  const at = days.map((d) => {
+    if (!od.length || d < od[0] || d > od[last]) return null;
+    let lo = 0, hi = last;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (od[mid] <= d) lo = mid; else hi = mid; }
+    return od[hi] <= d ? [hi, hi, 0] : [lo, hi, (d - od[lo]) / (od[hi] - od[lo] || 1)];
+  });
+  const pick = (arr) => at.map((p) => {
+    if (!p) return null;
+    const [i, j, f] = p, a = arr[i], b = arr[j];
+    return a == null || b == null ? (f < 0.5 ? a ?? b : b ?? a) : a + (b - a) * f;
+  });
   return {
     ...old,
     days,
@@ -315,9 +327,16 @@ function draw() {
         if (band.hi[i] == null) run = null;
         else (run ??= (runs.push([]), runs[runs.length - 1])).push(i);
       }
-      const line = (key, r) => r.map((i, k) => `${k ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
-      const rev = (r) => [...r].reverse();
-      const fill = runs.map((r) => `${line("hi", r)}${line("lo", rev(r)).replace("M", "L")}Z`).join("");
+      // A run that reaches the first or last point carries on flat to the timeline's edge: mid-morph the timeline
+      // can reach further than the new points do (a bigger slice starts later), which would leave the ends bare
+      const line = (key, r, back) => {
+        const p = r.map((i) => [+X(i), Y(band[key][i])]);
+        if (r[0] === idx[0] && p[0][0] > 0) p.unshift([0, p[0][1]]);
+        if (r[r.length - 1] === idx[idx.length - 1] && p[p.length - 1][0] < W) p.push([W, p[p.length - 1][1]]);
+        if (back) p.reverse();
+        return p.map(([x, y], k) => `${k ? "L" : "M"}${x},${y}`).join("");
+      };
+      const fill = runs.map((r) => `${line("hi", r)}${line("lo", r, true).replace("M", "L")}Z`).join("");
       const m = lookOf(band);
       if (m.alpha < 0.01) continue;
       const shade = `(var(--shade-band) * ${m.band.toFixed(3)} + var(--shade-hover) * ${m.hover.toFixed(3)} + var(--shade-dim) * ${m.dim.toFixed(3)})`;
