@@ -908,6 +908,21 @@ dialog pre {
   box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);
   transition: box-shadow var(--motion-fade) var(--ease-out);
 }
+/* TRIAL (?tiles=…): dividing-line options to compare. The list is clipped a seam's width in, so lines show only
+   between tiles, and the hover/pin ring sits just inside the clip */
+.mix-list[data-tiles] { margin: 12px calc(-1 * var(--seam, 0px)) calc(-1 * var(--seam, 0px)); clip-path: inset(var(--seam, 0px)); }
+.mix-list[data-tiles] li { box-shadow: var(--tile-line, none); }
+.mix-list[data-tiles] li::after { inset: var(--seam, 0px); }
+.mix-list[data-tiles="thick"] { --seam: 2px; }
+.mix-list[data-tiles="thick"] li { --tile-line: inset 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.mix-list[data-tiles="hairline"] { --seam: 1px; }
+.mix-list[data-tiles="hairline"] li { --tile-line: inset 0 0 0 1px var(--border); }
+.mix-list[data-tiles="rows"] { --seam: 1px; }
+.mix-list[data-tiles="rows"] li { --tile-line: inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border); }
+.mix-list[data-tiles="gap"] { gap: 3px; }
+.mix-list[data-tiles="gap"] li, .mix-list[data-tiles="gap"] li::after { border-radius: 6px; }
+.mix-list[data-tiles="cards"] { gap: 8px; }
+.mix-list[data-tiles="cards"] li, .mix-list[data-tiles="cards"] li::after { border-radius: 10px; }
 .mix-list li.pinnable { cursor: pointer; }
 .mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
 .mix-list li.pinnable:hover::after, .mix-list li.focus::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }

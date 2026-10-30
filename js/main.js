@@ -8,6 +8,10 @@ import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
+
+// TRIAL: ?tiles=thick|hairline|rows|gap|cards picks the mix tiles' dividing lines
+const tilesTrial = new URLSearchParams(location.search).get("tiles");
+if (tilesTrial) document.getElementById("mix-list").dataset.tiles = tilesTrial;
 import { forgetCovers } from "./covers.js";
 import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
 import "./theme.js"; // its controls wire themselves up
