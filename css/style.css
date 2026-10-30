@@ -913,7 +913,7 @@ dialog pre {
 .mix-total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
 .mix-legend-item { cursor: default; }
 .mix-legend-item.pinnable { cursor: pointer; }
-.mix-legend-item.pinnable:hover { background: var(--border); }
+.mix-legend-item.pinnable:is(:hover, .hover) { background: var(--border); }
 /* Segments are placed by mix.js (left and width), so they can slide and resize as one animation */
 /* The bar is the top 72px; each artist's hours sit in the strip below their segment */
 .mix-bar { --mix-radius: 10px; position: relative; height: 60px; margin-top: 12px; }

@@ -39,6 +39,8 @@ export function paintArtistKey() {
   const boxes = (root) => [...chips(root), ["\u0000all", root.querySelector(".legend-all")]].filter(([, el]) => el);
   const boxOf = (unit) => unit.querySelector(".swatch") ?? unit;
   const marked = new Map(boxes(key).map(([n, el]) => [n, { parts: markLooks(el), hover: boxOf(el).matches(":hover, .hover") }]));
+  // The chip under the pointer is rebuilt as well, and it misses :hover the same way, so .hover stands in for it too
+  const under = key.querySelector("[data-artist]:hover")?.dataset.artist;
   // Rebuilding drops keyboard focus, so it goes back to the same control in the new chip
   const focused = key.contains(document.activeElement) ? document.activeElement : null;
   const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];
@@ -123,6 +125,11 @@ export function paintArtistKey() {
   box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
   key.replaceChildren(...(top.length ? [box] : []), ...items);
+  const underEl = under != null ? chips(key).get(under) : null;
+  if (underEl) {
+    underEl.classList.add("hover");
+    underEl.addEventListener("pointerleave", () => underEl.classList.remove("hover"), { once: true });
+  }
   flip(before, chips(key));
   for (const [n, el] of boxes(key)) {
     if (!marked.get(n)?.hover) continue;
