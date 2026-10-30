@@ -61,6 +61,69 @@ const iv = setInterval(() => {
 setTimeout(() => { if (!document.title.startsWith("DONE")) document.title = "DONE never"; }, 20000);
 </script>"""
 
-(SITE / "test.html").write_text(html.replace("</body>", test_hook + "</body>"))
+# Trying out the hours strip's look (temporary): a panel of its options, kept across reloads
+strip_panel = """<style>
+#strip-try { position: fixed; left: 12px; bottom: 12px; z-index: 50; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; font-size: 12px; display: grid; grid-template-columns: auto auto; gap: 6px 10px; align-items: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+#strip-try b { grid-column: 1 / -1; font-size: 12px; }
+#strip-try .opts { display: flex; gap: 4px; flex-wrap: wrap; }
+#strip-try button { font: inherit; font-size: 11px; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+#strip-try button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface); }
+</style>
+<script type="module">
+import { stripLook, currentZoom } from "./js/charts.js";
+import { renderRollingChart } from "./js/rollingview.js";
+const OPTS = {
+  height: ["90", "120", "160", "200", "260"],
+  gap: ["0", "12", "24", "40"],
+  marker: ["none", "rule", "label", "rule label", "panel", "panel label"],
+  line: ["1", "1.5", "2", "2.5", "3"],
+  shading: ["none", "lit", "all"],
+  breakdown: ["on", "off"],
+};
+const DEF = { height: "120", gap: "0", marker: "none", line: "2", shading: "lit", breakdown: "on" };
+let cur = { ...DEF };
+try { cur = { ...DEF, ...JSON.parse(localStorage.getItem("strip-try") || "{}") }; } catch {}
+const wrap = document.getElementById("strip-wrap");
+const apply = (redraw) => {
+  wrap.style.setProperty("--strip-h", cur.height + "px");
+  wrap.style.setProperty("--strip-gap", cur.gap + "px");
+  wrap.dataset.sep = cur.marker;
+  stripLook.width = +cur.line;
+  stripLook.fill = cur.shading;
+  stripLook.parts = cur.breakdown === "on";
+  try { localStorage.setItem("strip-try", JSON.stringify(cur)); } catch {}
+  if (redraw) renderRollingChart(currentZoom(document.getElementById("chart-rolling")), true);
+};
+const panel = document.createElement("div");
+panel.id = "strip-try";
+panel.innerHTML = "<b>Hours strip</b>";
+for (const [k, list] of Object.entries(OPTS)) {
+  const label = document.createElement("span");
+  label.textContent = k;
+  const opts = document.createElement("div");
+  opts.className = "opts";
+  for (const v of list) {
+    const b = document.createElement("button");
+    b.textContent = v;
+    b.setAttribute("aria-pressed", cur[k] === v);
+    b.onclick = () => {
+      cur[k] = v;
+      for (const x of opts.children) x.setAttribute("aria-pressed", x === b);
+      apply(true);
+    };
+    opts.append(b);
+  }
+  panel.append(label, opts);
+}
+document.body.append(panel);
+apply(false);
+const q = (id) => document.getElementById(id);
+while (q("dashboard").hidden) await new Promise((r) => setTimeout(r, 100));
+apply(true);
+</script>"""
+
+(SITE / "test.html").write_text(html.replace("</body>", strip_panel + test_hook + "</body>"))
 (SITE / "plain.html").write_text(html.replace("</body>", plain_hook + "</body>"))
 print(f"dev/site ready: {len(files)} history files from {data}")

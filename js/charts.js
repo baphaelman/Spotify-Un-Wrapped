@@ -128,6 +128,9 @@ export function linkStrip(el, strip) {
   mainOf.set(strip, el);
 }
 let relaying = false; // a hover passed from one to the other isn't passed back
+// How the strip draws its lines: width at rest (lit ones are 1px thicker); fill "none", "lit" (only lit lines) or
+// "all" (every line faintly, lit ones more); parts: whether it splits into albums or songs along with the bands
+export const stripLook = { width: 2, fill: "lit", parts: true };
 
 // The hours axis top for the zoom range: the tallest shown line in it, in whole hours
 function hoursTop(data, names, window, hasOther, hide, zoom) {
@@ -498,14 +501,20 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // low opacity would pass through a stronger fill than either end.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
+  const fillMode = isStrip ? stripLook.fill : "lit";
+  const hoursArea = (k, lit) =>
+    k === otherIdx || fillMode === "none" || !visible(k) ? 0
+      : lit.has(k) ? hoursFillOpacity
+      : fillMode === "all" ? hoursFillOpacity * (lit.size ? 0.3 : 0.7) : 0;
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
   // once the morph is done (below).
   const holdFill = morph && !share && st.mode === "share";
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
+  const restWidth = isStrip ? stripLook.width : 2;
   const lineLook =(k, lit) => ({
-    width: lit.has(k) ? 3 : 2,
+    width: lit.has(k) ? restWidth + 1 : restWidth,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
@@ -567,7 +576,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // bands can fade it in rather than have it appear
         areaStyle: {
           color: share ? bandFill(s, shown) : hoursFill[s],
-          opacity: share ? 1 : !hide && shown.has(s) && !holdFill ? hoursFillOpacity : 0,
+          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, shown) : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -872,7 +881,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       series: names.map((_, j) => ({
         id: `s${j}`,
         lineStyle: lineLook(j, on),
-        areaStyle: { opacity: j !== otherIdx && on.has(j) ? hoursFillOpacity : 0 },
+        areaStyle: { opacity: hoursArea(j, on) },
       })).concat(partStyles(on)),
     }, undefined, FADE_MS);
   };
@@ -1030,7 +1039,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // An artist kept lit through a click on the main chart stays lit in the strip too
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
-    renderRolling(strip, data, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
+    renderRolling(strip, stripLook.parts ? data : { ...data, parts: undefined }, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
     if (keep) sst.keepFocus = null;
   }
 }
