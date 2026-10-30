@@ -474,9 +474,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     width: lit.has(k) ? 3 : 2,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
-  // Every artist shows all its parts while none is pinned; once some are, only the lit ones (pinned or
-  // hovered) do: the pinned ones are what's being looked into.
-  const partShown = (k, j, lit) => !!parts && j < partRows(k).length && (lit.has(k) || !base.size);
+  // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
+  const partShown = (k, j) => !!parts && j < partRows(k).length;
   // The part under the pointer ({k, j}, or null): filled deeper than its siblings and outlined on both sides
   let hotPart = null;
   const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
@@ -487,7 +486,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const partShade = (k, j, w, depth = PART_DEPTH[j]) =>
     mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * Math.min(1, w / t.shade.band)));
   const partFill = (k, j, lit) =>
-    !partShown(k, j, lit)
+    !partShown(k, j)
       ? bandFill(k, lit)
       : partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band, isHot(k, j) ? HOT_DEPTH : PART_DEPTH[j]);
   // Its divider (share), or its line (hours): faint beside its artist's, and fainter while others are lit
@@ -496,7 +495,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const hot = isHot(k, j) || (share && isHot(k, j + 1));
     return {
       width: hot ? 2 : share ? 1 : lit.has(k) ? 1.5 : 1.25,
-      opacity: !partShown(k, j, lit) ? 0 : hot ? 1 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
+      opacity: !partShown(k, j) ? 0 : hot ? 1 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
     };
   };
   const partStyles = (lit) =>
@@ -609,7 +608,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const ofArtist = on.has(k);
     return partRows(k)
       .map((_, j) => j)
-      .filter((j) => partShown(k, j, on) && parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)
+      .filter((j) => partShown(k, j) && parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)
       // In the order they're drawn: share mode stacks them up from the band's floor, so the top one comes first;
       // in hours mode the highest line does
       .sort((a, b) => (share ? b - a : valueOf(b) - valueOf(a)))
@@ -885,18 +884,16 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         if (visible(k) && bottom[k][i] != null && y >= bottom[k][i] && y <= top[k][i] && top[k][i] > bottom[k][i]) best = k;
       }
       if (best == null) return null;
-      const on = new Set([...base, best]);
       for (let j = 0; parts && best !== otherIdx && j < partRows(best).length; j++) {
         const lo = j ? partTop[best][j - 1][i] : bottom[best][i], hi = partTop[best][j][i];
-        if (partShown(best, j, on) && hi > lo && y >= lo && y <= hi) return { k: best, j };
+        if (partShown(best, j) && hi > lo && y >= lo && y <= hi) return { k: best, j };
       }
       return { k: best, j: null };
     }
     let reach = PART_REACH;
     let hit = null;
-    const on = lit();
     for (const [k, j] of partKeys) {
-      const v = visible(k) && partShown(k, j, on) ? partHoursAt(k, j, i) : null;
+      const v = visible(k) && partShown(k, j) ? partHoursAt(k, j, i) : null;
       const d = v == null ? Infinity : Math.abs(c.convertToPixel({ yAxisIndex: 0 }, v) - px[1]);
       if (d < reach) [reach, hit] = [d, { k, j }];
     }
@@ -926,7 +923,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     fromPlot = false;
     zr.setCursorStyle("default");
   };
-  st.zrMove = (e) => {
+  const move = (st.zrMove = (e) => {
     const px = [e.offsetX, e.offsetY];
     const hit = pick(px);
     if (hit === undefined) return clear();
@@ -935,14 +932,18 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     zr.setCursorStyle((hit?.j != null && pins?.openPart) || (pins && pinnable(best)) ? "pointer" : "default");
     const was = focused;
     if (focusPart(best, hit?.j ?? null) || best !== was) retip(...px);
-  };
+  });
   st.zrOut = clear;
   // Clicking a part opens its album or song in that view, pinned; clicking elsewhere on the band or line pins the
   // artist, or unpins it if it's already pinned
   st.zrClick = (e) => {
     const hit = pick([e.offsetX, e.offsetY]);
     if (hit?.j != null && pins?.openPart) return pins.openPart(names[hit.k], parts.kind, parts.names[hit.k][hit.j]);
-    if (pins?.toggle && pinnable(hit?.k)) pins.toggle(names[hit.k]);
+    if (!pins?.toggle || !pinnable(hit?.k)) return;
+    pins.toggle(names[hit.k]);
+    // The toggle re-rendered the chart with nothing under the pointer; light what's still there, so an artist
+    // just unpinned doesn't blink out until the mouse moves
+    if (st.zrMove !== move) st.zrMove(e);
   };
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);
