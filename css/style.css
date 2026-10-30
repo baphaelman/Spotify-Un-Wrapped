@@ -250,6 +250,21 @@ button.ghost:hover { background: var(--border); }
 .period-resize { margin-left: auto; }
 /* Artists, tracks or albums: the page's views, at the head of the bar */
 .view-tabs { flex: none; }
+/* Back to the view a part was opened from: grows in from nothing before the tabs (its margin takes back the
+   bar's gap while it's closed), and shrinks away once it's used or another tab is picked */
+.view-back-wrap {
+  flex: none;
+  display: grid;
+  grid-template-columns: 0fr;
+  margin-right: -12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: grid-template-columns var(--motion-grow) var(--ease-out), margin-right var(--motion-grow) var(--ease-out), opacity var(--motion-grow) var(--ease-out);
+}
+.view-back-wrap.open { grid-template-columns: 1fr; margin-right: 0; opacity: 1; pointer-events: auto; }
+.view-back { min-width: 0; overflow: hidden; white-space: nowrap; color: var(--text-secondary); transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out); }
+.view-back:hover { color: var(--text-primary); }
+@media (prefers-reduced-motion: reduce) { .view-back-wrap, .view-back { transition: none; } }
 .brush { flex: 1 0 100%; }
 .brush-track {
   position: relative;

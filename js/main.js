@@ -17,6 +17,10 @@ import { syncPeriod, setPeriod, panMs } from "./period.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
+// The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
+// picking a view from the tabs (or opening other data) forgets them
+let viewTrail = [];
+const VIEW_NAMES = { artist: "Artists", album: "Albums", track: "Tracks" };
 
 // ---------- Loading ----------
 
@@ -46,6 +50,7 @@ async function open(plays) {
   state.colorSlots = new Map();
   state.dims = new Map();
   state.dim = "artist";
+  setBack([]);
   $("window").value = START_WINDOW;
   setHidden($("chart-rolling"), []);
   applyDim();
@@ -364,12 +369,32 @@ segThumbs();
 function openPart(artist, kind, name) {
   const by = state.dim === "artist" ? artist : state.owner.get(artist);
   const slot = state.colorSlots.get(artist);
+  const from = state.dim;
   setDim(kind, () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
+  if (state.dim !== from) setBack([...viewTrail, from]);
 }
+
+function setBack(trail) {
+  viewTrail = trail;
+  const to = trail.at(-1);
+  if (to) $("view-back-label").textContent = VIEW_NAMES[to];
+  if (to) $("view-back").setAttribute("aria-label", `Back to ${VIEW_NAMES[to]}`);
+  $("view-back").tabIndex = to ? 0 : -1;
+  $("view-back-wrap").setAttribute("aria-hidden", !to);
+  $("view-back-wrap").classList.toggle("open", !!to);
+}
+$("view-back").addEventListener("click", () => {
+  const to = viewTrail.at(-1);
+  if (!to) return;
+  setBack(viewTrail.slice(0, -1));
+  setDim(to);
+});
 
 $("view-tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (b) setDim(b.dataset.dim);
+  if (!b) return;
+  setBack([]);
+  setDim(b.dataset.dim);
 });
 
 // ---------- Dashboard ----------
