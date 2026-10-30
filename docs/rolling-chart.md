@@ -3,8 +3,12 @@
 Read this before touching `renderRolling`. These rules were learned the hard way; most of them guard
 against an ECharts behaviour that breaks the hand-made stacking or the morphs.
 
-It has two modes on one canvas, **Share** (stacked bands) and **Hours** (overlaid lines of hours per
-week), and switching between them morphs.
+It has two modes, **Share** (stacked bands) and **Hours** (overlaid lines of hours per week), which can
+morph into each other. The page draws Share in `#chart-rolling` and, under its axis, a short Hours strip
+(`#chart-rolling-hours`, `linkStrip`) with no date labels of its own. Every render of the main chart
+re-renders the strip with the same args in hours mode (its selection copied), `setZoom` and `panTo` move
+both on one clock, and hover in either lights the artist in the other (`tellFocus`). The page only ever
+talks to the main chart.
 
 - **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
   `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.

@@ -170,7 +170,7 @@ form of each rule below, with the worked examples.
 ## The rolling chart
 
 **Read `docs/rolling-chart.md` before touching `renderRolling` or its hover, pins or morphs.** It's the
-page's main chart, with Share (stacked bands) and Hours (lines) on one canvas, and its stacking, colors and
+page's main chart, Share (stacked bands) with a short Hours (lines) strip under its axis, and its stacking, colors and
 hover are hand-built around ECharts quirks. The rules that reach beyond the chart:
 
 - **Colors follow the artist, not the stack position** (`assignSlots`), so never use a series index as a color index.
