@@ -530,6 +530,22 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // right after each update, before it's painted, in case ECharts replaced a shape or the stacking
   // changed; a line already linked to the same shapes is left alone. This reaches into ECharts internals
   // like setOptionFaded; without them the borders are just unclipped, twice as wide.
+  //
+  // Each edge's clip also reaches only partway into the band: half its thickness, less EDGE_GAP px. A
+  // band too thin to hold two borders shows just its tint, rather than stacking its own borders against
+  // its neighbors' into a rainbow, and its borders grow in as it thickens (a ramp along the band, which
+  // morphs carry, since the clip reads the live shapes). Bands wider than about 8px look as before.
+  const EDGE_GAP = 1.5;
+  // `from` moved `dir` (+1 down, -1 up, in pixels) by how far its edge may reach into the band between roof and floor
+  const inset = (from, roof, floor, dir) => {
+    const out = new Float32Array(from.length);
+    for (let i = 0; i < from.length; i += 2) {
+      out[i] = from[i];
+      const reach = Math.max(0, ((floor[i + 1] ?? NaN) - roof[i + 1]) / 2 - EDGE_GAP);
+      out[i + 1] = from[i + 1] + dir * (Number.isFinite(reach) ? reach : 0);
+    }
+    return out;
+  };
   const clipEdges = () => {
     if (!share) return;
     const shapes = drawnShapes(c);
@@ -544,9 +560,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         const line = shapes.get(`${side}${k}:line`);
         if (!line || (line.__clipOf?.[0] === band && line.__clipOf[1] === floorBand)) continue;
         const clip = new band.constructor({});
+        const roof = () => band.shape.points;
+        const floor = () => (floorBand ? floorBand.shape.points : band.shape.stackedOnPoints);
         clip.shape = {
-          get points() { return band.shape.points; },
-          get stackedOnPoints() { return floorBand ? floorBand.shape.points : band.shape.stackedOnPoints; },
+          get points() { return side === "t" ? roof() : inset(floor(), roof(), floor(), -1); },
+          get stackedOnPoints() { return side === "t" ? inset(roof(), roof(), floor(), 1) : floor(); },
+          get smooth() { return band.shape.smooth; },
+          get smoothMonotone() { return band.shape.smoothMonotone; },
         };
         // zrender skips drawing a line whose clip has zero area, judged from a cached bounding box that a
         // live shape never refreshes; a band that's flat for a moment mustn't hide its border for good
