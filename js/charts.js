@@ -565,7 +565,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         clip.shape = {
           get points() { return side === "t" ? roof() : inset(floor(), roof(), floor(), -1); },
           get stackedOnPoints() { return side === "t" ? inset(roof(), roof(), floor(), 1) : floor(); },
+          // Both sides round like the edge lines they cut, or with points far apart (a short period) the
+          // curves bow past the straight chords and the borders show in slivers
           get smooth() { return band.shape.smooth; },
+          get stackedOnSmooth() { return band.shape.smooth; },
           get smoothMonotone() { return band.shape.smoothMonotone; },
         };
         // zrender skips drawing a line whose clip has zero area, judged from a cached bounding box that a
