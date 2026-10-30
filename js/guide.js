@@ -5,6 +5,15 @@
 import { dur, FADE_MS } from "./motion.js";
 import { $, noun } from "./state.js";
 
+// The panel hangs under the period bar, so it covers as little as possible of the controls it points at
+export function placeControls() {
+  const panel = $("controls-panel");
+  const bar = document.querySelector(".period-bar");
+  const top = bar && !$("dashboard").hidden ? bar.getBoundingClientRect().bottom - panel.offsetParent.getBoundingClientRect().top + 8 : 0;
+  panel.style.top = top > 0 ? `${top}px` : "";
+  panel.style.maxHeight = `calc(100vh - ${Math.max(0, panel.getBoundingClientRect().top) + 16}px)`;
+}
+
 // Copies of a segmented control's buttons, with their pressed state; a click on one clicks the real one
 function mirrorSegments(copy, real) {
   copy.replaceChildren(
@@ -72,15 +81,19 @@ function ringOn(selector) {
   for (const el of document.querySelectorAll(selector)) {
     const b = el.getBoundingClientRect();
     if (!b.width || b.bottom < 0 || b.top > innerHeight) continue;
-    const r = document.createElement("div");
-    r.className = "guide-ring";
     // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
-    // the rest just above the period bar's layer (style.css)
-    const bar = el.closest(".topbar");
-    (bar ?? document.body).append(r);
-    Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.width + 8}px`, height: `${b.height + 8}px` });
-    requestAnimationFrame(() => r.classList.add("on"));
-    rings.push(r);
+    // the rest just above the period bar's layer (style.css). A faint copy over the panel lets the part beneath it
+    // glow through
+    const ring = (parent, cls) => {
+      const r = document.createElement("div");
+      r.className = cls;
+      Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.width + 8}px`, height: `${b.height + 8}px` });
+      parent.append(r);
+      requestAnimationFrame(() => r.classList.add("on"));
+      rings.push(r);
+    };
+    ring(el.closest(".topbar") ?? document.body, "guide-ring");
+    ring(document.querySelector(".topbar"), "guide-ring through");
   }
 }
 

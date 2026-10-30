@@ -890,7 +890,7 @@ dialog pre {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .controls-panel:not([hidden]) { animation: pop var(--motion-fade) var(--ease-out); transform-origin: top right; }
-.controls-panel:has(.guide.open) { width: min(460px, calc(100vw - 32px)); }
+.controls-panel:has(.guide.open) { width: min(620px, calc(100vw - 32px)); }
 .controls-panel { transition: width var(--motion-grow) var(--ease-out); }
 /* The guide row opens the guide, which grows open beneath it */
 .guide-toggle { display: flex; align-items: center; justify-content: space-between; }
@@ -901,10 +901,10 @@ dialog pre {
 .guide-inner { min-height: 0; overflow: hidden; }
 /* A row per feature: a small copy of the control on the left, what it does on the right. Hovering a row rings the
    real control (guide.js); the row itself lights faintly */
-.guide-row { display: grid; grid-template-columns: 172px 1fr; align-items: center; gap: 14px; padding: 9px 8px; border-radius: 8px; transition: background var(--motion-fade) var(--ease-out); }
+.guide-row { display: grid; grid-template-columns: 250px 1fr; align-items: center; gap: 16px; padding: 6px 8px; border-radius: 8px; transition: background var(--motion-fade) var(--ease-out); }
 .guide-row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
 .guide-row p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
-.guide-row b { display: block; font-weight: 600; color: var(--text-primary); }
+.guide-row b { margin-right: 4px; font-weight: 600; color: var(--text-primary); }
 .guide-row em { font-style: normal; color: var(--text-primary); }
 .guide-pic { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
 .g-seg button { padding: 2px 7px; font-size: 11px; border-radius: 5px; }
@@ -941,6 +941,9 @@ dialog pre {
    under the top bar and so under the panel, which hangs from it */
 .guide-ring { position: fixed; z-index: 10; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .guide-ring.on { opacity: 1; }
+/* Its faint copy over the panel, so the part beneath it glows through */
+.guide-ring.through { z-index: 30; }
+.guide-ring.through.on { opacity: 0.22; }
 .controls-data { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
 .controls-note { margin: 0; padding: 6px 8px 8px; font-size: 12px; color: var(--text-muted); }
 .controls-item { display: block; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; }

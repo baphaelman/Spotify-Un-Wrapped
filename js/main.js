@@ -14,7 +14,7 @@ import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
-import { watchGuide } from "./guide.js";
+import { placeControls, watchGuide } from "./guide.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
@@ -114,6 +114,7 @@ function showView(view) {
 function openControls() {
   $("controls-panel").hidden = false;
   $("controls-button").setAttribute("aria-expanded", "true");
+  placeControls();
   watchGuide(true);
   $("controls-panel").querySelector(".controls-item:not([hidden])")?.focus({ preventScroll: true });
 }
