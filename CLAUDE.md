@@ -157,7 +157,8 @@ matches what is moving.
   `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
   number counting through the sizes in between. A drag is the pointer's, so it never glides.
 - **Chain phases; never overlap them.** A multi-phase action (slice size, then pan, then artists) starts each
-  phase from where the last one ended: a later phase waits for the earlier one (`afterBrush` waits out the
+  phase from where the last one ended (a period button: the window frame first, then the slice size, then the
+  pan and the artists): a later phase waits for the earlier one (`afterBrush` waits out the
   bar's morph; a token drops a click's chain when a newer click arrives). A transition that starts while
   its element has them switched off (the timeline's `.morphing` state) snaps instead of gliding. Order the
   phases so each draws data that exists there: the slice size changes on the period still showing, because
