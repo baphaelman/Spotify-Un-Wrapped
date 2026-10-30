@@ -81,68 +81,40 @@ it as a normal change.
 
 ## Files
 
-- `js/parse.js`: reads a zip, folder or JSON files into `{t, ms, artist, track, album, skipped}`.
-  Handles both the extended and the older account-data export.
-- `js/aggregate.js`: pure functions for top lists, monthly totals, the 7×24 clock and `rolling()`, a
-  port of the Python script that uses prefix sums.
-- `js/charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling`.
-- `js/motion.js`: the page's motion (see Motion below). The timing tiers and easings, `setOptionFaded`
-  (style and curve-rounding tweens for line and bar series) and `sweep` (steps a value through keyframes
-  with chained morphs). It also holds the DOM helpers `tweenNumber`,
-  `flip` (FLIP glide keyed by name) and `dur` (0 under reduced motion). The mix bar (`mix.js`) keeps one
-  segment per artist and animates `left`/`width` itself, so a period change slides the
-  artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
-  matched across renders the same way (`lists.js`).
-- `js/main.js`: the entry point. Loading and forgetting data, the Your stats/Community tabs, the settings
-  menu, sharing, the Artists/Tracks/Albums switch (`keyedPlays`, `applyDim`, `setDim`), the segmented
-  controls' sliding thumb (`segThumbs`), and the orchestration every change goes through: `renderAll` (the
-  rolling chart and everything after it) and `renderDependents` (what follows the key's selection), plus
-  the chart's focus and selection wiring. It opens on the most recent year.
-- `js/state.js`: the `state` object and the small readers every module shares: `$`, `noun()` and the
-  per-view constants (`RESIZES`, `RESIZE_LOOK`, `START_WINDOW`), `extent`, `presetRange`, `presetOf`,
-  `presetLabel`, `rangePlays`, `shownPlays`. **The period is `state.range`, `{lo, hi}` day indices
-  (inclusive), not a year.** The dropdown's years and "All time" are presets that set it (`presetRange`);
-  anything else the brush picks shows as "Custom". Every graph, list and stat reads `rangePlays()` /
-  `state.range`. It also holds `hooks`, which `main.js` fills at startup (`renderAll`, `renderDependents`,
-  `paintArtistKey`), so the modules below can call back up without importing `main.js`. **Keep imports
-  one-way,** in this order: `state.js`, then `theme.js` and `rollingview.js`, then `key.js`, then
-  `period.js`, then `main.js`. Each imports only from modules before it; a call the other way goes through
-  `hooks` (no import cycles).
-- `js/period.js`: the sticky bar's period controls: `syncPeriod`, `setRange`/`settleRange` (a preset or
-  step: pan, then morph), `stepPeriod` (the ‹ › steps), the length buttons (`resized`, `retune`), the year
-  menu, `panMs`, and the brush's live dragging (`liveRender`, `liveSettle`).
-- `js/rollingview.js`: the page's side of the rolling chart (`renderRolling` itself is in `charts.js`):
-  `renderRollingChart`, `chartArtists`, `assignSlots`, `pin`/`unpin`, the days-per-slice and smoothing
-  sweeps (`sweepWindow`, `sweepSmoothing`, `glideWindow`), the Share/Hours buttons, and the graphs that follow
-  the chart's artists: the bar's timeline (`paintBrush`), the mix bar (`renderMix`), monthly hours and the
-  clock. Its `brushMorph`, `brushFocus` and `mixArgs` are read live by other modules but only assigned here
-  (other modules use `setBrushMorph`, `setBrushFocus`, `clearMixArgs`).
-- `js/key.js`: the period bar's artist key (`paintArtistKey`, `markLooks`, `paintFocus`) and the artist
-  search that pins.
-- `js/theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark toggle (`flipTheme`) and
-  `rerenderForTheme`.
-- `js/brush.js`: the sticky bar's timeline (the rolling chart's stack graph in miniature over the whole
-  history, drawn by `paintBrush` in `rollingview.js` from the same data, artists and colors, with pinned or hovered
-  artists lit and the rest dimmed; and a draggable window and edges). The 3m/6m/1y buttons rescale the
-  window with its right edge fixed (`resized`). The timeline starts where the chart's data does for the artists shown (`start` in `setBrushBands`), so a smaller
-  window can cut off more of the empty left; it only moves between drags. The window can still reach the real first day: dragging the left edge to the end snaps to it. It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
-  moved by `setBrushRange`. Drags go through `liveRender` in `period.js`, which slides the rolling chart's
-  range every frame (`setZoom`) but redraws artists, lists, stats and the mix bar at most every ~90 ms, or
-  3x the last redraw's cost, so dragging stays smooth.
-- `js/lists.js`: ranked lists and stat tiles.
-- `js/store.js`: the parsed plays persist in IndexedDB, so return visits skip the upload. "Forget my
-  data" clears them.
-- `js/summary.js`, `js/api.js`, `js/config.js`, `js/community.js`: the community pool.
-- `js/covers.js`: the pictures in the listening mix's key (artist photos, album covers). The key itself is
-  tiles under the mix bar, one per color: click pins, the color tab hides. Pictures are looked up by up to
-  five of an item's track IDs (parse keeps `id` from the extended export) through the edge function
-  `supabase/functions/artist-image`, deployed as `smooth-endpoint` (Spotify Web API; client credentials in the
-  function's secrets `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`; JWT verification off). It tries each
-  track, then a search by name, then the other kind of picture, and skips Spotify's ~1 KB blank placeholder.
-  Answers are cached in localStorage (`unwrapped-pictures`). Supabase can't rename a deployed function, and
-  the owner redeploys by pasting the file into the dashboard (no CLI here).
+All in `js/` unless noted. Read a file's own comments for the details.
 
-## Spotify rate limit: read before testing pictures
+- `parse.js`: reads a zip, folder or JSON files into `{t, ms, artist, track, album, skipped, id}` (extended and older export).
+- `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()` (a port of `rolling_window.py`).
+- `charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling` (see below).
+- `motion.js`: the timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, and the DOM helpers `tweenNumber`, `flip`, `dur`.
+- `state.js`: the shared `state` and small readers (`rangePlays`, `shownPlays`, `presetRange`…), and `hooks`.
+  **The period is `state.range`, `{lo, hi}` day indices (inclusive), not a year.** Years and "All time" are
+  presets that set it; anything else the brush picks shows as "Custom". Every graph, list and stat reads it.
+- `main.js`: the entry point: loading, tabs, settings, sharing, the Artists/Tracks/Albums switch, and the
+  orchestration every change goes through (`renderAll`, `renderDependents`).
+- `period.js`: the sticky bar's period controls: presets, ‹ › steps, length buttons, the year menu, live dragging (`liveRender`).
+- `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`,
+  pins, the slice/smoothing sweeps) and the graphs that follow its artists (`paintBrush`, the mix bar, monthly, clock).
+- `key.js`: the period bar's artist key (`paintArtistKey`) and the artist search that pins.
+- `theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark flip.
+- `brush.js`: the sticky bar's timeline and its draggable window. It owns no state beyond the window.
+- `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
+- `covers.js`: the pictures in the mix's key (see Pictures below).
+- `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).
+- `dev/`: test tools (see Testing). `docs/`: the long-form rules this file points to.
+
+**Keep imports one-way:** `state.js`, then `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
+then `main.js`. Each imports only from modules before it; a call the other way goes through `hooks`, which
+`main.js` fills at startup.
+
+## Pictures and the Spotify rate limit: read before testing pictures
+
+`covers.js` looks pictures up by up to five of an item's track IDs through the edge function
+`supabase/functions/artist-image`, deployed as `smooth-endpoint` (Spotify Web API; credentials in the
+function's secrets; JWT verification off). It tries each track, then a search by name, then the other kind
+of picture, and skips Spotify's ~1 KB blank placeholder. Answers are cached in localStorage
+(`unwrapped-pictures`). The owner redeploys by pasting the file into the Supabase dashboard (no CLI here),
+and a deployed function can't be renamed.
 
 **The Spotify app behind `smooth-endpoint` is in development mode, with a small, unpublished request
 allowance, and bursts earn long lockouts.** On 2026-10-29 an idle warm-up (about 150 lookups per page load,
@@ -151,24 +123,22 @@ hours). While locked out, every picture is blank for every visitor.
 
 - **Never bulk-fetch pictures:** no warm-ups, prefetching or scripts that loop over artists or albums
   against the function. Look up only what's on screen (the key already waits for the bar to hold still).
-- **Each page load of `test.html` costs real Spotify calls** for any picture not already cached. Headless
-  test runs use a fresh-ish profile, so take few screenshots of views with pictures, and don't loop them.
+- **Each page load of `test.html` costs real Spotify calls** for any picture not already cached. The cache
+  is per origin, so keep one port and one profile for a task, take few screenshots, and don't loop them.
 - **Check whether the app is locked out** with one request:
   `curl -s "https://qvsoxqeuvpnryitechsf.supabase.co/functions/v1/smooth-endpoint?kind=album&tracks=4cOdK2wGLETKBW3PvgPWqT"`.
   `{"error":"busy","wait":N}` means locked out for N more seconds; the page then stops asking for that visit
   (waits under 2 minutes it holds and retries).
 - **Don't work around a lockout** (new Spotify apps, other keys, spoofed clients). Wait it out and tell the
   owner. A shared server-side cache table (each picture looked up once for everyone) is the planned fix.
-- `supabase/schema.sql`: the pool's tables and functions. Paste into the Supabase SQL editor to apply
-  changes; it's safe to re-run.
-- `dev/`: test tools (see Testing).
 
 ## Motion
 
 Everything on the page moves on one set of timings, so a single action reads as one movement. Durations
 and easings live in `js/motion.js` and, mirrored, as the `--motion-*` and `--ease-*` tokens at the top of
 `css/style.css` (keep the two in step). **Never write a duration or easing literal:** pick the tier that
-matches what is moving.
+matches what is moving. **Read `docs/motion.md` before adding or changing an animation:** it has the long
+form of each rule below, with the worked examples.
 
 | Tier | ms | Easing | For |
 |---|---|---|---|
@@ -178,123 +148,37 @@ matches what is moving.
 | `ENTER_MS` / `--motion-enter` | 550 | out | First appearance: the dashboard rising in, a chart's first draw, a new list row |
 | `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
 | `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
-| `scaledMs` | 900 – 2200 | in-out | A change that has a size: the view zooming to a period of another length (from `PAN_MS`), days per slice, a blur radius (from `MORPH_MS`) |
+| `scaledMs` | 900 – 2200 | in-out | A change that has a size: a zoom to another length, days per slice, a blur radius |
 | `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
 
-- **Two easings.** In-out (`EASE_IN_OUT`, `--ease-in-out`) for things that travel on their own from one
-  state to another. Out (`EASE_OUT`, `--ease-out`) for anything that answers the pointer or arrives, so it
-  responds at once and settles. Each comes as a JS function, an ECharts name and a CSS curve. The only
-  other is `sweep`'s smoothstep, because its linear segments would make a cubic jump.
-- **Nothing snaps.** Every change on screen tweens: positions, sizes, colors, outlines, opacity. Only a
-  drag tracks the pointer directly. ECharts applies style changes instantly, so restyle charts with
-  `setOptionFaded` (`FADE_MS` for hover, `MORPH_MS` alongside a data morph), never a bare `setOption`.
-  Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
-- **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
-  timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
-  the exception by design: the view pans first (`PAN_MS`, longer when the length changes), then the new artists morph in. So is
-  the bar's timeline when its bands change shape and its ends move too: the bands morph first, then the ends
-  travel, each at the tier (`setBrushBands`).
-- **Things come and go by shrinking or fading, not by appearing.** A hidden artist collapses to zero
-  thickness; a series that leaves fades its outline as it goes. Series can't tween in or out, so keep them
-  in place with no thickness (see `withOtherMorph`, the timeline's `hidden` bands).
-- **Interruptions carry on from what's on screen.** A new animation starts from the current frame, not
-  the old target. A quick one (a hover) never cuts short a slower one in flight: it lasts until that one
-  would have ended (see `setBrushBands`).
-- **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all. The CSS
-  entrance staggers are hand-set within the same range.
-- **Controls the page moves glide too.** When code (not the reader's hand) changes a control, its thumb, fill
-  and number travel with the change on the same tier and curve as the graphs: the slice slider's
-  `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
-  number counting through the sizes in between. A drag is the pointer's, so it never glides.
-- **Time follows the size of the change.** A change that has a size (a period's length, days per slice, a blur
-  radius) takes `scaledMs(from, to, base)`: the base tier plus 380 ms per doubling between the old and new
-  value, up to 2.2 s, so 3 months → 2 years and 15 → 75 days both take longer than a small step and never
-  rush. Everything riding the change (the slider's thumb, the bar's backdrop, a sweep's keyframes through
-  `sweepSteps`) takes that same time. Use it for any new variable that interpolates; don't hand-pick a duration.
-- **A zoom is steady, not linear.** Moving a range's two ends linearly rushes the first half of a big zoom;
-  `travel` (`motion.js`) zooms at a constant rate about the point that stays put, and both the chart and the
-  bar's frame take their place from it.
-- **Things that travel together share one clock.** A CSS transition and a per-frame JS tween with the same
-  duration and curve still drift apart (the frame trailed the chart by ~9% mid-pan). When two things must stay
-  in step, drive both from one tick: the chart's pan reports its eased progress (`morph.onFrame`) and the
-  period bar's window frame is placed from it (`glideBrushRange`, with its own easing off).
-- **Few beats, each with a purpose.** Fold everything that can start together into one beat, and chain only
-  what must follow. A period button that changes the slice size is three: the window frame and the chart pan
-  or zoom to the new period *together* (one clock, so the frame always sits over what the chart shows);
-  then the artists morph in at the old slice size; then the slice size sweeps (with its slider and the
-  bar's backdrop). A beat starts where the last ended (a token drops a click's chain when a newer click
-  arrives). Order beats so each draws data that exists there: the slice size changes last, because swept
-  while the old artists were still on screen they'd have nothing in the new period and leave it blank.
-  A transition that starts while its element has them switched off (the timeline's `.morphing` state)
-  snaps instead of gliding.
-- **Reduced motion:** wrap every JS duration in `dur()` (0 when the visitor asked for less motion), and
-  give every CSS animation an entry in the `prefers-reduced-motion` blocks.
+- **Two easings:** in-out for things that travel on their own, out for anything that answers the pointer or arrives.
+- **Nothing snaps.** Every change tweens; only a drag tracks the pointer directly. Restyle charts with
+  `setOptionFaded`, never a bare `setOption`, and never with ECharts' emphasis states.
+- **One action, one tier, one start,** except where a later step must wait for an earlier one (a preset pans,
+  then the artists morph in). Fold what can start together into one step and chain only what must follow.
+- **Things come and go by shrinking or fading,** never by appearing. Series can't tween in or out, so keep
+  them in place with no thickness.
+- **Interruptions carry on from what's on screen,** and a quick animation never cuts short a slower one in flight.
+- **Controls the page moves glide too** (a slider's thumb and number), on the same tier as the graphs.
+- **Time follows the size of the change:** use `scaledMs` for anything that interpolates a size, and give
+  everything riding that change the same time.
+- **Things that travel together share one clock:** drive both from one tick, not two matching tweens.
+- **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all.
+- **Reduced motion:** wrap every JS duration in `dur()`, and give every CSS animation an entry in the
+  `prefers-reduced-motion` blocks.
 
-## The rolling chart (`renderRolling`): read this before touching it
+## The rolling chart
 
-It has two modes on one canvas, **Share** (stacked bands) and **Hours** (overlaid lines of hours per
-week), and switching between them morphs.
+**Read `docs/rolling-chart.md` before touching `renderRolling` or its hover, pins or morphs.** It's the
+page's main chart, with Share (stacked bands) and Hours (lines) on one canvas, and its stacking, colors and
+hover are hand-built around ECharts quirks. The rules that reach beyond the chart:
 
-- **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
-  `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.
-- **Stacking is done by hand, not with ECharts' `stack`.** Each band is the line at its cumulative top,
-  filled down to the axis, and lower bands paint over the bottom of higher ones. That paint order is set
-  with each series' `z`, not left to series order: ECharts paints in the order it created each series'
-  view, so artists added later (raising the artist count) would paint over everything below them. A
-  hidden artist collapses onto the band below it.
-- **The Hours view keeps an invisible fill (`opacity: 0`) under every line,** so the hovered line's
-  shading and the morph back into bands fade in. A fill created mid-update would appear at full
-  strength in its final shape.
-- **`morph` is `false`, `true`/ms, or `{ms, easing}`.** Re-renders that keep the same series and point
-  count can morph. Where a straight point-to-point tween would only crossfade, **sweep** instead
-  (`motion.js`): smoothify steps through blur radii, and the window slider steps through window sizes,
-  drawing each step on the final chart's date points (`rolling`'s `gridWindow`) so counts match. Toggling
-  "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
-- **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
-  (for example `yAxis.interval`).
-- **Colors follow the artist, not the stack position.** `assignSlots` in `rollingview.js` gives each artist a
-  palette slot, remembers it in `state.colorSlots`, and passes the slots to `renderRolling` (`slots`).
-  Pinned artists are placed first, so they keep their color for as long as they're pinned. Stack order is
-  still rank, so don't use the series index as a color index.
-- **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
-- **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
-  period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first
-  window fills).
-- **A preset or step change is two steps (`morph.pan`, `panTo`).** First the zoom range travels to the new
-  period, a frame at a time via `dispatchAction` (like dragging the slider), with the old artists still
-  on screen, so it reads as a real scroll or zoom; then the bands morph into the new period's artists.
-  Don't let ECharts tween the zoom and the data together: with the point set changing (a filtered
-  window), its point diff doesn't animate zooming out, and the artist change blurs into the movement.
-- **`setOptionFaded`** tweens style changes by animating ECharts' internal `_polygon`/`_polyline`
-  shapes directly (re-rendering each frame costs ~20ms, too slow to tween). This depends on ECharts
-  internals (as of 5.6). Two traps: stop running fades *before* `setOption`, because zrender moves a
-  running animation onto the new style object and it paints its old target back; and when either end
-  of a fade is invisible, tween only opacity, or the color blend shows partway.
-
-### Hover: hard-won rules
-
-- **Every series is `silent`, and hover is worked out from the data.** A zrender `mousemove` handler
-  (`st.zrMove`) converts the pointer to a date and value. Share mode focuses the band containing the
-  pointer; Hours mode focuses the **topmost** line at that date. When the artist list changes and `st`
-  is rebuilt, carry `zrMove`/`zrOut` over so the old handlers get removed, or they keep running
-  against the previous artists.
-- **Focus is drawn by restyling, never by ECharts highlight states.** Those states break the hand-made
-  stacking: a highlighted band shows all the way down to the axis. Keep `triggerEmphasis: false` on the
-  **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every
-  shape into the highlight state.
-- **The legend is HTML, and there's one for the whole page:** the artist key in the sticky period bar
-  (`paintArtistKey` in `key.js`), beside the search that pins, and the Artists slider on the bar's first row.
-  Its last chip, "Everyone else", flips the hidden `#include-other` checkbox. No graph has a key of its own. The ECharts legend is hidden and only holds which
-  artists are shown. Hover calls `focusArtist`; a box click goes through `toggleArtist`/`showArtists`, which
-  dispatch `legendToggleSelect` and re-stack the bands as a morph. Repaint the key wherever the chart's
-  artists, pins or selection change (the rolling chart's followers, `onSelectionChange`, `liveTail`).
-- **Clicking the plot toggles the hovered artist's pin** (`st.zrClick`, through `pins.toggle`). It uses
-  the same `pick` as hover, so the clicked band is always the one that was highlighted. "Everyone else"
-  isn't pinnable. Zrender only fires `click` after a `mousedown`, which matters when scripting tests.
-- **`focusArtist(el, name)`** (exported) lets the page highlight an artist from outside the chart. The
-  Top artists and Top tracks rows use it.
-- **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom: it swallows
-  wheel events. Zoom only through the period brush.
+- **Colors follow the artist, not the stack position** (`assignSlots`), so never use a series index as a color index.
+- **There's one artist key for the whole page,** in the sticky period bar (`paintArtistKey`). No graph has its
+  own. Repaint it wherever the chart's artists, pins or selection change.
+- **`focusArtist(el, name)`** highlights an artist in the chart from anywhere on the page.
+- **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom; zoom only
+  through the period brush.
 
 ## Community pool
 
@@ -322,7 +206,7 @@ or Node).
 python3 dev/harness.py                      # rebuild dev/site after any index.html change
 (cd dev/site && python3 -m http.server 8765 &)
 python3 dev/shot.py "http://localhost:8765/test.html?v=$RANDOM#hours" /tmp/out.png 1280 1900
-HOVER_SEL="#top-artists li:nth-child(3)" python3 dev/shot.py ...   # also HOVER, EVAL, FRAMES, WHEEL
+HOVER_SEL=".mix-legend-item:nth-child(3)" python3 dev/shot.py ...   # also HOVER, EVAL, FRAMES, WHEEL
 ```
 
 - **`test.html`** loads the owner's history from `../spotify/datas/Spotify Extended Streaming History`.
