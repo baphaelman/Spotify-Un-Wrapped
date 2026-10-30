@@ -81,7 +81,8 @@ $("period-resize").addEventListener("click", (e) => {
   retune(look, windowWas);
 });
 
-const retunes = (look) => look?.smooth !== undefined && look.smooth !== state.smoothify;
+// Auto smoothing follows the period by itself, so a button's own smoothing only replaces a fixed one
+const retunes = (look) => look?.smooth !== undefined && state.smoothify !== "auto" && look.smooth !== state.smoothify;
 
 // A period button's slice size and smoothing, as two sweeps one after the other, so each is a plain change
 // of one thing: the slice size (slider and chart), then the smoothing (the select and the chart's blur)
