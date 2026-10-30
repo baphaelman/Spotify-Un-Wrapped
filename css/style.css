@@ -873,8 +873,6 @@ dialog pre {
 }
 .mix-under.fits { opacity: 1; }
 /* The plays only when there's room beside the hours */
-.mix-plays { display: none; font-size: 10px; font-weight: 400; color: var(--text-secondary); }
-.mix-under.fits-plays .mix-plays { display: inline; }
 .mix-seg {
   position: absolute;
   top: 0;

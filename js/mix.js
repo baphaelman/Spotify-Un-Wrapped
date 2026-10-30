@@ -25,7 +25,7 @@ const span = (cls) => {
   return el;
 };
 
-// A segment reads, top to bottom: its share, then the artist's name; their hours and (plays) sit below it,
+// A segment reads, top to bottom: its share, then the artist's name; their hours sit below it,
 // under the bar. A click pins them.
 function makeEntry(name) {
   const seg = document.createElement("div");
@@ -37,10 +37,9 @@ function makeEntry(name) {
   who.append(nameEl);
   seg.append(label, who);
   const hoursEl = span("mix-hours");
-  const playsEl = span("mix-plays");
   const under = span("mix-under");
-  under.append(hoursEl, playsEl);
-  const e = { name, seg, label, under, hoursEl, playsEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  under.append(hoursEl);
+  const e = { name, seg, label, under, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
@@ -48,11 +47,10 @@ function makeEntry(name) {
 }
 
 // What fits in a segment this wide (px): the share from SHARE_PX, the hours under it from HOURS_PX, the name
-// from DETAIL_PX and the plays beside the hours from PLAYS_PX
+// from DETAIL_PX
 const SHARE_PX = 30;
 const HOURS_PX = 40;
 const DETAIL_PX = 80;
-const PLAYS_PX = 76;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
 // Puts every segment and its hours where its x and w say, and shows what fits. The segments at either end
@@ -73,7 +71,6 @@ function place() {
     e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
     e.seg.classList.toggle("fits-detail", px >= DETAIL_PX && !e.leaving);
     e.under.classList.toggle("fits", px >= HOURS_PX && !e.leaving && !e.off);
-    e.under.classList.toggle("fits-plays", px >= PLAYS_PX);
     e.seg.classList.toggle("outer-l", e.x <= EDGE);
     e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
@@ -179,7 +176,6 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
-    tweenNumber(e.playsEl, ctx.plays.get(name) ?? 0, { format: (n) => `(${Math.round(n).toLocaleString()})` });
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     const share = e.to.w;
     e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;

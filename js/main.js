@@ -524,12 +524,19 @@ $("year-next").addEventListener("click", () => stepPeriod(1));
 // The brush: the graphs follow the window as it's dragged. The chart's range only slides when the artists
 // stay the same (liveRender), so a drag is cheap and the rest settles as the artists change.
 let livePending = 0;
+let dragLen = undefined; // while the window is dragged: the length button it started on (null for none) if it moves whole
 setupBrush((range) => {
+  if (dragLen === undefined) {
+    const old = state.range, b = [...$("period-resize").children].find((c) => sameRange(old, resized(old, c.dataset.len)));
+    dragLen = b && spanOf(range) === spanOf(old) ? b.dataset.len : null;
+  }
+  // A window that started on 3m, 6m, 1y... stays that length (in calendar months) as it moves, as a step does
+  if (dragLen) range = resized({ lo: 0, hi: range.hi }, dragLen);
   state.range = range;
   syncPeriod();
   cancelAnimationFrame(livePending);
   livePending = requestAnimationFrame(liveRender);
-}, paintBrush);
+}, (...a) => { dragLen = undefined; return paintBrush(...a); });
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
 // moves with the bar on scroll (a native dropdown can end up off screen)
@@ -776,15 +783,15 @@ function paintTopLists() {
   paintFocus();
 }
 
-// Neighbouring lit rows of the same artist (a pinned artist's consecutive tracks) read as one box; lit rows of
-// different artists keep the hairline gap between their tints
+// Neighbouring lit rows (a pinned artist's consecutive tracks, or pinned artists side by side) read as one box,
+// each keeping its own tint, with square corners where they meet
 function joinLitRows(ol) {
   const lit = (li, i) => (li.classList.contains("pinned") || li.classList.contains("focus")) ? ol._artists?.[i] : null;
   const kids = [...ol.children];
   kids.forEach((li, i) => {
     const a = lit(li, i);
-    li.classList.toggle("join-up", a != null && i > 0 && lit(kids[i - 1], i - 1) === a);
-    li.classList.toggle("join-down", a != null && i < kids.length - 1 && lit(kids[i + 1], i + 1) === a);
+    li.classList.toggle("join-up", a != null && i > 0 && lit(kids[i - 1], i - 1) != null);
+    li.classList.toggle("join-down", a != null && i < kids.length - 1 && lit(kids[i + 1], i + 1) != null);
   });
 }
 
