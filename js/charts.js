@@ -1234,26 +1234,11 @@ function paintUnderlines(el, st, still = false) {
   paintCaptionMarks(el, st);
 }
 
-// The captions (each column's top artist), and behind them a mark for the pinned artists and the one a click would
-// pin or unpin (the one the pointer picks, or one hovered elsewhere on the page). A marked artist's name turns to the
-// main ink. Marks sit on the line and rise out of it (or sink back into it); neighbouring marks join into one,
-// rounded only at its outer corners. They're elements over the chart, so CSS tweens them.
-// Trial: the look comes from ?pinlook= (and ?pintall for taller boxes), picked on the test page with a small panel
-// (pinLookPicker); see .month-caps[data-look] in the stylesheet.
-const PIN_LOOKS = {
-  outline: "Outline",
-  "outline-tint": "Outline + tint",
-  "outline-pin": "Outline · pinned adds tint",
-  "outline-bold": "Outline · pinned bolder + tint",
-  shade: "Tint",
-  "shade-pin": "Tint · pinned deeper",
-  column: "Column wash",
-  "column-pin": "Column wash · pinned deeper",
-};
-function pinLook() {
-  const q = new URLSearchParams(location.search);
-  return { look: q.get("pinlook") in PIN_LOOKS ? q.get("pinlook") : "outline", tall: q.has("pintall") };
-}
+// The captions (each column's top artist), and behind them a wash over the columns of the pinned artists and of the
+// one a click would pin or unpin (the one the pointer picks, or one hovered elsewhere on the page), the same for
+// both, so pinning keeps what hovering showed. It runs from above the caption down to the axis and rises from it
+// (sinks back into it); neighbouring washes join into one, rounded only at its outer corners. A lit artist's name
+// brightens. They're elements over the chart, so CSS tweens them.
 function paintCaptionMarks(el, st) {
   const c = instances.get(el);
   let layer = el.querySelector(".month-caps");
@@ -1264,12 +1249,8 @@ function paintCaptionMarks(el, st) {
     Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 1 });
     layer.append(document.createElement("div"), document.createElement("div"));
     el.appendChild(layer);
-    pinLookPicker();
   }
   const [marks, caps] = layer.children;
-  const { look, tall } = pinLook();
-  layer.dataset.look = look;
-  layer.toggleAttribute("data-tall", tall);
   const { rows, grid, off } = st;
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
   // The top of the plot (the line sits 4-6px above it), and the axis
@@ -1293,53 +1274,12 @@ function paintCaptionMarks(el, st) {
     const d = marks.children[i];
     const n = mark[i];
     d.classList.toggle("on", n != null);
-    if (n == null) return; // sinks into the line as it was, in its color
-    d.classList.toggle("pin", pinned(n));
-    d.classList.toggle("hover", n === focus);
+    if (n == null) return; // sinks away as it was, in its color
     d.classList.toggle("jl", mark[i - 1] != null);
     d.classList.toggle("jr", mark[i + 1] != null);
     Object.assign(d.style, { left: `${mid - slot / 2}px`, width: `${slot}px` });
     d.style.setProperty("--c", st.colorOf(n));
   });
-}
-
-// Trial only: on the test page (or with ?pinlook), a small floating panel to switch the caption marks' look live
-function pinLookPicker() {
-  const q = new URLSearchParams(location.search);
-  if (document.querySelector(".pinlook-picker") || !(q.has("pinlook") || location.pathname.endsWith("test.html"))) return;
-  const box = document.createElement("div");
-  box.className = "pinlook-picker";
-  const head = document.createElement("b");
-  head.textContent = "Pin look (trial)";
-  box.append(head);
-  const set = (look, tall) => {
-    const u = new URL(location.href);
-    u.searchParams.set("pinlook", look);
-    if (tall) u.searchParams.set("pintall", "");
-    else u.searchParams.delete("pintall");
-    history.replaceState(null, "", u);
-    for (const l of document.querySelectorAll(".month-caps")) {
-      l.dataset.look = look;
-      l.toggleAttribute("data-tall", tall);
-    }
-    for (const b of box.querySelectorAll("button")) b.classList.toggle("active", b.dataset.look === look);
-  };
-  for (const [look, label] of Object.entries(PIN_LOOKS)) {
-    const b = document.createElement("button");
-    b.dataset.look = look;
-    b.textContent = label;
-    b.classList.toggle("active", look === pinLook().look);
-    b.addEventListener("click", () => set(look, pinLook().tall));
-    box.append(b);
-  }
-  const tallBox = document.createElement("label");
-  const tick = document.createElement("input");
-  tick.type = "checkbox";
-  tick.checked = pinLook().tall;
-  tick.addEventListener("change", () => set(pinLook().look, tick.checked));
-  tallBox.append(tick, " Taller");
-  box.append(tallBox);
-  document.body.append(box);
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
