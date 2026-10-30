@@ -130,10 +130,7 @@ export function setBrushBands(next, morph) {
   $("brush-track").classList.remove("morphing");
   const now = performance.now();
   const flying = now < morphAt.end;
-  // The morph runs over the days of both, so what the old bands had beyond the new points fades out in place
-  // (as a gap does) rather than vanishing at the first frame
-  const target = bands && bands.bands.length === next.bands.length ? extend(next, bands) : next;
-  const prev = bands && bands.bands.length === next.bands.length ? resample(bands, target.days) : null;
+  const prev = bands && bands.bands.length === next.bands.length ? resample(bands, next.days) : null;
   // When the bands change shape and the timeline's ends move too, it's two steps: the bands morph in place,
   // then the ends travel, each over `ms`, so the two movements don't blur into one
   const twoStep = !!prev && movesAcross(prev, next) && movesUpDown(prev, next);
@@ -160,7 +157,7 @@ export function setBrushBands(next, morph) {
       const t = Math.max(0, Math.min(1, (now - t0) / ms)); // a frame's timestamp can precede t0
       const ev = easeV(Math.min(1, t / split));
       const eh = twoStep ? easeH(Math.max(0, (t - split) / (1 - split))) : ev;
-      applyBands(t === 1 ? next : blend(prev, target, ev, eh));
+      applyBands(t === 1 ? next : blend(prev, next, ev, eh));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
       else $("brush-track").classList.remove("morphing");
     };
@@ -244,20 +241,6 @@ const lookOf = (band) => band.mix ?? LOOKS[band.look];
 function lookMix(a, b, e) {
   const x = lookOf(a), y = lookOf(b);
   return Object.fromEntries(Object.keys(y).map((k) => [k, x[k] + (y[k] - x[k]) * e]));
-}
-
-// `next` with the days of `old` that fall before or after its points added, with no value there
-function extend(next, old) {
-  const first = next.days[0], last = next.days[next.days.length - 1];
-  const before = old.days.filter((d) => d < first), after = old.days.filter((d) => d > last);
-  if (!before.length && !after.length) return next;
-  const pad = (n) => Array(n).fill(null);
-  const wrap = (arr) => [...pad(before.length), ...arr, ...pad(after.length)];
-  return {
-    ...next,
-    days: [...before, ...next.days, ...after],
-    bands: next.bands.map((b) => ({ ...b, lo: wrap(b.lo), hi: wrap(b.hi) })),
-  };
 }
 
 // The old bands' edges on the new points' days; days the old bands don't reach take the new value
