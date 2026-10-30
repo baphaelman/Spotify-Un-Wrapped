@@ -18,8 +18,8 @@ export const STAGGER_MAX_MS = 240;
 // them, so 15 → 30 days and 30 → 60 are alike, and each doubling adds `perOctave` ms to the `base` time, up to
 // `max`. A small change takes its tier's time; a big one takes longer, so it never rushes. Values at or below 0
 // count as `floor` (a blur radius of 0). Zero under reduced motion.
-export const OCTAVE_MS = 380; // added per doubling
-export const SCALED_MAX_MS = 2200; // the longest any one movement takes
+const OCTAVE_MS = 380; // added per doubling
+const SCALED_MAX_MS = 2200; // the longest any one movement takes
 export function scaledMs(from, to, base = MORPH_MS, perOctave = OCTAVE_MS, floor = 1) {
   const octaves = Math.abs(Math.log2(Math.max(to, floor) / Math.max(from, floor)));
   return dur(Math.min(SCALED_MAX_MS, base + perOctave * octaves));

@@ -430,7 +430,7 @@ export function pin(name) {
   brushMorph = null;
 }
 
-export function unpin(name) {
+function unpin(name) {
   state.pinned = state.pinned.filter((a) => a !== name);
   brushMorph = { ms: MORPH_MS };
   renderRollingChart(currentZoom($("chart-rolling")));

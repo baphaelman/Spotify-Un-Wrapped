@@ -20,7 +20,7 @@ export const state = {
 // Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
 // `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period
 // bar's slider, search, key and pins work on any of them unchanged. Only the words differ.
-export const NOUN = {
+const NOUN = {
   artist: { one: "artist", many: "artists", Many: "Artists", a: "an artist", who: "Who" },
   track: { one: "track", many: "tracks", Many: "Tracks", a: "a track", who: "What" },
   album: { one: "album", many: "albums", Many: "Albums", a: "an album", who: "What" },

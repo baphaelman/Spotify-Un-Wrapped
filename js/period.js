@@ -85,7 +85,7 @@ const retunes = (look) => look?.smooth !== undefined && look.smooth !== state.sm
 
 // A period button's slice size and smoothing, as two sweeps one after the other, so each is a plain change
 // of one thing: the slice size (slider and chart), then the smoothing (the select and the chart's blur)
-export function retune(look, windowWas) {
+function retune(look, windowWas) {
   if (!look) return;
   const setSlice = () => ($("window").value = WINDOWS.indexOf(look.window));
   const smoothly = retunes(look);
@@ -110,7 +110,7 @@ export function retune(look, windowWas) {
 
 // A preset or a step: the chart and the window frame travel to the new period together (one clock: the frame
 // is placed from the chart's own pan, frame by frame), then the artists change
-export function setRange(range, animate = true) {
+function setRange(range, animate = true) {
   ++resizeRun; // drops a period change a button's sequence was about to make
   const was = state.range;
   state.range = range;

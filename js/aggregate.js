@@ -91,7 +91,7 @@ export function summary(plays) {
 // How many months each bar of the monthly chart covers, so a long period doesn't crowd into slivers: the shortest
 // of a month, 3 months, 6 months, a year or 2 years that keeps it to MAX_BARS bars (blocks align to the year, as
 // in monthly)
-export const SPANS = [1, 3, 6, 12, 24];
+const SPANS = [1, 3, 6, 12, 24];
 const MAX_BARS = 18;
 export function monthSpan(plays) {
   if (!plays.length) return 1;
@@ -274,7 +274,7 @@ const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275, 0.55]; // x the window, per stren
 const AUTO_SPAN = [[365, 0], [1095, 1], [2190, 2]]; // [visible days, how much of the high strength]
 // Tracks come and go faster, so their auto smoothing starts sooner: none up to three months, high at a year
 export const TRACK_AUTO_SPAN = [[92, 0], [365, 1], [730, 2]];
-export function interpLog(points, x) {
+function interpLog(points, x) {
   if (x <= points[0][0]) return points[0][1];
   for (let i = 1; i < points.length; i++) {
     const [x0, y0] = points[i - 1], [x1, y1] = points[i];
