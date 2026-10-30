@@ -132,17 +132,17 @@
         </div>
       </div>
 
-      <!-- Tracks and Albums: who made each one shown (main.js paintWhoMade) -->
-      <div id="who-made" class="who-made" aria-hidden="true">
-        <div class="who-made-inner">
-          <div class="card">
-            <h2 id="who-made-title"></h2>
-            <ol id="who-made-list" class="who-made-list"></ol>
-          </div>
-        </div>
-      </div>
 
-      <div id="stats" class="stats"></div>
+      <article class="card" id="mix-card">
+        <div class="mix-head">
+          <div>
+            <h2>Listening mix</h2>
+            <p class="muted" id="mix-sub"></p>
+          </div>
+          <div class="mix-total"><span id="mix-total-label" class="panel-title">Total listening</span><span id="mix-total" class="mix-total-value"></span></div>
+        </div>
+        <div id="mix-bar" class="mix-bar" role="img"></div>
+      </article>
 
       <article class="card">
         <div class="tav-head">
@@ -178,17 +178,6 @@
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
         </div>
-      </article>
-
-      <article class="card" id="mix-card">
-        <div class="mix-head">
-          <div>
-            <h2>Listening mix</h2>
-            <p class="muted" id="mix-sub"></p>
-          </div>
-          <div class="mix-total"><span id="mix-total-label" class="panel-title">Total listening</span><span id="mix-total" class="mix-total-value"></span></div>
-        </div>
-        <div id="mix-bar" class="mix-bar" role="img"></div>
       </article>
 
       <article class="card">

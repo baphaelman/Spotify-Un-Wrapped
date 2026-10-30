@@ -35,11 +35,12 @@ function makeEntry(name) {
   nameEl.textContent = name; // from the user's files
   const who = span("mix-who");
   who.append(nameEl);
-  seg.append(label, who);
+  const byEl = span("mix-by");
+  seg.append(label, who, byEl);
   const hoursEl = span("mix-hours");
   const under = span("mix-under");
   under.append(hoursEl);
-  const e = { name, seg, label, under, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const e = { name, seg, label, nameEl, byEl, under, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   seg.addEventListener("pointerenter", () => hover(name));
   seg.addEventListener("pointerleave", () => hover(null));
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
@@ -177,8 +178,12 @@ export function updateMix(next) {
     e.off = off;
     e.seg.classList.toggle("off", off);
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
+    const other = hasOther && i === names.length - 1;
+    e.nameEl.textContent = other ? name : ctx.title?.(name) ?? name;
+    e.byEl.textContent = other ? "" : ctx.by?.(name) ?? "";
+    const by = e.byEl.textContent ? ` ${e.byEl.textContent}` : "";
     const share = e.to.w;
-    e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${name} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
+    e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.nameEl.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
   for (const e of entries.values()) if (e.leaving) e.from = { x: e.x, w: e.w };
 

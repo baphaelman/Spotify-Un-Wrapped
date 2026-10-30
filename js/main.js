@@ -2,9 +2,9 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands, brushRange, glideBrushRange } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, STAGGER_MS, STAGGER_MAX_MS, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
-import { renderList, renderTiles } from "./lists.js";
+import { renderList } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
@@ -696,7 +696,6 @@ function shownPlays() {
 // (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
 function renderDependents() {
   const plays = shownPlays();
-  renderStats(plays);
   // Each track row belongs to what the view is about: its artist, the track itself, or its album
   const detail = state.dim === "album" ? (t) => `${t.artist} · ${t.album || "Unknown album"}` : (t) => t.artist;
   renderTopList($("top-tracks"), agg.topTracks(plays, 10), detail, (t) => t.key, { pin: true });
@@ -715,26 +714,6 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   paintArtistKey();
   paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });
-
-function renderStats(plays) {
-  if (!plays.length) {
-    renderTiles($("stats"), [
-      { label: "Hours listened", value: "0", sub: `no ${noun().many} shown`, hero: true },
-      { label: "Plays", value: "0", sub: "" },
-      { label: "Artists", value: "0", sub: "unique" },
-      { label: "Tracks", value: "0", sub: "unique" },
-    ]);
-    return;
-  }
-  const s = agg.summary(plays);
-  const fmtDate = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
-  renderTiles($("stats"), [
-    { label: "Hours listened", value: Math.round(s.hours).toLocaleString(), sub: `${fmtDate(s.first)} – ${fmtDate(s.last)}`, hero: true },
-    { label: "Plays", value: s.plays.toLocaleString(), sub: `${s.activeDays.toLocaleString()} days with music` },
-    { label: "Artists", value: s.artists.toLocaleString(), sub: "unique" },
-    { label: "Tracks", value: s.tracks.toLocaleString(), sub: "unique" },
-  ]);
-}
 
 // artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered.
 // pinnable: clicking a row pins or unpins that artist. paintTopLists colors the rows afterwards.
@@ -1007,52 +986,6 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 // colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
 // them everywhere. Pinned chips are tinted and outlined. It's led by a box that shows or hides every
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
-// Tracks and Albums open on who made each one shown (and, for a track, the album it's on), in the chart's
-// colors. Artists needs none, so there it folds away
-function paintWhoMade(names, pins) {
-  const wrap = $("who-made");
-  const open = state.dim !== "artist" && names.length > 0;
-  wrap.classList.toggle("open", open);
-  wrap.setAttribute("aria-hidden", !open);
-  if (!open) return;
-  $("who-made-title").textContent = `Your top ${noun().many}`;
-  const list = $("who-made-list");
-  const rows = (root) => new Map([...root.children].map((li) => [li.dataset.artist, li]));
-  const before = new Map([...rows(list)].map(([n, li]) => [n, li.getBoundingClientRect()]));
-  const had = new Set(before.keys());
-  const hover = (name) => focusArtist($("chart-rolling"), name);
-  list.replaceChildren(...names.map((n, i) => {
-    const off = state.hidden.includes(n);
-    const li = document.createElement("li");
-    li.className = (pins.has(n) && !off ? "pinned" : "") + (off ? " hidden-artist" : "") + (had.has(n) ? "" : " new");
-    li.style.setProperty("--c", `var(--series-${state.colorSlots.get(n) + 1})`);
-    li.style.setProperty("--i", Math.min(i * STAGGER_MS, STAGGER_MAX_MS) + "ms");
-    li.dataset.artist = n;
-    li.tabIndex = 0;
-    li.setAttribute("role", "button");
-    const sw = document.createElement("span");
-    sw.className = "swatch";
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = state.titles?.get(n) ?? n; // names come from user files
-    const by = document.createElement("small");
-    const album = state.dim === "track" ? state.albums?.get(n) : null;
-    by.textContent = `by ${state.owner?.get(n) ?? ""}` + (album ? ` · ${album}` : "");
-    by.className = "by";
-    li.title = `${name.textContent} ${by.textContent}`;
-    li.append(sw, name, by);
-    const act = () => (off ? pins.hide(n) : pins.toggle(n));
-    li.addEventListener("pointerenter", () => hover(n));
-    li.addEventListener("pointerleave", () => hover(null));
-    li.addEventListener("click", act);
-    li.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); }
-    });
-    return li;
-  }));
-  flip(before, rows(list));
-}
-
 function paintArtistKey() {
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
@@ -1159,7 +1092,6 @@ function paintArtistKey() {
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
   key.replaceChildren(...(top.length ? [box] : []), ...items);
   flip(before, chips(key));
-  paintWhoMade(keyed, pins);
   for (const [n, el] of boxes(key)) {
     if (!marked.get(n)?.hover) continue;
     const b = boxOf(el);
@@ -1228,6 +1160,14 @@ function renderMix(artists, slots, includeOther, pins) {
     hasOther: includeOther,
     periodLabel: presetLabel(),
     noun: noun(),
+    // Tracks and albums: the name alone, then who made it (and a track's album) beneath
+    title: (n) => state.titles?.get(n) ?? n,
+    by: (n) => {
+      const artist = state.owner?.get(n);
+      if (!artist) return "";
+      const album = state.dim === "track" ? state.albums?.get(n) : null;
+      return `by ${artist}` + (album ? ` · ${album}` : "");
+    },
     lo: state.range.lo,
     hi: state.range.hi,
   });

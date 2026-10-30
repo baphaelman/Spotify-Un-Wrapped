@@ -901,6 +901,8 @@ dialog pre {
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 .mix-who { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .mix-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
+.mix-by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
+.mix-by:empty { display: none; }
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
@@ -1009,37 +1011,3 @@ button:not(:disabled):active { transform: scale(0.96); }
 }
 .toplist li:has(.show-box) .bar { grid-column: 3 / 5; }
 
-/* Tracks and Albums: who made each one shown. It folds open with the view and away in Artists */
-.who-made {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition: grid-template-rows var(--motion-morph) var(--ease-in-out), opacity var(--motion-morph) var(--ease-in-out);
-}
-.who-made.open { grid-template-rows: 1fr; opacity: 1; }
-.who-made-inner { min-height: 0; overflow: hidden; }
-.who-made .card { margin-bottom: 16px; padding-bottom: 12px; }
-.who-made h2 { margin-bottom: 8px; }
-.who-made-list {
-  list-style: none; margin: 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); column-gap: 24px;
-}
-.who-made-list li {
-  display: flex; align-items: baseline; gap: 8px; min-width: 0;
-  margin: 0 -8px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
-  transition: background-color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
-}
-.who-made-list li.new { animation: fade var(--motion-enter) var(--ease-out) var(--i, 0ms) backwards; }
-.who-made-list li:hover { background-color: color-mix(in srgb, var(--c) 8%, transparent); }
-.who-made-list li.pinned { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
-.who-made-list li.hidden-artist { opacity: 0.4; }
-.who-made-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
-.who-made-list .swatch { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--c); align-self: center; }
-.who-made-list :is(.name, .by) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.who-made-list .name { flex: 0 1 auto; max-width: 60%; font-size: 13px; }
-.who-made-list li.pinned .name { color: var(--c); font-weight: 600; }
-.who-made-list .by { flex: 0 1 auto; color: var(--text-muted); font-size: 12px; }
-@media (prefers-reduced-motion: reduce) {
-  .who-made, .who-made-list li { transition: none; }
-  .who-made-list li.new { animation: none; }
-}
