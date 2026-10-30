@@ -109,11 +109,32 @@ it as a normal change.
 - `js/store.js`: the parsed plays persist in IndexedDB, so return visits skip the upload. "Forget my
   data" clears them.
 - `js/summary.js`, `js/api.js`, `js/config.js`, `js/community.js`: the community pool.
-- `js/covers.js`: pictures in the listening mix's key, looked up by track ID (parse keeps `id` from the
-  extended export). Album covers come from Spotify's oEmbed; artist photos from the edge function
-  `supabase/functions/artist-image`, deployed under the name `smooth-endpoint` (Spotify Web API, client credentials in the function's secrets
-  `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, deployed with JWT verification off). Answers are cached in
-  localStorage. Headless Brave gets 429s from oEmbed, so check covers in a real browser.
+- `js/covers.js`: the pictures in the listening mix's key (artist photos, album covers). The key itself is
+  tiles under the mix bar, one per color: click pins, the color tab hides. Pictures are looked up by up to
+  five of an item's track IDs (parse keeps `id` from the extended export) through the edge function
+  `supabase/functions/artist-image`, deployed as `smooth-endpoint` (Spotify Web API; client credentials in the
+  function's secrets `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`; JWT verification off). It tries each
+  track, then a search by name, then the other kind of picture, and skips Spotify's ~1 KB blank placeholder.
+  Answers are cached in localStorage (`unwrapped-pictures`). Supabase can't rename a deployed function, and
+  the owner redeploys by pasting the file into the dashboard (no CLI here).
+
+## Spotify rate limit: read before testing pictures
+
+**The Spotify app behind `smooth-endpoint` is in development mode, with a small, unpublished request
+allowance, and bursts earn long lockouts.** On 2026-10-29 an idle warm-up (about 150 lookups per page load,
+each several API calls) plus repeated test loads got the app a 429 with `Retry-After: 83512` (about 23
+hours). While locked out, every picture is blank for every visitor.
+
+- **Never bulk-fetch pictures:** no warm-ups, prefetching or scripts that loop over artists or albums
+  against the function. Look up only what's on screen (the key already waits for the bar to hold still).
+- **Each page load of `test.html` costs real Spotify calls** for any picture not already cached. Headless
+  test runs use a fresh-ish profile, so take few screenshots of views with pictures, and don't loop them.
+- **Check whether the app is locked out** with one request:
+  `curl -s "https://qvsoxqeuvpnryitechsf.supabase.co/functions/v1/smooth-endpoint?kind=album&tracks=4cOdK2wGLETKBW3PvgPWqT"`.
+  `{"error":"busy","wait":N}` means locked out for N more seconds; the page then stops asking for that visit
+  (waits under 2 minutes it holds and retries).
+- **Don't work around a lockout** (new Spotify apps, other keys, spoofed clients). Wait it out and tell the
+  owner. A shared server-side cache table (each picture looked up once for everyone) is the planned fix.
 - `supabase/schema.sql`: the pool's tables and functions. Paste into the Supabase SQL editor to apply
   changes; it's safe to re-run.
 - `dev/`: test tools (see Testing).
