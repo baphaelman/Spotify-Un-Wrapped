@@ -621,15 +621,12 @@ dialog pre {
 .toplist li .name small { color: var(--text-muted); }
 .toplist .val { transition: margin-right var(--motion-fade) var(--ease-out); }
 
-/* Hovering a filled box (the artist is shown) cuts a minus out of it, so a click reads as "leave them out".
-   (.hover stands in for :hover on a box rebuilt under the pointer, see paintArtistKey.) */
-:is(.artist-key .swatch, .all-box) { position: relative; }
-.artist-key .swatch::before {
-  content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 2px; margin: -1px 0 0 -3px; border-radius: 1px;
-  background: var(--surface); opacity: 0; pointer-events: none;
-  transition: opacity var(--motion-fade) var(--ease-out);
-}
-.artist-key .swatch[aria-pressed="true"]:is(:hover, .hover)::before { opacity: 1; }
+/* Hovering a box previews its click without resizing, as the mix tiles' tabs do: a filled box (the artist is shown)
+   partly drains, an empty one partly fills. (.hover stands in for :hover on a box rebuilt under the pointer, see
+   paintArtistKey.) */
+.all-box { position: relative; }
+.artist-key .legend-item .swatch[aria-pressed="true"]:is(:hover, .hover) { background: color-mix(in srgb, var(--c) 35%, transparent); }
+.artist-key .legend-item .swatch[aria-pressed="false"]:is(:hover, .hover) { background: color-mix(in srgb, var(--c) 65%, transparent); }
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
@@ -895,11 +892,12 @@ dialog pre {
    default 8 artists fit on two rows of four */
 .mix-list {
   list-style: none; margin: 12px 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 16px;
 }
+/* The tab hugs its own card (4px) and stands well clear of the card before it (16px) */
 .mix-list li {
   --art: 60px;
-  display: grid; grid-template-columns: 16px 1fr; column-gap: 6px; font-size: 13px;
+  display: grid; grid-template-columns: 8px 1fr; column-gap: 4px; font-size: 13px;
   transition: opacity var(--motion-fade) var(--ease-out);
 }
 .mix-list .mix-card {
