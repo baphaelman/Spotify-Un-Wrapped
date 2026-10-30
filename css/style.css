@@ -858,14 +858,14 @@ dialog pre {
    same tier as the page's reveal. */
 #theme-toggle { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
 #theme-toggle:hover { color: var(--text-primary); }
-#theme-toggle svg { transition: transform var(--motion-morph) var(--ease-in-out); transform: rotate(-40deg); }
-#theme-toggle :is(.orb, .moon-cut, .rays) { transform-box: fill-box; transform-origin: center; transition: transform var(--motion-morph) var(--ease-in-out), opacity var(--motion-morph) var(--ease-in-out); }
-#theme-toggle .moon-cut { transform: translate(3.4px, -3px); }
-#theme-toggle .rays { transform: scale(0.4); opacity: 0; }
-:root[data-theme="light"] #theme-toggle svg { transform: rotate(180deg); }
-:root[data-theme="light"] #theme-toggle .orb { transform: scale(0.68); }
-:root[data-theme="light"] #theme-toggle .moon-cut { transform: translate(9px, -9px); }
-:root[data-theme="light"] #theme-toggle .rays { transform: none; opacity: 1; }
+:is(#theme-toggle, .g-theme) svg { transition: transform var(--motion-morph) var(--ease-in-out); transform: rotate(-40deg); }
+:is(#theme-toggle, .g-theme) :is(.orb, .moon-cut, .rays) { transform-box: fill-box; transform-origin: center; transition: transform var(--motion-morph) var(--ease-in-out), opacity var(--motion-morph) var(--ease-in-out); }
+:is(#theme-toggle, .g-theme) .moon-cut { transform: translate(3.4px, -3px); }
+:is(#theme-toggle, .g-theme) .rays { transform: scale(0.4); opacity: 0; }
+:root[data-theme="light"] :is(#theme-toggle, .g-theme) svg { transform: rotate(180deg); }
+:root[data-theme="light"] :is(#theme-toggle, .g-theme) .orb { transform: scale(0.68); }
+:root[data-theme="light"] :is(#theme-toggle, .g-theme) .moon-cut { transform: translate(9px, -9px); }
+:root[data-theme="light"] :is(#theme-toggle, .g-theme) .rays { transform: none; opacity: 1; }
 .controls { position: relative; display: flex; }
 #controls-button { display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; font-size: 13px; color: var(--text-secondary); }
 #controls-button[hidden] { display: none; }
@@ -890,18 +890,63 @@ dialog pre {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .controls-panel:not([hidden]) { animation: pop var(--motion-fade) var(--ease-out); transform-origin: top right; }
-.controls-guide { margin: 0; padding: 6px 8px 10px; font-size: 12px; line-height: 1.45; }
-.controls-guide dt { font-weight: 600; color: var(--text-primary); }
-.controls-guide dt:not(:first-child) { margin-top: 10px; }
-.controls-guide dd { margin: 2px 0 0; color: var(--text-secondary); }
-.controls-guide em { font-style: normal; color: var(--text-primary); }
-.controls-data { border-top: 1px solid var(--border); padding-top: 4px; }
+.controls-panel:has(.guide.open) { width: min(460px, calc(100vw - 32px)); }
+.controls-panel { transition: width var(--motion-grow) var(--ease-out); }
+/* The guide row opens the guide, which grows open beneath it */
+.guide-toggle { display: flex; align-items: center; justify-content: space-between; }
+.guide-toggle .chev { color: var(--text-muted); transition: transform var(--motion-grow) var(--ease-out); }
+.guide-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.guide { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--motion-grow) var(--ease-out), opacity var(--motion-grow) var(--ease-out); }
+.guide.open { grid-template-rows: 1fr; opacity: 1; }
+.guide-inner { min-height: 0; overflow: hidden; }
+/* A row per feature: a small copy of the control on the left, what it does on the right. Hovering a row rings the
+   real control (guide.js); the row itself lights faintly */
+.guide-row { display: grid; grid-template-columns: 172px 1fr; align-items: center; gap: 14px; padding: 9px 8px; border-radius: 8px; transition: background var(--motion-fade) var(--ease-out); }
+.guide-row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+.guide-row p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.guide-row b { display: block; font-weight: 600; color: var(--text-primary); }
+.guide-row em { font-style: normal; color: var(--text-primary); }
+.guide-pic { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+.g-seg button { padding: 2px 7px; font-size: 11px; border-radius: 5px; }
+.g-period { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--text-primary); }
+.g-step { padding: 1px 5px; border-radius: 4px; color: var(--text-secondary); cursor: pointer; transition: background var(--motion-fade) var(--ease-out); }
+.g-step:hover { background: var(--border); color: var(--text-primary); }
+#g-year { padding: 2px 7px; border: 1px solid var(--border); border-radius: 5px; }
+.g-brush { width: 150px; height: 40px; overflow: visible; }
+.g-track { fill: var(--surface-2); stroke: var(--border); }
+.g-wave { fill: none; stroke: var(--series-1); stroke-width: 1.5; }
+.g-dim { fill: color-mix(in srgb, var(--page) 62%, transparent); }
+.g-win { stroke: var(--text-primary); stroke-width: 2; }
+.g-grip { fill: var(--text-primary); }
+.g-chip { padding: 2px 7px; gap: 5px; font-size: 11px; max-width: 120px; cursor: default; }
+.g-chip:hover { background: transparent; }
+.g-chip .swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--c); box-shadow: inset 0 0 0 1.5px var(--c); }
+.g-chip .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-chip.g-short { max-width: 72px; }
+.g-chip.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.g-chip.off { opacity: 0.4; }
+.g-chip.off .swatch { background: transparent; }
+.g-other { --c: var(--other); }
+.g-all { width: 12px; height: 12px; color: var(--text-muted); }
+.g-all .all-glyph::before { left: 3px; top: 5px; width: 6px; }
+.g-tile { display: inline-grid; grid-template-columns: 6px auto; align-items: center; gap: 4px; font-size: 11px; }
+.g-tab { width: 5px; height: 14px; border-radius: 3px; background: var(--c); }
+.g-card { max-width: 110px; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--c) 9%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-search { display: inline-flex; align-items: center; gap: 6px; width: 150px; height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font-size: 11px; color: var(--text-muted); }
+.g-search svg { width: 11px; height: 11px; flex: none; }
+.g-colors { gap: 10px; }
+.g-dot { cursor: default; animation-play-state: running; }
+.g-theme { display: grid; place-items: center; width: 26px; height: 24px; border-radius: 6px; color: var(--text-secondary); }
+/* The ring around the real control while its row is hovered */
+.guide-ring { position: fixed; z-index: 30; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+.guide-ring.on { opacity: 1; }
+.controls-data { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
 .controls-note { margin: 0; padding: 6px 8px 8px; font-size: 12px; color: var(--text-muted); }
 .controls-item { display: block; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; }
 .controls-item[hidden] { display: none; }
 .controls-item:hover, .controls-item:focus-visible { background: var(--border); outline: none; }
 .controls-item.danger { color: var(--text-secondary); }
-@media (prefers-reduced-motion: reduce) { .controls-panel:not([hidden]) { animation: none; } #controls-button .knob { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .controls-panel:not([hidden]) { animation: none; } #controls-button .knob, .controls-panel, .guide, .guide-toggle .chev, .guide-row, .g-step, .guide-ring { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
 @keyframes palette-drift-lg { to { background-position: -40px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }

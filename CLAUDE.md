@@ -96,6 +96,8 @@ All in `js/` unless noted. Read a file's own comments for the details.
 - `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`,
   pins, the slice/smoothing sweeps) and the graphs that follow its artists (`paintBrush`, the mix bar, monthly, clock).
 - `key.js`: the period bar's artist key (`paintArtistKey`) and the artist search that pins.
+- `guide.js`: the guide in the Controls panel: small copies of the bar's controls that mirror them, and the ring
+  that lights the real control while a guide row is hovered.
 - `theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark flip.
 - `brush.js`: the sticky bar's timeline and its draggable window. It owns no state beyond the window.
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
