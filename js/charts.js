@@ -225,7 +225,7 @@ function liveValues(st) {
   const e = liveAt(st.live);
   return new Map([...st.live.to].map(([id, b]) => {
     const a = st.live.from.get(id);
-    return [id, a ? b.map((v, i) => (v == null || a[i] == null ? v : a[i] + (v - a[i]) * e)) : b];
+    return [id, a ? b.map((v, i) => (Number.isNaN(v) || Number.isNaN(a[i]) ? v : a[i] + (v - a[i]) * e)) : b];
   }));
 }
 
@@ -255,7 +255,7 @@ function paintLive(c, st) {
       const out = new Float32Array(fresh);
       for (let i = 0; i < n; i++) {
         const r = d.getRawIndex(i);
-        if (a[r] == null || b[r] == null || Number.isNaN(out[2 * i + 1])) continue;
+        if (Number.isNaN(a[r]) || Number.isNaN(b[r]) || Number.isNaN(out[2 * i + 1])) continue;
         out[2 * i + 1] = y0 + dy * (a[r] + (b[r] - a[r]) * e);
       }
       shape.setShape({ points: out });
@@ -459,6 +459,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     return out;
   });
   const partHoursAt = (k, j, i) => (data.share[k][i] == null ? null : j < partRows(k).length ? perWeek(parts.hours[k][j][i]) : 0);
+  // A series' points as one flat typed array (date, value, date, value…; a gap is NaN). setOption deep-copies
+  // its option but passes typed arrays through, so a sweep's every step doesn't copy and collect tens of
+  // thousands of [date, value] pairs.
+  const points = (y) => {
+    const out = new Float64Array(data.dates.length * 2);
+    for (let i = 0; i < data.dates.length; i++) {
+      out[2 * i] = data.dates[i];
+      out[2 * i + 1] = y(i) ?? NaN;
+    }
+    return out;
+  };
 
   // Share mode outlines every band on both edges in its own color, so at each boundary the two neighbors
   // each show their own border rather than one artist's line standing for both. Each edge line is drawn
@@ -469,11 +480,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // modes: matching the band's gaps exactly keeps an edge locked to its band through a morph, which
   // ECharts tweens point by point, and a break never tweens into a value (a vertical stroke).
   const edgeData = (s, side) =>
-    data.dates.map((d, i) => {
-      const lo = bottom[s][i], hi = top[s][i];
-      if (lo == null) return [d, null];
-      return [d, !share ? hoursAt(s, i) : side === "t" ? hi : lo];
-    });
+    points((i) => (bottom[s][i] == null ? null : !share ? hoursAt(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
   // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
   const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share ? 1 : 0, cap: "butt", join: "round" });
 
@@ -579,7 +586,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         blur: share
           ? { areaStyle: null, lineStyle: null }
           : { areaStyle: null, lineStyle: { opacity: hide ? 0 : 0.2 } },
-        data: data.dates.map((d, i) => [d, share ? top[s][i] : hoursAt(s, i)]),
+        data: points((i) => (share ? top[s][i] : hoursAt(s, i))),
       };
     })
     // Top band first, matching the paint order above
@@ -599,7 +606,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         lineStyle: { ...partLine(k, j, shown), color: colors[k], cap: "butt", join: "round" },
         areaStyle: { color: share ? partFill(k, j, shown) : hoursFill[k], opacity: share ? 1 : 0, origin: "start" },
         emphasis: { disabled: true },
-        data: data.dates.map((d, i) => [d, share ? partTop[k][j][i] : partHoursAt(k, j, i)]),
+        data: points((i) => (share ? partTop[k][j][i] : partHoursAt(k, j, i))),
       }))
     )
     .concat(
@@ -661,7 +668,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   };
   const shareTooltip = (params) => {
     params = bands(params);
-    if (!params.length || params[0].value[1] == null) return "";
+    if (!params.length || !Number.isFinite(params[0].value[1])) return "";
     const i = params[0].dataIndex;
     const rows = params
       .map((p) => ({ p, share: data.share[sIdx(p)][i] * scale[i], hours: data.hours[sIdx(p)][i] }))
@@ -757,7 +764,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   c.on("datazoom", () => zoomHooks.get(el)?.());
 
   // What each series shows, by data index, for the next live morph to start from
-  st.values = new Map(series.map((s) => [s.id, s.data.map((p) => p[1])]));
+  // (NaN where there's a gap, as in the series' points)
+  st.values = new Map(series.map((s) => {
+    const ys = new Float64Array(data.dates.length);
+    for (let i = 0; i < ys.length; i++) ys[i] = s.data[2 * i + 1];
+    return [s.id, ys];
+  }));
   st.values.dates = data.dates.length;
   st.tweens = !liveFrom && ms > 0;
 

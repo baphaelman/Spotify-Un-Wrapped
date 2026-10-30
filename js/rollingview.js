@@ -298,6 +298,17 @@ for (const btn of document.querySelectorAll("#rolling-split button")) {
   });
 }
 
+// Whether any of the chart or its Hours per week card is on screen (one render draws both). A sweep's in-between
+// steps are each a full render, so with neither on screen they're skipped: the sweep keeps its clock (the sliders'
+// thumbs and the bar's backdrop still glide) and draws only its end. Scrolled into view partway, the next step
+// morphs on from what's drawn.
+const onScreen = new Set();
+const seen = new IntersectionObserver((entries) => {
+  for (const e of entries) e.isIntersecting ? onScreen.add(e.target) : onScreen.delete(e.target);
+});
+for (const id of ["chart-rolling", "chart-rolling-hours"]) seen.observe($(id));
+const chartSeen = () => onScreen.size > 0;
+
 // Sweeps through every blur radius between the old strength and the current one (state.smoothify), rather than
 // tweening each point straight from the old curve to the new, which would just crossfade them
 export function sweepSmoothing(from) {
@@ -309,6 +320,7 @@ export function sweepSmoothing(from) {
   // (a blur radius under half a day counts as half a day: "off" to a little is a small change)
   const total = scaledMs(s0, s1, MORPH_MS, undefined, 0.5);
   return sweep((t, ms) => {
+    if (t < 1 && !chartSeen()) return;
     const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
     renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
   }, total, sweepSteps(total));
@@ -419,6 +431,7 @@ export function sweepWindow(glide = false, to = WINDOWS[$("window").value]) {
   renderRollingChart(zoom(), false, { window: from, grid: to });
   paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: total });
   return sweep((t, ms) => {
+    if (t < 1 && !chartSeen()) return;
     const window = t === 1 ? to : Math.round(from * (to / from) ** t);
     renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });
   }, total, sweepSteps(total));

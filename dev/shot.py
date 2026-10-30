@@ -109,7 +109,23 @@ try:
         call("Input.dispatchMouseEvent", type="mouseMoved", x=x, y=y)
         time.sleep(0.8)
     if os.environ.get("EVAL"):
+        # PROFILE=1 samples the CPU while EVAL runs and prints the functions that took the most time
+        if os.environ.get("PROFILE"):
+            call("Profiler.enable")
+            call("Profiler.setSamplingInterval", interval=200)
+            call("Profiler.start")
         print("eval:", call("Runtime.evaluate", expression=os.environ["EVAL"], awaitPromise=True)["result"].get("value"))
+        if os.environ.get("PROFILE"):
+            prof = call("Profiler.stop")["profile"]
+            nodes = {n["id"]: n for n in prof["nodes"]}
+            gaps = prof["timeDeltas"]
+            self_ms = {}
+            for sid, dt in zip(prof["samples"], gaps):
+                f = nodes[sid]["callFrame"]
+                k = f'{f["functionName"] or "(anon)"} {f["url"].rsplit("/", 1)[-1]}:{f["lineNumber"] + 1}:{f["columnNumber"] + 1}'
+                self_ms[k] = self_ms.get(k, 0) + dt / 1000
+            for k, ms in sorted(self_ms.items(), key=lambda x: -x[1])[:int(os.environ.get("PROFILE_TOP", "30"))]:
+                print(f"PROF {ms:8.1f} ms  {k}")
     print("title:", call("Runtime.evaluate", expression="document.title")["result"].get("value"))
     print("status:", call("Runtime.evaluate", expression="document.getElementById('status').textContent")["result"].get("value"))
     shot = call("Page.captureScreenshot", format="png")

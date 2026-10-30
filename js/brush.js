@@ -21,8 +21,12 @@ let morphRaf = 0;
 let morphAt = { start: 0, end: 0, turn: 0 }; // when the morph in flight starts (after its delay), turns from its bands to the timeline's ends (0 if it doesn't) and ends (performance.now())
 
 const days = () => model.last - model.first + 1;
-const trackW = () => $("brush-track").clientWidth;
-const xOf = (day) => ((day - model.first) / days()) * trackW();
+// The track's size, kept by its ResizeObserver: reading it after a DOM write (every frame of a morph) forces a layout
+let trackSize = null;
+const trackW = () => trackSize?.w ?? $("brush-track").clientWidth;
+const trackH = () => trackSize?.h ?? $("brush-track").clientHeight;
+// (pass the width when placing many points: each read of it after a DOM write forces a layout)
+const xOf = (day, W = trackW()) => ((day - model.first) / days()) * W;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
@@ -31,6 +35,7 @@ export function setupBrush(cb, done = () => {}) {
   onChange = cb;
   const track = $("brush-track");
   new ResizeObserver(() => {
+    trackSize = { w: track.clientWidth, h: track.clientHeight };
     draw();
     track.classList.add("gliding"); // a resize places the window at once, with no slide to lag behind it
     position();
@@ -205,14 +210,19 @@ function movesUpDown(a, b) {
 
 // A band as numbers all the way along: its edges carry on flat through stretches with no value (null), which
 // instead have a presence of 0 (1 elsewhere). Presence is what tweens when a gap opens or closes.
+// (Memoized: a morph blends the same two ends every frame, and its blends come out prepared.)
+const prepared = new WeakMap();
 function prep(band) {
+  if (prepared.has(band)) return prepared.get(band);
   const fill = (arr) => {
     const out = Array.from(arr);
     let last = out.find((v) => v != null) ?? 0;
     for (let i = 0; i < out.length; i++) out[i] = out[i] ?? last, last = out[i];
     return out;
   };
-  return { ...band, lo: fill(band.lo), hi: fill(band.hi), pres: band.pres ?? Array.from(band.hi, (v) => (v == null ? 0 : 1)) };
+  const out = { ...band, lo: fill(band.lo), hi: fill(band.hi), pres: band.pres ?? Array.from(band.hi, (v) => (v == null ? 0 : 1)) };
+  prepared.set(band, out).set(out, out);
+  return out;
 }
 
 // The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade; the timeline's ends a
@@ -227,12 +237,16 @@ function blend(a, b, e, eh = e) {
     ...b,
     start: a.start + (b.start - a.start) * eh, // the timeline's ends glide too
     end: a.end + (b.end - a.end) * eh,
-    bands: b.bands.map((band, k) => ({
-      ...band,
-      ...mixed(prep(a.bands[k]), prep(band)),
-      color: a.bands[k].color === band.color || e >= 1 ? band.color : e <= 0 ? a.bands[k].color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
-      mix: lookMix(a.bands[k], band, e),
-    })),
+    bands: b.bands.map((band, k) => {
+      const out = {
+        ...band,
+        ...mixed(prep(a.bands[k]), prep(band)),
+        color: a.bands[k].color === band.color || e >= 1 ? band.color : e <= 0 ? a.bands[k].color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
+        mix: lookMix(a.bands[k], band, e),
+      };
+      prepared.set(out, out);
+      return out;
+    }),
   };
 }
 
@@ -299,8 +313,8 @@ function position() {
   if (!model || !range) return;
   // A window before the timeline's cut-off start still shows, as a sliver at its left end
   const W = trackW();
-  const l = Math.min(Math.max(0, xOf(range.lo)), Math.max(0, W - 8));
-  const r = Math.min(Math.max(xOf(range.hi + 1), l + 8), W); // a range past the trimmed end stops at the edge
+  const l = Math.min(Math.max(0, xOf(range.lo, W)), Math.max(0, W - 8));
+  const r = Math.min(Math.max(xOf(range.hi + 1, W), l + 8), W); // a range past the trimmed end stops at the edge
   const win = $("brush-win");
   win.style.left = `${l}px`;
   win.style.width = `${Math.max(0, r - l)}px`;
@@ -319,7 +333,7 @@ function position() {
 // above it (the shades are the same CSS variables), and a tick at each new year
 function draw() {
   if (!model) return;
-  const W = trackW(), H = $("brush-track").clientHeight;
+  const W = trackW(), H = trackH();
   if (!W) return;
   const n = days();
 
@@ -338,34 +352,36 @@ function draw() {
     const idx = [];
     for (let i = 0; i < bands.days.length; i += stride) idx.push(i);
     if (idx[idx.length - 1] !== bands.days.length - 1) idx.push(bands.days.length - 1);
-    const X = (i) => xOf(bands.days[i]).toFixed(1);
+    const xs = idx.map((i) => xOf(bands.days[i], W).toFixed(1)); // the same for every band
     const Y = (f) => ((1 - f) * H).toFixed(1);
     const defs = document.createElementNS(SVG, "defs");
     svg.append(defs);
     bands.bands.forEach((raw, k) => {
       const band = prep(raw);
+      const m = lookOf(band);
+      if (m.alpha < 0.01) return;
       // Where a band has no value its edges carry on flat and its presence (0..1) is what hides it: a mask whose
       // opacity follows the presence along the timeline, so a gap can fade and grow, not just be there or not
       const keep = idx.filter((i, j) => j === 0 || j === idx.length - 1 || band.pres[i] !== band.pres[idx[j - 1]] || band.pres[i] !== band.pres[idx[j + 1]]);
       let mask = "";
       if (band.pres.some((v) => v < 1)) {
         const id = `bm${k}`;
-        const stops = keep.map((i) => `<stop offset="${Math.min(1, Math.max(0, xOf(bands.days[i]) / W)).toFixed(4)}" stop-color="#fff" stop-opacity="${band.pres[i].toFixed(3)}"/>`).join("");
+        const stops = keep.map((i) => `<stop offset="${Math.min(1, Math.max(0, xOf(bands.days[i], W) / W)).toFixed(4)}" stop-color="#fff" stop-opacity="${band.pres[i].toFixed(3)}"/>`).join("");
         const holder = document.createElementNS(SVG, "g");
         holder.innerHTML = `<linearGradient id="${id}g" gradientUnits="userSpaceOnUse" x1="0" x2="${W}" y1="0" y2="0">${stops}</linearGradient>` +
           `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="url(#${id}g)"/></mask>`;
         defs.append(...holder.childNodes);
         mask = `url(#${id})`;
       }
-      const line = (key, r) => r.map((i, j) => `${j ? "L" : "M"}${X(i)},${Y(band[key][i])}`).join("");
-      const fill = `${line("hi", idx)}${line("lo", [...idx].reverse()).replace("M", "L")}Z`;
-      const m = lookOf(band);
-      if (m.alpha < 0.01) return;
+      const edge = (key) => idx.map((i, j) => `${xs[j]},${Y(band[key][i])}`);
+      const hi = edge("hi"), lo = edge("lo");
+      const stroke = `M${hi.join("L")}M${lo.join("L")}`;
+      const fill = `M${hi.join("L")}L${lo.reverse().join("L")}Z`;
       const shade = `(var(--shade-band) * ${m.band.toFixed(3)} + var(--shade-hover) * ${m.hover.toFixed(3)} + var(--shade-dim) * ${m.dim.toFixed(3)})`;
       const alpha = m.alpha < 1 ? `;opacity:${m.alpha.toFixed(3)}` : "";
       el("path", { d: fill, mask, style: `fill:color-mix(in srgb, ${band.color} calc(${shade} * 100%), var(--surface))${alpha}` });
       el("path", {
-        d: line("hi", idx) + line("lo", idx),
+        d: stroke,
         mask,
         style: `fill:none;stroke:${band.color};stroke-width:${m.width.toFixed(2)};stroke-linejoin:round${alpha}`,
       });
@@ -380,11 +396,11 @@ function draw() {
   const labels = $("brush-years");
   labels.replaceChildren();
   for (let yr = startYear; yr <= endYear; yr++) {
-    const x = Math.max(0, xOf(Math.round(Date.UTC(yr, 0, 1) / DAY)));
+    const x = Math.max(0, xOf(Math.round(Date.UTC(yr, 0, 1) / DAY), W));
     if (yr > startYear) el("line", { class: "brush-tick", x1: x, x2: x, y1: 0, y2: H });
     if ((yr - startYear) % every) continue;
     // The first year's label sits at the left end, so it's left out when the next year's is close behind it
-    if (yr === startYear && xOf(Math.round(Date.UTC(yr + 1, 0, 1) / DAY)) < 40) continue;
+    if (yr === startYear && xOf(Math.round(Date.UTC(yr + 1, 0, 1) / DAY), W) < 40) continue;
     const s = document.createElement("span");
     s.textContent = yr;
     s.style.left = `${x}px`;
