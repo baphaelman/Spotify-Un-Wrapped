@@ -131,7 +131,8 @@ export function setBrushBands(next, morph) {
   const ms = Math.max(dur(morph?.ms ?? 0) * (twoStep ? 2 : 1), flying ? morphAt.end - now - delay : 0);
   if (!ms || !prev) {
     morphAt = { start: 0, end: 0, turn: 0 };
-    return applyBands(next);
+    applyBands(next);
+    return flushIdle();
   }
   const start = now + delay;
   // A morph taking over one still in its first step turns when that one would have
@@ -152,7 +153,10 @@ export function setBrushBands(next, morph) {
       const eh = twoStep ? easeH(Math.max(0, (t - split) / (1 - split))) : ev;
       applyBands(t === 1 ? next : blend(prev, next, ev, eh));
       if (t < 1) morphRaf = requestAnimationFrame(tick);
-      else $("brush-track").classList.remove("morphing");
+      else {
+        $("brush-track").classList.remove("morphing");
+        flushIdle();
+      }
     };
     morphRaf = requestAnimationFrame(tick);
   }, delay);
@@ -230,6 +234,21 @@ function resample(old, days) {
     days,
     bands: old.bands.map((b) => ({ ...b, lo: pick(b.lo), hi: pick(b.hi) })),
   };
+}
+
+// Runs `fn` once no bands morph is in flight. While one runs the window is placed every frame with no easing,
+// so a move that should glide has to wait for it.
+let idle = [];
+const flushIdle = () => {
+  const run = idle;
+  idle = [];
+  run.forEach((fn) => fn());
+};
+export function afterBrush(fn) {
+  const wait = morphAt.end - performance.now();
+  if (wait <= 0 && !$("brush-track").classList.contains("morphing")) return fn();
+  idle.push(fn);
+  setTimeout(flushIdle, wait + 200); // if a newer morph took this one over, nothing else would call it
 }
 
 // Moves the window to a range chosen elsewhere (a preset, the step buttons)

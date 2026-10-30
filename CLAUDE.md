@@ -152,6 +152,16 @@ matches what is moving.
   would have ended (see `setBrushBands`).
 - **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all. The CSS
   entrance staggers are hand-set within the same range.
+- **Controls the page moves glide too.** When code (not the reader's hand) changes a control, its thumb, fill
+  and number travel with the change on the same tier and curve as the graphs: the slice slider's
+  `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
+  number counting through the sizes in between. A drag is the pointer's, so it never glides.
+- **Chain phases; never overlap them.** A multi-phase action (slice size, then pan, then artists) starts each
+  phase from where the last one ended: a later phase waits for the earlier one (`afterBrush` waits out the
+  bar's morph; a token drops a click's chain when a newer click arrives). A transition that starts while
+  its element has them switched off (the timeline's `.morphing` state) snaps instead of gliding. Order the
+  phases so each draws data that exists there: the slice size changes on the period still showing, because
+  the old artists have nothing in the new period and would leave it blank.
 - **Reduced motion:** wrap every JS duration in `dur()` (0 when the visitor asked for less motion), and
   give every CSS animation an entry in the `prefers-reduced-motion` blocks.
 

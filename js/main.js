@@ -1,7 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
-import { setupBrush, setBrushData, setBrushRange, setBrushBands } from "./brush.js";
+import { setupBrush, setBrushData, setBrushRange, setBrushBands, afterBrush } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
@@ -430,7 +430,9 @@ function resized(range, len) {
   return { lo: Math.max(e.lo, lo), hi: range.hi };
 }
 
+let resizeRun = 0; // a newer click drops the period change a sweep was about to start
 $("period-resize").addEventListener("click", (e) => {
+  ++resizeRun;
   const b = e.target.closest("button");
   if (!b) return;
   // The button's window and smoothing go in first, so the trip to the new period draws with them: the chart
@@ -449,10 +451,14 @@ $("period-resize").addEventListener("click", (e) => {
     // A new slice size sweeps first, on the period still showing (its artists have data across it), so the
     // pan and the artist morph that follow share one set of points
     if ($("window").value === windowWas) return setRange(range);
-    return sweepWindow().then((done) => done !== false && setRange(range));
+    const mine = ++resizeRun;
+    return sweepWindow(true).then((done) => {
+      // The bar's backdrop may still be settling, which would snap the window frame instead of gliding it
+      if (done !== false) afterBrush(() => mine === resizeRun && setRange(range));
+    });
   }
   // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
-  if ($("window").value !== windowWas) return sweepWindow();
+  if ($("window").value !== windowWas) return sweepWindow(true);
   renderRollingChart(currentZoom($("chart-rolling")), true);
 });
 
@@ -792,6 +798,7 @@ function rollingSub(n, target, includeOther) {
 
 // Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
 function paintSlider(input) {
+  if (input._glide) return; // glideWindow is placing it
   const at = (v) => (v - input.min) / (input.max - input.min);
   input.style.setProperty("--p", at(input.value));
   for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
@@ -1220,15 +1227,61 @@ onZoomChange($("chart-rolling"), () => {
   }, 150);
 });
 
+// The slider's thumb (and its number) travelling from window `from` to `to` days over the sweep's time, on the
+// same curve and log scale, for a change the page makes (a period button); a drag moves the thumb itself.
+// The thumb needs a fractional value on the way, so its step is lifted while it glides.
+let glideRaf = 0;
+function endGlide(to = WINDOWS[$("window").value]) {
+  cancelAnimationFrame(glideRaf);
+  const input = $("window");
+  if (!input._glide) return;
+  input.step = "1";
+  input._glide = false;
+  input.value = WINDOWS.indexOf(to);
+  paintSlider(input);
+  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) tick.textContent = WINDOWS[tick.dataset.v];
+}
+function glideWindow(from, to) {
+  const input = $("window");
+  const ms = dur(MORPH_MS);
+  if (!ms) return;
+  // A window size's place on the slider: between two steps in proportion to the log of its size
+  const place = (w) => {
+    const i = Math.max(0, Math.min(WINDOWS.length - 2, WINDOWS.findLastIndex((x) => x <= w)));
+    return i + Math.max(0, Math.min(1, Math.log(w / WINDOWS[i]) / Math.log(WINDOWS[i + 1] / WINDOWS[i])));
+  };
+  input._glide = true;
+  input.step = "any";
+  const label = input.closest(".slider").querySelector(".ticks .on");
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    const e = t * t * (3 - 2 * t); // the sweep's own curve
+    const w = from * (to / from) ** e;
+    const at = place(w);
+    input.value = at;
+    input.style.setProperty("--p", at / (WINDOWS.length - 1));
+    if (label) {
+      label.style.setProperty("--p", at / (WINDOWS.length - 1));
+      label.textContent = Math.round(w);
+    }
+    if (t < 1) glideRaf = requestAnimationFrame(tick);
+    else endGlide(to);
+  };
+  tick(t0);
+}
+
 // A new window size: sweep through the sizes in between, evenly spaced on a log scale like the slider's
 // ticks. Every step uses the points of the final chart (the window fixed on `grid`), so ECharts can tween
 // each point; the first step is drawn without animation to put the old window on those points. Edges
 // the old window didn't reach appear at once there.
-function sweepWindow() {
+function sweepWindow(glide = false) {
   const zoom = () => currentZoom($("chart-rolling"));
   const from = state.shownWindow, to = WINDOWS[$("window").value];
+  endGlide(to);
   if (!from || from === to) return Promise.resolve(renderRollingChart(zoom()));
   cancelSweep();
+  if (glide) glideWindow(from, to);
   renderRollingChart(zoom(), false, { window: from, grid: to });
   // The brush glides to the new window's shape over the same time as the chart's sweep
   paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: MORPH_MS });
