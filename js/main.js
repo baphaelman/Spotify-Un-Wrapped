@@ -440,8 +440,6 @@ $("period-resize").addEventListener("click", (e) => {
   retune(look, windowWas);
 });
 
-// TEMPORARY, to compare the two orders: ?order=smooth sweeps the smoothing before the days per slice
-const SMOOTH_FIRST = new URLSearchParams(location.search).get("order") === "smooth";
 const retunes = (look) => look?.smooth !== undefined && look.smooth !== state.smoothify;
 
 // A period button's slice size and smoothing, as two sweeps one after the other, so each is a plain change
@@ -466,8 +464,7 @@ function retune(look, windowWas) {
   if (!smoothly) {
     sliceSweep();
     if (!slice) renderRollingChart(currentZoom($("chart-rolling")), true);
-  } else if (SMOOTH_FIRST) then(smoothSweep(), sliceSweep);
-  else then(sliceSweep(), smoothSweep);
+  } else then(sliceSweep(), smoothSweep);
 }
 
 // A preset or a step: the chart and the window frame travel to the new period together (one clock: the frame
