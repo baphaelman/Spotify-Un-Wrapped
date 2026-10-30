@@ -634,17 +634,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (st.focused != null) tellFocus(null);
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
-  // A lit artist's parts in the readout, under its row: where they're at least a tenth of the artist at that
-  // date (so a part comes and goes from the list as it does from the band)
-  const PART_TIP_MIN = 0.1;
+  // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
+  // listening at that date (as the bands are scaled, in either mode)
+  const PART_TIP_MIN = 0.01;
   const partTips = (k, i, valueOf, fmt, extra) => {
+    if (!parts || parts.stage || k === otherIdx) return [];
     const on = lit();
-    if (!parts || parts.stage || !on.has(k)) return [];
-    const whole = share ? data.share[k][i] * scale[i] : perWeek(data.hours[k][i]);
     return partRows(k).flatMap((_, j) => {
-      const v = valueOf(j);
-      if (!partShown(k, j, on) || !(v >= whole * PART_TIP_MIN) || !(v >= (share ? 0.005 : 0.05))) return [];
-      return [subRow(partShade(k, j, t.shade.hover), fmt(v), parts.names[k][j] + extra(j))];
+      if (!partShown(k, j, on) || !(parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)) return [];
+      return [subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j))];
     });
   };
   const shareTooltip = (params) => {

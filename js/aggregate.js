@@ -55,8 +55,8 @@ export function topArtists(plays, n) {
 
 // The parts an item's band splits into (see topParts): its albums, or its songs
 export const partOf = (kind) => (kind === "album" ? (p) => p.album || "Unknown album" : (p) => p.track);
-const PART_OF_ITEM = 0.15; // of the item's own hours
-const PART_OF_ALL = 0.0025; // of all the listening in the plays
+const PART_OF_ITEM = 0.05; // of the item's own hours
+const PART_OF_ALL = 0.0015; // of all the listening in the plays
 export const MAX_PARTS = 4;
 
 // For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band:
