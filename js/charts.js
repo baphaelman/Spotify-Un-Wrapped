@@ -517,9 +517,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     width: lit.has(k) ? 3 : 2,
     opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
-  // A lit artist (pinned or hovered) shows all its parts. Otherwise each artist shows just its biggest, while
-  // no artist is pinned, and none once some are: the pinned ones are what's being looked into.
-  const partShown = (k, j, lit) => parts?.stage !== "none" && j < partRows(k).length && (lit.has(k) || (j === 0 && !base.size));
+  // Every artist shows all its parts while none is pinned; once some are, only the lit ones (pinned or
+  // hovered) do: the pinned ones are what's being looked into.
+  const partShown = (k, j, lit) => parts?.stage !== "none" && j < partRows(k).length && (lit.has(k) || !base.size);
   // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
   // for the biggest part (and less in a dimmed band)
   const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
