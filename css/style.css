@@ -545,8 +545,7 @@ button.ghost:hover { background: var(--border); }
 .month-lines > div {
   position: absolute;
   transition: left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out),
-    border-radius var(--motion-morph) var(--ease-in-out), height var(--motion-fade) var(--ease-out),
-    background-color var(--motion-fade) var(--ease-out);
+    border-radius var(--motion-morph) var(--ease-in-out), background-color var(--motion-fade) var(--ease-out);
 }
 .month-lines.still > div { transition: none; }
 @media (prefers-reduced-motion: reduce) { .month-lines > div { transition: none; } }

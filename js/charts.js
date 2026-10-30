@@ -1136,12 +1136,14 @@ function monthlySeries(st) {
   return [gray, ...slices, ...topBlocks, top];
 }
 
-// Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right:
-// thicker when they're lit (pinned or hovered), dimmed only while another is hovered, so a pin leaves the others
-// as they are. Neighbouring lines join into one strip, meeting halfway between the bars and rounded only at its
-// two ends; a strip that reaches across a gap reaches out as far at both ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS
-// tweens them: a line comes and goes by growing from or shrinking to its bar's middle, the strips' lengths morph
-// with the bars, and thickness and color fade with a hover. still: place them without tweening (a resize).
+// Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right, all
+// one thickness, dimmed only while another artist is hovered. Neighbouring lines join into one strip, meeting halfway
+// between the bars and rounded only at its two ends; a strip that reaches across a gap reaches out as far at both
+// ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS tweens
+// them: a strip that comes or goes (an artist selected, deselected or pinned in) grows from or shrinks to a point in
+// its middle; lines joining or leaving a strip that stays grow from or shrink to their seam with it; the strips'
+// lengths morph with the bars, and color fades with a hover. still: place them without tweening (a resize).
+const LINE_H = 2;
 function paintUnderlines(el, st, still = false) {
   const c = instances.get(el);
   let layer = el.querySelector(".month-lines");
@@ -1155,45 +1157,77 @@ function paintUnderlines(el, st, still = false) {
     new ResizeObserver(() => monthlyState.has(el) && paintUnderlines(el, monthlyState.get(el), true)).observe(el);
   }
   const { rows, grid, names, off, t } = st;
-  const lit = litSet(st);
   const who = rows.map((r) => {
     const n = barView(st, r).top[0]?.name;
     return st.underline && names.includes(n) && !off.has(n) ? n : null;
   });
+  // What was drawn last ({ who, rects }), if it was over the same bars
+  const before = layer._drawn?.who.length === rows.length ? layer._drawn : null;
+  const was = before?.who ?? who.map(() => null);
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
   const half = (slot * 0.7) / 2; // barCategoryGap 30%
+  const bottom = `${el.clientHeight - grid.top + 4}px`;
   layer.classList.toggle("still", still);
   while (layer.children.length > rows.length) layer.lastChild.remove();
   while (layer.children.length < rows.length) {
     const d = layer.appendChild(document.createElement("div"));
-    d.style.position = "absolute";
-    const i = layer.children.length - 1;
-    Object.assign(d.style, { left: `${grid.left + slot * (i + 0.5)}px`, width: "0px", height: "2px", bottom: `${el.clientHeight - grid.top + 4}px` });
+    Object.assign(d.style, { position: "absolute", width: "0px", height: `${LINE_H}px`, bottom });
   }
-  void layer.offsetWidth; // new lines start from nothing, at their bar's middle
-  who.forEach((n, i) => {
-    const d = layer.children[i];
+  // Each line's [left, right]. Joined: halfway into the gap (the right one half a pixel past it, so the seam doesn't
+  // show); an end: at the bar's edge, or halfway into the gap if the strip reaches across one
+  const rects = who.map((n, i) => {
+    if (n == null) return null;
     const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
-    if (n == null) return void Object.assign(d.style, { left: `${mid}px`, width: "0px" });
-    // Joined: halfway into the gap (the right one half a pixel past it, so the seam doesn't show); an end: at the bar's
-    // edge, or halfway into the gap if the strip reaches across one
     let a = i, b = i;
     while (who[a - 1] != null) a--;
     while (who[b + 1] != null) b++;
     const reach = a === b ? half : slot / 2;
-    const l = who[i - 1] != null ? slot / 2 + 0.5 : reach;
-    const r = who[i + 1] != null ? slot / 2 : reach;
-    const h = lit.has(n) ? 3.5 : 2;
-    const rl = who[i - 1] != null ? 0 : h / 2, rr = who[i + 1] != null ? 0 : h / 2;
+    return [mid - (who[i - 1] != null ? slot / 2 + 0.5 : reach), mid + (who[i + 1] != null ? slot / 2 : reach)];
+  });
+  // Where a run of lines that come (or go) grows from (or shrinks to): its seam with the part of its strip that
+  // stays, else the run's middle. inRun picks the run; at holds where each of its lines is (or was)
+  const stays = (j) => who[j] != null && was[j] != null;
+  const anchor = (i, inRun, at) => {
+    let p = i, q = i;
+    while (inRun(p - 1)) p--;
+    while (inRun(q + 1)) q++;
+    if (stays(p - 1)) return at[p][0];
+    if (stays(q + 1)) return at[q][1];
+    return (at[p][0] + at[q][1]) / 2;
+  };
+  const place = (d, l, r) => Object.assign(d.style, { left: `${l}px`, width: `${Math.max(0, r - l)}px` });
+  // Lines that come jump to their anchor first, untweened
+  const coming = [];
+  who.forEach((n, i) => {
+    if (n == null || was[i] != null || still) return;
+    const x = anchor(i, (j) => who[j] != null && was[j] == null, rects);
+    const d = layer.children[i];
+    d.style.transition = "none";
+    place(d, x, x);
+    coming.push(d);
+  });
+  if (coming.length) void layer.offsetWidth;
+  for (const d of coming) d.style.transition = "";
+  who.forEach((n, i) => {
+    const d = layer.children[i];
+    if (n == null) {
+      // Gone: shrinks to its anchor, keeping its color and ends
+      if (was[i] != null && !still) {
+        const x = anchor(i, (j) => was[j] != null && who[j] == null, before.rects);
+        place(d, x, x);
+      } else d.style.width = "0px";
+      return;
+    }
+    const rl = who[i - 1] != null ? 0 : LINE_H / 2, rr = who[i + 1] != null ? 0 : LINE_H / 2;
+    place(d, ...rects[i]);
     Object.assign(d.style, {
-      left: `${mid - l}px`,
-      width: `${l + r}px`,
-      bottom: `${el.clientHeight - grid.top + 4}px`,
-      height: `${h}px`,
+      bottom,
+      height: `${LINE_H}px`,
       borderRadius: `${rl}px ${rr}px ${rr}px ${rl}px`,
       background: st.hovered == null || st.hovered === n ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
     });
   });
+  layer._drawn = { who, rects };
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
