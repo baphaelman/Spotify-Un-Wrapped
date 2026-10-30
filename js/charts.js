@@ -870,7 +870,9 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
   // ?capbar to the URL to put each one just above its bar instead)
   const atTop = !location.search.includes("capbar");
-  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, last: fresh ? null : prev.last };
+  // with room for every line a caption can take
+  if (caption && atTop) grid.top += (CAP_LINES - 1) * CAP_LINE_H;
+  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, full: prev?.full ?? null, fullNext: prev?.full ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
@@ -1240,6 +1242,57 @@ function paintUnderlines(el, st, still = false) {
 // both, so pinning keeps what hovering showed. It runs from above the caption down to the axis and rises from it
 // (sinks back into it); neighbouring washes join into one, rounded only at its outer corners. A lit artist's name
 // brightens. They're elements over the chart, so CSS tweens them.
+// A caption takes up to CAP_LINES lines of the name shortened by cleanName; where that still leaves some of it out,
+// hovering shows it whole (paintFullNames).
+const CAP_LINES = 3, CAP_LINE_H = 13;
+// A track or album name without what's usually tacked on: "(feat. …)", "[with …]", "(Radio Edit)", "- Remastered 2011"
+const ADDED = [
+  /\s*[([](?:feat\.?|ft\.?|with|prod\.?|from)\s[^)\]]*[)\]]/gi,
+  /\s*[([][^)\]]*\b(?:remaster(?:ed)?|version|edit|mix|live|mono|stereo|deluxe|bonus)\b[^)\]]*[)\]]/gi,
+  /\s+[-–—]\s+.*\b(?:remaster(?:ed)?|version|edit|mix|live|mono|stereo|deluxe|bonus|from)\b.*$/gi,
+];
+const cleanName = (s) => ADDED.reduce((a, re) => a.replace(re, ""), s).trim() || s;
+// A name too wide for its column, in up to n lines, broken at a space (or between any two characters in a name
+// without one: Chinese, Japanese), never inside a word. When it fits, it takes as few lines as it can, split as
+// evenly as can be ("HOE (Heaven / on Earth)", not "HOE (Heaven on / Earth)"); when it can't, each line takes all
+// the words it can and the last is cut off (the stylesheet's ellipsis, as is a word too long for a line).
+// { lines, cut }: cut when some of it doesn't show.
+let measure = null;
+function fitLines(text, w, font, n) {
+  measure ??= document.createElement("canvas").getContext("2d");
+  measure.font = font;
+  const widths = new Map();
+  const width = (s) => widths.get(s) ?? widths.set(s, measure.measureText(s).width).get(s);
+  if (width(text) <= w) return { lines: [text], cut: false };
+  const parts = text.includes(" ") ? text.split(" ") : Array.from(text);
+  const sep = text.includes(" ") ? " " : "";
+  const join = (i, j) => parts.slice(i, j).join(sep);
+  // The evenest split of parts from i on into m lines that each fit: [lines, the widest], or [null, Infinity]
+  const even = (i, m) => {
+    if (m === 1) return width(join(i, parts.length)) <= w ? [[join(i, parts.length)], width(join(i, parts.length))] : [null, Infinity];
+    let best = [null, Infinity];
+    for (let k = i + 1; k <= parts.length - m + 1 && width(join(i, k)) <= w; k++) {
+      const [rest, wr] = even(k, m - 1);
+      if (rest && Math.max(width(join(i, k)), wr) < best[1]) best = [[join(i, k), ...rest], Math.max(width(join(i, k)), wr)];
+    }
+    return best;
+  };
+  for (let m = 2; m <= n; m++) {
+    const [lines] = even(0, m);
+    if (lines) return { lines, cut: false };
+  }
+  const lines = [];
+  let i = 0;
+  while (lines.length < n - 1 && i < parts.length) {
+    let k = i + 1;
+    while (k < parts.length && width(join(i, k + 1)) <= w) k++;
+    lines.push(join(i, k));
+    i = k;
+  }
+  if (i < parts.length) lines.push(join(i, parts.length));
+  return { lines, cut: true };
+}
+
 function paintCaptionMarks(el, st) {
   const c = instances.get(el);
   let layer = el.querySelector(".month-caps");
@@ -1248,10 +1301,10 @@ function paintCaptionMarks(el, st) {
     layer.className = "month-caps";
     // (placed here as well as in the stylesheet, so a cached stylesheet can't drop them in a heap)
     Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 2 });
-    layer.append(document.createElement("div"), document.createElement("div"));
+    layer.append(document.createElement("div"), document.createElement("div"), document.createElement("div"));
     el.appendChild(layer);
   }
-  const [marks, caps] = layer.children;
+  const [marks, caps, fulls] = layer.children;
   const { rows, grid, off } = st;
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
   // The top of the plot (the line sits 4-6px above it), and the axis
@@ -1261,15 +1314,22 @@ function paintCaptionMarks(el, st) {
   const pinned = (n) => n != null && !!st.pins?.has(n) && !off.has(n);
   const tops = rows.map((r) => barView(st, r).top[0]?.name ?? null);
   const mark = tops.map((n) => (st.underline && n != null && (pinned(n) || n === focus) ? n : null));
-  for (const box of [marks, caps]) {
+  for (const [box, name] of [[marks, "mark"], [caps, "cap"], [fulls, "cap-full"]]) {
     while (box.children.length > rows.length) box.lastChild.remove();
-    while (box.children.length < rows.length) box.appendChild(document.createElement("div")).className = box === marks ? "mark" : "cap";
+    while (box.children.length < rows.length) box.appendChild(document.createElement("div")).className = name;
   }
-  caps.hidden = !st.underline;
+  caps.hidden = fulls.hidden = !st.underline;
+  const font = rows.length ? getComputedStyle(caps.children[0]).font : "";
+  const mids = rows.map((_r, i) => (c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5)));
+  // Which columns' captions leave some of the name out (cut off, or shortened by cleanName)
+  const cut = rows.map(() => false);
   rows.forEach((_r, i) => {
-    const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
+    const mid = mids[i];
     const cap = caps.children[i];
-    cap.textContent = tops[i] ?? "";
+    const text = tops[i] ? cleanName(tops[i]) : "";
+    const fit = fitLines(text, slot - 6, font, CAP_LINES);
+    cut[i] = fit.cut || text !== (tops[i] ?? "");
+    cap.replaceChildren(...fit.lines.map((line) => Object.assign(document.createElement("span"), { textContent: line })));
     cap.classList.toggle("lit", mark[i] != null);
     Object.assign(cap.style, { left: `${mid - slot / 2 + 3}px`, width: `${Math.max(0, slot - 6)}px` });
     const d = marks.children[i];
@@ -1280,6 +1340,60 @@ function paintCaptionMarks(el, st) {
     d.classList.toggle("jr", mark[i + 1] != null);
     Object.assign(d.style, { left: `${mid - slot / 2}px`, width: `${slot}px` });
     d.style.setProperty("--c", st.colorOf(n));
+  });
+  // The whole name waits for the pointer to rest (a fade's length) on its artist, so sweeping across the chart doesn't
+  // flash every long name on the way; it goes as soon as the pointer moves on
+  // (full: the name shown; fullNext: the one waited for)
+  if (focus !== st.full && focus !== st.fullNext) {
+    st.full = null;
+    clearTimeout(st.fullWait);
+    st.fullNext = focus;
+    if (focus != null)
+      st.fullWait = setTimeout(() => {
+        if (monthlyState.get(el) !== st) return;
+        st.full = focus;
+        paintCaptionMarks(el, st);
+      }, dur(FADE_MS));
+  }
+  paintFullNames(el, caps, fulls, st.full, tops, cut, mids, slot, font);
+}
+
+// Where the hovered (or pointed-at) artist's caption leaves some of their name out, the whole name in its place, in
+// the lit ink and as few lines as the others: at the narrowest width that holds it (from the column's own, kept
+// inside the chart), centred on each run of their columns. It opens out sideways from their columns as it fades in
+// (and closes back into them), while the captions it reaches over fade out of its way, so the only text that changes
+// in place is the caption's own. Each run's name is the element of its first column, so moving between columns
+// crossfades rather than sliding text.
+function paintFullNames(el, caps, fulls, focus, tops, cut, mids, slot, font) {
+  const runs = [];
+  if (focus != null)
+    tops.forEach((n, i) => {
+      if (n !== focus || !cut[i]) return;
+      if (runs.at(-1)?.[1] === i - 1) runs.at(-1)[1] = i;
+      else runs.push([i, i]);
+    });
+  const maxW = el.clientWidth - 8;
+  const spans = runs.map(([a, b]) => {
+    let w = slot - 6, fit = fitLines(focus, w, font, CAP_LINES);
+    while (fit.cut && w < maxW) fit = fitLines(focus, (w = Math.min(w + 8, maxW)), font, CAP_LINES);
+    const left = Math.min(Math.max((mids[a] + mids[b]) / 2 - w / 2, 4), el.clientWidth - 4 - w);
+    const f = fulls.children[a];
+    if (f.classList.contains("on")) return [left, left + w];
+    // Arriving: laid out and clipped to its columns at once, then it opens out (.on)
+    f.replaceChildren(...fit.lines.map((line) => Object.assign(document.createElement("span"), { textContent: line })));
+    f.style.transition = "none";
+    Object.assign(f.style, { left: `${left}px`, width: `${w}px` });
+    f.style.setProperty("--cl", `${Math.max(0, mids[a] - slot / 2 + 3 - left)}px`);
+    f.style.setProperty("--cr", `${Math.max(0, left + w - (mids[b] + slot / 2 - 3))}px`);
+    void f.offsetWidth;
+    f.style.transition = "";
+    return [left, left + w];
+  });
+  const starts = new Set(runs.map(([a]) => a));
+  [...fulls.children].forEach((f, i) => f.classList.toggle("on", starts.has(i)));
+  [...caps.children].forEach((cap, i) => {
+    const l = mids[i] - slot / 2 + 3, r = mids[i] + slot / 2 - 3;
+    cap.classList.toggle("under", spans.some(([a, b]) => l < b && r > a));
   });
 }
 

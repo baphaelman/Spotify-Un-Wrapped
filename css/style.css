@@ -549,24 +549,31 @@ button.ghost:hover { background: var(--border); }
 }
 .month-lines.still > div { transition: none; }
 /* Monthly captions, and the wash over pinned and hovered artists' columns (see paintCaptionMarks). --gt is the top
-   of the plot: captions sit 10-23px above it, the line 4-6px above it; --axis is the axis. The wash rises from the axis */
+   of the plot: captions (up to three lines) sit from 10px above it, the line 4-6px above it; --axis is the axis. The wash rises from the axis */
 .month-caps { position: absolute; inset: 0; pointer-events: none; z-index: 2; } /* above a crossfading frame (fadeOutFrame), which has no captions */
-.month-caps .cap {
+/* A caption, and the whole name shown over cut-off ones on hover: the page's font at a medium weight, a little
+   brighter than the secondary ink, so thin strokes don't fray on a dark card */
+.month-caps .cap,
+.month-caps .cap-full {
   position: absolute;
   bottom: calc(100% - var(--gt) + 10px);
-  font: 11px/13px sans-serif;
-  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text-primary) 25%, var(--text-secondary));
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color var(--motion-fade) var(--ease-out);
+  transition: color var(--motion-fade) var(--ease-out), opacity var(--motion-grow) var(--ease-out);
 }
+/* Out of the way of a whole name, as it opens out */
+.month-caps .cap.under { opacity: 0; }
 .month-caps .cap.lit { color: color-mix(in srgb, var(--text-primary) 55%, var(--text-secondary)); }
 .month-caps .mark {
   position: absolute;
-  top: calc(var(--gt) - 32px);
-  height: calc(var(--axis) - var(--gt) + 32px);
+  top: -4px;
+  height: calc(var(--axis) + 4px);
   border-radius: 5px 5px 0 0;
   background: color-mix(in srgb, var(--c) 9%, transparent);
   clip-path: inset(100% 0 0 0);
@@ -577,7 +584,18 @@ button.ghost:hover { background: var(--border); }
 /* Joined to a neighbour: square corners there */
 .month-caps .mark.jl { border-top-left-radius: 0; }
 .month-caps .mark.jr { border-top-right-radius: 0; }
-@media (prefers-reduced-motion: reduce) { .month-lines > div, .month-caps .mark, .month-caps .cap { transition: none; } }
+/* Each line its own span (fitLines picks where each ends), cut off on its own */
+.month-caps .cap span,
+.month-caps .cap-full span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.month-caps .cap-full {
+  opacity: 0;
+  color: color-mix(in srgb, var(--text-primary) 55%, var(--text-secondary));
+  /* Shut, it's clipped to its columns (--cl, --cr: how far it reaches past them); it opens out sideways as it fades in */
+  clip-path: inset(0 var(--cr, 0px) 0 var(--cl, 0px));
+  transition: opacity var(--motion-grow) var(--ease-out), clip-path var(--motion-grow) var(--ease-out);
+}
+.month-caps .cap-full.on { opacity: 1; clip-path: inset(0); }
+@media (prefers-reduced-motion: reduce) { .month-lines > div, .month-caps .mark, .month-caps .cap, .month-caps .cap-full { transition: none; } }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-2 .card { margin-bottom: 16px; }
