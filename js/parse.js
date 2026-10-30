@@ -60,6 +60,8 @@ function normalizeExtended(r) {
     track: r.master_metadata_track_name || "Unknown track",
     album: r.master_metadata_album_album_name || "",
     skipped: !!r.skipped,
+    // Spotify's ID for the track (spotify:track:<id>), which finds its album cover (covers.js)
+    id: r.spotify_track_uri?.split(":")[2] || undefined,
   };
 }
 

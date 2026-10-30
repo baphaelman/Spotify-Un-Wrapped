@@ -5,6 +5,7 @@
 
 import { dayToDate, rangeHours } from "./aggregate.js";
 import { MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
+import { coverFor, knownCover } from "./covers.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,8 +39,15 @@ function makeEntry(name) {
   const rowName = span("name");
   const rowBy = span("by");
   rowWho.append(rowName, rowBy);
-  row.append(rowSw, rowWho);
-  const e = { name, seg, label, row, rowName, rowBy, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  // Tracks and albums: the album's cover, on a square of the artist's color until it arrives
+  const art = span("art");
+  const img = new Image();
+  img.alt = "";
+  img.decoding = "async";
+  img.addEventListener("load", () => img.classList.add("shown"));
+  art.append(img);
+  row.append(rowSw, art, rowWho);
+  const e = { name, seg, label, row, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   for (const el of [seg, row]) {
     el.addEventListener("pointerenter", () => hover(name));
     el.addEventListener("pointerleave", () => hover(null));
@@ -90,6 +98,7 @@ function glide() {
       if (!e.leaving) continue;
       e.seg.remove();
       e.row.remove();
+      clearTimeout(e.coverTimer);
       entries.delete(name);
     }
   };
@@ -151,6 +160,7 @@ export function updateMix(next) {
   });
 
   const list = $("mix-list");
+  list.classList.toggle("with-covers", !!ctx.cover);
   const rowsBefore = new Map([...entries].map(([n, e]) => [n, e.row.getBoundingClientRect()]));
   names.forEach((name, i) => {
     let e = entries.get(name);
@@ -177,6 +187,7 @@ export function updateMix(next) {
     e.rowName.textContent = other ? name : ctx.title?.(name) ?? name; // from the user's files
     e.rowBy.textContent = other ? "" : ctx.by?.(name) ?? "";
     const by = e.rowBy.textContent ? ` ${e.rowBy.textContent}` : "";
+    showCover(e, other ? undefined : ctx.cover?.(name));
     e.row.style.setProperty("--c", color);
     e.row.classList.toggle("pinnable", e.pinnable);
     e.row.classList.toggle("pinned", pinned);
@@ -193,6 +204,22 @@ export function updateMix(next) {
     place();
   } else glide();
   dim();
+}
+
+// A row's cover: at once when it's known, otherwise asked for once the bar holds still (a drag redraws the bar
+// every ~90 ms, and the covers of whatever it passes over aren't worth fetching)
+const COVER_WAIT_MS = 250;
+function showCover(e, id) {
+  if (id === e.coverId) return;
+  e.coverId = id;
+  clearTimeout(e.coverTimer);
+  e.img.classList.remove("shown");
+  e.img.removeAttribute("src");
+  if (!id) return;
+  const put = (url) => e.coverId === id && url && (e.img.src = url);
+  const known = knownCover(id);
+  if (known !== undefined) return put(known);
+  e.coverTimer = setTimeout(() => coverFor(id, { soon: true }).then(put), COVER_WAIT_MS);
 }
 
 // Pinned artists and the hovered one stay lit and the rest dim (nobody dims while there's neither). A hover

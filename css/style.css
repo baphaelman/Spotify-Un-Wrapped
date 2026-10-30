@@ -911,7 +911,16 @@ dialog pre {
 .mix-list li.pinned .name { color: var(--c); font-weight: 600; }
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
-@media (prefers-reduced-motion: reduce) { .mix-list li { transition: none; } }
+.mix-list .art { display: none; }
+.mix-list.with-covers li { grid-template-columns: 8px 40px 1fr; align-items: center; }
+.mix-list.with-covers .swatch { align-self: center; margin-top: 0; }
+.mix-list.with-covers .art {
+  display: block; width: 40px; height: 40px; border-radius: 4px; overflow: hidden;
+  background: color-mix(in srgb, var(--c) 22%, var(--surface));
+}
+.mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
+.mix-list .art img.shown { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .art img { transition: none; } }
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }

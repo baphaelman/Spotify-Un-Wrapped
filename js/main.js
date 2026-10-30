@@ -9,6 +9,7 @@ import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
+import { coverFor, forgetCovers } from "./covers.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -59,6 +60,25 @@ async function open(plays) {
   state.shared = null;
   setStatus("");
   showDashboard();
+  warmCovers();
+}
+
+// While the page is idle, look up the covers each year's and all time's top tracks and albums show, so the
+// presets have theirs on first click; a window the reader picks fetches only what it lacks (mix.js)
+function warmCovers() {
+  const raw = state.raw;
+  if (!raw.some((p) => p.id)) return;
+  const idle = window.requestIdleCallback ?? ((f) => setTimeout(f, 1500));
+  idle(() => {
+    if (state.raw !== raw) return;
+    for (const dim of ["album", "track"]) {
+      const { plays, cover } = keyedPlays(dim);
+      for (const o of $("year-filter").options) {
+        const r = presetRange(o.value);
+        for (const t of agg.topArtists(agg.filterRange(plays, r.lo, r.hi), 10)) coverFor(cover.get(t.name));
+      }
+    }
+  });
 }
 
 // Returning visitor: reopen the data remembered on this device
@@ -84,6 +104,7 @@ $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 
 $("reset").addEventListener("click", () => {
   clearPlays();
+  forgetCovers();
   state.raw = state.plays = state.key = state.shared = null;
   state.pinned = [];
   state.artists = [];
@@ -242,7 +263,7 @@ const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
 function keyedPlays(dim) {
-  if (dim === "artist") return { plays: state.raw, owner: null, title: null, album: null };
+  if (dim === "artist") return { plays: state.raw, owner: null, title: null, album: null, cover: null };
   const memo = keyedMemo.get(dim);
   if (memo?.raw === state.raw) return memo;
   const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
@@ -255,7 +276,7 @@ function keyedPlays(dim) {
   const keys = new Map(); // name + artist -> what the view calls it
   const owner = new Map(); // what the view calls it -> artist
   const title = new Map(); // what the view calls it -> its own name, without the artist
-  const albums = new Map(); // a track -> plays per album it was played from
+  const albums = new Map(); // what the view calls it -> album -> { n: plays from it, id: a track ID on it }
   const plays = state.raw.map((p) => {
     const n = nameOf(p), id = n + "\u0000" + p.artist;
     let key = keys.get(id);
@@ -264,21 +285,27 @@ function keyedPlays(dim) {
       keys.set(id, key);
       owner.set(key, p.artist);
       title.set(key, n);
-      if (dim === "track") albums.set(key, new Map());
+      albums.set(key, new Map());
     }
-    if (dim === "track" && p.album) albums.get(key).set(p.album, (albums.get(key).get(p.album) ?? 0) + 1);
+    const on = albums.get(key), a = on.get(p.album) ?? { n: 0, id: undefined };
+    a.n++;
+    a.id ??= p.id;
+    on.set(p.album, a);
     return { ...p, artist: key, by: p.artist };
   });
-  // A track on several albums (a single, then the album) is called by the one it was played from most
-  const album = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1] - a[1])[0]?.[0]]));
-  const out = { raw: state.raw, plays, owner, title, album };
+  // A track on several albums (a single, then the album) is called by the one it was played from most, and
+  // shows that album's cover, found through a track on it (data saved before IDs were kept has none)
+  const most = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1].n - a[1].n)[0]]));
+  const album = dim === "track" ? new Map([...most].map(([k, [name]]) => [k, name || undefined])) : null;
+  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? a.id : undefined])); // no album, no cover
+  const out = { raw: state.raw, plays, owner, title, album, cover };
   keyedMemo.set(dim, out);
   return out;
 }
 
 // Puts the view's plays and words in place (the graphs are drawn by the caller)
 function applyDim() {
-  ({ plays: state.plays, owner: state.owner, title: state.titles, album: state.albums } = keyedPlays(state.dim));
+  ({ plays: state.plays, owner: state.owner, title: state.titles, album: state.albums, cover: state.covers } = keyedPlays(state.dim));
   state.artists = agg.topArtists(state.plays, Infinity);
   const w = noun();
   $("n-label").textContent = w.Many;
@@ -1162,6 +1189,7 @@ function renderMix(artists, slots, includeOther, pins) {
     noun: noun(),
     // Tracks and albums: the name alone, then who made it (and a track's album) beneath
     title: (n) => state.titles?.get(n) ?? n,
+    cover: state.covers ? (n) => state.covers.get(n) : null,
     by: (n) => {
       const artist = state.owner?.get(n);
       if (!artist) return "";
