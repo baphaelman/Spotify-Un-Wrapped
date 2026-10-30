@@ -49,7 +49,6 @@ export const RESIZE_LOOK = {
   track: { "30d": { window: 15 }, "3m": { window: 30 }, "6m": { window: 45, smooth: 1 }, "1y": { window: 45, smooth: 2 } },
 };
 RESIZE_LOOK.album = RESIZE_LOOK.artist;
-export const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined);
 
 // The days the history covers, as day indices
 export const extent = () => ({ lo: agg.dayIndex(state.plays[0].t), hi: agg.dayIndex(state.plays[state.plays.length - 1].t) });

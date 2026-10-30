@@ -605,10 +605,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const partTips = (k, i, valueOf, fmt, extra) => {
     if (!parts || k === otherIdx) return [];
     const on = lit();
-    return partRows(k).flatMap((_, j) => {
-      if (!partShown(k, j, on) || !(parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)) return [];
-      return [subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j), isHot(k, j))];
-    });
+    return partRows(k)
+      .map((_, j) => j)
+      .filter((j) => partShown(k, j, on) && parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)
+      // In the order they're drawn: share mode stacks them up from the band's floor, so the top one comes first;
+      // in hours mode the highest line does
+      .sort((a, b) => (share ? b - a : valueOf(b) - valueOf(a)))
+      .map((j) => subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j), isHot(k, j)));
   };
   const shareTooltip = (params) => {
     params = bands(params);
@@ -710,6 +713,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.values.dates = data.dates.length;
   st.tweens = !liveFrom && ms > 0;
 
+  // An open tooltip still points at the series it was drawn from, and throws once one of them is removed
+  if (morph) {
+    const ids = new Set(series.map((x) => x.id));
+    if (c.getModel()?.getSeries().some((m) => !ids.has(m.id))) c.dispatchAction({ type: "hideTip" });
+  }
   setOptionFaded(
     c,
     {
@@ -754,8 +762,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       dataZoom: [{ type: "slider", show: false, startValue: zoom?.[0], endValue: zoom?.[1] }],
       series,
     },
-    // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade
-    { notMerge: !morph },
+    // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade. The series
+    // list is replaced, not merged, so series the new render doesn't have (the parts, leaving for a view that
+    // doesn't split) go rather than stay drawn as they were
+    morph ? { replaceMerge: ["series"] } : { notMerge: true },
     ms,
     easing
   );

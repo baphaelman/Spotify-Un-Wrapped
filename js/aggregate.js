@@ -329,10 +329,8 @@ const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275, 0.55]; // x the window, per stren
 // from three years out, and twice that (the max strength) from six years out, in between on a log scale.
 // Returns 0..2, in units of the high strength.
 // [visible days, how much of the high strength]: none up to a year, low at two, high at three, max at six
+// The same for every view, so switching views never re-smooths the chart.
 const AUTO_SPAN = [[365, 0], [730, 0.25], [1095, 1], [2190, 2]];
-// Tracks come and go faster, so their auto smoothing starts sooner: none up to three months, low at six,
-// medium at a year, high at two, max at four
-export const TRACK_AUTO_SPAN = [[92, 0], [182, 0.25], [365, 0.55], [730, 1], [1460, 2]];
 function interpLog(points, x) {
   if (x <= points[0][0]) return points[0][1];
   for (let i = 1; i < points.length; i++) {
@@ -341,12 +339,11 @@ function interpLog(points, x) {
   }
   return points[points.length - 1][1];
 }
-export const autoAmount = (span, spans = AUTO_SPAN) => interpLog(spans, span);
+export const autoAmount = (span) => interpLog(AUTO_SPAN, span);
 // span: days on screen, for "auto"
-// spans: the auto points to use (AUTO_SPAN, or TRACK_AUTO_SPAN)
-export const smoothifySigma = (window, strength, span, spans) =>
+export const smoothifySigma = (window, strength, span) =>
   strength === "auto"
-    ? autoAmount(span, spans) * Math.max(1, window * SMOOTHIFY_SIGMA[3])
+    ? autoAmount(span) * Math.max(1, window * SMOOTHIFY_SIGMA[3])
     : strength ? Math.max(1, window * SMOOTHIFY_SIGMA[strength]) : 0;
 export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
 

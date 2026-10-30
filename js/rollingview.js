@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, to
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { $, state, noun, autoSpans, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
+import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -52,7 +52,7 @@ const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify 
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
 // Auto's curve rounding: scaled with the amount up to high, then on toward max
 const autoCurve = (a) => (a <= 1 ? a * SMOOTH_CURVE[3] : SMOOTH_CURVE[3] + (a - 1) * (SMOOTH_CURVE[4] - SMOOTH_CURVE[3]));
-const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span, autoSpans())) : SMOOTH_CURVE[strength]);
+const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span)) : SMOOTH_CURVE[strength]);
 // Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
@@ -84,11 +84,11 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const raw = rawMemo.raw;
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
-  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span, autoSpans());
+  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
   const curve = look?.smooth ?? smoothCurve(strength, span);
   state.shownSmooth = { sigma, curve }; // what the zoom hook compares against
   // Auto says which strength it has landed on
-  const amount = agg.autoAmount(span, autoSpans());
+  const amount = agg.autoAmount(span);
   $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
   const data = agg.blur(raw, sigma);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
@@ -304,7 +304,7 @@ export function sweepSmoothing(from) {
   const days = WINDOWS[$("window").value];
   const zoom = currentZoom($("chart-rolling"));
   const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
-  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span, autoSpans()));
+  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span));
   const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
   // (a blur radius under half a day counts as half a day: "off" to a little is a small change)
   const total = scaledMs(s0, s1, MORPH_MS, undefined, 0.5);
@@ -328,7 +328,7 @@ onZoomChange($("chart-rolling"), () => {
     const zoom = currentZoom($("chart-rolling"));
     if (!rawMemo || !state.shownSmooth || !Number.isFinite(zoom?.[0])) return;
     const span = spanDays(zoom, rawMemo.raw.dates);
-    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span, autoSpans());
+    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span);
     const curve = smoothCurve("auto", span);
     if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
     cancelSweep();
