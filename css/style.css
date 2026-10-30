@@ -397,7 +397,7 @@ button.ghost:hover { background: var(--border); }
 .tav-window .ticks span:not(.on) { color: transparent; }
 .tav-window .ticks.settle span { transition: none; }
 .tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--text-muted); transition: width var(--motion-fade) var(--ease-out), height var(--motion-fade) var(--ease-out), margin-top var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out); }
-.tav-window .ticks span.on { color: var(--text-primary); font-weight: 600; }
+.tav-window .ticks span.on { display: flex; color: var(--text-primary); font-weight: 600; } /* (not the block of `.ticks span.on`, which would drop the notch) */
 .tav-window .ticks span.on::before { background: var(--text-primary); }
 /* The selected notch stands out, and so does the one a glide is heading for (its number stays hidden until it arrives),
    so a click or drag answers at once: the old notch goes neutral and the new one lights before the thumb arrives */
