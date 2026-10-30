@@ -891,40 +891,57 @@ dialog pre {
 .mix-seg > * { max-width: 100%; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .mix-seg.fits-share .mix-pct { opacity: 1; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
-/* Under the bar, every segment in full: its words wrap rather than being cut short */
+/* Under the bar, every segment in full as a tile: a light wash of its color, a faint outline in it, and a tab of
+   it to the left. Tiles meet edge to edge; the list is clipped a pixel in on every side, so the outlines show only
+   on the seams between tiles and never as a border around the block */
 .mix-list {
-  list-style: none; margin: 8px 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); column-gap: 20px;
+  list-style: none; margin: 12px -1px -1px; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  clip-path: inset(1px);
 }
 .mix-list li {
-  display: grid; grid-template-columns: 8px 1fr; align-items: baseline; gap: 8px;
-  margin: 0 -8px; padding: 5px 8px; border-radius: 8px; font-size: 13px;
-  transition: background-color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+  --art: 60px;
+  display: grid; grid-template-columns: 28px 1fr; align-items: center; column-gap: 12px;
+  padding: 10px 12px 10px 0; font-size: 13px;
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+  transition: background-color var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
 }
 .mix-list li.pinnable { cursor: pointer; }
-.mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 10%, transparent); }
-.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 16%, transparent); }
+.mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
+.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 65%, transparent); }
+.mix-list li.pinned:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
-.mix-list .swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--c); align-self: start; margin-top: 5px; }
+.mix-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
+/* The tab: the whole strip left of the cover is its button, so it's easy to hit */
+.mix-list .tab {
+  align-self: stretch; margin: -10px 0; padding: 0; border: 0; background: none;
+  display: grid; place-items: center; cursor: pointer; color: inherit;
+}
+.mix-list .tab:disabled { cursor: default; }
+.mix-list .tab .bar {
+  width: 8px; height: calc(var(--art) * 0.48); border-radius: 4px; background: var(--c);
+  box-shadow: inset 0 0 0 1.5px var(--c);
+  transition: background-color var(--motion-fade) var(--ease-out), transform var(--motion-fade) var(--ease-out);
+}
+.mix-list .tab:not(:disabled):hover .bar { transform: scaleX(1.25); }
+.mix-list li.off .tab .bar { background: transparent; } /* hidden: the tab is only its outline */
+.mix-list .tab:focus-visible { outline: 2px solid var(--c); outline-offset: -4px; border-radius: 6px; }
 .mix-list .who { min-width: 0; overflow-wrap: anywhere; }
-.mix-list .name { color: var(--text-primary); }
+.mix-list .name { display: block; color: var(--text-primary); }
 .mix-list li.pinned .name { color: var(--c); font-weight: 600; }
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
 .mix-list .art { display: none; }
-/* Every row reads from the top, so a name that wraps grows downward without pulling its cover off the row's line */
-.mix-list.with-covers li { grid-template-columns: 8px 40px 1fr; align-items: start; }
-.mix-list.with-covers .swatch { margin-top: 16px; }
-.mix-list.with-covers .who { padding-top: 2px; }
+.mix-list.with-covers li { grid-template-columns: 28px var(--art) 1fr; min-height: calc(var(--art) + 20px); }
 .mix-list.with-covers .art {
-  display: block; width: 40px; height: 40px; border-radius: 4px; overflow: hidden;
+  display: block; width: var(--art); height: var(--art); border-radius: 4px; overflow: hidden;
   background: color-mix(in srgb, var(--c) 22%, var(--surface));
 }
 .mix-list.portraits .art { border-radius: 50%; }
-.mix-list.portraits .who { align-self: center; padding-top: 0; } /* an artist is one line, so it sits level with the photo */
 .mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .mix-list .art img.shown { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .art img { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .tab .bar, .mix-list .art img { transition: none; } }
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
