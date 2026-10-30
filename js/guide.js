@@ -76,24 +76,28 @@ function ringOff() {
   rings = [];
 }
 
-function ringOn(selector) {
+// One ring per |-separated group of selectors, around everything the group matches
+function ringOn(target) {
   ringOff();
-  for (const el of document.querySelectorAll(selector)) {
-    const b = el.getBoundingClientRect();
-    if (!b.width || b.bottom < 0 || b.top > innerHeight) continue;
-    // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
-    // the rest just above the period bar's layer (style.css). A faint copy over the panel lets the part beneath it
-    // glow through
-    const ring = (parent, cls) => {
-      const r = document.createElement("div");
-      r.className = cls;
-      Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.width + 8}px`, height: `${b.height + 8}px` });
-      parent.append(r);
-      requestAnimationFrame(() => r.classList.add("on"));
-      rings.push(r);
+  for (const group of target.split("|")) {
+    const els = [...document.querySelectorAll(group)].filter((el) => el.getBoundingClientRect().width);
+    if (!els.length) continue;
+    const rects = els.map((el) => el.getBoundingClientRect());
+    const b = {
+      left: Math.min(...rects.map((r) => r.left)),
+      top: Math.min(...rects.map((r) => r.top)),
+      right: Math.max(...rects.map((r) => r.right)),
+      bottom: Math.max(...rects.map((r) => r.bottom)),
     };
-    ring(el.closest(".topbar") ?? document.body, "guide-ring");
-    ring(document.querySelector(".topbar"), "guide-ring through");
+    if (b.bottom < 0 || b.top > innerHeight) continue;
+    const r = document.createElement("div");
+    r.className = "guide-ring";
+    Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.right - b.left + 8}px`, height: `${b.bottom - b.top + 8}px` });
+    // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
+    // the rest just above the period bar's layer (style.css)
+    (els[0].closest(".topbar") ?? document.body).append(r);
+    requestAnimationFrame(() => r.classList.add("on"));
+    rings.push(r);
   }
 }
 

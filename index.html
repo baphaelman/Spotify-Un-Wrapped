@@ -25,7 +25,8 @@
         </button>
         <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Controls" hidden>
           <!-- The guide: a row per feature, each with a small copy of its control (mirroring its state, filled by
-               guide.js). Hovering a row rings the real control on the page -->
+               guide.js). Hovering a row rings the real control on the page: one ring
+               per |-separated group, around everything the group matches -->
           <button id="guide-toggle" class="controls-item guide-toggle" type="button" aria-expanded="false" aria-controls="guide">
             <span>How the page works</span>
             <svg class="chev" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -34,7 +35,7 @@
             <div class="guide-inner">
               <div class="guide-row" data-target="#view-tabs">
                 <div class="guide-pic"><span id="g-views" class="segmented g-seg"></span></div>
-                <p><b>View</b> What every graph is about.</p>
+                <p><b>View</b> What every graph is about. Each view keeps its own pins and hidden picks.</p>
               </div>
               <div class="guide-row" data-target="#brush-track">
                 <div class="guide-pic">
@@ -48,29 +49,29 @@
                     <rect class="g-grip" x="94" y="0" width="4" height="34" rx="2"/>
                   </svg>
                 </div>
-                <p><b>Timeline</b> Drag the window to move it, or an edge to resize it.</p>
+                <p><b>Timeline</b> Drag the window to move through your history, or drag an edge to make it longer or shorter.</p>
               </div>
               <div class="guide-row" data-target="#period-resize, .period">
                 <div class="guide-pic g-presets">
                   <span id="g-lengths" class="segmented g-seg"></span>
                   <span class="g-period"><span class="g-step" data-forward="#year-prev">‹</span><span id="g-year"></span><span class="g-step" data-forward="#year-next">›</span></span>
                 </div>
-                <p><b>Period</b> Pick a length, a year or All time, or step ‹ ›.</p>
+                <p><b>Period</b> Jump to a length, a year or All time, or step a period back or forward.</p>
               </div>
-              <div class="guide-row" data-target="#artist-key, #mix-list">
+              <div class="guide-row" data-target="#artist-key | #mix-list">
                 <div class="guide-pic g-chips">
                   <span class="legend-item g-chip" data-n="0"><span class="swatch"></span><span class="name"></span></span>
                   <span class="legend-item g-chip pinned" data-n="1"><span class="swatch"></span><span class="name"></span></span>
                 </div>
-                <p><b>Pin</b> Click an artist anywhere to keep them lit in every graph.</p>
+                <p><b>Pin</b> Click an artist anywhere (a band, chip or tile) to keep them lit and in every graph. Click again to unpin.</p>
               </div>
               <div class="guide-row" data-target=".artist-search">
                 <div class="guide-pic">
                   <span class="g-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="g-search-text"></span></span>
                 </div>
-                <p><b>Search</b> Pin anyone in your history.</p>
+                <p><b>Search</b> Pin anyone in your history, even outside your top list.</p>
               </div>
-              <div class="guide-row" data-target="#artist-key, #mix-list">
+              <div class="guide-row" data-target="#artist-key | #mix-list">
                 <div class="guide-pic g-chips">
                   <span class="all-box g-all"><span class="all-glyph"></span></span>
                   <span class="legend-item g-chip g-short" data-n="0"><span class="swatch"></span><span class="name"></span></span>
@@ -78,14 +79,14 @@
                   <span class="legend-item g-chip g-other"><span class="swatch"></span><span class="name">Everyone else</span></span>
                   <span class="g-tile" data-n="0"><span class="g-tab"></span><span class="g-card"></span></span>
                 </div>
-                <p><b>Show/hide</b> Click a color box or tab. The first box does them all.</p>
+                <p><b>Show and hide</b> A chip's color box, or a tile's color tab, hides that artist everywhere. The first box does them all; <em>Everyone else</em> is the gray rest.</p>
               </div>
-              <div class="guide-row" data-target="#palette-button, #theme-toggle">
+              <div class="guide-row" data-target="#palette-button | #theme-toggle">
                 <div class="guide-pic g-colors">
                   <span id="g-palette" class="palette-dot g-dot"></span>
                   <span id="g-theme" class="g-theme"></span>
                 </div>
-                <p><b>Colors</b> Color scheme, and light or dark.</p>
+                <p><b>Colors</b> Pick the artists' color scheme, or flip between light and dark.</p>
               </div>
             </div>
           </div>
