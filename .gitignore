@@ -2,3 +2,4 @@
 dev/site/
 .claude/worktrees/
 .claude/settings.local.json
+dev/genre_cache.json

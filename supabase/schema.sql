@@ -253,3 +253,16 @@ grant execute on function public.submit_feedback(text, text) to anon, authentica
 grant execute on function public.list_feedback(text) to anon, authenticated;
 grant execute on function public.set_feedback_done(text, bigint, boolean) to anon, authenticated;
 grant execute on function public.delete_feedback(text, bigint) to anon, authenticated;
+
+-- ---------- Genres (docs/genres.md) ----------
+-- Each artist's genres, looked up once (MusicBrainz, else Last.fm) and kept for everyone. Only the `genres` edge
+-- function reads and writes it, with the service role; the browser never touches it (RLS on, no policies).
+create table if not exists public.artist_genres (
+  name_key   text primary key,          -- the artist's name, normalized (lowercase, no accents or punctuation)
+  name       text not null,             -- as the export spells it
+  mbid       text,                      -- MusicBrainz artist ID, when found there
+  genres     jsonb not null default '[]', -- [[genre, votes], ...], most votes first; only MusicBrainz's genre list
+  source     text not null check (source in ('musicbrainz', 'lastfm', 'none')),
+  fetched_at timestamptz not null default now()
+);
+alter table public.artist_genres enable row level security;
