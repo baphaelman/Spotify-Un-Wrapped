@@ -927,7 +927,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           axisTick: { show: false },
           splitLine: { show: false },
           axisPointer: { show: false },
-          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle },
+          // Drawn as elements instead (paintCaptionMarks), so a lit artist's name can fade to the main ink
+          axisLabel: { show: false },
         },
       ],
       yAxis: {
@@ -1145,11 +1146,11 @@ function monthlySeries(st) {
 }
 
 // Under a caption whose artist is in the chart, a line in their color across their bar's column, all one length and
-// thickness, dimmed only while another artist is hovered and they aren't pinned. Neighbouring lines join into one
-// strip, rounded only at its two ends. They're elements over the chart rather than shapes in it, so CSS tweens
-// them: a strip that comes or goes (an artist selected, deselected or pinned in) grows from or shrinks to a point in
-// its middle; lines joining or leaving a strip that stays grow from or shrink to their seam with it; the strips'
-// lengths morph with the bars, and color fades with a hover. still: place them without tweening (a resize).
+// thickness, never dimmed (a top artist stays as strong whoever is lit). Neighbouring lines join into one strip,
+// rounded only at its two ends. They're elements over the chart rather than shapes in it, so CSS tweens them: a
+// strip that comes or goes (an artist selected, deselected or pinned in) grows from or shrinks to a point in its
+// middle; lines joining or leaving a strip that stays grow from or shrink to their seam with it; the strips'
+// lengths morph with the bars. still: place them without tweening (a resize).
 const LINE_H = 2;
 function paintUnderlines(el, st, still = false) {
   const c = instances.get(el);
@@ -1163,7 +1164,7 @@ function paintUnderlines(el, st, still = false) {
     el.appendChild(layer);
     new ResizeObserver(() => monthlyState.has(el) && paintUnderlines(el, monthlyState.get(el), true)).observe(el);
   }
-  const { rows, grid, names, off, t } = st;
+  const { rows, grid, names, off } = st;
   const who = rows.map((r) => {
     const n = barView(st, r).top[0]?.name;
     return st.underline && names.includes(n) && !off.has(n) ? n : null;
@@ -1226,57 +1227,119 @@ function paintUnderlines(el, st, still = false) {
       bottom,
       height: `${LINE_H}px`,
       borderRadius: `${rl}px ${rr}px ${rr}px ${rl}px`,
-      background: st.hovered == null || st.hovered === n || st.pins?.has(n) ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
+      background: st.colorOf(n),
     });
   });
   layer._drawn = { who, rects };
   paintCaptionMarks(el, st);
 }
 
-// Behind the captions, a mark for the pinned artists and the one a click would pin or unpin (the one the pointer
-// picks, or one hovered elsewhere on the page), the same for both, so pinning keeps what hovering showed. Neighbouring
-// marks join into one, as the lines do, rounded only at its two ends. They're elements over the chart, so CSS fades
-// them. Trial: ?pinlook= picks the look (.month-caps[data-look] in the stylesheet); shade by default. Every look but
-// shade reaches over the line, so it spans the line's whole column; shade is inset at its ends, like the bars.
-const PIN_LOOKS = ["shade", "shade-tall", "outline", "outline-tall", "chip", "chip-tall", "column"];
+// The captions (each column's top artist), and behind them a mark for the pinned artists and the one a click would
+// pin or unpin (the one the pointer picks, or one hovered elsewhere on the page). A marked artist's name turns to the
+// main ink. Marks sit on the line and rise out of it (or sink back into it); neighbouring marks join into one,
+// rounded only at its outer corners. They're elements over the chart, so CSS tweens them.
+// Trial: the look comes from ?pinlook= (and ?pintall for taller boxes), picked on the test page with a small panel
+// (pinLookPicker); see .month-caps[data-look] in the stylesheet.
+const PIN_LOOKS = {
+  outline: "Outline",
+  "outline-tint": "Outline + tint",
+  "outline-pin": "Outline · pinned adds tint",
+  "outline-bold": "Outline · pinned bolder + tint",
+  shade: "Tint",
+  "shade-pin": "Tint · pinned deeper",
+  column: "Column wash",
+  "column-pin": "Column wash · pinned deeper",
+};
+function pinLook() {
+  const q = new URLSearchParams(location.search);
+  return { look: q.get("pinlook") in PIN_LOOKS ? q.get("pinlook") : "outline", tall: q.has("pintall") };
+}
 function paintCaptionMarks(el, st) {
   const c = instances.get(el);
   let layer = el.querySelector(".month-caps");
   if (!layer) {
     layer = document.createElement("div");
     layer.className = "month-caps";
+    // (placed here as well as in the stylesheet, so a cached stylesheet can't drop them in a heap)
     Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 1 });
+    layer.append(document.createElement("div"), document.createElement("div"));
     el.appendChild(layer);
+    pinLookPicker();
   }
-  const asked = new URLSearchParams(location.search).get("pinlook");
-  const look = PIN_LOOKS.includes(asked) ? asked : "shade";
+  const [marks, caps] = layer.children;
+  const { look, tall } = pinLook();
   layer.dataset.look = look;
+  layer.toggleAttribute("data-tall", tall);
   const { rows, grid, off } = st;
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
-  const inset = look === "shade" ? 3 : 0;
-  // The top of the plot (the line sits just above it), and the axis
+  // The top of the plot (the line sits 4-6px above it), and the axis
   layer.style.setProperty("--gt", `${grid.top}px`);
   layer.style.setProperty("--axis", `${el.clientHeight - grid.bottom}px`);
   const focus = st.picked ?? st.hovered;
   const pinned = (n) => n != null && !!st.pins?.has(n) && !off.has(n);
-  const mark = rows.map((r) => {
-    const n = barView(st, r).top[0]?.name ?? null;
-    return st.underline && n != null && (pinned(n) || n === focus) ? n : null;
-  });
-  while (layer.children.length > rows.length) layer.lastChild.remove();
-  while (layer.children.length < rows.length) layer.appendChild(document.createElement("div"));
-  mark.forEach((n, i) => {
-    const d = layer.children[i];
-    d.classList.toggle("on", n != null);
-    if (n == null) return; // fades out where it was, in its color
-    const jl = mark[i - 1] != null, jr = mark[i + 1] != null;
-    d.classList.toggle("jl", jl);
-    d.classList.toggle("jr", jr);
+  const tops = rows.map((r) => barView(st, r).top[0]?.name ?? null);
+  const mark = tops.map((n) => (st.underline && n != null && (pinned(n) || n === focus) ? n : null));
+  for (const box of [marks, caps]) {
+    while (box.children.length > rows.length) box.lastChild.remove();
+    while (box.children.length < rows.length) box.appendChild(document.createElement("div")).className = box === marks ? "mark" : "cap";
+  }
+  caps.hidden = !st.underline;
+  rows.forEach((_r, i) => {
     const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
-    const l = mid - slot / 2 + (jl ? 0 : inset), r = mid + slot / 2 - (jr ? 0 : inset);
-    Object.assign(d.style, { left: `${l}px`, width: `${r - l}px` });
+    const cap = caps.children[i];
+    cap.textContent = tops[i] ?? "";
+    cap.classList.toggle("lit", mark[i] != null);
+    Object.assign(cap.style, { left: `${mid - slot / 2 + 3}px`, width: `${Math.max(0, slot - 6)}px` });
+    const d = marks.children[i];
+    const n = mark[i];
+    d.classList.toggle("on", n != null);
+    if (n == null) return; // sinks into the line as it was, in its color
+    d.classList.toggle("pin", pinned(n));
+    d.classList.toggle("hover", n === focus);
+    d.classList.toggle("jl", mark[i - 1] != null);
+    d.classList.toggle("jr", mark[i + 1] != null);
+    Object.assign(d.style, { left: `${mid - slot / 2}px`, width: `${slot}px` });
     d.style.setProperty("--c", st.colorOf(n));
   });
+}
+
+// Trial only: on the test page (or with ?pinlook), a small floating panel to switch the caption marks' look live
+function pinLookPicker() {
+  const q = new URLSearchParams(location.search);
+  if (document.querySelector(".pinlook-picker") || !(q.has("pinlook") || location.pathname.endsWith("test.html"))) return;
+  const box = document.createElement("div");
+  box.className = "pinlook-picker";
+  const head = document.createElement("b");
+  head.textContent = "Pin look (trial)";
+  box.append(head);
+  const set = (look, tall) => {
+    const u = new URL(location.href);
+    u.searchParams.set("pinlook", look);
+    if (tall) u.searchParams.set("pintall", "");
+    else u.searchParams.delete("pintall");
+    history.replaceState(null, "", u);
+    for (const l of document.querySelectorAll(".month-caps")) {
+      l.dataset.look = look;
+      l.toggleAttribute("data-tall", tall);
+    }
+    for (const b of box.querySelectorAll("button")) b.classList.toggle("active", b.dataset.look === look);
+  };
+  for (const [look, label] of Object.entries(PIN_LOOKS)) {
+    const b = document.createElement("button");
+    b.dataset.look = look;
+    b.textContent = label;
+    b.classList.toggle("active", look === pinLook().look);
+    b.addEventListener("click", () => set(look, pinLook().tall));
+    box.append(b);
+  }
+  const tallBox = document.createElement("label");
+  const tick = document.createElement("input");
+  tick.type = "checkbox";
+  tick.checked = pinLook().tall;
+  tick.addEventListener("change", () => set(pinLook().look, tick.checked));
+  tallBox.append(tick, " Taller");
+  box.append(tallBox);
+  document.body.append(box);
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off

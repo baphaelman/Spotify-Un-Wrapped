@@ -548,36 +548,84 @@ button.ghost:hover { background: var(--border); }
     border-radius var(--motion-morph) var(--ease-in-out), background-color var(--motion-fade) var(--ease-out);
 }
 .month-lines.still > div { transition: none; }
-/* Caption marks for pinned and hovered artists, one look for both (trial looks: ?pinlook=, see paintCaptionMarks).
-   --gt is the top of the plot: the caption sits about 12-23px above it, the line 4-6px above it */
+/* Monthly captions, and the marks behind pinned and hovered artists' (see paintCaptionMarks; trial looks: ?pinlook=).
+   --gt is the top of the plot: captions sit 10-23px above it, the line 4-6px above it. A mark sits on the line, as
+   wide as it, and rises out of it */
 .month-caps { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-.month-caps > div {
+.month-caps .cap {
   position: absolute;
-  top: calc(var(--gt) - 25px);
-  height: 17px;
+  bottom: calc(100% - var(--gt) + 10px);
+  font: 11px/13px sans-serif;
+  color: var(--text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--motion-fade) var(--ease-out);
+}
+.month-caps .cap.lit { color: var(--text-primary); }
+.month-caps .mark {
+  position: absolute;
+  top: calc(var(--gt) - 28px);
+  height: 22px;
   box-sizing: border-box;
   border: 1.5px solid transparent;
-  border-radius: 5px;
-  opacity: 0;
-  transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out),
-    border-color var(--motion-fade) var(--ease-out), left var(--motion-morph) var(--ease-in-out),
-    width var(--motion-morph) var(--ease-in-out);
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+  clip-path: inset(100% 0 0 0);
+  transition: clip-path var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out),
+    border-color var(--motion-fade) var(--ease-out), border-width var(--motion-fade) var(--ease-out),
+    left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out);
 }
-.month-caps > div.on { opacity: 1; }
-.month-caps > div.jl { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.month-caps > div.jr { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-/* shade: a tint behind the caption; tall: down over the line too */
-.month-caps:is([data-look="shade"], [data-look="shade-tall"]) > .on { background: color-mix(in srgb, var(--c) 20%, transparent); }
-.month-caps[data-look="shade-tall"] > div { top: calc(var(--gt) - 28px); height: 26px; }
-/* outline: a ring around the caption and its line; chip: the same with a tint, like the key's pinned chips */
-.month-caps:is([data-look^="outline"], [data-look^="chip"]) > div { top: calc(var(--gt) - 26px); height: 25px; }
-.month-caps:is([data-look="outline-tall"], [data-look="chip-tall"]) > div { top: calc(var(--gt) - 30px); height: 32px; }
-.month-caps:is([data-look^="outline"], [data-look^="chip"]) > .on { border-color: var(--c); }
-.month-caps[data-look^="chip"] > .on { background: color-mix(in srgb, var(--c) 12%, transparent); }
-/* column: a wash from the caption down to the axis */
-.month-caps[data-look="column"] > div { height: calc(var(--axis) - var(--gt) + 25px); }
-.month-caps[data-look="column"] > .on { background: color-mix(in srgb, var(--c) 9%, transparent); }
-@media (prefers-reduced-motion: reduce) { .month-lines > div, .month-caps > div { transition: none; } }
+.month-caps .mark.on { clip-path: inset(0); }
+.month-caps[data-tall]:not([data-look^="column"]) .mark { top: calc(var(--gt) - 32px); height: 26px; }
+/* Outline: the line is the box's bottom edge; tint, pinned adds tint, pinned bolder */
+.month-caps[data-look^="outline"] .mark { border-color: var(--c); }
+.month-caps[data-look="outline-tint"] .mark { background: color-mix(in srgb, var(--c) 14%, transparent); }
+.month-caps[data-look="outline-pin"] .mark.pin { background: color-mix(in srgb, var(--c) 18%, transparent); }
+.month-caps[data-look="outline-bold"] .mark.pin { border-width: 2px; background: color-mix(in srgb, var(--c) 24%, transparent); }
+/* Tint, down to the line */
+.month-caps[data-look="shade"] .mark { background: color-mix(in srgb, var(--c) 20%, transparent); }
+.month-caps[data-look="shade-pin"] .mark { background: color-mix(in srgb, var(--c) 11%, transparent); }
+.month-caps[data-look="shade-pin"] .mark.pin { background: color-mix(in srgb, var(--c) 26%, transparent); }
+/* Column wash: from the caption down to the axis, rising from it */
+.month-caps[data-look^="column"] .mark { height: calc(var(--axis) - var(--gt) + 28px); border-radius: 5px 5px 0 0; }
+.month-caps[data-look="column"] .mark { background: color-mix(in srgb, var(--c) 9%, transparent); }
+.month-caps[data-look="column-pin"] .mark { background: color-mix(in srgb, var(--c) 6%, transparent); }
+.month-caps[data-look="column-pin"] .mark.pin { background: color-mix(in srgb, var(--c) 15%, transparent); }
+/* Joined to a neighbour: no side there, square corners */
+.month-caps .mark.jl { border-left-width: 0; border-top-left-radius: 0; }
+.month-caps .mark.jr { border-right-width: 0; border-top-right-radius: 0; }
+
+/* Trial only: the pin look picker on the test page */
+.pinlook-picker {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.pinlook-picker b { margin-bottom: 4px; font-size: 11px; color: var(--text-secondary); font-weight: 600; }
+.pinlook-picker button {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color var(--motion-fade) var(--ease-out);
+}
+.pinlook-picker button:hover { background: color-mix(in srgb, var(--text-primary) 8%, transparent); }
+.pinlook-picker button.active { background: color-mix(in srgb, var(--text-primary) 16%, transparent); }
+.pinlook-picker label { margin-top: 6px; padding: 0 8px; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .month-lines > div, .month-caps .mark, .month-caps .cap { transition: none; } }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-2 .card { margin-bottom: 16px; }
