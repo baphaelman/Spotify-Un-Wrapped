@@ -9,7 +9,7 @@ import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
-import { coverFor, forgetCovers } from "./covers.js";
+import { forgetCovers } from "./covers.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,25 +60,6 @@ async function open(plays) {
   state.shared = null;
   setStatus("");
   showDashboard();
-  warmCovers();
-}
-
-// While the page is idle, look up the pictures each year's and all time's top artists, albums and tracks show,
-// so the presets have theirs on first click; a window the reader picks fetches only what it lacks (mix.js)
-function warmCovers() {
-  const raw = state.raw;
-  if (!raw.some((p) => p.id)) return;
-  const idle = window.requestIdleCallback ?? ((f) => setTimeout(f, 1500));
-  idle(() => {
-    if (state.raw !== raw) return;
-    for (const dim of ["artist", "album", "track"]) {
-      const { plays, cover } = keyedPlays(dim);
-      for (const o of $("year-filter").options) {
-        const r = presetRange(o.value);
-        for (const t of agg.topArtists(agg.filterRange(plays, r.lo, r.hi), 10)) coverFor(cover.get(t.name));
-      }
-    }
-  });
 }
 
 // Returning visitor: reopen the data remembered on this device
@@ -263,8 +244,8 @@ const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
 
-// Up to three of an item's track IDs, most played first: the picture lookup tries them in turn (covers.js)
-const PICTURE_TRACKS = 3;
+// Up to five of an item's track IDs, most played first: the picture lookup tries them in turn (covers.js)
+const PICTURE_TRACKS = 5;
 const countId = (ids, id) => id && ids.set(id, (ids.get(id) ?? 0) + 1);
 const topIds = (ids) => [...ids].sort((a, b) => b[1] - a[1]).slice(0, PICTURE_TRACKS).map(([id]) => id);
 
@@ -315,7 +296,7 @@ function keyedPlays(dim) {
   const most = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1].n - a[1].n)[0]]));
   const album = dim === "track" ? new Map([...most].map(([k, [name]]) => [k, name || undefined])) : null;
   // No album, no cover
-  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? { kind: "album", name: owner.get(k), ids: topIds(a.ids) } : undefined]));
+  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? { kind: "album", name: owner.get(k), album: name, ids: topIds(a.ids) } : undefined]));
   const out = { raw: state.raw, plays, owner, title, album, cover };
   keyedMemo.set(dim, out);
   return out;
