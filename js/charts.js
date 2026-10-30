@@ -870,7 +870,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
   // ?capbar to the URL to put each one just above its bar instead)
   const atTop = !location.search.includes("capbar");
-  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
+  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
@@ -953,29 +953,6 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
             formatter: (p) => captionOf(rows[p.dataIndex]),
           },
         },
-        {
-          id: "underlines",
-          type: "custom",
-          silent: true,
-          clip: false,
-          tooltip: { show: false },
-          encode: { x: [0, 1] },
-          ...looks[2 * names.length + 2],
-          renderItem: (params, api) => {
-            const [i0, i1, endL, endR, h] = [0, 1, 2, 3, 4].map((d) => api.value(d));
-            const [roundL, roundR] = [endL, endR].map((e) => +(e > 0));
-            const slot = api.size([1, 0])[0];
-            const barW = slot * 0.7; // barCategoryGap 30%
-            const x0 = api.coord([i0, 0])[0] - (endL === 1 ? barW : slot) / 2;
-            const x1 = api.coord([i1, 0])[0] + (endR === 1 ? barW : slot) / 2;
-            const r = h / 2;
-            return {
-              type: "rect",
-              shape: { x: x0, y: params.coordSys.y - 4 - h, width: x1 - x0, height: h, r: [roundL * r, roundR * r, roundR * r, roundL * r] },
-              style: { fill: api.visual("color") },
-            };
-          },
-        },
       ],
     },
     // Colors and outlines fade with the bars' morph rather than snapping before it
@@ -985,6 +962,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // The gray top series names its artist per bar
   const artistOf = (p) => (p.seriesId === "top" ? p.data?.name : p.seriesName);
   settleMonthly(el, st, looks);
+  paintUnderlines(el, st);
   // The pointer picks the artist whose slice it's over; anywhere else in a column, it picks the column's top
   // artist, so hovering or clicking the column is hovering or clicking them. A top artist outside the chart can
   // be picked too: clicking pins them into it, but only the chart's artists light up on hover (shared with the
@@ -1155,35 +1133,63 @@ function monthlySeries(st) {
   const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i]?.name })) };
   // The gray never dims either: it's the rest of the month, whoever is lit
   const gray = { id: "rest", itemStyle: { color: mix(t.surface, t.other, 0.35), ...edge(t.other, false) }, data: rest };
-  return [gray, ...slices, ...topBlocks, top, underlines(st, tops, lit)];
+  return [gray, ...slices, ...topBlocks, top];
 }
 
 // Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right:
 // thicker when they're lit, and dimmed while someone else is. Neighbouring lines join into one strip, meeting
-// halfway between the bars and rounded only at its two ends, and a run of months with the same artist is one
-// piece: [first month, last month, left end, right end, thickness]. An end is 0 where it joins its neighbour,
-// 1 at the bar's edge, or 2 halfway into the gap beyond it: a strip that reaches across a gap reaches out as far
-// at both ends, so it sits evenly over its bars.
-function underlines(st, tops, lit) {
-  const data = [];
-  if (st.underline)
-    tops.forEach((top, i) => {
-      const n = top?.name;
-      if (!st.names.includes(n) || st.off.has(n)) return;
-      const last = data[data.length - 1];
-      const joins = last && last.value[1] === i - 1;
-      if (joins && last.name === n) return void (last.value[1] = i);
-      if (joins) last.value[3] = 0;
-      const on = lit.has(n);
-      const color = on || !lit.size ? st.colorOf(n) : mix(st.t.surface, st.colorOf(n), 0.35);
-      data.push({ name: n, value: [i, i, joins ? 0 : 1, 1, on ? 3.5 : 2], itemStyle: { color } });
-    });
-  let first = null;
-  for (const d of data) {
-    if (d.value[2]) first = d;
-    if (d.value[3] && first.value[0] !== d.value[1]) first.value[2] = d.value[3] = 2;
+// halfway between the bars and rounded only at its two ends; a strip that reaches across a gap reaches out as far
+// at both ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS
+// tweens them: a line comes and goes by growing from or shrinking to its bar's middle, the strips' lengths morph
+// with the bars, and thickness and color fade with a hover. still: place them without tweening (a resize).
+function paintUnderlines(el, st, still = false) {
+  const c = instances.get(el);
+  let layer = el.querySelector(".month-lines");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "month-lines";
+    el.appendChild(layer);
+    new ResizeObserver(() => monthlyState.has(el) && paintUnderlines(el, monthlyState.get(el), true)).observe(el);
   }
-  return { id: "underlines", data };
+  const { rows, grid, names, off, t } = st;
+  const lit = litSet(st);
+  const who = rows.map((r) => {
+    const n = barView(st, r).top[0]?.name;
+    return st.underline && names.includes(n) && !off.has(n) ? n : null;
+  });
+  const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
+  const half = (slot * 0.7) / 2; // barCategoryGap 30%
+  layer.classList.toggle("still", still);
+  while (layer.children.length > rows.length) layer.lastChild.remove();
+  while (layer.children.length < rows.length) {
+    const d = layer.appendChild(document.createElement("div"));
+    const i = layer.children.length - 1;
+    Object.assign(d.style, { left: `${grid.left + slot * (i + 0.5)}px`, width: "0px", height: "2px", bottom: `${el.clientHeight - grid.top + 4}px` });
+  }
+  void layer.offsetWidth; // new lines start from nothing, at their bar's middle
+  who.forEach((n, i) => {
+    const d = layer.children[i];
+    const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
+    if (n == null) return void Object.assign(d.style, { left: `${mid}px`, width: "0px" });
+    // Joined: halfway into the gap (and half a pixel past it, so the seam doesn't show); an end: at the bar's
+    // edge, or halfway into the gap if the strip reaches across one
+    let a = i, b = i;
+    while (who[a - 1] != null) a--;
+    while (who[b + 1] != null) b++;
+    const reach = a === b ? half : slot / 2;
+    const l = who[i - 1] != null ? slot / 2 + 0.5 : reach;
+    const r = who[i + 1] != null ? slot / 2 + 0.5 : reach;
+    const h = lit.has(n) ? 3.5 : 2;
+    const rl = who[i - 1] != null ? 0 : h / 2, rr = who[i + 1] != null ? 0 : h / 2;
+    Object.assign(d.style, {
+      left: `${mid - l}px`,
+      width: `${l + r}px`,
+      bottom: `${el.clientHeight - grid.top + 4}px`,
+      height: `${h}px`,
+      borderRadius: `${rl}px ${rr}px ${rr}px ${rl}px`,
+      background: lit.has(n) || !lit.size ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
+    });
+  });
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
@@ -1211,6 +1217,7 @@ export function focusMonthly(el, name) {
   st.hovered = next;
   const series = monthlySeries(st);
   setOptionFaded(c, { series }, undefined, dur(FADE_MS)); // faded, as hover in the other charts is
+  paintUnderlines(el, st);
   settleMonthly(el, st, series);
 }
 
