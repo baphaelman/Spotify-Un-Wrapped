@@ -347,6 +347,37 @@ function setDim(dim) {
   brushMorph = null;
 }
 
+// The white behind a solid segmented control's chosen button (its ::before, style.css) slides to whichever
+// button is pressed now, also when the buttons themselves change (a view's own period lengths) and the chosen
+// one sits somewhere else. With none pressed it fades where it is; coming back, it fades in at its button
+// rather than sliding from where it faded.
+function segThumbs() {
+  for (const group of document.querySelectorAll(".segmented.solid")) {
+    let shown = false;
+    const place = () => {
+      const b = [...group.children].find((c) => c.getAttribute("aria-pressed") === "true" && !c.hidden);
+      if (!b || !b.offsetWidth) {
+        group.style.setProperty("--thumb-o", 0);
+        shown = false;
+        return;
+      }
+      if (!shown) {
+        group.classList.add("thumb-still");
+        void group.offsetWidth; // the jump lands before the slide comes back
+      }
+      group.style.setProperty("--thumb-x", `${b.offsetLeft}px`);
+      group.style.setProperty("--thumb-w", `${b.offsetWidth}px`);
+      group.style.setProperty("--thumb-o", 1);
+      if (!shown) requestAnimationFrame(() => group.classList.remove("thumb-still"));
+      shown = true;
+    };
+    new MutationObserver(place).observe(group, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["aria-pressed", "hidden"] });
+    new ResizeObserver(place).observe(group);
+    place();
+  }
+}
+segThumbs();
+
 $("view-tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (b) setDim(b.dataset.dim);
