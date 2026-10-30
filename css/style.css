@@ -401,7 +401,7 @@ button.ghost:hover { background: var(--border); }
 .tav-window .ticks span.on::before { background: var(--text-primary); }
 /* The selected notch stands out, and so does the one a glide is heading for (its number stays hidden until it arrives),
    so a click or drag answers at once: the old notch goes neutral and the new one lights before the thumb arrives */
-.tav-window .ticks span.on:not(.glide)::before, .tav-window .ticks span.target::before { width: 3px; height: 7px; margin-top: -3px; border-radius: 2px; background: var(--text-primary); }
+.tav-window .ticks span.on:not(.glide)::before, .tav-window .ticks span.target::before { width: 3px; height: 7px; margin: -1.5px 0 0.5px; border-radius: 2px; background: var(--text-primary); }
 .tav-window .ticks span.glide::before { background: transparent; } /* its notch stays with the tick */
 /* No vertical padding, so the browser centers the text in the box */
 .tav-smooth select { height: 24px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; line-height: 22px; }
