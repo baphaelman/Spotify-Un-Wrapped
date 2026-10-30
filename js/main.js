@@ -424,39 +424,51 @@ $("period-resize").addEventListener("click", (e) => {
   const look = RESIZE_LOOK[state.dim][b.dataset.len];
   const range = resized(state.range, b.dataset.len);
   const windowWas = $("window").value;
-  // The button's slice size and smoothing
-  const apply = () => {
-    if (!look) return;
-    $("window").value = WINDOWS.indexOf(look.window);
-    if (look.smooth !== undefined) {
-      state.smoothify = look.smooth;
-      $("smoothify").value = String(look.smooth);
-    }
-  };
   const sliceChanges = look && String(WINDOWS.indexOf(look.window)) !== windowWas;
   if (!sameRange(range, state.range)) {
     // The window frame and the chart travel to the new period together first, drawn at the old slice size,
-    // and the new artists morph in. Then the slice size sweeps (with its slider), when every artist has data
-    // across the period (swept earlier, the old artists would leave the new period's left edge empty).
-    if (!sliceChanges) {
-      apply();
-      return setRange(range);
-    }
+    // and the new artists morph in. Then the slice size and smoothing change (see retune), when every artist
+    // has data across the period (swept earlier, the old artists would leave the new period's left edge empty).
     const was = state.range;
     setRange(range);
+    if (!sliceChanges && !retunes(look)) return;
     const trip = panMs(was) + dur(MORPH_MS); // (panMs reads the new range as the destination)
     const mine = resizeRun;
-    return void setTimeout(() => {
-      if (mine !== resizeRun) return;
-      apply();
-      sweepWindow(true);
-    }, trip + 60);
+    return void setTimeout(() => mine === resizeRun && retune(look, windowWas), trip + 60);
   }
-  apply();
   // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
-  if ($("window").value !== windowWas) return sweepWindow(true);
-  renderRollingChart(currentZoom($("chart-rolling")), true);
+  retune(look, windowWas);
 });
+
+// TEMPORARY, to compare the two orders: ?order=smooth sweeps the smoothing before the days per slice
+const SMOOTH_FIRST = new URLSearchParams(location.search).get("order") === "smooth";
+const retunes = (look) => look?.smooth !== undefined && look.smooth !== state.smoothify;
+
+// A period button's slice size and smoothing, as two sweeps one after the other, so each is a plain change
+// of one thing: the slice size (slider and chart), then the smoothing (the select and the chart's blur)
+function retune(look, windowWas) {
+  if (!look) return;
+  const setSlice = () => ($("window").value = WINDOWS.indexOf(look.window));
+  const smoothly = retunes(look);
+  const setSmooth = () => {
+    const from = state.smoothify;
+    state.smoothify = look.smooth;
+    $("smoothify").value = String(look.smooth);
+    return from;
+  };
+  const slice = String(WINDOWS.indexOf(look.window)) !== windowWas;
+  const then = (p, next) => p.then((done) => done !== false && next());
+  const sliceSweep = () => {
+    setSlice();
+    return slice ? sweepWindow(true) : Promise.resolve(true);
+  };
+  const smoothSweep = () => sweepSmoothing(setSmooth());
+  if (!smoothly) {
+    sliceSweep();
+    if (!slice) renderRollingChart(currentZoom($("chart-rolling")), true);
+  } else if (SMOOTH_FIRST) then(smoothSweep(), sliceSweep);
+  else then(sliceSweep(), smoothSweep);
+}
 
 // A preset or a step: the chart and the window frame travel to the new period together (one clock: the frame
 // is placed from the chart's own pan, frame by frame), then the artists change
@@ -1212,12 +1224,9 @@ for (const btn of document.querySelectorAll("#rolling-mode button")) {
   });
 }
 
-$("smoothify").addEventListener("change", (e) => {
-  const from = state.smoothify;
-  state.smoothify = e.target.value === "auto" ? "auto" : Number(e.target.value);
-  if (state.smoothify === from) return;
-  // Sweep through every blur radius in between, rather than tweening each point straight from the old
-  // curve to the new, which would just crossfade them
+// Sweeps through every blur radius between the old strength and the current one (state.smoothify), rather than
+// tweening each point straight from the old curve to the new, which would just crossfade them
+function sweepSmoothing(from) {
   const days = WINDOWS[$("window").value];
   const zoom = currentZoom($("chart-rolling"));
   const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
@@ -1225,10 +1234,15 @@ $("smoothify").addEventListener("change", (e) => {
   const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
   // (a blur radius under half a day counts as half a day: "off" to a little is a small change)
   const total = scaledMs(s0, s1, MORPH_MS, undefined, 0.5);
-  sweep((t, ms) => {
+  return sweep((t, ms) => {
     const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
     renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
   }, total, sweepSteps(total));
+}
+$("smoothify").addEventListener("change", (e) => {
+  const from = state.smoothify;
+  state.smoothify = e.target.value === "auto" ? "auto" : Number(e.target.value);
+  if (state.smoothify !== from) sweepSmoothing(from);
 });
 
 // In auto, the smoothing follows the zoom: once the range settles, ease to the blur it now calls for
