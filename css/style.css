@@ -399,6 +399,7 @@ button.ghost:hover { background: var(--border); }
 .tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--text-muted); }
 .tav-window .ticks span.on { color: var(--text-primary); font-weight: 600; }
 .tav-window .ticks span.on::before { background: var(--text-primary); }
+.tav-window .ticks span.glide::before { background: transparent; } /* its notch stays with the tick */
 /* No vertical padding, so the browser centers the text in the box */
 .tav-smooth select { height: 24px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; line-height: 22px; }
 

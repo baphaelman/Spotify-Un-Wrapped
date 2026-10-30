@@ -152,7 +152,7 @@ export function setBrushBands(next, morph) {
     // The window is repositioned every frame as the timeline's left end moves, so it mustn't also ease
     $("brush-track").classList.add("morphing");
     const tick = (now) => {
-      const t = Math.min(1, (now - t0) / ms);
+      const t = Math.max(0, Math.min(1, (now - t0) / ms)); // a frame's timestamp can precede t0
       const ev = easeV(Math.min(1, t / split));
       const eh = twoStep ? easeH(Math.max(0, (t - split) / (1 - split))) : ev;
       applyBands(t === 1 ? next : blend(prev, next, ev, eh));
@@ -206,7 +206,7 @@ function blend(a, b, e, eh = e) {
       ...band,
       lo: mix(a.bands[k].lo, band.lo),
       hi: mix(a.bands[k].hi, band.hi),
-      color: a.bands[k].color === band.color ? band.color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
+      color: a.bands[k].color === band.color || e >= 1 ? band.color : e <= 0 ? a.bands[k].color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
       mix: lookMix(a.bands[k], band, e),
     })),
   };

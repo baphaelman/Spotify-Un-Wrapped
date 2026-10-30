@@ -1270,12 +1270,12 @@ function endGlide(to = WINDOWS[$("window").value]) {
   input.step = "1";
   input._glide = false;
   input.value = WINDOWS.indexOf(to);
-  // The glided label is the old tick's element: hand its place and text to the new tick without a cross-fade,
-  // or the old number flashes back to its own spot as the new one fades in
+  // The travelling number is a label of its own: the new tick takes it over without a cross-fade, or the
+  // number would flash as one fades out and the other in
   const ticks = input.closest(".slider").querySelector(".ticks");
   ticks.classList.add("settle");
+  ticks.querySelector(".glide")?.remove();
   paintSlider(input);
-  for (const tick of ticks.querySelectorAll("[data-v]")) tick.textContent = WINDOWS[tick.dataset.v];
   getComputedStyle(ticks.querySelector(".on") ?? ticks).color; // apply the change with transitions off
   ticks.classList.remove("settle");
 }
@@ -1289,19 +1289,26 @@ function glideWindow(from, to, ms) {
   };
   input._glide = true;
   input.step = "any";
-  const label = input.closest(".slider").querySelector(".ticks .on");
+  // The number travels as a label of its own, so every tick keeps its notch in place; the current tick hands
+  // its number over (not fading)
+  const ticks = input.closest(".slider").querySelector(".ticks");
+  const label = document.createElement("span");
+  label.className = "on glide";
+  ticks.classList.add("settle");
+  ticks.querySelector("[data-v].on")?.classList.remove("on");
+  ticks.append(label);
+  getComputedStyle(label).color;
+  ticks.classList.remove("settle");
   const t0 = performance.now();
   const tick = (now) => {
-    const t = Math.min(1, (now - t0) / ms);
+    const t = Math.max(0, Math.min(1, (now - t0) / ms));
     const e = t * t * (3 - 2 * t); // the sweep's own curve
     const w = from * (to / from) ** e;
     const at = place(w);
     input.value = at;
     input.style.setProperty("--p", at / (WINDOWS.length - 1));
-    if (label) {
-      label.style.setProperty("--p", at / (WINDOWS.length - 1));
-      label.textContent = Math.round(w);
-    }
+    label.style.setProperty("--p", at / (WINDOWS.length - 1));
+    label.textContent = Math.round(w);
     if (t < 1) glideRaf = requestAnimationFrame(tick);
     else endGlide(to);
   };
