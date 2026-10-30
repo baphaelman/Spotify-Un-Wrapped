@@ -15,13 +15,16 @@ export const $ = (id) => document.getElementById(id);
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: "track",
+  split: "track", genresPending: false,
 };
 
-// split: what the rolling chart splits each band into, "album" or "track" (songs, the default), or null for whole bands. The view
-// limits it: an artist splits into albums or songs, an album into songs, a track not at all.
+// split: what the rolling chart splits each band into, "album" or "track" (songs, the default), "artist", or null for whole
+// bands. The view limits it: an artist splits into albums or songs, an album into songs, a genre into its artists (whatever
+// was chosen elsewhere), a track not at all.
 export const splitKind = () =>
-  state.dim === "artist" ? state.split : state.dim === "album" && state.split === "track" ? "track" : null;
+  state.dim === "genre" ? (state.split ? "artist" : null)
+  : state.dim === "artist" ? (state.split === "artist" ? "track" : state.split)
+  : state.dim === "album" && state.split && state.split !== "album" ? "track" : null;
 
 // Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
 // `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period
@@ -30,8 +33,12 @@ const NOUN = {
   artist: { one: "artist", many: "artists", Many: "Artists", a: "an artist", who: "Who" },
   track: { one: "track", many: "tracks", Many: "Tracks", a: "a track", who: "What" },
   album: { one: "album", many: "albums", Many: "Albums", a: "an album", who: "What" },
+  genre: { one: "genre", many: "genres", Many: "Genres", a: "a genre", who: "What" },
 };
 export const noun = () => NOUN[state.dim];
+
+// The genres view's name for listening by artists with no genre (yet): kept out of the chart's own bands (see chartArtists)
+export const UNCLASSIFIED = "No genre";
 
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
 // are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go
@@ -41,6 +48,7 @@ export const RESIZES = {
   artist: ["3m", "6m", "1y", "2y"],
   track: ["30d", "3m", "6m", "1y"],
   album: ["3m", "6m", "1y", "2y"],
+  genre: ["3m", "6m", "1y", "2y"],
 };
 // What each period button also sets on the graphs: the days per slice, and the smoothing where it names one
 // (Off 0 … Max 4); left out, the smoothing stays as it is. A shorter period gets a finer slice.
@@ -48,7 +56,7 @@ export const RESIZE_LOOK = {
   artist: { "3m": { window: 15 }, "6m": { window: 30 }, "1y": { window: 45 }, "2y": { window: 75 } },
   track: { "30d": { window: 15 }, "3m": { window: 30 }, "6m": { window: 45, smooth: 1 }, "1y": { window: 45, smooth: 2 } },
 };
-RESIZE_LOOK.album = RESIZE_LOOK.artist;
+RESIZE_LOOK.album = RESIZE_LOOK.genre = RESIZE_LOOK.artist;
 
 // The days the history covers, as day indices
 export const extent = () => ({ lo: agg.dayIndex(state.plays[0].t), hi: agg.dayIndex(state.plays[state.plays.length - 1].t) });

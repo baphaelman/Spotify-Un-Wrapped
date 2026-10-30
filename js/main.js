@@ -9,7 +9,9 @@ import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
-import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
+import { genresOf, genresVersion, askGenres } from "./genres.js";
+import { artistFamilies } from "./families.js";
+import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks, UNCLASSIFIED } from "./state.js";
 import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
@@ -21,7 +23,7 @@ Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];
-const VIEW_NAMES = { artist: "Artists", album: "Albums", track: "Tracks" };
+const VIEW_NAMES = { artist: "Artists", album: "Albums", track: "Tracks", genre: "Genres" };
 
 // ---------- Loading ----------
 
@@ -220,7 +222,8 @@ const topIds = (ids) => [...ids].sort((a, b) => b[1] - a[1]).slice(0, PICTURE_TR
 
 function keyedPlays(dim) {
   const memo = keyedMemo.get(dim);
-  if (memo?.raw === state.raw) return memo;
+  if (memo?.raw === state.raw && memo.version === (dim === "genre" ? genresVersion : undefined)) return memo;
+  if (dim === "genre") return genrePlays();
   if (dim === "artist") {
     // An artist's photo is found through their most-played tracks
     const ids = new Map();
@@ -269,6 +272,60 @@ function keyedPlays(dim) {
   const out = { raw: state.raw, plays, owner, title, album, cover };
   keyedMemo.set(dim, out);
   return out;
+}
+
+// The genres view: each play goes to its artist's genre families (families.js), shared by their weight, so an
+// artist who is both rock and electronic counts a part of each play in each (`ms` times the weight, and the weight
+// in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by. Artists with no
+// genre (yet) go to UNCLASSIFIED. A genre's picture is its most-played artist's photo, from the artists view.
+function genrePlays() {
+  const families = new Map(); // artist -> [[family, weight], ...]
+  const top = new Map(); // family -> artist -> ms
+  const plays = [];
+  for (const p of state.raw) {
+    let fams = families.get(p.artist);
+    if (!fams) {
+      fams = artistFamilies(genresOf(p.artist) ?? []);
+      if (!fams.length) fams = [[UNCLASSIFIED, 1]];
+      families.set(p.artist, fams);
+    }
+    for (const [family, w] of fams) {
+      plays.push(w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w });
+      if (!top.has(family)) top.set(family, new Map());
+      const m = top.get(family);
+      m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms * w);
+    }
+  }
+  const artistCovers = keyedPlays("artist").cover;
+  const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get([...m].sort((a, b) => b[1] - a[1])[0][0])]));
+  const out = { raw: state.raw, version: genresVersion, plays, owner: null, title: null, album: null, cover };
+  keyedMemo.set("genre", out);
+  return out;
+}
+
+// Asks for the genres this device doesn't know yet, once the genres view is first opened, and redraws it as they
+// arrive: at most every REGENRE_MS, so the bands morph in steps rather than twitching with each answer
+const REGENRE_MS = 3000;
+let regenreTimer = 0;
+let genresAsked = null; // the plays asked about
+function startGenres() {
+  if (genresAsked === state.raw) return;
+  genresAsked = state.raw;
+  state.genresPending = true;
+  askGenres(state.raw, () => {
+    if (regenreTimer) return;
+    regenreTimer = setTimeout(regenre, REGENRE_MS);
+  }).finally(() => {
+    state.genresPending = false;
+    if (!regenreTimer) regenre();
+  });
+}
+function regenre() {
+  regenreTimer = 0;
+  if (state.dim !== "genre" || !state.raw) return;
+  applyDim();
+  renderDependents();
+  renderRollingChart(periodZoom(), true);
 }
 
 // Puts the view's plays and words in place (the graphs are drawn by the caller)
@@ -330,6 +387,7 @@ function setDim(dim, find = null, slot) {
   // old view's names over the new plays first
   clearMixArgs();
   syncPeriod(); // the period buttons are the view's own
+  if (dim === "genre") startGenres();
   renderDependents();
   setBrushMorph({ ms: MORPH_MS });
   renderRollingChart(periodZoom(), true);
@@ -371,10 +429,11 @@ segThumbs();
 // Names there are told apart by their artist; an album's songs belong to the album's artist. It takes its
 // band's color, so the eye can follow it through the morph.
 function openPart(artist, kind, name) {
-  const by = state.dim === "artist" ? artist : state.owner.get(artist);
+  const by = state.dim === "artist" ? artist : state.owner?.get(artist);
   const slot = state.colorSlots.get(artist);
   const from = state.dim;
-  setDim(kind, () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
+  // (a genre's artist is called by their own name in the artists view)
+  setDim(kind, kind === "artist" ? () => name : () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
   if (state.dim !== from) setBack([...viewTrail, from]);
 }
 

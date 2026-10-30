@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, ho
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
+import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, UNCLASSIFIED } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -27,7 +27,19 @@ export function clampZoom(zoom, dates) {
 export function rollingSub(n, target, includeOther) {
   return `Share of listening time, ${target}-day rolling window` +
     (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`) +
-    (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
+    (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`) +
+    (state.dim === "genre" ? unclassifiedNote() : "");
+}
+
+// How much of the period's listening has no genre (yet), said plainly rather than left out silently
+function unclassifiedNote() {
+  let all = 0, none = 0;
+  for (const p of rangePlays()) {
+    all += p.ms;
+    if (p.artist === UNCLASSIFIED) none += p.ms;
+  }
+  const pct = all ? Math.round((100 * none) / all) : 0;
+  return pct ? `. ${pct}% of the listening has no genre${state.genresPending ? " yet" : ""}` : "";
 }
 
 // Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
@@ -271,7 +283,8 @@ function assignSlots(artists) {
 // the stack in the next colors, so the artists already shown keep theirs. They push out the
 // lowest-ranked unpinned artists, keeping n artists (or as many as are pinned, if that's more).
 export function chartArtists(plays, n) {
-  const top = agg.topArtists(plays, n).map((a) => a.name);
+  // Genres not known yet aren't one of them: they go with everyone else
+  const top = agg.topArtists(plays, n + 1).map((a) => a.name).filter((a) => a !== UNCLASSIFIED).slice(0, n);
   const extra = state.pinned.filter((a) => !top.includes(a));
   const keep = Math.max(n, state.pinned.length) - extra.length;
   for (let i = top.length - 1; top.length > keep && i >= 0; i--) {
@@ -280,11 +293,15 @@ export function chartArtists(plays, n) {
   return [...top, ...extra];
 }
 
-// Whole bands, or each split into its albums or songs. The buttons on offer follow the view (see splitKind).
+// Whole bands, or each split into its albums or songs (a genre's into its artists). The buttons on offer follow the
+// view (see splitKind).
 export function syncSplit() {
   const group = $("rolling-split");
+  const genre = state.dim === "genre";
   group.hidden = state.dim === "track";
   group.querySelector('[data-split="album"]').hidden = state.dim !== "artist" || !state.raw?.some((p) => p.album);
+  group.querySelector('[data-split="track"]').hidden = genre;
+  group.querySelector('[data-split="artist"]').hidden = !genre;
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
 }

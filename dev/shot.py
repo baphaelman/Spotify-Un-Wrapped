@@ -6,6 +6,7 @@
 #   FRAMES="hours,share"  click each mode and save frame_<mode>_<k>.png mid-morph (cwd)
 #   HOVER_SEL="css selector"  hover the element's center   HOVER="x,y"  hover a page point
 #   EVAL="js expression"  evaluate (promises awaited) and print the value
+# OFFLINE=1 cuts the page off from Supabase: no picture lookups (each costs Spotify calls), genres or community
 # The browser profile persists in dev/site/.profile (IndexedDB = remembered data); delete it for a
 # clean first visit. Add ?v=$RANDOM to URLs, or the profile's cache serves stale pages.
 # Needs: pip3 install websocket-client
@@ -25,7 +26,9 @@ with socket.socket() as s:
 B = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 proc = subprocess.Popen([B, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--remote-debugging-port={PORT}", "--remote-allow-origins=*",
                          f"--user-data-dir={PROFILE}",
-                         f"--window-size={w},{h}", "about:blank"], stderr=subprocess.DEVNULL)
+                         f"--window-size={w},{h}", "about:blank"]
+                        + (["--host-resolver-rules=MAP qvsoxqeuvpnryitechsf.supabase.co ~NOTFOUND"] if os.environ.get("OFFLINE") else []),
+                        stderr=subprocess.DEVNULL)
 try:
     for _ in range(50):
         try:

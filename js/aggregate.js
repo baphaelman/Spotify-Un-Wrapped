@@ -40,7 +40,7 @@ function sumBy(plays, keyFn) {
     const k = keyFn(p);
     const e = m.get(k) || { hours: 0, plays: 0 };
     e.hours += p.ms / HOUR;
-    e.plays += 1;
+    e.plays += p.w ?? 1; // a genre view's play shared across genres counts its share
     m.set(k, e);
   }
   return m;
@@ -53,8 +53,9 @@ export function topArtists(plays, n) {
     .slice(0, n);
 }
 
-// The parts an item's band splits into (see topParts): its albums, or its songs
-export const partOf = (kind) => (kind === "album" ? (p) => p.album || "Unknown album" : (p) => p.track);
+// The parts an item's band splits into (see topParts): its albums, its songs, or (a genre's) its artists
+export const partOf = (kind) =>
+  kind === "album" ? (p) => p.album || "Unknown album" : kind === "artist" ? (p) => p.by ?? p.artist : (p) => p.track;
 const PART_OF_ITEM = 0.05; // of the item's own hours
 const PART_OF_ALL = 0.0015; // of all the listening in the plays
 export const MAX_PARTS = 4;

@@ -4,8 +4,8 @@
 # Then serve it:  cd dev/site && python3 -m http.server 8765
 #   test.html  loads the data, then runs the hash actions below, then sets document.title = "DONE"
 #              #community  open Community · #preview  open the share preview
-#              #tracks / #albums  the Tracks or Albums view
-#              #split-album / #split-track  split the rolling chart's bands into albums or songs
+#              #tracks / #albums / #genres  the Tracks, Albums or Genres view
+#              #split-album / #split-track / #split-artist  split the rolling chart's bands into albums or songs
 #              #m18  18 monthly bars · #n10  10 artists · #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-albums)
 #   plain.html reopens data remembered from an earlier test.html visit; title "DONE <ms>" once shown
 import json, os, subprocess, sys
@@ -42,11 +42,13 @@ const setArtists = (n) => { q("n-artists").value = n; q("n-artists").dispatchEve
 if (h.includes("five")) { q("include-other").checked = true; setArtists(5); await sleep(600); }
 if (h.includes("n5")) { setArtists(5); await sleep(600); }
 if (h.includes("tracks")) { document.querySelector('#view-tabs [data-dim="track"]').click(); await sleep(1500); }
+if (h.includes("genres")) { document.querySelector('#view-tabs [data-dim="genre"]').click(); await sleep(1500); }
 if (h.includes("albums")) { document.querySelector('#view-tabs [data-dim="album"]').click(); await sleep(1500); }
 // 18 monthly bars, the most the chart draws (a 17-month window touches 18 calendar months), through a length button made for it
 if (h.includes("m18")) { const b = document.createElement("button"); b.dataset.len = "17m"; b.hidden = true; q("period-resize").append(b); b.click(); b.remove(); await sleep(1500); }
 if (h.includes("n10")) { setArtists(10); await sleep(600); }
 if (h.includes("split-album")) { document.querySelector('#rolling-split [data-split="album"]').click(); await sleep(2000); }
+if (h.includes("split-artist")) { document.querySelector('#rolling-split [data-split="artist"]').click(); await sleep(2000); }
 if (h.includes("split-track")) { document.querySelector('#rolling-split [data-split="track"]').click(); await sleep(2000); }
 if (h.includes("community")) { q("tab-community").click(); await sleep(2500); }
 if (h.includes("preview")) q("share-preview").click();
@@ -60,6 +62,17 @@ const iv = setInterval(() => {
 }, 50);
 setTimeout(() => { if (!document.title.startsWith("DONE")) document.title = "DONE never"; }, 20000);
 </script>"""
+
+# Genres found by dev/genre_coverage.py, put where js/genres.js keeps its answers, so the Genres view works before
+# (or without) the genres function. Answers the page already has are kept.
+cache = ROOT / "dev" / "genre_cache.json"
+seed = ""
+if cache.exists():
+    known = {a: e["genres"] for a, e in json.loads(cache.read_text()).items() if e.get("mbid") or e.get("genres")}
+    seed = """<script>
+try { const k = "unwrapped-genres"; localStorage.setItem(k, JSON.stringify({ ...%s, ...JSON.parse(localStorage.getItem(k) ?? "{}") })); } catch {}
+</script>""" % json.dumps(known, ensure_ascii=False).replace("</", "<\\/")
+    html = html.replace("<head>", "<head>" + seed, 1)
 
 (SITE / "test.html").write_text(html.replace("</body>", test_hook + "</body>"))
 (SITE / "plain.html").write_text(html.replace("</body>", plain_hook + "</body>"))
