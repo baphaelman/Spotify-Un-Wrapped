@@ -5,14 +5,23 @@
 import { dur, FADE_MS } from "./motion.js";
 import { $, noun } from "./state.js";
 
-// The panel hangs under the period bar, so it covers as little as possible of the controls it points at
+// The panel hangs under the period bar, so it covers as little as possible of the controls it points at, and
+// stays there as the page scrolls (the bar sticks to the top). Without the bar it hangs from its button.
+// Fixed to the window, so it's placed again on every scroll and resize while it's open
 export function placeControls() {
   const panel = $("controls-panel");
+  if (panel.hidden) return;
   const bar = document.querySelector(".period-bar");
-  const top = bar && !$("dashboard").hidden ? bar.getBoundingClientRect().bottom - panel.offsetParent.getBoundingClientRect().top + 8 : 0;
-  panel.style.top = top > 0 ? `${top}px` : "";
-  panel.style.maxHeight = `calc(100vh - ${Math.max(0, panel.getBoundingClientRect().top) + 16}px)`;
+  const button = $("controls-button").getBoundingClientRect();
+  const top = (bar && !$("dashboard").hidden ? bar.getBoundingClientRect().bottom : button.bottom) + 8;
+  panel.style.top = `${top}px`;
+  panel.style.right = `${document.documentElement.clientWidth - button.right}px`;
+  panel.style.maxHeight = `calc(100vh - ${top + 16}px)`;
 }
+let placing = 0;
+const replace = () => (placing ||= requestAnimationFrame(() => ((placing = 0), placeControls())));
+addEventListener("scroll", replace, { passive: true });
+addEventListener("resize", replace);
 
 // Copies of a segmented control's buttons, with their pressed state; a click on one clicks the real one
 function mirrorSegments(copy, real) {
@@ -32,7 +41,8 @@ function mirrorSegments(copy, real) {
 export function syncGuide() {
   mirrorSegments($("g-views"), $("view-tabs"));
   mirrorSegments($("g-lengths"), $("period-resize"));
-  $("g-year").textContent = $("year-label").textContent;
+  // A date is shortened ("Jul 14, 2025" to "Jul 14 '25") so the row never wraps
+  $("g-year").textContent = $("year-label").textContent.replace(/,? \d\d(\d\d)$/, " '$1");
   $("g-search-text").textContent = $("artist-search").placeholder;
   $("g-palette").style.backgroundImage = $("palette-button").style.backgroundImage;
   // The theme icon, with its own mask id (the page's styles turn it with the theme, as they turn the real one)

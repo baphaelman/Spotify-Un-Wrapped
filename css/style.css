@@ -875,8 +875,9 @@ dialog pre {
 #controls-button[aria-expanded="true"] .k1 { transform: translateX(-5px); }
 #controls-button[aria-expanded="true"] .k2 { transform: translateX(5px); }
 #controls-button[aria-expanded="true"] .k3 { transform: translateX(-5px); }
+/* Fixed to the window and placed by guide.js placeControls: under the period bar, following it as it sticks */
 .controls-panel {
-  position: absolute;
+  position: fixed;
   top: calc(100% + 6px);
   right: 0;
   z-index: 20;
@@ -907,6 +908,7 @@ dialog pre {
 .guide-row b { margin-right: 4px; font-weight: 600; color: var(--text-primary); }
 .guide-row em { font-style: normal; color: var(--text-primary); }
 .guide-pic { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+.g-presets { flex-wrap: nowrap; white-space: nowrap; }
 .g-seg button { padding: 2px 7px; font-size: 11px; border-radius: 5px; }
 .g-period { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--text-primary); }
 .g-step { padding: 1px 5px; border-radius: 4px; color: var(--text-secondary); cursor: pointer; transition: background var(--motion-fade) var(--ease-out); }
