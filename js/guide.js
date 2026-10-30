@@ -41,8 +41,8 @@ function mirrorSegments(copy, real) {
 export function syncGuide() {
   mirrorSegments($("g-views"), $("view-tabs"));
   mirrorSegments($("g-lengths"), $("period-resize"));
-  // A date is shortened ("Jul 14, 2025" to "Jul 14 '25") so the row never wraps
-  $("g-year").textContent = $("year-label").textContent.replace(/,? \d\d(\d\d)$/, " '$1");
+  // A date drops its year ("Jul 14, 2025" to "Jul 14") so the row never wraps
+  $("g-year").textContent = $("year-label").textContent.replace(/(\d),? \d{4}$/, "$1");
   $("g-search-text").textContent = $("artist-search").placeholder;
   $("g-palette").style.backgroundImage = $("palette-button").style.backgroundImage;
   // The theme icon, with its own mask id (the page's styles turn it with the theme, as they turn the real one)
@@ -117,12 +117,13 @@ for (const row of document.querySelectorAll(".guide-row")) {
 }
 addEventListener("scroll", ringOff, { passive: true });
 
-// The guide opens and closes by growing, from a row in the panel
-$("guide-toggle").addEventListener("click", () => {
-  const open = $("guide-toggle").getAttribute("aria-expanded") !== "true";
+// The guide opens and closes by growing, from a row in the panel. Closing the panel, in any way, folds it
+// away too, so the panel opens next time without it
+export function showGuide(open) {
   $("guide-toggle").setAttribute("aria-expanded", open);
   $("guide").classList.toggle("open", open);
   $("guide").inert = !open;
   if (open) syncGuide();
   else ringOff();
-});
+}
+$("guide-toggle").addEventListener("click", () => showGuide($("guide-toggle").getAttribute("aria-expanded") !== "true"));
