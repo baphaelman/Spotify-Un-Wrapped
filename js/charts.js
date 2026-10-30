@@ -1233,11 +1233,12 @@ function paintUnderlines(el, st, still = false) {
   paintCaptionMarks(el, st);
 }
 
-// Behind the captions, a mark for the artist a click would pin or unpin (the one the pointer picks, or one hovered
-// elsewhere on the page) and for the pinned ones. Neighbouring marks of one artist join into one, as the lines do.
-// They're elements over the chart, so CSS fades them. Trial: ?pinlook=shade|outline|chip|column picks the look
-// (.month-caps[data-look] in the stylesheet); shade by default.
-const PIN_LOOKS = ["shade", "outline", "chip", "column"];
+// Behind the captions, a mark for the pinned artists and the one a click would pin or unpin (the one the pointer
+// picks, or one hovered elsewhere on the page), the same for both, so pinning keeps what hovering showed. Neighbouring
+// marks join into one, as the lines do, rounded only at its two ends. They're elements over the chart, so CSS fades
+// them. Trial: ?pinlook= picks the look (.month-caps[data-look] in the stylesheet); shade by default. Every look but
+// shade reaches over the line, so it spans the line's whole column; shade is inset at its ends, like the bars.
+const PIN_LOOKS = ["shade", "shade-tall", "outline", "outline-tall", "chip", "chip-tall", "column"];
 function paintCaptionMarks(el, st) {
   const c = instances.get(el);
   let layer = el.querySelector(".month-caps");
@@ -1247,14 +1248,15 @@ function paintCaptionMarks(el, st) {
     Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 1 });
     el.appendChild(layer);
   }
-  const look = new URLSearchParams(location.search).get("pinlook");
-  layer.dataset.look = PIN_LOOKS.includes(look) ? look : "shade";
+  const asked = new URLSearchParams(location.search).get("pinlook");
+  const look = PIN_LOOKS.includes(asked) ? asked : "shade";
+  layer.dataset.look = look;
   const { rows, grid, off } = st;
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
-  // The caption row, and the whole column from it down to the axis
-  layer.style.setProperty("--cap-top", `${grid.top - 25}px`);
-  layer.style.setProperty("--cap-h", "17px");
-  layer.style.setProperty("--col-h", `${el.clientHeight - grid.bottom - grid.top + 25}px`);
+  const inset = look === "shade" ? 3 : 0;
+  // The top of the plot (the line sits just above it), and the axis
+  layer.style.setProperty("--gt", `${grid.top}px`);
+  layer.style.setProperty("--axis", `${el.clientHeight - grid.bottom}px`);
   const focus = st.picked ?? st.hovered;
   const pinned = (n) => n != null && !!st.pins?.has(n) && !off.has(n);
   const mark = rows.map((r) => {
@@ -1266,14 +1268,12 @@ function paintCaptionMarks(el, st) {
   mark.forEach((n, i) => {
     const d = layer.children[i];
     d.classList.toggle("on", n != null);
-    d.classList.toggle("pin", pinned(n));
-    d.classList.toggle("hover", n != null && n === focus);
     if (n == null) return; // fades out where it was, in its color
-    const jl = mark[i - 1] === n, jr = mark[i + 1] === n;
+    const jl = mark[i - 1] != null, jr = mark[i + 1] != null;
     d.classList.toggle("jl", jl);
     d.classList.toggle("jr", jr);
     const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
-    const l = mid - slot / 2 + (jl ? 0 : 3), r = mid + slot / 2 - (jr ? 0 : 3);
+    const l = mid - slot / 2 + (jl ? 0 : inset), r = mid + slot / 2 - (jr ? 0 : inset);
     Object.assign(d.style, { left: `${l}px`, width: `${r - l}px` });
     d.style.setProperty("--c", st.colorOf(n));
   });
