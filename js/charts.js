@@ -962,11 +962,12 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           encode: { x: [0, 1] },
           ...looks[2 * names.length + 2],
           renderItem: (params, api) => {
-            const [i0, i1, roundL, roundR, h] = [0, 1, 2, 3, 4].map((d) => api.value(d));
+            const [i0, i1, endL, endR, h] = [0, 1, 2, 3, 4].map((d) => api.value(d));
+            const [roundL, roundR] = [endL, endR].map((e) => +(e > 0));
             const slot = api.size([1, 0])[0];
             const barW = slot * 0.7; // barCategoryGap 30%
-            const x0 = api.coord([i0, 0])[0] - (roundL ? barW : slot) / 2;
-            const x1 = api.coord([i1, 0])[0] + (roundR ? barW : slot) / 2;
+            const x0 = api.coord([i0, 0])[0] - (endL === 1 ? barW : slot) / 2;
+            const x1 = api.coord([i1, 0])[0] + (endR === 1 ? barW : slot) / 2;
             const r = h / 2;
             return {
               type: "rect",
@@ -1160,7 +1161,9 @@ function monthlySeries(st) {
 // Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right:
 // thicker when they're lit, and dimmed while someone else is. Neighbouring lines join into one strip, meeting
 // halfway between the bars and rounded only at its two ends, and a run of months with the same artist is one
-// piece: [first month, last month, rounded left, rounded right, thickness]
+// piece: [first month, last month, left end, right end, thickness]. An end is 0 where it joins its neighbour,
+// 1 at the bar's edge, or 2 halfway into the gap beyond it: a strip that reaches across a gap reaches out as far
+// at both ends, so it sits evenly over its bars.
 function underlines(st, tops, lit) {
   const data = [];
   if (st.underline)
@@ -1175,6 +1178,11 @@ function underlines(st, tops, lit) {
       const color = on || !lit.size ? st.colorOf(n) : mix(st.t.surface, st.colorOf(n), 0.35);
       data.push({ name: n, value: [i, i, joins ? 0 : 1, 1, on ? 3.5 : 2], itemStyle: { color } });
     });
+  let first = null;
+  for (const d of data) {
+    if (d.value[2]) first = d;
+    if (d.value[3] && first.value[0] !== d.value[1]) first.value[2] = d.value[3] = 2;
+  }
   return { id: "underlines", data };
 }
 
