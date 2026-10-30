@@ -271,7 +271,8 @@ const SMOOTHIFY_SIGMA = [0, 0.05, 0.12, 0.275, 0.55]; // x the window, per stren
 // "auto" scales the blur with how much time is on screen instead: none at a year or less, the high strength
 // from three years out, and twice that (the max strength) from six years out, in between on a log scale.
 // Returns 0..2, in units of the high strength.
-const AUTO_SPAN = [[365, 0], [1095, 1], [2190, 2]]; // [visible days, how much of the high strength]
+// [visible days, how much of the high strength]: none up to a year, low at two, high at three, max at six
+const AUTO_SPAN = [[365, 0], [730, 0.25], [1095, 1], [2190, 2]];
 // Tracks come and go faster, so their auto smoothing starts sooner: none up to three months, high at a year
 export const TRACK_AUTO_SPAN = [[92, 0], [365, 1], [730, 2]];
 function interpLog(points, x) {

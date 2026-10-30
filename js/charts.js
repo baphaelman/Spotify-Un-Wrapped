@@ -869,10 +869,11 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // last: each series' values on screen (see settleMonthly)
   const st = { names, rows, span, other, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
-  // Caption styles: a dot in the top artist's color (gray if they're not in the chart), then the name
-  const rich = { n: { color: t.secondary, fontSize: 11, align: "center" }, o: { color: t.other, fontSize: 9, align: "center" } };
-  slots.forEach((s) => (rich[`s${s}`] = { color: t.series[s], fontSize: 9, align: "center" }));
-  const plain = (s) => String(s).replace(/[{}|]/g, " "); // rich text reads these as markup
+  // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
+  // ?capbar to the URL to put each one just above its bar instead)
+  const atTop = !location.search.includes("capbar");
+  const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
+  const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -909,14 +910,26 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           return head + [...top, ...extra].map((a) => row(colorOf(a.name), pct(a.hours), a.name, lit.has(a.name))).join("");
         },
       },
-      xAxis: {
-        type: "category",
-        data: rows.map(tick),
-        ...baseAxis(t),
-        axisLabel: { color: t.muted, interval: 0 },
-        axisPointer: { triggerEmphasis: false },
-        splitLine: { show: false },
-      },
+      xAxis: [
+        {
+          type: "category",
+          data: rows.map(tick),
+          ...baseAxis(t),
+          axisLabel: { color: t.muted, interval: 0 },
+          axisPointer: { triggerEmphasis: false },
+          splitLine: { show: false },
+        },
+        {
+          type: "category",
+          position: "top",
+          data: rows.map(captionOf),
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisPointer: { show: false },
+          axisLabel: { show: caption && atTop, interval: 0, margin: 6, ...captionStyle },
+        },
+      ],
       yAxis: {
         type: "value",
         ...baseAxis(t),
@@ -932,18 +945,12 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           ...bar,
           // Topmost, so it carries the caption (from a zero-height bar when the top artist is in the chart)
           label: {
-            show: caption,
+            show: caption && !atTop,
             position: "top",
             distance: 6,
-            width: slotW - 6,
-            overflow: "truncate",
             align: "center",
-            rich,
-            formatter: (p) => {
-              const top = barView(st, rows[p.dataIndex]).top[0];
-              if (!top) return "";
-              return `{${slotOf.has(top.name) ? `s${slotOf.get(top.name)}` : "o"}|●} {n|${plain(top.name)}}`;
-            },
+            ...captionStyle,
+            formatter: (p) => captionOf(rows[p.dataIndex]),
           },
         },
       ],

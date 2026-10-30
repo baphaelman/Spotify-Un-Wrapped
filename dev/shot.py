@@ -49,6 +49,9 @@ try:
             if m.get("id") == n[0]:
                 return m.get("result")
     call("Runtime.enable")
+    # ?v= only refreshes the page itself; its modules would still come from the profile's cache
+    call("Network.enable")
+    call("Network.setCacheDisabled", cacheDisabled=True)
     call("Emulation.setDeviceMetricsOverride", width=w, height=h, deviceScaleFactor=1, mobile=False)
     call("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": "dark" if dark else "light"}])
     call("Page.navigate", url=url)
