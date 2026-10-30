@@ -17,7 +17,7 @@ a stale cached stylesheet or script. The files in git stay unstamped.)
   them (`esc`) in tooltip HTML.
 - **Colors live as CSS tokens in `css/style.css`** (`--series-1..10`, `--seq-*`, surfaces, inks), with
   light and dark blocks. `charts.js` reads them via `tokens()`. A user-chosen palette (`PALETTES` in
-  `main.js`, stored in localStorage) overrides `--series-*` on `<body>`.
+  `theme.js`, stored in localStorage) overrides `--series-*` on `<body>`.
 - **Commit when a change seems to work, before handing back to the owner.** You don't need to ask
   first. Small commits with clear messages, so any change can be undone. **Don't push unless asked:**
   pushing `main` deploys the live site.
@@ -93,16 +93,40 @@ it as a normal change.
   segment per artist and animates `left`/`width` itself, so a period change slides the
   artists that stay, grows newcomers and collapses leavers. Top lists and stat tiles keep rows/tiles
   matched across renders the same way (`lists.js`).
-- `js/main.js`: tabs, the sticky period bar (opens on the most recent year), sliders, palette menu,
-  sharing, theme. **The period is `state.range`, `{lo, hi}` day indices (inclusive), not a year.** The
-  dropdown's years and "All time" are presets that set it (`presetRange`); anything else the brush picks
-  shows as "Custom". Every graph, list and stat reads `rangePlays()` / `state.range`.
+- `js/main.js`: the entry point. Loading and forgetting data, the Your stats/Community tabs, the settings
+  menu, sharing, the Artists/Tracks/Albums switch (`keyedPlays`, `applyDim`, `setDim`), the segmented
+  controls' sliding thumb (`segThumbs`), and the orchestration every change goes through: `renderAll` (the
+  rolling chart and everything after it) and `renderDependents` (what follows the key's selection), plus
+  the chart's focus and selection wiring. It opens on the most recent year.
+- `js/state.js`: the `state` object and the small readers every module shares: `$`, `noun()` and the
+  per-view constants (`RESIZES`, `RESIZE_LOOK`, `START_WINDOW`), `extent`, `presetRange`, `presetOf`,
+  `presetLabel`, `rangePlays`, `shownPlays`. **The period is `state.range`, `{lo, hi}` day indices
+  (inclusive), not a year.** The dropdown's years and "All time" are presets that set it (`presetRange`);
+  anything else the brush picks shows as "Custom". Every graph, list and stat reads `rangePlays()` /
+  `state.range`. It also holds `hooks`, which `main.js` fills at startup (`renderAll`, `renderDependents`,
+  `paintArtistKey`), so the modules below can call back up without importing `main.js`. **Keep imports
+  one-way,** in this order: `state.js`, then `theme.js` and `rollingview.js`, then `key.js`, then
+  `period.js`, then `main.js`. Each imports only from modules before it; a call the other way goes through
+  `hooks` (no import cycles).
+- `js/period.js`: the sticky bar's period controls: `syncPeriod`, `setRange`/`settleRange` (a preset or
+  step: pan, then morph), `stepPeriod` (the ‹ › steps), the length buttons (`resized`, `retune`), the year
+  menu, `panMs`, and the brush's live dragging (`liveRender`, `liveSettle`).
+- `js/rollingview.js`: the page's side of the rolling chart (`renderRolling` itself is in `charts.js`):
+  `renderRollingChart`, `chartArtists`, `assignSlots`, `pin`/`unpin`, the days-per-slice and smoothing
+  sweeps (`sweepWindow`, `sweepSmoothing`, `glideWindow`), the Share/Hours buttons, and the graphs that follow
+  the chart's artists: the bar's timeline (`paintBrush`), the mix bar (`renderMix`), monthly hours and the
+  clock. Its `brushMorph`, `brushFocus` and `mixArgs` are read live by other modules but only assigned here
+  (other modules use `setBrushMorph`, `setBrushFocus`, `clearMixArgs`).
+- `js/key.js`: the period bar's artist key (`paintArtistKey`, `markLooks`, `paintFocus`) and the artist
+  search that pins.
+- `js/theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark toggle (`flipTheme`) and
+  `rerenderForTheme`.
 - `js/brush.js`: the sticky bar's timeline (the rolling chart's stack graph in miniature over the whole
-  history, drawn by `paintBrush` in `main.js` from the same data, artists and colors, with pinned or hovered
+  history, drawn by `paintBrush` in `rollingview.js` from the same data, artists and colors, with pinned or hovered
   artists lit and the rest dimmed; and a draggable window and edges). The 3m/6m/1y buttons rescale the
   window with its right edge fixed (`resized`). The timeline starts where the chart's data does for the artists shown (`start` in `setBrushBands`), so a smaller
   window can cut off more of the empty left; it only moves between drags. The window can still reach the real first day: dragging the left edge to the end snaps to it. It owns no state beyond the window: it reports a range through `setupBrush`'s callback and is
-  moved by `setBrushRange`. Drags go through `liveRender` in `main.js`, which slides the rolling chart's
+  moved by `setBrushRange`. Drags go through `liveRender` in `period.js`, which slides the rolling chart's
   range every frame (`setZoom`) but redraws artists, lists, stats and the mix bar at most every ~90 ms, or
   3x the last redraw's cost, so dragging stays smooth.
 - `js/lists.js`: ranked lists and stat tiles.
@@ -228,7 +252,7 @@ week), and switching between them morphs.
   "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
-- **Colors follow the artist, not the stack position.** `assignSlots` in `main.js` gives each artist a
+- **Colors follow the artist, not the stack position.** `assignSlots` in `rollingview.js` gives each artist a
   palette slot, remembers it in `state.colorSlots`, and passes the slots to `renderRolling` (`slots`).
   Pinned artists are placed first, so they keep their color for as long as they're pinned. Stack order is
   still rank, so don't use the series index as a color index.
@@ -259,7 +283,7 @@ week), and switching between them morphs.
   **x-axis's** `axisPointer` (setting it on the tooltip alone does nothing), or every hover puts every
   shape into the highlight state.
 - **The legend is HTML, and there's one for the whole page:** the artist key in the sticky period bar
-  (`paintArtistKey` in `main.js`), beside the search that pins, and the Artists slider on the bar's first row.
+  (`paintArtistKey` in `key.js`), beside the search that pins, and the Artists slider on the bar's first row.
   Its last chip, "Everyone else", flips the hidden `#include-other` checkbox. No graph has a key of its own. The ECharts legend is hidden and only holds which
   artists are shown. Hover calls `focusArtist`; a box click goes through `toggleArtist`/`showArtists`, which
   dispatch `legendToggleSelect` and re-stack the bands as a morph. Repaint the key wherever the chart's
