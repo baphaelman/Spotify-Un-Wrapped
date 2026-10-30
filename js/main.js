@@ -63,15 +63,15 @@ async function open(plays) {
   warmCovers();
 }
 
-// While the page is idle, look up the covers each year's and all time's top tracks and albums show, so the
-// presets have theirs on first click; a window the reader picks fetches only what it lacks (mix.js)
+// While the page is idle, look up the pictures each year's and all time's top artists, albums and tracks show,
+// so the presets have theirs on first click; a window the reader picks fetches only what it lacks (mix.js)
 function warmCovers() {
   const raw = state.raw;
   if (!raw.some((p) => p.id)) return;
   const idle = window.requestIdleCallback ?? ((f) => setTimeout(f, 1500));
   idle(() => {
     if (state.raw !== raw) return;
-    for (const dim of ["album", "track"]) {
+    for (const dim of ["artist", "album", "track"]) {
       const { plays, cover } = keyedPlays(dim);
       for (const o of $("year-filter").options) {
         const r = presetRange(o.value);
@@ -263,9 +263,16 @@ const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
 function keyedPlays(dim) {
-  if (dim === "artist") return { plays: state.raw, owner: null, title: null, album: null, cover: null };
   const memo = keyedMemo.get(dim);
   if (memo?.raw === state.raw) return memo;
+  if (dim === "artist") {
+    // An artist's photo is found through any track of theirs (covers.js)
+    const cover = new Map();
+    for (const p of state.raw) if (p.id && !cover.has(p.artist)) cover.set(p.artist, `artist:${p.id}`);
+    const out = { raw: state.raw, plays: state.raw, owner: null, title: null, album: null, cover };
+    keyedMemo.set(dim, out);
+    return out;
+  }
   const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
   const artistsOf = new Map();
   for (const p of state.raw) {

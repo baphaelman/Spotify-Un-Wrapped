@@ -920,6 +920,8 @@ dialog pre {
   display: block; width: 40px; height: 40px; border-radius: 4px; overflow: hidden;
   background: color-mix(in srgb, var(--c) 22%, var(--surface));
 }
+.mix-list.portraits .art { border-radius: 50%; }
+.mix-list.portraits .who { align-self: center; padding-top: 0; } /* an artist is one line, so it sits level with the photo */
 .mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .mix-list .art img.shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .art img { transition: none; } }

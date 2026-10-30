@@ -109,6 +109,11 @@ it as a normal change.
 - `js/store.js`: the parsed plays persist in IndexedDB, so return visits skip the upload. "Forget my
   data" clears them.
 - `js/summary.js`, `js/api.js`, `js/config.js`, `js/community.js`: the community pool.
+- `js/covers.js`: pictures in the listening mix's key, looked up by track ID (parse keeps `id` from the
+  extended export). Album covers come from Spotify's oEmbed; artist photos from the edge function
+  `supabase/functions/artist-image` (Spotify Web API, client credentials in the function's secrets
+  `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, deployed with JWT verification off). Answers are cached in
+  localStorage. Headless Brave gets 429s from oEmbed, so check covers in a real browser.
 - `supabase/schema.sql`: the pool's tables and functions. Paste into the Supabase SQL editor to apply
   changes; it's safe to re-run.
 - `dev/`: test tools (see Testing).

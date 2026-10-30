@@ -161,6 +161,7 @@ export function updateMix(next) {
 
   const list = $("mix-list");
   list.classList.toggle("with-covers", !!ctx.cover);
+  list.classList.toggle("portraits", ctx.noun?.one === "artist"); // artists' photos are round, albums' covers square
   const rowsBefore = new Map([...entries].map(([n, e]) => [n, e.row.getBoundingClientRect()]));
   names.forEach((name, i) => {
     let e = entries.get(name);
