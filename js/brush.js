@@ -3,7 +3,7 @@
 // everything from that range, so nothing is rounded to a year.
 
 import { dayToDate } from "./aggregate.js";
-import { dur, easeInOut, easeOut } from "./motion.js";
+import { dur, easeInOut, easeOut, travel } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -250,7 +250,8 @@ export function glideBrushRange(a, b, e) {
   const track = $("brush-track");
   if (e >= 1) return setBrushRange(b);
   track.classList.add("gliding");
-  range = { lo: a.lo + (b.lo - a.lo) * e, hi: a.hi + (b.hi - a.hi) * e };
+  const [lo, edge] = travel([a.lo, a.hi + 1], [b.lo, b.hi + 1], e); // the window's edges, as the chart's zoom travels
+  range = { lo, hi: edge - 1 };
   position();
 }
 

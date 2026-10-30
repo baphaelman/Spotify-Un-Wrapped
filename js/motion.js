@@ -11,8 +11,23 @@ export const ENTER_MS = 550; // something appearing for the first time: the dash
 export const MORPH_MS = 750; // the data changes: bands, bars, list rows, numbers and the mix bar move from old to new. In-out
 export const PAN_MS = 900; // the view travels to another period of the same length. In-out
 export const ZOOM_MS = 1400; // the view travels to a period of another length (all time ↔ a year). In-out
+export const ZOOM_FAR_MS = 2000; // the view travels to a period several times longer or shorter (3 months ↔ 2 years). In-out
 export const STAGGER_MS = 18; // between items entering one after another, up to STAGGER_MAX_MS in all
 export const STAGGER_MAX_MS = 240;
+
+// The range [lo, hi] a fraction e of the way from range a to range b, as one steady zoom: scale and position
+// both change in constant proportion, so a zoom reads as a constant rate rather than rushing at the start
+// (moving the two ends linearly does, when the spans differ a lot). It is a zoom about the one point that
+// stays put between a and b (the shared right edge, for a window resized from its right end). The chart's
+// pan and the period bar's window frame both take their place from it, so they always agree.
+export function travel(a, b, e) {
+  if (e >= 1) return [b[0], b[1]];
+  const sa = a[1] - a[0], sb = b[1] - b[0];
+  if (!(sa > 0 && sb > 0) || Math.abs(Math.log(sb / sa)) < 0.05) return [a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e];
+  const p = ((a[0] - a[0]) * (b[1] - a[0]) - (a[1] - a[0]) * (b[0] - a[0])) / (sb - sa); // the fixed point, from a[0]
+  const k = Math.exp(Math.log(sb / sa) * e);
+  return [a[0] + p + (0 - p) * k, a[0] + p + (sa - p) * k];
+}
 
 // The two easings. In-out for things that travel on their own from one state to another; out for anything
 // answering the pointer or arriving, so it responds at once and settles. Each as a JS function, an

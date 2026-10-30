@@ -129,6 +129,7 @@ matches what is moving.
 | `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
 | `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
 | `ZOOM_MS` | 1400 | in-out | The view travels to a period of another length |
+| `ZOOM_FAR_MS` | 2000 | in-out | The view travels to a period more than ~3.5× longer or shorter (3M ↔ 2Y) |
 | `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
 
 - **Two easings.** In-out (`EASE_IN_OUT`, `--ease-in-out`) for things that travel on their own from one
@@ -156,6 +157,9 @@ matches what is moving.
   and number travel with the change on the same tier and curve as the graphs: the slice slider's
   `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
   number counting through the sizes in between. A drag is the pointer's, so it never glides.
+- **A zoom is steady, not linear.** Moving a range's two ends linearly rushes the first half of a big zoom;
+  `travel` (`motion.js`) zooms at a constant rate about the point that stays put, and both the chart and the
+  bar's frame take their place from it.
 - **Things that travel together share one clock.** A CSS transition and a per-frame JS tween with the same
   duration and curve still drift apart (the frame trailed the chart by ~9% mid-pan). When two things must stay
   in step, drive both from one tick: the chart's pan reports its eased progress (`morph.onFrame`) and the

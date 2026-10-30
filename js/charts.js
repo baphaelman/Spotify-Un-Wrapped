@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, dur } from "./motion.js";
+import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
 
 const instances = new Map();
 
@@ -223,7 +223,7 @@ function panTo(el, from, to, { ms, easing, onFrame }, done, yMax) {
     const t = Math.min(1, (now - t0) / ms);
     const e = easeInOut(t);
     onFrame?.(e);
-    const startValue = from[0] + (to[0] - from[0]) * e, endValue = from[1] + (to[1] - from[1]) * e;
+    const [startValue, endValue] = travel(from, to, e);
     if (yMax) {
       const max = yMax.from + (yMax.to - yMax.from) * e;
       c.setOption({ yAxis: { max: () => max }, dataZoom: [{ startValue, endValue }] });

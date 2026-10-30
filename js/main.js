@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands, brushRange, glideBrushRange } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, ZOOM_FAR_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -287,7 +287,7 @@ function applyDim() {
       const b = document.createElement("button");
       b.type = "button";
       b.dataset.len = len;
-      b.textContent = len;
+      b.textContent = len.toUpperCase();
       b.setAttribute("aria-pressed", "false");
       return b;
     })
@@ -355,7 +355,6 @@ function presetOf(range) {
 }
 
 const fmtDay = (d, opts = { month: "short", day: "numeric", year: "numeric" }) => agg.dayToDate(d).toLocaleDateString(undefined, opts);
-const rangeText = () => `${fmtDay(state.range.lo)} – ${fmtDay(state.range.hi)}`;
 const spanOf = (r) => r.hi - r.lo + 1;
 // "All time", a year, or "Custom" for anything the brush picked
 const presetLabel = () => {
@@ -376,13 +375,6 @@ function showDashboard() {
 
 // The bar's text and buttons, and the brush's window, for the current range
 function syncPeriod(frame = true) {
-  // Everything in the bar that can be pushed sideways when the text changes width glides to its new spot. (The
-  // picker ends the row, and what's left of it follows the picker's width as it tweens, below.)
-  const slid = () => new Map([
-    ["dates", $("period-range").querySelector(".dates")],
-    ["days", $("period-range").querySelector(".days")],
-  ].filter(([, el]) => el));
-  const before = new Map([...slid()].map(([k, el]) => [k, el.getBoundingClientRect()]));
   const label = $("year-label");
   // A length picked from the buttons (3m, 1y…) names the day it starts, rather than "Custom"
   const len = [...$("period-resize").children].some((b) => sameRange(state.range, resized(state.range, b.dataset.len)));
@@ -405,12 +397,6 @@ function syncPeriod(frame = true) {
   const e = extent();
   $("year-prev").disabled = p === null ? state.range.lo <= e.lo : sel.selectedIndex <= 0;
   $("year-next").disabled = p === null ? state.range.hi >= e.hi : sel.selectedIndex >= sel.options.length - 1;
-  const n = spanOf(state.range);
-  $("period-range").replaceChildren(
-    Object.assign(document.createElement("span"), { className: "dates", textContent: rangeText() }),
-    Object.assign(document.createElement("span"), { className: "days", textContent: `${n.toLocaleString()} ${n === 1 ? "day" : "days"}` })
-  );
-  if (before.size) flip(before, slid());
   for (const b of $("period-resize").children) b.setAttribute("aria-pressed", sameRange(state.range, resized(state.range, b.dataset.len)));
   if (frame) setBrushRange(state.range);
 }
@@ -504,7 +490,21 @@ $("year-filter").addEventListener("change", (e) => setPeriod(e.target.value));
 function stepPeriod(dir) {
   const sel = $("year-filter");
   if (sel.selectedIndex >= 0) return setPeriod(sel.options[sel.selectedIndex + dir].value);
-  const e = extent(), n = spanOf(state.range);
+  const e = extent();
+  // A length picked from the buttons stays that length: the window moves by its own months or days, and
+  // resized() cuts it short against either end of the history exactly as the button would
+  const b = [...$("period-resize").children].find((c) => sameRange(state.range, resized(state.range, c.dataset.len)));
+  if (b) {
+    const [, n, unit] = b.dataset.len.match(/(\d+)([dmy])/);
+    let hi;
+    if (unit === "d") hi = state.range.hi + dir * n;
+    else {
+      const after = agg.dayToDate(state.range.hi + 1), months = (unit === "y" ? 12 : 1) * n;
+      hi = agg.dayIndex(new Date(after.getFullYear(), after.getMonth() + dir * months, after.getDate()).getTime()) - 1;
+    }
+    return setRange(resized({ lo: 0, hi: Math.min(e.hi, Math.max(hi, e.lo)) }, b.dataset.len));
+  }
+  const n = spanOf(state.range);
   const lo = Math.min(e.hi - n + 1, Math.max(e.lo, state.range.lo + dir * n));
   setRange({ lo, hi: lo + n - 1 });
 }
@@ -583,7 +583,8 @@ $("year-menu").addEventListener("keydown", (e) => {
 // `from` is the range being left, to animate from (false to just draw)
 function panMs(from) {
   const ratio = from ? spanOf(from) / spanOf(state.range) : 1;
-  return dur(ratio > 1.5 || ratio < 1 / 1.5 ? ZOOM_MS : PAN_MS);
+  const far = Math.max(ratio, 1 / ratio);
+  return dur(far > 3.5 ? ZOOM_FAR_MS : far > 1.5 ? ZOOM_MS : PAN_MS);
 }
 
 function renderAll(keepZoom, from = false) {
