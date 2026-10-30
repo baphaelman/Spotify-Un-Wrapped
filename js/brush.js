@@ -199,15 +199,27 @@ function movesUpDown(a, b) {
 // The bands a fraction `e` of the way from `a` to `b`: edges move, colors cross-fade; the timeline's ends a
 // fraction `eh` of the way
 function blend(a, b, e, eh = e) {
-  const mix = (x, y) => y.map((v, i) => (v == null || x[i] == null ? v : x[i] + (v - x[i]) * e));
+  // Where only one end has a value (an artist with no plays on that day, in the other slice size), the band grows
+  // from, or shrinks to, a line through its middle, so the ends of the timeline fade in and out rather than pop
+  const mixed = (alo, ahi, blo, bhi) => {
+    const lo = [], hi = [];
+    blo.forEach((bl, i) => {
+      const al = alo[i], ah = ahi[i], bh = bhi[i];
+      if (bl == null && al == null) { lo.push(null); hi.push(null); }
+      else if (bl != null && al != null) { lo.push(al + (bl - al) * e); hi.push(ah + (bh - ah) * e); }
+      else if (bl != null) { const c = (bl + bh) / 2; lo.push(c + (bl - c) * e); hi.push(c + (bh - c) * e); }
+      else if (e >= 1) { lo.push(null); hi.push(null); }
+      else { const c = (al + ah) / 2; lo.push(c + (al - c) * (1 - e)); hi.push(c + (ah - c) * (1 - e)); }
+    });
+    return { lo, hi };
+  };
   return {
     ...b,
     start: a.start + (b.start - a.start) * eh, // the timeline's ends glide too
     end: a.end + (b.end - a.end) * eh,
     bands: b.bands.map((band, k) => ({
       ...band,
-      lo: mix(a.bands[k].lo, band.lo),
-      hi: mix(a.bands[k].hi, band.hi),
+      ...mixed(a.bands[k].lo, a.bands[k].hi, band.lo, band.hi),
       color: a.bands[k].color === band.color || e >= 1 ? band.color : e <= 0 ? a.bands[k].color : `color-mix(in srgb, ${band.color} ${e * 100}%, ${a.bands[k].color})`,
       mix: lookMix(a.bands[k], band, e),
     })),
@@ -231,8 +243,19 @@ function lookMix(a, b, e) {
 // The old bands' edges on the new points' days; days the old bands don't reach take the new value
 function resample(old, days) {
   if (old.days.length === days.length && old.days[0] === days[0]) return old;
-  const at = new Map(old.days.map((d, i) => [d, i]));
-  const pick = (arr) => days.map((d) => (at.has(d) ? arr[at.get(d)] : null));
+  // A day between two old points reads off the line joining them (another slice size has its points on other days)
+  const od = old.days, last = od.length - 1;
+  const at = days.map((d) => {
+    if (!od.length || d < od[0] || d > od[last]) return null;
+    let lo = 0, hi = last;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (od[mid] <= d) lo = mid; else hi = mid; }
+    return od[hi] <= d ? [hi, hi, 0] : [lo, hi, (d - od[lo]) / (od[hi] - od[lo] || 1)];
+  });
+  const pick = (arr) => at.map((p) => {
+    if (!p) return null;
+    const [i, j, f] = p, a = arr[i], b = arr[j];
+    return a == null || b == null ? (f < 0.5 ? a ?? b : b ?? a) : a + (b - a) * f;
+  });
   return {
     ...old,
     days,
