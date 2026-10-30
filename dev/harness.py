@@ -3,10 +3,10 @@
 #   python3 dev/harness.py [data_dir]      (default: ../spotify/datas/Spotify Extended Streaming History)
 # Then serve it:  cd dev/site && python3 -m http.server 8765
 #   test.html  loads the data, then runs the hash actions below, then sets document.title = "DONE"
-#              #hours  switch to Hours · #community  open Community · #preview  open the share preview
+#              #community  open Community · #preview  open the share preview
 #              #tracks / #albums  the Tracks or Albums view
 #              #split-album / #split-track  split the rolling chart's bands into albums or songs
-#              #m18  18 monthly bars · #n10  10 artists · #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-hours)
+#              #m18  18 monthly bars · #n10  10 artists · #n5  5 artists · #five  5 artists + "Everyone else" (actions combine, e.g. #n5-albums)
 #   plain.html reopens data remembered from an earlier test.html visit; title "DONE <ms>" once shown
 import json, os, subprocess, sys
 from pathlib import Path
@@ -48,7 +48,6 @@ if (h.includes("m18")) { const b = document.createElement("button"); b.dataset.l
 if (h.includes("n10")) { setArtists(10); await sleep(600); }
 if (h.includes("split-album")) { document.querySelector('#rolling-split [data-split="album"]').click(); await sleep(2000); }
 if (h.includes("split-track")) { document.querySelector('#rolling-split [data-split="track"]').click(); await sleep(2000); }
-if (h.includes("hours")) { document.querySelector('#rolling-mode [data-mode="hours"]').click(); await sleep(1500); }
 if (h.includes("community")) { q("tab-community").click(); await sleep(2500); }
 if (h.includes("preview")) q("share-preview").click();
 document.title = "DONE";

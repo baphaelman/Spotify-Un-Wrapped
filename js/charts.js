@@ -118,6 +118,30 @@ const hiddenNames = new WeakMap();
 
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
+// A rolling chart's hours strip: a second, short chart under its axis, drawn in hours mode from the same
+// artists, that follows every render, zoom and hover of the main one (and lights the main one when hovered).
+// The main chart holds the legend selection and the pins; the strip copies them on each render.
+const stripOf = new WeakMap();
+const mainOf = new WeakMap();
+export function linkStrip(el, strip) {
+  stripOf.set(el, strip);
+  mainOf.set(strip, el);
+}
+let relaying = false; // a hover passed from one to the other isn't passed back
+
+// The hours axis top for the zoom range: the tallest shown line in it, in whole hours
+function hoursTop(data, names, window, hasOther, hide, zoom) {
+  let m = 0;
+  names.forEach((n, s) => {
+    if (hasOther && s === names.length - 1) return;
+    if (hide?.[n] === false) return;
+    data.dates.forEach((d, i) => {
+      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
+    });
+  });
+  return Math.max(1, Math.ceil(m));
+}
+
 // Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
 // from, or shrinks to, zero thickness on top of the stack. Returns true if it handled this render (share
 // mode, same artists and window, "Everyone else" newly on or off), false for a plain render.
@@ -183,6 +207,7 @@ export function setZoom(el, [start, end]) {
   }
   c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
   if (st?.live) paintLive(c, st); // the zoom redrew the new values; put the blend back before it's painted
+  if (stripOf.has(el)) setZoom(stripOf.get(el), [start, end]);
 }
 
 // A live morph (morph.live): new artists while the range is moving under the reader's hand, as in a drag
@@ -243,11 +268,14 @@ function paintLive(c, st) {
 // Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
 // a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
 // yMax: optional { from, to } for the y-axis top (Hours mode), which tweens along with the range; otherwise
-// it would step from one whole number to the next each time the window's tallest line changes
-function panTo(el, from, to, { ms, easing, onFrame }, done, yMax) {
+// it would step from one whole number to the next each time the window's tallest line changes.
+// strip: optional { el, yMax } for the hours strip, which travels on the same clock
+function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
   const c = chart(el);
   const st = rollingState.get(el);
   c.setOption({ animationDurationUpdate: 0 }); // each frame is a plain redraw, not a tween
+  const sc = strip && instances.get(strip.el);
+  sc?.setOption({ animationDurationUpdate: 0 });
   st.panEnd = () => onFrame?.(1);
   const t0 = performance.now();
   const tick = (now) => {
@@ -255,10 +283,14 @@ function panTo(el, from, to, { ms, easing, onFrame }, done, yMax) {
     const e = easeInOut(t);
     onFrame?.(e);
     const [startValue, endValue] = travel(from, to, e);
-    if (yMax) {
-      const max = yMax.from + (yMax.to - yMax.from) * e;
-      c.setOption({ yAxis: { max: () => max }, dataZoom: [{ startValue, endValue }] });
-    } else c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue, endValue });
+    const step = (c, yMax) => {
+      if (yMax) {
+        const max = yMax.from + (yMax.to - yMax.from) * e;
+        c.setOption({ yAxis: { max: () => max }, dataZoom: [{ startValue, endValue }] });
+      } else c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue, endValue });
+    };
+    step(c, yMax);
+    if (sc) step(sc, strip.yMax);
     if (t < 1) st.panRaf = requestAnimationFrame(tick);
     else {
       st.panRaf = 0;
@@ -333,20 +365,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
     if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
       // Hours: the axis top the final chart will have, to travel to alongside the range
-      let yMax = null;
-      if (mode === "hours") {
-        const idx = data.dates.map((d, i) => i).filter((i) => data.dates[i] >= zoom[0] && data.dates[i] <= zoom[1]);
-        const hide = prev.selected;
-        let m = 0;
-        names.forEach((n, s) => {
-          if (hasOther && s === names.length - 1) return;
-          if (hide?.[n] === false) return;
-          for (const i of idx) if (data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
-        });
-        const now = chart(el).getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
-        if (Number.isFinite(now)) yMax = { from: now, to: Math.max(1, Math.ceil(m)) };
-      }
-      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth), yMax);
+      const travelMax = (el) => {
+        const now = instances.get(el)?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
+        return Number.isFinite(now) ? { from: now, to: hoursTop(data, names, window, hasOther, prev.selected, zoom) } : null;
+      };
+      const strip = stripOf.get(el);
+      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
+        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip) });
       return;
     }
     else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
@@ -363,6 +388,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const perWeek = (h) => (h / window) * 7;
+  const isStrip = mainOf.has(el);
 
   let st = rollingState.get(el);
   if (!st || st.names.join("\u0000") !== names.join("\u0000")) {
@@ -599,11 +625,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // with nothing focused, so the page is told if something was (clicking to pin re-renders under the pointer),
   // or the highlights it drew for that artist would stay after the pointer leaves.
   let focused = kept < 0 ? null : kept;
-  const tellFocus = (name) => {
+  const tellFocus = (name, relay = true) => {
     st.focused = name;
     focusHooks.get(el)?.(name);
+    // The main chart and its hours strip light the same artist
+    const other = stripOf.get(el) ?? mainOf.get(el);
+    if (!relay || relaying || !other) return;
+    relaying = true;
+    try {
+      rollingState.get(other)?.focusArtist?.(name);
+    } finally {
+      relaying = false;
+    }
   };
-  if (st.focused != (kept < 0 ? null : names[kept])) tellFocus(kept < 0 ? null : names[kept]);
+  // (a strip clicked to pin lights the main chart too, which drew first)
+  if (st.focused != (kept < 0 ? null : names[kept])) tellFocus(kept < 0 ? null : names[kept], isStrip && kept >= 0);
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
@@ -739,7 +775,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationDurationUpdate: liveFrom ? 0 : ms,
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
-      grid: { left: 48, right: 16, top: 12, bottom: 28 },
+      // The strip has no date labels of its own: it reads them off the main chart's axis just above
+      grid: isStrip ? { left: 48, right: 16, top: 14, bottom: 4 } : { left: 48, right: 16, top: 12, bottom: 28 },
       // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (key.js paintArtistKey), so
       // hovering it never puts ECharts' own highlight states on the bands.
       legend: { show: false, data: names, selected: st.selected },
@@ -754,7 +791,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // or every hover puts all the shapes in ECharts' highlight state, which breaks the hand-drawn focus
       axisPointer: { triggerEmphasis: false },
       // hideOverlap: a month's name (bold) can land beside a day's number; the day gives way
-      xAxis: { type: "time", ...baseAxis(t), axisLabel: { color: t.muted, hideOverlap: true }, splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
+      xAxis: { type: "time", ...baseAxis(t), axisLabel: { show: !isStrip, color: t.muted, hideOverlap: true }, splitLine: { show: false }, axisPointer: { triggerEmphasis: false } },
       yAxis: {
         type: "value",
         min: 0,
@@ -762,7 +799,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         max: share ? () => 1 : (v) => Math.max(1, Math.ceil(v.max)),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
-        splitNumber: 4,
+        splitNumber: isStrip ? 2 : 4,
         ...baseAxis(t),
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },
@@ -983,6 +1020,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
   hiddenNames.set(el, hidden);
   selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
+
+  // The hours strip draws the same render, with the same artists shown
+  const strip = stripOf.get(el);
+  if (strip) {
+    hiddenNames.set(strip, new Set(hidden));
+    const sst = rollingState.get(strip);
+    if (sst && sst.names.join("\u0000") === names.join("\u0000")) sst.selected = { ...st.selected };
+    // An artist kept lit through a click on the main chart stays lit in the strip too
+    const keep = sst && sst.keepFocus == null && st.keepFocus != null;
+    if (keep) sst.keepFocus = st.keepFocus;
+    renderRolling(strip, data, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
+    if (keep) sst.keepFocus = null;
+  }
 }
 
 // The names a rolling chart keeps hidden, including ones not in it now (they stay hidden when they come back),

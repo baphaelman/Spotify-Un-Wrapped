@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -25,10 +25,8 @@ export function clampZoom(zoom, dates) {
 }
 
 export function rollingSub(n, target, includeOther) {
-  return (state.rollingMode === "share"
-    ? `Share of listening time, ${target}-day rolling window` +
-      (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`)
-    : `Hours per week, ${target}-day rolling average`) +
+  return `Share of listening time, ${target}-day rolling window` +
+    (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`) +
     (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
 }
 
@@ -56,6 +54,9 @@ const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.aut
 // Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
+
+// Under the chart's axis, a short copy of it in hours per week that follows every render, zoom and hover
+linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
@@ -104,7 +105,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
-  renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
+  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
     renderMix(artists, slots, includeOther, pins);
@@ -287,14 +288,6 @@ for (const btn of document.querySelectorAll("#rolling-split button")) {
     state.split = to;
     syncSplit();
     renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
-  });
-}
-
-for (const btn of document.querySelectorAll("#rolling-mode button")) {
-  btn.addEventListener("click", () => {
-    state.rollingMode = btn.dataset.mode;
-    for (const b of document.querySelectorAll("#rolling-mode button")) b.setAttribute("aria-pressed", b === btn);
-    renderRollingChart(currentZoom($("chart-rolling")), true);
   });
 }
 

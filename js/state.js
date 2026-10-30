@@ -13,7 +13,7 @@ export const $ = (id) => document.getElementById(id);
 // track or an album (see keyedPlays); owner: each track's or album's artist in that view. dims: the pins,
 // hidden names and colors each view had when the reader left it.
 export const state = {
-  raw: null, plays: null, range: null, view: "you", key: null, shared: null, rollingMode: "share", smoothify: "auto",
+  raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
   split: "track",
 };

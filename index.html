@@ -168,10 +168,6 @@
                 <button type="button" data-split="album" aria-pressed="false">Albums</button>
                 <button type="button" data-split="track" aria-pressed="false">Songs</button>
               </div>
-              <div id="rolling-mode" class="segmented solid" role="group" aria-label="Chart type">
-                <button type="button" data-mode="share" aria-pressed="true">Share</button>
-                <button type="button" data-mode="hours" aria-pressed="false">Hours</button>
-              </div>
             </div>
             <div class="tav-smooth">
               <span class="toggle-label" id="smoothify-label">Smoothing</span>
@@ -188,6 +184,8 @@
         </div>
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
+          <!-- The same artists' hours per week, read against the axis above it (charts.js linkStrip) -->
+          <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
         </div>
       </article>
 
