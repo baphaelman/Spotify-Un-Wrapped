@@ -42,6 +42,14 @@ week), and switching between them morphs.
   running animation onto the new style object and it paints its old target back; and when either end
   of a fade is invisible, tween only opacity, or the color blend shows partway.
 
+- **Parts (Whole · Albums · Songs).** `data.parts` (from `agg.rolling`'s `split`) splits each band into up to
+  `MAX_PARTS` albums or songs, as series `p{k}_{j}` that exist only while split. In share mode they stack up from
+  the band's floor, each painting just above its band's z; in hours mode they're thin lines. Every slot always
+  exists, an empty one with no thickness, so showing more or fewer of an artist's parts (pins, hover) is only a
+  restyle. Turning the split on or off swells the parts up from the band's floor or shrinks them back
+  (`withSplitMorph`). Hovering a part lights it with its artist; clicking it opens its own view with it pinned
+  (`pins.openPart`, `openPart` in `main.js`).
+
 ## Hover: hard-won rules
 
 - **Every series is `silent`, and hover is worked out from the data.** A zrender `mousemove` handler

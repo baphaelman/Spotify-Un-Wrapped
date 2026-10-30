@@ -91,10 +91,11 @@ const row = (color, value, label, strong = false) =>
   `<b style="min-width:3.5em">${value}</b><span style="${strong ? "font-weight:600" : "opacity:.75"}">${esc(label)}</span></div>`;
 
 // A part's row (an album or song) under its artist's: indented and quieter
-const subRow = (color, value, label) =>
-  `<div style="display:flex;align-items:center;gap:8px;line-height:1.5;padding-left:20px;font-size:12px">` +
+// (strong: the part under the pointer)
+const subRow = (color, value, label, strong = false) =>
+  `<div style="display:flex;align-items:center;gap:8px;line-height:1.5;padding-left:20px;font-size:12px;${strong ? `background:${color}66;margin:0 -6px;padding-right:6px;padding-left:26px;border-radius:4px` : ""}">` +
   `<span style="width:8px;height:8px;background:${color};border-radius:2px"></span>` +
-  `<b style="min-width:3.5em;font-weight:500">${value}</b><span style="opacity:.75">${esc(label)}</span></div>`;
+  `<b style="min-width:3.5em;font-weight:500">${value}</b><span style="${strong ? "font-weight:600" : "opacity:.75"}">${esc(label)}</span></div>`;
 
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
@@ -148,68 +149,26 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
 }
 
 // Turning the split on or off (data.parts arriving or leaving, with the same artists, window and mode). The parts'
-// series exist only while split, so they arrive drawn invisibly and leave the same way, then go. Three trial
-// looks (setSplitLook): "grow" swells each part up from its band's floor; "fade" fades the dividers and shades
-// in where they belong; "draw" draws each divider across the plot from one side, then fades the shades in.
-// Leaving runs the same in reverse.
-let splitLook = "grow";
-export const setSplitLook = (look) => (splitLook = look);
+// series exist only while split, so they swell up from each band's floor, from no thickness, and shrink back
+// down to it before they go.
 function withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth) {
   const st = rollingState.get(el);
   if (!st || st.mode !== mode || st.hasOther !== hasOther || st.window !== window || st.names.join("\u0000") !== names.join("\u0000")) return false;
   const [oldData] = st.args;
   if (!!oldData.parts === !!data.parts || oldData.dates.length !== data.dates.length) return false;
-  const on = !!data.parts;
-  const full = on ? data : { ...data, parts: oldData.parts };
-  const staged = (stage) => ({ ...full, parts: { ...full.parts, stage } });
+  const full = data.parts ? data : { ...data, parts: oldData.parts };
   const zero = (rows) => rows.map((list) => list.map((row) => row.map((v) => (v == null ? null : 0))));
   const flat = { ...full, parts: { ...full.parts, share: zero(full.parts.share), hours: zero(full.parts.hours) } };
   const draw = (d, morph) => renderRolling(el, d, names, window, currentZoom(el) ?? zoom, mode, hasOther, morph, pins, slots, smooth);
-  // Runs fn after `wait`, unless the chart has re-rendered since
-  const later = (wait, fn) => {
-    const token = rollingState.get(el).renderToken;
-    setTimeout(() => rollingState.get(el)?.renderToken === token && fn(), wait);
-  };
-  const gone = () => draw(data, false); // the stand-ins leave once they're invisible
-  if (on) {
-    if (splitLook === "draw") {
-      draw(staged("lines"), false);
-      wipeParts(el, true, ms);
-      later(ms, () => draw(data, ms));
-    } else {
-      draw(splitLook === "grow" ? flat : staged("none"), false);
-      draw(data, ms);
-    }
-  } else if (splitLook === "draw") {
-    draw(staged("lines"), ms);
-    later(ms, () => {
-      wipeParts(el, false, ms);
-      later(ms, gone);
-    });
+  if (data.parts) {
+    draw(flat, false);
+    draw(data, ms);
   } else {
-    draw(splitLook === "grow" ? flat : staged("none"), ms);
-    later(ms, gone);
+    draw(flat, ms);
+    const token = rollingState.get(el).renderToken;
+    setTimeout(() => rollingState.get(el)?.renderToken === token && draw(data, false), ms); // unless re-rendered since
   }
   return true;
-}
-
-// Draws (in) or rubs out (out) every part's divider across the plot, each from one side, alternating
-function wipeParts(el, entering, ms) {
-  const c = instances.get(el);
-  const W = c.getWidth(), H = c.getHeight();
-  let n = 0;
-  for (const [key, line] of drawnShapes(c)) {
-    if (key[0] !== "p" || !key.endsWith(":line")) continue;
-    const fromLeft = n++ % 2 === 0;
-    const open = { x: 0, width: W }, shut = { x: fromLeft ? 0 : W, width: 0 };
-    const clip = new echarts.graphic.Rect({ shape: { y: 0, height: H, ...(entering ? shut : open) } });
-    line.setClipPath(clip);
-    clip.animateTo({ shape: entering ? open : shut }, {
-      duration: ms,
-      easing: EASE_IN_OUT.echarts,
-      done: () => entering && line.getClipPath() === clip && line.removeClipPath(),
-    });
-  }
 }
 
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
@@ -456,8 +415,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in MAX_PARTS slots per band. In
   // share mode they stack up from the band's floor, biggest first, and the band's own fill above them is the
   // rest; a slot with no part (or a hidden artist's) has no thickness. In hours mode each is a thin line.
-  // stage (set only while they arrive or leave, see withSplitMorph): "none" draws them invisibly, "lines" only
-  // their dividers.
   const parts = data.parts;
   const partRows = (k) => parts?.share[k] ?? [];
   const partKeys = parts ? names.flatMap((_, k) => (k === otherIdx ? [] : Array.from({ length: MAX_PARTS }, (_, j) => [k, j]))) : [];
@@ -519,21 +476,29 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   });
   // Every artist shows all its parts while none is pinned; once some are, only the lit ones (pinned or
   // hovered) do: the pinned ones are what's being looked into.
-  const partShown = (k, j, lit) => parts?.stage !== "none" && j < partRows(k).length && (lit.has(k) || !base.size);
+  const partShown = (k, j, lit) => !!parts && j < partRows(k).length && (lit.has(k) || !base.size);
+  // The part under the pointer ({k, j}, or null): filled deeper than its siblings and outlined on both sides
+  let hotPart = null;
+  const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
   // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
   // for the biggest part (and less in a dimmed band)
   const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
-  const partShade = (k, j, w) =>
-    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * PART_DEPTH[j] * Math.min(1, w / t.shade.band)));
+  const HOT_DEPTH = 1.6;
+  const partShade = (k, j, w, depth = PART_DEPTH[j]) =>
+    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * Math.min(1, w / t.shade.band)));
   const partFill = (k, j, lit) =>
-    partShown(k, j, lit) && parts.stage !== "lines"
-      ? partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band)
-      : bandFill(k, lit);
+    !partShown(k, j, lit)
+      ? bandFill(k, lit)
+      : partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band, isHot(k, j) ? HOT_DEPTH : PART_DEPTH[j]);
   // Its divider (share), or its line (hours): faint beside its artist's, and fainter while others are lit
-  const partLine = (k, j, lit) => ({
-    width: share ? 1 : lit.has(k) ? 1.5 : 1.25,
-    opacity: !partShown(k, j, lit) ? 0 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
-  });
+  // (the hot part's own divider and the one below it, its outline; a line, in hours mode)
+  const partLine = (k, j, lit) => {
+    const hot = isHot(k, j) || (share && isHot(k, j + 1));
+    return {
+      width: hot ? 2 : share ? 1 : lit.has(k) ? 1.5 : 1.25,
+      opacity: !partShown(k, j, lit) ? 0 : hot ? 1 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
+    };
+  };
   const partStyles = (lit) =>
     partKeys.map(([k, j]) => ({
       id: `p${k}_${j}`,
@@ -638,11 +603,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // listening at that date (as the bands are scaled, in either mode)
   const PART_TIP_MIN = 0.01;
   const partTips = (k, i, valueOf, fmt, extra) => {
-    if (!parts || parts.stage || k === otherIdx) return [];
+    if (!parts || k === otherIdx) return [];
     const on = lit();
     return partRows(k).flatMap((_, j) => {
       if (!partShown(k, j, on) || !(parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)) return [];
-      return [subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j))];
+      return [subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j)), parts.names[k][j] + extra(j), isHot(k, j))];
     });
   };
   const shareTooltip = (params) => {
@@ -854,9 +819,16 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     }, undefined, FADE_MS);
   };
 
+  // Only the parts change (the pointer moved between parts of one band)
+  const restyleParts = () => setOptionFaded(c, { animationDurationUpdate: 0, series: partStyles(lit()) }, undefined, FADE_MS);
+
   // Highlight an artist from outside the plot (legend, top lists): their band in share mode, their
   // line in hours mode. null, or an artist not in the chart, clears it.
   st.focusArtist = (name) => {
+    if (hotPart) {
+      hotPart = null;
+      restyleParts();
+    }
     let k = name == null ? -1 : names.indexOf(name);
     if (!share && k === otherIdx) k = -1; // "Everyone else" isn't drawn in hours mode
     (share ? focusBand : focusLine)(k < 0 ? null : k);
@@ -879,7 +851,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   let fromPlot = false; // only clear focus the plot set, not a legend or list hover's
   const focus = share ? focusBand : focusLine;
-  // The band or line under a pixel: its index, null for none, or undefined when the pixel is off the plot
+  // The band or line under a pixel, and the part of it: {k, j} (j null off the parts), null for none, or
+  // undefined when the pixel is off the plot. In hours mode a part's line within PART_REACH px wins over
+  // the topmost line, so the thin lines can be reached.
+  const PART_REACH = 6;
   const pick = (px) => {
     if (!c.containPixel({ gridIndex: 0 }, px)) return undefined;
     const [t0, y] = c.convertFromPixel({ gridIndex: 0 }, px);
@@ -895,43 +870,65 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       for (let k = 0; k < names.length; k++) {
         if (visible(k) && bottom[k][i] != null && y >= bottom[k][i] && y <= top[k][i] && top[k][i] > bottom[k][i]) best = k;
       }
-    } else {
-      let bestV = 0.05; // ignore near-silence, which would just pick an arbitrary flat line
-      names.forEach((_, k) => {
-        if (k === otherIdx || !visible(k)) return;
-        const v = perWeek(data.hours[k][i]);
-        if (v > bestV) { bestV = v; best = k; }
-      });
+      if (best == null) return null;
+      const on = new Set([...base, best]);
+      for (let j = 0; parts && best !== otherIdx && j < partRows(best).length; j++) {
+        const lo = j ? partTop[best][j - 1][i] : bottom[best][i], hi = partTop[best][j][i];
+        if (partShown(best, j, on) && hi > lo && y >= lo && y <= hi) return { k: best, j };
+      }
+      return { k: best, j: null };
     }
-    return best;
+    let reach = PART_REACH;
+    let hit = null;
+    const on = lit();
+    for (const [k, j] of partKeys) {
+      const v = visible(k) && partShown(k, j, on) ? partHoursAt(k, j, i) : null;
+      const d = v == null ? Infinity : Math.abs(c.convertToPixel({ yAxisIndex: 0 }, v) - px[1]);
+      if (d < reach) [reach, hit] = [d, { k, j }];
+    }
+    if (hit) return hit;
+    let bestV = 0.05; // ignore near-silence, which would just pick an arbitrary flat line
+    names.forEach((_, k) => {
+      if (k === otherIdx || !visible(k)) return;
+      const v = perWeek(data.hours[k][i]);
+      if (v > bestV) { bestV = v; best = k; }
+    });
+    return best == null ? null : { k: best, j: null };
   };
   // "Everyone else" can't be pinned, so it isn't offered as clickable
   const pinnable = (k) => k != null && k !== otherIdx;
-  st.zrMove = (e) => {
-    const px = [e.offsetX, e.offsetY];
-    const best = pick(px);
-    if (best === undefined) {
-      if (fromPlot) focus(null);
-      fromPlot = false;
-      zr.setCursorStyle("default");
-      return;
-    }
-    fromPlot = true;
-    zr.setCursorStyle(pins && pinnable(best) ? "pointer" : "default");
-    if (best !== focused) {
-      focus(best);
-      retip(...px);
-    }
+  // Lights the part (or none) along with its artist: the artist's restyle carries the part's, or alone it's just
+  // the parts. Returns whether the part changed.
+  const focusPart = (k, j) => {
+    const next = j == null ? null : { k, j };
+    const moved = hotPart?.k !== next?.k || hotPart?.j !== next?.j;
+    hotPart = next;
+    if (k !== focused) focus(k);
+    else if (moved) restyleParts();
+    return moved;
   };
-  st.zrOut = () => {
-    if (fromPlot) focus(null);
+  const clear = () => {
+    if (fromPlot) focusPart(null, null);
     fromPlot = false;
     zr.setCursorStyle("default");
   };
-  // Clicking the band or line under the pointer pins it, or unpins it if it's already pinned
+  st.zrMove = (e) => {
+    const px = [e.offsetX, e.offsetY];
+    const hit = pick(px);
+    if (hit === undefined) return clear();
+    fromPlot = true;
+    const best = hit?.k ?? null;
+    zr.setCursorStyle((hit?.j != null && pins?.openPart) || (pins && pinnable(best)) ? "pointer" : "default");
+    const was = focused;
+    if (focusPart(best, hit?.j ?? null) || best !== was) retip(...px);
+  };
+  st.zrOut = clear;
+  // Clicking a part opens its album or song in that view, pinned; clicking elsewhere on the band or line pins the
+  // artist, or unpins it if it's already pinned
   st.zrClick = (e) => {
-    const best = pick([e.offsetX, e.offsetY]);
-    if (pins?.toggle && pinnable(best)) pins.toggle(names[best]);
+    const hit = pick([e.offsetX, e.offsetY]);
+    if (hit?.j != null && pins?.openPart) return pins.openPart(names[hit.k], parts.kind, parts.names[hit.k][hit.j]);
+    if (pins?.toggle && pinnable(hit?.k)) pins.toggle(names[hit.k]);
   };
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);

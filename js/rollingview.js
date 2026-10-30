@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, toggleArtist, onZoomChange, setSplitLook } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, toggleArtist, onZoomChange } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -101,6 +101,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
     hide: (name) => toggleArtist($("chart-rolling"), name),
+    openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
@@ -279,8 +280,6 @@ export function syncSplit() {
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
 }
-// Trial: how the parts arrive (see charts.js withSplitMorph)
-$("split-look").addEventListener("change", (e) => setSplitLook(e.target.value));
 for (const btn of document.querySelectorAll("#rolling-split button")) {
   btn.addEventListener("click", () => {
     const to = btn.dataset.split || null;

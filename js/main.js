@@ -11,12 +11,12 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
 import "./theme.js"; // its controls wire themselves up
-import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit } from "./rollingview.js";
+import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 
 // The modules under this one call these back through hooks (state.js)
-Object.assign(hooks, { renderAll, renderDependents, paintArtistKey });
+Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
 
 // ---------- Loading ----------
 
@@ -289,8 +289,9 @@ function applyDim() {
 }
 
 // Another view: its pins, hidden names and colors come back as the reader left them, and every graph morphs
-// from the old view's names to the new one's
-function setDim(dim) {
+// from the old view's names to the new one's. find: optional, returns the name in the new view to pin (and show)
+// as well, once its names are in place
+function setDim(dim, find = null) {
   if (dim === state.dim || !state.raw) return;
   // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not
   state.dims.set(state.dim, {
@@ -304,6 +305,13 @@ function setDim(dim) {
   setHidden($("chart-rolling"), saved?.kept ?? []);
   closeResults();
   applyDim();
+  const key = find?.();
+  if (key != null) {
+    // (the oldest pin gives way if they're all taken)
+    state.pinned = state.pinned.filter((n) => n !== key).slice(-(MAX_PINS - 1)).concat(key);
+    state.hidden = state.hidden.filter((n) => n !== key);
+    setHidden($("chart-rolling"), (saved?.kept ?? []).filter((n) => n !== key));
+  }
   // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
   // old view's names over the new plays first
   clearMixArgs();
@@ -344,6 +352,13 @@ function segThumbs() {
   }
 }
 segThumbs();
+
+// A part clicked in the rolling chart (an artist's album or song, or an album's song): its own view, with it pinned.
+// Names there are told apart by their artist; an album's songs belong to the album's artist.
+function openPart(artist, kind, name) {
+  const by = state.dim === "artist" ? artist : state.owner.get(artist);
+  setDim(kind, () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0]);
+}
 
 $("view-tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button");
