@@ -453,6 +453,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
   // a re-render or a mode morph keeps the pinned artists lit.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
+  // The artist under the pointer when a click to pin or unpin re-rendered the chart stays lit from the first
+  // frame (see zrClick), rather than snapping to rest and fading back in
+  const kept = st.keepFocus == null ? -1 : names.indexOf(st.keepFocus);
+  const shown = kept < 0 ? base : new Set([...base, kept]);
   // Fills are opaque tints, not transparency, because bands overlap down to the axis.
   // Share: lit bands (pinned, or under the pointer) are filled in more strongly (t.shade.hover), and while
   // any band is lit the rest dim slightly (t.shade.dim); with none lit, every band has its resting tint
@@ -522,7 +526,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         z: (share ? 2 : 3) + (names.length - s) / 100,
         // Share: hidden; the edge overlays draw each band's borders instead (see edgeData)
         lineStyle: {
-          ...(share ? { width: 2, opacity: 0 } : lineLook(s, base)),
+          ...(share ? { width: 2, opacity: 0 } : lineLook(s, shown)),
           color: colors[s],
           cap: "round",
           join: "round",
@@ -532,8 +536,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Hours mode keeps an invisible fill, so the hovered line's shading and the morph back into
         // bands can fade it in rather than have it appear
         areaStyle: {
-          color: share ? bandFill(s, base) : hoursFill[s],
-          opacity: share ? 1 : !hide && base.has(s) && !holdFill ? hoursFillOpacity : 0,
+          color: share ? bandFill(s, shown) : hoursFill[s],
+          opacity: share ? 1 : !hide && shown.has(s) && !holdFill ? hoursFillOpacity : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -561,8 +565,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         smooth,
         color: colors[k],
         z: share ? 2 + (names.length - k) / 100 + (MAX_PARTS + 1 - j) / 1000 : 2.9,
-        lineStyle: { ...partLine(k, j, base), color: colors[k], cap: "butt", join: "round" },
-        areaStyle: { color: share ? partFill(k, j, base) : hoursFill[k], opacity: share ? 1 : 0, origin: "start" },
+        lineStyle: { ...partLine(k, j, shown), color: colors[k], cap: "butt", join: "round" },
+        areaStyle: { color: share ? partFill(k, j, shown) : hoursFill[k], opacity: share ? 1 : 0, origin: "start" },
         emphasis: { disabled: true },
         data: data.dates.map((d, i) => [d, share ? partTop[k][j][i] : partHoursAt(k, j, i)]),
       }))
@@ -579,7 +583,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
           smooth,
           color: colors[s],
           z: 4,
-          lineStyle: overlayStyle(s, base.has(s)),
+          lineStyle: overlayStyle(s, shown.has(s)),
           areaStyle: null,
           emphasis: { disabled: true },
           data: edgeData(s, side),
@@ -590,12 +594,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // The band (share) or line (hours) under the pointer, set by the mouse handlers below. A re-render starts
   // with nothing focused, so the page is told if something was (clicking to pin re-renders under the pointer),
   // or the highlights it drew for that artist would stay after the pointer leaves.
-  let focused = null;
+  let focused = kept < 0 ? null : kept;
   const tellFocus = (name) => {
     st.focused = name;
     focusHooks.get(el)?.(name);
   };
-  if (st.focused != null) tellFocus(null);
+  if (st.focused != (kept < 0 ? null : names[kept])) tellFocus(kept < 0 ? null : names[kept]);
   const sIdx = (p) => Number(p.seriesId.slice(1));
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
@@ -862,7 +866,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     zr.off("globalout", st.zrOut);
     zr.off("click", st.zrClick);
   }
-  let fromPlot = false; // only clear focus the plot set, not a legend or list hover's
+  let fromPlot = kept >= 0; // only clear focus the plot set, not a legend or list hover's
   const focus = share ? focusBand : focusLine;
   // The band or line under a pixel, and the part of it: {k, j} (j null off the parts), null for none, or
   // undefined when the pixel is off the plot. In hours mode a part's line within PART_REACH px wins over
@@ -923,7 +927,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     fromPlot = false;
     zr.setCursorStyle("default");
   };
-  const move = (st.zrMove = (e) => {
+  st.zrMove = (e) => {
     const px = [e.offsetX, e.offsetY];
     const hit = pick(px);
     if (hit === undefined) return clear();
@@ -932,7 +936,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     zr.setCursorStyle((hit?.j != null && pins?.openPart) || (pins && pinnable(best)) ? "pointer" : "default");
     const was = focused;
     if (focusPart(best, hit?.j ?? null) || best !== was) retip(...px);
-  });
+  };
   st.zrOut = clear;
   // Clicking a part opens its album or song in that view, pinned; clicking elsewhere on the band or line pins the
   // artist, or unpins it if it's already pinned
@@ -940,10 +944,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const hit = pick([e.offsetX, e.offsetY]);
     if (hit?.j != null && pins?.openPart) return pins.openPart(names[hit.k], parts.kind, parts.names[hit.k][hit.j]);
     if (!pins?.toggle || !pinnable(hit?.k)) return;
+    // The toggle re-renders the chart; it keeps the artist under the pointer lit, and the readout open
+    st.keepFocus = names[hit.k];
     pins.toggle(names[hit.k]);
-    // The toggle re-rendered the chart with nothing under the pointer; light what's still there, so an artist
-    // just unpinned doesn't blink out until the mouse moves
-    if (st.zrMove !== move) st.zrMove(e);
+    st.keepFocus = null;
+    retip(e.offsetX, e.offsetY);
   };
   zr.on("mousemove", st.zrMove);
   zr.on("globalout", st.zrOut);
