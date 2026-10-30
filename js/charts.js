@@ -867,27 +867,13 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // A new bar size changes every bar, so the chart draws afresh rather than morphing bars into unrelated ones
   const fresh = !prev || prev.span !== span || prev.names.join("\u0000") !== names.join("\u0000");
   // last: each series' values on screen (see settleMonthly)
-  const st = { names, rows, span, other, t, off, pins, colorOf, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
-  monthlyState.set(el, st);
   // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
   // ?capbar to the URL to put each one just above its bar instead)
   const atTop = !location.search.includes("capbar");
+  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
+  monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
-  // Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right.
-  // Neighbouring lines join into one strip, meeting halfway between the bars and rounded only at its two ends,
-  // and a run of months with the same artist is one piece: [first month, last month, rounded left, rounded right]
-  const underlines = [];
-  if (caption && atTop)
-    rows.forEach((r, i) => {
-      const n = barView(st, r).top[0]?.name;
-      if (!slotOf.has(n) || off.has(n)) return;
-      const last = underlines[underlines.length - 1];
-      const joins = last && last.value[1] === i - 1;
-      if (joins && last.name === n) return void (last.value[1] = i);
-      if (joins) last.value[3] = 0;
-      underlines.push({ name: n, value: [i, i, joins ? 0 : 1, 1], itemStyle: { color: colorOf(n) } });
-    });
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -974,14 +960,14 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           clip: false,
           tooltip: { show: false },
           encode: { x: [0, 1] },
-          data: underlines,
+          ...looks[2 * names.length + 2],
           renderItem: (params, api) => {
-            const [i0, i1, roundL, roundR] = [0, 1, 2, 3].map((d) => api.value(d));
+            const [i0, i1, roundL, roundR, h] = [0, 1, 2, 3, 4].map((d) => api.value(d));
             const slot = api.size([1, 0])[0];
             const barW = slot * 0.7; // barCategoryGap 30%
             const x0 = api.coord([i0, 0])[0] - (roundL ? barW : slot) / 2;
             const x1 = api.coord([i1, 0])[0] + (roundR ? barW : slot) / 2;
-            const [h, r] = [3, 1.5];
+            const r = h / 2;
             return {
               type: "rect",
               shape: { x: x0, y: params.coordSys.y - 4 - h, width: x1 - x0, height: h, r: [roundL * r, roundR * r, roundR * r, roundL * r] },
@@ -1168,7 +1154,28 @@ function monthlySeries(st) {
   const top = { id: "top", itemStyle: { color: mix(t.surface, t.other, 0.6), ...edge(t.other, false), ...radius }, data: items("top", uncharted, (i) => ({ name: tops[i]?.name })) };
   // The gray never dims either: it's the rest of the month, whoever is lit
   const gray = { id: "rest", itemStyle: { color: mix(t.surface, t.other, 0.35), ...edge(t.other, false) }, data: rest };
-  return [gray, ...slices, ...topBlocks, top];
+  return [gray, ...slices, ...topBlocks, top, underlines(st, tops, lit)];
+}
+
+// Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right:
+// thicker when they're lit, and dimmed while someone else is. Neighbouring lines join into one strip, meeting
+// halfway between the bars and rounded only at its two ends, and a run of months with the same artist is one
+// piece: [first month, last month, rounded left, rounded right, thickness]
+function underlines(st, tops, lit) {
+  const data = [];
+  if (st.underline)
+    tops.forEach((top, i) => {
+      const n = top?.name;
+      if (!st.names.includes(n) || st.off.has(n)) return;
+      const last = data[data.length - 1];
+      const joins = last && last.value[1] === i - 1;
+      if (joins && last.name === n) return void (last.value[1] = i);
+      if (joins) last.value[3] = 0;
+      const on = lit.has(n);
+      const color = on || !lit.size ? st.colorOf(n) : mix(st.t.surface, st.colorOf(n), 0.35);
+      data.push({ name: n, value: [i, i, joins ? 0 : 1, 1, on ? 3.5 : 2], itemStyle: { color } });
+    });
+  return { id: "underlines", data };
 }
 
 // Note what's on screen once `series` is set, and once any emptied bars have shrunk away, take their outlines off
