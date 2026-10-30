@@ -633,7 +633,6 @@ dialog pre {
 /* The mix and monthly keys' swatches are buttons too, and outlined when the artist is deselected */
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
-.mix-legend-item .swatch:disabled { cursor: default; }
 .mix-legend-item.hidden-artist { opacity: 0.4; }
 .mix-seg.off { pointer-events: none; }
 
@@ -698,8 +697,6 @@ dialog pre {
 /* A pinned artist's chip is outlined and tinted in the artist's color (--c), with an x that unpins */
 .chart-legend .legend-item.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); padding-right: 4px; }
 .chart-legend .legend-item.pinned:hover { background: color-mix(in srgb, var(--c) 22%, transparent); }
-.chart-legend .legend-item .legend-unpin { padding: 4px 6px 4px 2px; color: var(--text-muted); font-size: 14px; line-height: 1; }
-.chart-legend .legend-item .legend-unpin:hover { color: var(--text-primary); }
 
 /* Artist search under the chips: a combobox that pins any artist into the chart */
 .artist-search { position: relative; width: min(100%, 340px); }
