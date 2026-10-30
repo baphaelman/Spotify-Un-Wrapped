@@ -213,14 +213,16 @@ function paintLive(c, st) {
 // a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
 // yMax: optional { from, to } for the y-axis top (Hours mode), which tweens along with the range; otherwise
 // it would step from one whole number to the next each time the window's tallest line changes
-function panTo(el, from, to, { ms, easing }, done, yMax) {
+function panTo(el, from, to, { ms, easing, onFrame }, done, yMax) {
   const c = chart(el);
   const st = rollingState.get(el);
   c.setOption({ animationDurationUpdate: 0 }); // each frame is a plain redraw, not a tween
+  st.panEnd = () => onFrame?.(1);
   const t0 = performance.now();
   const tick = (now) => {
     const t = Math.min(1, (now - t0) / ms);
     const e = easeInOut(t);
+    onFrame?.(e);
     const startValue = from[0] + (to[0] - from[0]) * e, endValue = from[1] + (to[1] - from[1]) * e;
     if (yMax) {
       const max = yMax.from + (yMax.to - yMax.from) * e;
@@ -265,6 +267,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (prev?.panRaf) {
     cancelAnimationFrame(prev.panRaf);
     prev.panRaf = 0;
+    if (!morph?.pan) prev.panEnd?.(); // whatever rides the pan lands with it (a newer pan carries on from where it was)
   }
   // Hours mode: lines are matched by series id (their rank), so an artist who moves up or down the ranking
   // would tween through a neighbour's line, and one who stays would seem to regrow. Seat the drawn lines by
@@ -314,6 +317,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth), yMax);
       return;
     }
+    else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
     morph = same;
   }
   const { ms, easing = EASE_IN_OUT.echarts } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };

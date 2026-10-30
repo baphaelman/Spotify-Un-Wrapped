@@ -156,13 +156,19 @@ matches what is moving.
   and number travel with the change on the same tier and curve as the graphs: the slice slider's
   `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
   number counting through the sizes in between. A drag is the pointer's, so it never glides.
-- **Chain phases; never overlap them.** A multi-phase action (slice size, then pan, then artists) starts each
-  phase from where the last one ended (a period button: the window frame first, then the slice size, then the
-  pan and the artists): a later phase waits for the earlier one (`afterBrush` waits out the
-  bar's morph; a token drops a click's chain when a newer click arrives). A transition that starts while
-  its element has them switched off (the timeline's `.morphing` state) snaps instead of gliding. Order the
-  phases so each draws data that exists there: the slice size changes on the period still showing, because
-  the old artists have nothing in the new period and would leave it blank.
+- **Things that travel together share one clock.** A CSS transition and a per-frame JS tween with the same
+  duration and curve still drift apart (the frame trailed the chart by ~9% mid-pan). When two things must stay
+  in step, drive both from one tick: the chart's pan reports its eased progress (`morph.onFrame`) and the
+  period bar's window frame is placed from it (`glideBrushRange`, with its own easing off).
+- **Few beats, each with a purpose.** Fold everything that can start together into one beat, and chain only
+  what must follow. A period button that changes the slice size is three: the slice size sweeps (with its
+  slider); then the window frame and the chart pan or zoom to the new period *together* (one clock, so the frame
+  always sits over what the chart shows); then the artists morph in with
+  the bar's backdrop (which changes once, not once per beat). A beat starts where the last ended (a token
+  drops a click's chain when a newer click arrives). Order beats so each draws data that exists there: the
+  slice size changes on the period still showing, because the old artists have nothing in the new period
+  and would leave it blank. A transition that starts while its element has them switched off (the
+  timeline's `.morphing` state) snaps instead of gliding.
 - **Reduced motion:** wrap every JS duration in `dur()` (0 when the visitor asked for less motion), and
   give every CSS animation an entry in the `prefers-reduced-motion` blocks.
 

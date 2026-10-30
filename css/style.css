@@ -271,7 +271,7 @@ button.ghost:hover { background: var(--border); }
 .brush-dim.a { left: 0; border-radius: 7px 0 0 7px; }
 .brush-dim.b { right: 0; border-radius: 0 7px 7px 0; }
 /* A preset or step slides the window over; while it's being dragged it follows the pointer exactly */
-.brush-track:not(.dragging, .morphing) :is(.brush-win, .brush-dim) { transition: left var(--slide-ms, var(--motion-morph)) var(--ease-in-out), width var(--slide-ms, var(--motion-morph)) var(--ease-in-out); }
+.brush-track:not(.dragging, .morphing, .gliding) :is(.brush-win, .brush-dim) { transition: left var(--slide-ms, var(--motion-morph)) var(--ease-in-out), width var(--slide-ms, var(--motion-morph)) var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .brush-track :is(.brush-win, .brush-dim) { transition: none !important; } }
 .brush-win {
   position: absolute;
