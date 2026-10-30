@@ -4,7 +4,6 @@ import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, set
 import { setupBrush, setBrushData, setBrushRange, setBrushBands, brushRange, glideBrushRange } from "./brush.js";
 import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
-import { renderList } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
@@ -718,16 +717,13 @@ function shownPlays() {
   return plays.filter((p) => !hidden.has(p.artist));
 }
 
-// Everything that follows the legend's selection: stats, top tracks, monthly hours and the clock
+// Everything that follows the legend's selection: monthly hours and the clock
 // (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
 function renderDependents() {
   const plays = shownPlays();
-  // Each track row belongs to what the view is about: its artist, the track itself, or its album
-  const detail = state.dim === "album" ? (t) => `${t.artist} · ${t.album || "Unknown album"}` : (t) => t.artist;
-  renderTopList($("top-tracks"), agg.topTracks(plays, 10), detail, (t) => t.key, { pin: true });
   paintMonthly(plays);
   paintClock(plays);
-  paintTopLists();
+  paintFocus();
 }
 
 // Deselecting artists in the legend removes them from the other graphs too
@@ -741,89 +737,11 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });
 
-// artistOf: which artist a row belongs to, highlighted in the rolling chart while the row is hovered.
-// pinnable: clicking a row pins or unpins that artist. paintTopLists colors the rows afterwards.
-function renderTopList(ol, items, detail, artistOf, { pin: pinnable = false } = {}) {
-  const max = items[0]?.hours || 1;
-  renderList(
-    ol,
-    items.map((item) => ({
-      name: item.name,
-      key: `${item.name}\u0000${artistOf(item)}`, // the same row in another period glides instead of being redrawn
-      detail: detail(item),
-      value: `${Math.round(item.hours).toLocaleString()} h`,
-      frac: item.hours / max,
-    }))
-  );
-  ol.classList.toggle("pinnable", pinnable);
-  ol._artists = items.map(artistOf);
-  [...ol.children].forEach((li, i) => {
-    li.addEventListener("pointerenter", () => focusArtist($("chart-rolling"), artistOf(items[i])));
-    li.addEventListener("pointerleave", () => focusArtist($("chart-rolling"), null));
-    if (pinnable) {
-      li.tabIndex = 0;
-      li.setAttribute("role", "button");
-      li.addEventListener("click", () => togglePin(artistOf(items[i])));
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePin(artistOf(items[i])); }
-      });
-      const mark = document.createElement("span");
-      mark.className = "pin-mark";
-      mark.innerHTML = PIN_SVG; // constant markup, no user data
-      li.append(mark);
-    }
-  });
-}
-
-const PIN_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path fill="currentColor" d="M9.5 1.5 14.5 6.5 12.6 7.4 10.7 10.2 11 12 9.9 13.1 7.5 10.7 3.4 14.8 2.5 13.9 6.6 9.8 4.2 7.4 5.3 6.3 7.1 6.6 9.9 4.7 10.8 2.8Z"/></svg>';
-
-function togglePin(name) {
-  if (state.pinned.includes(name)) unpin(name);
-  else pin(name);
-}
-
-// Rows take their artist's color in the rolling chart (the bars match the stack above); artists outside
-// the chart stay gray. Pinned artists' rows are highlighted, tracks included.
-function paintTopLists() {
-  for (const id of ["top-tracks"]) {
-    const ol = $(id);
-    [...ol.children].forEach((li, i) => {
-      const name = ol._artists?.[i];
-      const slot = state.chartNames?.includes(name) ? state.colorSlots.get(name) : undefined;
-      if (slot === undefined) li.style.removeProperty("--c");
-      else li.style.setProperty("--c", `var(--series-${slot + 1})`);
-      const pinned = state.pinned.includes(name);
-      li.classList.toggle("pinned", pinned);
-      if (ol.classList.contains("pinnable")) {
-        li.setAttribute("aria-pressed", pinned);
-        li.title = pinned ? "Click to unpin" : "Click to pin to the chart";
-      }
-    });
-  }
-  paintFocus();
-}
-
-// Neighbouring lit rows (a pinned artist's consecutive tracks, or pinned artists side by side) read as one box,
-// each keeping its own tint, with square corners where they meet
-function joinLitRows(ol) {
-  const lit = (li, i) => (li.classList.contains("pinned") || li.classList.contains("focus")) ? ol._artists?.[i] : null;
-  const kids = [...ol.children];
-  kids.forEach((li, i) => {
-    const a = lit(li, i);
-    li.classList.toggle("join-up", a != null && i > 0 && lit(kids[i - 1], i - 1) != null);
-    li.classList.toggle("join-down", a != null && i < kids.length - 1 && lit(kids[i + 1], i + 1) != null);
-  });
-}
-
-// The hovered artist lights everything that belongs to them, as pinning does: their rows in Top tracks, and
-// their chip in the period bar's key (the mix bar is lit in mix.js)
+// The hovered artist lights everything that belongs to them, as pinning does: their chip in the period bar's
+// key (the mix bar is lit in mix.js)
 let listFocus = null;
 function paintFocus(name = listFocus) {
   listFocus = name;
-  for (const id of ["top-tracks"]) {
-    [...$(id).children].forEach((li, i) => li.classList.toggle("focus", name != null && $(id)._artists?.[i] === name));
-    joinLitRows($(id));
-  }
   for (const item of document.querySelectorAll("#artist-key [data-artist]")) {
     item.classList.toggle("focus", name != null && item.dataset.artist === name);
   }
@@ -922,7 +840,6 @@ function renderRollingChart(zoom, morph = false, look = null, followers = !look)
   renderRolling($("chart-rolling"), data, names, window, zoom, state.rollingMode, includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
-    paintTopLists();
     renderMix(artists, slots, includeOther, pins);
     paintArtistKey();
     paintMonthly();

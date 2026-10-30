@@ -532,7 +532,6 @@ button.ghost:hover { background: var(--border); }
   align-items: baseline;
   padding: 6px 0;
 }
-#top-artists li:hover .name, #top-tracks li:hover .name { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
 .toplist .rank { color: var(--text-muted); font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .toplist .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toplist .name small { color: var(--text-muted); margin-left: 6px; }
