@@ -693,7 +693,6 @@ dialog pre {
 .chart-legend .legend-item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 /* A pinned artist's chip is outlined and tinted in the artist's color (--c), with an x that unpins */
 .chart-legend .legend-item.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); padding-right: 4px; }
-.chart-legend .legend-item.pinned:hover { background: color-mix(in srgb, var(--c) 22%, transparent); }
 
 /* Artist search under the chips: a combobox that pins any artist into the chart */
 .artist-search { position: relative; width: min(100%, 340px); }
@@ -892,12 +891,12 @@ dialog pre {
    default 8 artists fit on two rows of four */
 .mix-list {
   list-style: none; margin: 12px 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 16px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 18px;
 }
-/* The tab hugs its own card (4px) and stands well clear of the card before it (16px) */
+/* The tab sits near its own card (7px) and well clear of the card before it (18px) */
 .mix-list li {
   --art: 60px;
-  display: grid; grid-template-columns: 8px 1fr; column-gap: 4px; font-size: 13px;
+  display: grid; grid-template-columns: 8px 1fr; column-gap: 7px; font-size: 13px;
   transition: opacity var(--motion-fade) var(--ease-out);
 }
 .mix-list .mix-card {
@@ -918,7 +917,6 @@ dialog pre {
 .mix-list li.pinnable .mix-card:hover::after, .mix-list li.focus .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
 .mix-list li.pinned .mix-card { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
 .mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
-.mix-list li.pinned .mix-card:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
 .mix-list .mix-card:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
 /* The tab: the whole strip left of the card is its button, so it's easy to hit. Hovering it previews the click
@@ -961,7 +959,6 @@ dialog pre {
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }
 .mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
-.mix-seg.pinned:hover { background: color-mix(in srgb, var(--c) 44%, var(--surface)); }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
