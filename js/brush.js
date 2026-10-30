@@ -3,7 +3,7 @@
 // everything from that range, so nothing is rounded to a year.
 
 import { dayToDate } from "./aggregate.js";
-import { dur, easeInOut, easeOut, travel } from "./motion.js";
+import { dur, easeInOut, easeOut, travel, FADE_MS } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -135,11 +135,14 @@ export function setBrushBands(next, morph) {
   const now = performance.now();
   const flying = now < morphAt.end;
   const prev = bands && bands.bands.length === next.bands.length ? resample(bands, next.days) : null;
+  // Only the looks change (a pin, an unpin, a band shown again) and no edge moves: a highlight, so it eases
+  // out at the fade's pace, not the data's
+  const looksOnly = !!prev && !movesAcross(prev, next) && !movesUpDown(prev, next);
   // When the bands change shape and the timeline's ends move too, it's two steps: the bands morph in place,
   // then the ends travel, each over `ms`, so the two movements don't blur into one
   const twoStep = !!prev && movesAcross(prev, next) && movesUpDown(prev, next);
   const delay = Math.max(morph?.delay ?? 0, flying ? morphAt.start - now : 0);
-  const ms = Math.max(dur(morph?.ms ?? 0) * (twoStep ? 2 : 1), flying ? morphAt.end - now - delay : 0);
+  const ms = Math.max(dur(morph && looksOnly ? FADE_MS : morph?.ms ?? 0) * (twoStep ? 2 : 1), flying ? morphAt.end - now - delay : 0);
   if (!ms || !prev) {
     morphAt = { start: 0, end: 0, turn: 0 };
     return applyBands(next);
@@ -149,7 +152,7 @@ export function setBrushBands(next, morph) {
   const turn = !twoStep ? 0 : flying && morphAt.turn > start ? morphAt.turn : start + ms / 2;
   const split = twoStep ? (turn - start) / ms : 1;
   // Taking over a movement already under way, it carries on without first slowing to a stop
-  const base = morph?.ease ?? easeInOut;
+  const base = morph && looksOnly ? easeOut : morph?.ease ?? easeInOut;
   const easeV = flying && now >= morphAt.start ? easeOut : base;
   const easeH = !twoStep ? easeV : flying && morphAt.turn && now >= morphAt.turn ? easeOut : base;
   morphAt = { start, end: start + ms, turn };
