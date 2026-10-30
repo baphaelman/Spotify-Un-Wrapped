@@ -412,6 +412,7 @@ button.ghost:hover { background: var(--border); }
 .tav-window .ticks { grid-column: 2; height: 20px; font-size: 11px; color: var(--text-muted); }
 .tav-window .ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; white-space: nowrap; transition: color var(--motion-fade) var(--ease-out); }
 .tav-window .ticks span:not(.on) { color: transparent; }
+.tav-window .ticks span { cursor: pointer; padding: 0 4px; } /* a click goes to that size (rollingview.js) */
 .tav-window .ticks.settle span { transition: none; }
 .tav-window .ticks span::before { content: ""; width: 1px; height: 4px; margin-bottom: 2px; background: var(--text-muted); transition: width var(--motion-fade) var(--ease-out), height var(--motion-fade) var(--ease-out), margin-top var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out); }
 .tav-window .ticks span.on { display: flex; color: var(--text-primary); font-weight: 600; } /* (not the block of `.ticks span.on`, which would drop the notch) */
@@ -889,56 +890,63 @@ dialog pre {
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-hours .mix-hours { opacity: 1; }
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
-/* Under the bar, every segment in full as a card: a light wash of its color and a tab of it to the left. A hovered
-   or pinned card draws a ring in its color on all four sides. Cards are narrow enough that the default 8 artists
-   fit on two rows of four */
+/* Under the bar, every segment in full as a card: a light wash of its color, with a tab of it just outside to the
+   left. A hovered or pinned card draws a ring in its color on all four sides. Cards are narrow enough that the
+   default 8 artists fit on two rows of four */
 .mix-list {
   list-style: none; margin: 12px 0 0; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px;
 }
 .mix-list li {
   --art: 60px;
-  display: grid; grid-template-columns: 28px 1fr; align-items: center; column-gap: 12px;
-  padding: 10px 12px 10px 0; font-size: 13px;
+  display: grid; grid-template-columns: 16px 1fr; column-gap: 6px; font-size: 13px;
+  transition: opacity var(--motion-fade) var(--ease-out);
+}
+.mix-list .mix-card {
+  display: grid; grid-template-columns: 1fr; align-items: center; column-gap: 12px;
+  padding: 10px 12px; min-width: 0;
   background: color-mix(in srgb, var(--c) 9%, transparent);
   border-radius: 10px;
   position: relative;
-  transition: background-color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+  transition: background-color var(--motion-fade) var(--ease-out);
 }
-.mix-list li::after {
+.mix-list .mix-card::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);
   transition: box-shadow var(--motion-fade) var(--ease-out);
 }
-.mix-list li.pinnable { cursor: pointer; }
-.mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
-.mix-list li.pinnable:hover::after, .mix-list li.focus::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
-.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
-.mix-list li.pinned::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
-.mix-list li.pinned:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
+.mix-list li.pinnable .mix-card { cursor: pointer; }
+.mix-list li.pinnable .mix-card:hover, .mix-list li.focus .mix-card { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
+.mix-list li.pinnable .mix-card:hover::after, .mix-list li.focus .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
+.mix-list li.pinned .mix-card { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
+.mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
+.mix-list li.pinned .mix-card:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
-.mix-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
-/* The tab: the whole strip left of the cover is its button, so it's easy to hit */
+.mix-list .mix-card:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
+/* The tab: the whole strip left of the card is its button, so it's easy to hit. Hovering it previews the click
+   without resizing: a filled tab partly drains, an empty one partly fills */
 .mix-list .tab {
-  align-self: stretch; margin: -10px 0; padding: 0; border: 0; background: none;
+  align-self: stretch; padding: 0; border: 0; background: none;
   display: grid; place-items: center; cursor: pointer; color: inherit;
 }
+.mix-list .tab:hover:not(:disabled) { background: none; }
 .mix-list .tab:disabled { cursor: default; }
 .mix-list .tab .bar {
   width: 8px; height: calc(var(--art) * 0.48); border-radius: 4px; background: var(--c);
   box-shadow: inset 0 0 0 1.5px var(--c);
-  transition: background-color var(--motion-fade) var(--ease-out), transform var(--motion-fade) var(--ease-out);
+  transition: background-color var(--motion-fade) var(--ease-out);
 }
-.mix-list .tab:not(:disabled):hover .bar { transform: scaleX(1.25); }
 .mix-list li.off .tab .bar { background: transparent; } /* hidden: the tab is only its outline */
-.mix-list .tab:focus-visible { outline: 2px solid var(--c); outline-offset: -4px; border-radius: 6px; }
+.mix-list .tab:not(:disabled):hover .bar { background: color-mix(in srgb, var(--c) 35%, transparent); }
+.mix-list li.off .tab:not(:disabled):hover .bar { background: color-mix(in srgb, var(--c) 65%, transparent); }
+.mix-list .tab:focus-visible { outline: 2px solid var(--c); outline-offset: 0; border-radius: 6px; }
 .mix-list .who { min-width: 0; overflow-wrap: anywhere; }
 .mix-list .name { display: block; color: var(--text-primary); }
 .mix-list li.pinned .name { color: var(--c); font-weight: 600; }
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
 .mix-list .art { display: none; }
-.mix-list.with-covers li { grid-template-columns: 28px var(--art) 1fr; min-height: calc(var(--art) + 20px); }
+.mix-list.with-covers .mix-card { grid-template-columns: var(--art) 1fr; min-height: calc(var(--art) + 20px); }
 .mix-list.with-covers .art {
   display: block; width: var(--art); height: var(--art); border-radius: 4px; overflow: hidden;
   background: color-mix(in srgb, var(--c) 22%, var(--surface));
@@ -946,7 +954,7 @@ dialog pre {
 .mix-list.portraits .art { border-radius: 50%; }
 .mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .mix-list .art img.shown { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .tab .bar, .mix-list .art img { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .mix-card, .mix-list .mix-card::after, .mix-list .tab .bar, .mix-list .art img { transition: none; } }
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }

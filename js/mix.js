@@ -27,7 +27,8 @@ const span = (cls) => {
 };
 
 // A segment shows its share and, beneath it, its hours; who it is reads in its tile of the key under the bar, in the same color
-// and never cut short. A click on either pins them; a click on the tile's color tab hides or shows them.
+// and never cut short. A click on either pins them; a click on the color tab beside the tile hides or shows them
+// (the tab sits outside the card, so hovering it doesn't light the artist).
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
@@ -50,21 +51,22 @@ function makeEntry(name) {
   img.decoding = "async";
   img.addEventListener("load", () => img.classList.add("shown"));
   art.append(img);
-  row.append(tab, art, rowWho);
-  const e = { name, seg, label, hoursEl, row, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
-  for (const el of [seg, row]) {
+  const card = span("mix-card");
+  card.append(art, rowWho);
+  row.append(tab, card);
+  const e = { name, seg, label, hoursEl, row, card, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  for (const el of [seg, card]) {
     el.addEventListener("pointerenter", () => hover(name));
     el.addEventListener("pointerleave", () => hover(null));
   }
   seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
   // A hidden one's tile brings it back, like its chip in the period bar's key
   const act = () => e.pinnable && (e.off ? ctx.pins.hide(name) : ctx.pins.toggle(name));
-  row.addEventListener("click", act);
-  row.addEventListener("keydown", (ev) => {
-    if (ev.target === row && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); act(); }
+  card.addEventListener("click", act);
+  card.addEventListener("keydown", (ev) => {
+    if (ev.target === card && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); act(); }
   });
-  tab.addEventListener("click", (ev) => {
-    ev.stopPropagation();
+  tab.addEventListener("click", () => {
     if (!e.pinnable) return;
     hover(null);
     ctx.pins.hide(name);
@@ -212,14 +214,14 @@ export function updateMix(next) {
     e.row.classList.toggle("pinnable", e.pinnable);
     e.row.classList.toggle("pinned", pinned);
     e.row.classList.toggle("off", off);
-    e.row.tabIndex = e.pinnable ? 0 : -1;
-    e.row.setAttribute("role", "button");
+    e.card.tabIndex = e.pinnable ? 0 : -1;
+    e.card.setAttribute("role", "button");
     e.tab.disabled = !e.pinnable; // everyone else is shown or hidden from the period bar's key
     e.tab.title = off ? `Show ${e.rowName.textContent}` : `Hide ${e.rowName.textContent}`;
     e.tab.setAttribute("aria-label", e.tab.title);
     e.tab.setAttribute("aria-pressed", !off);
     const share = e.to.w;
-    e.row.title = e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.rowName.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
+    e.card.title = e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.rowName.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
   for (const e of entries.values()) if (e.leaving) { e.from = { x: e.x, w: e.w }; e.row.remove(); }
   list.replaceChildren(...names.map((n) => entries.get(n).row));

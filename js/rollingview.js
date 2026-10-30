@@ -420,6 +420,14 @@ for (const id of ["n-artists", "window", "include-other"]) {
   });
 }
 
+// A click on one of the window's notches (or where its number shows) goes to that size, the way a click on the track would
+for (const tick of $("window").closest(".slider").querySelectorAll(".ticks [data-v]")) {
+  tick.addEventListener("click", () => {
+    $("window").value = tick.dataset.v;
+    $("window").dispatchEvent(new Event("input"));
+  });
+}
+
 export const MAX_PINS = 10; // one per series color
 
 export function pin(name) {
