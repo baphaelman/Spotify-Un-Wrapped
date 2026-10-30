@@ -4,7 +4,7 @@
 // Segments are kept per artist, so changing the period slides and resizes the ones that stay (colors and identity preserved), grows newcomers from nothing and collapses whoever leaves.
 
 import { dayToDate, rangeHours } from "./aggregate.js";
-import { MORPH_MS, dur, easeInOut, tweenNumber } from "./motion.js";
+import { MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -40,10 +40,22 @@ function makeEntry(name) {
   const hoursEl = span("mix-hours");
   const under = span("mix-under");
   under.append(hoursEl);
-  const e = { name, seg, label, nameEl, byEl, under, hoursEl, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
-  seg.addEventListener("pointerenter", () => hover(name));
-  seg.addEventListener("pointerleave", () => hover(null));
-  seg.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
+  // Its row in the list under the bar: the same color, words and numbers, never cut short
+  const row = document.createElement("li");
+  const rowSw = span("swatch");
+  const rowWho = span("who");
+  const rowName = span("name");
+  const rowBy = span("by");
+  rowWho.append(rowName, rowBy);
+  const rowPct = span("pct");
+  const rowHours = span("hours");
+  row.append(rowSw, rowWho, rowPct, rowHours);
+  const e = { name, seg, label, nameEl, byEl, under, hoursEl, row, rowName, rowBy, rowPct, rowHours, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  for (const el of [seg, row]) {
+    el.addEventListener("pointerenter", () => hover(name));
+    el.addEventListener("pointerleave", () => hover(null));
+    el.addEventListener("click", () => e.pinnable && !e.off && ctx.pins.toggle(name));
+  }
   return e;
 }
 
@@ -96,6 +108,7 @@ function glide() {
       if (!e.leaving) continue;
       e.seg.remove();
       e.under.remove();
+      e.row.remove();
       entries.delete(name);
     }
   };
@@ -156,6 +169,8 @@ export function updateMix(next) {
     e.to = { x: next ? target.get(next.name).x : 1, w: 0 };
   });
 
+  const list = $("mix-list");
+  const rowsBefore = new Map([...entries].map(([n, e]) => [n, e.row.getBoundingClientRect()]));
   names.forEach((name, i) => {
     let e = entries.get(name);
     if (!e) {
@@ -182,10 +197,20 @@ export function updateMix(next) {
     e.nameEl.textContent = other ? name : ctx.title?.(name) ?? name;
     e.byEl.textContent = other ? "" : ctx.by?.(name) ?? "";
     const by = e.byEl.textContent ? ` ${e.byEl.textContent}` : "";
+    e.row.style.setProperty("--c", color);
+    e.row.classList.toggle("pinnable", e.pinnable);
+    e.row.classList.toggle("pinned", pinned);
+    e.row.classList.toggle("off", off);
+    e.rowName.textContent = e.nameEl.textContent;
+    e.rowBy.textContent = e.byEl.textContent;
+    e.rowPct.textContent = off ? "hidden" : `${Math.round(e.to.w * 100)}%`;
+    tweenNumber(e.rowHours, hours[i], { format: fmtHours });
     const share = e.to.w;
     e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.nameEl.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
-  for (const e of entries.values()) if (e.leaving) e.from = { x: e.x, w: e.w };
+  for (const e of entries.values()) if (e.leaving) { e.from = { x: e.x, w: e.w }; e.row.remove(); }
+  list.replaceChildren(...names.map((n) => entries.get(n).row));
+  flip(rowsBefore, new Map(names.map((n) => [n, entries.get(n).row])));
 
   if (first) {
     for (const e of entries.values()) { e.x = e.to.x; e.w = e.to.w; e.from = e.to; }
@@ -206,13 +231,17 @@ function dim() {
     const lit = !any || e === focus || pinned(e);
     e.seg.classList.toggle("dim", !lit);
     e.under.classList.toggle("dim", !lit);
+    e.row.classList.toggle("dim", !lit);
   }
 }
 
 // Light one artist's segment (and dim the rest), from a hover anywhere on the page; null clears
 export function highlightMix(name) {
   focusName = ctx ? name : null;
-  for (const e of entries.values()) e.seg.classList.toggle("focus", e.name === focusName);
+  for (const e of entries.values()) {
+    e.seg.classList.toggle("focus", e.name === focusName);
+    e.row.classList.toggle("focus", e.name === focusName);
+  }
   dim();
 }
 

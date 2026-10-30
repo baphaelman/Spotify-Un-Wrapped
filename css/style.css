@@ -903,6 +903,29 @@ dialog pre {
 .mix-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
 .mix-by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
 .mix-by:empty { display: none; }
+/* Under the bar, every segment in full: its words wrap rather than being cut short */
+.mix-list {
+  list-style: none; margin: 8px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); column-gap: 20px;
+}
+.mix-list li {
+  display: grid; grid-template-columns: 8px 1fr auto auto; align-items: baseline; gap: 8px;
+  margin: 0 -8px; padding: 5px 8px; border-radius: 8px; font-size: 13px;
+  transition: background-color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+}
+.mix-list li.pinnable { cursor: pointer; }
+.mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 10%, transparent); }
+.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 16%, transparent); }
+.mix-list li.dim, .mix-list li.off { opacity: 0.45; }
+.mix-list .swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--c); align-self: start; margin-top: 5px; }
+.mix-list .who { min-width: 0; overflow-wrap: anywhere; }
+.mix-list .name { color: var(--text-primary); }
+.mix-list li.pinned .name { color: var(--c); font-weight: 600; }
+.mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
+.mix-list .by:empty { display: none; }
+.mix-list .pct { color: var(--c); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.mix-list .hours { color: var(--text-secondary); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .mix-list li { transition: none; } }
 .mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
