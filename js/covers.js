@@ -28,7 +28,8 @@ function save() {
 // Where each kind of key is asked, and the URL in its answer
 const SOURCES = {
   album: { url: (id) => `https://open.spotify.com/oembed?url=spotify:track:${encodeURIComponent(id)}`, pick: (j) => j.thumbnail_url },
-  artist: { url: (id) => `${SUPABASE_URL}/functions/v1/artist-image?track=${encodeURIComponent(id)}`, pick: (j) => j.image },
+  // Deployed from supabase/functions/artist-image under the name the dashboard gave it
+  artist: { url: (id) => `${SUPABASE_URL}/functions/v1/smooth-endpoint?track=${encodeURIComponent(id)}`, pick: (j) => j.image },
 };
 const kindOf = (key) => (key.startsWith("artist:") ? ["artist", key.slice(7)] : ["album", key]);
 

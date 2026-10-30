@@ -1,6 +1,7 @@
 // Artist photos for the Artists view (js/covers.js). The page has only track IDs (the export names artists but
 // doesn't identify them), so this asks Spotify's Web API for a track's first artist and returns their photo.
-//   GET /functions/v1/artist-image?track=<spotify track id>  ->  { "image": "<url>" | "" }
+// Deployed as "smooth-endpoint" (the name the dashboard gave it; js/covers.js calls that).
+//   GET /functions/v1/smooth-endpoint?track=<spotify track id>  ->  { "image": "<url>" | "" }
 // Needs SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as function secrets (an app from developer.spotify.com).
 // Deployed with --no-verify-jwt: it's open like the oEmbed endpoint it stands beside, and holds nothing private.
 
