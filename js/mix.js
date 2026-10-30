@@ -25,32 +25,21 @@ const span = (cls) => {
   return el;
 };
 
-// A segment reads, top to bottom: its share, then the artist's name; their hours sit below it,
-// under the bar. A click pins them.
+// A segment shows only its share; who it is reads in its row of the key under the bar, in the same color
+// and never cut short. A click on either pins them.
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
   const label = span("mix-pct");
-  const nameEl = span("mix-name");
-  nameEl.textContent = name; // from the user's files
-  const who = span("mix-who");
-  who.append(nameEl);
-  const byEl = span("mix-by");
-  seg.append(label, who, byEl);
-  const hoursEl = span("mix-hours");
-  const under = span("mix-under");
-  under.append(hoursEl);
-  // Its row in the list under the bar: the same color, words and numbers, never cut short
+  seg.append(label);
   const row = document.createElement("li");
   const rowSw = span("swatch");
   const rowWho = span("who");
   const rowName = span("name");
   const rowBy = span("by");
   rowWho.append(rowName, rowBy);
-  const rowPct = span("pct");
-  const rowHours = span("hours");
-  row.append(rowSw, rowWho, rowPct, rowHours);
-  const e = { name, seg, label, nameEl, byEl, under, hoursEl, row, rowName, rowBy, rowPct, rowHours, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  row.append(rowSw, rowWho);
+  const e = { name, seg, label, row, rowName, rowBy, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   for (const el of [seg, row]) {
     el.addEventListener("pointerenter", () => hover(name));
     el.addEventListener("pointerleave", () => hover(null));
@@ -59,31 +48,24 @@ function makeEntry(name) {
   return e;
 }
 
-// What fits in a segment this wide (px): the share from SHARE_PX, the hours under it from HOURS_PX, the name
-// from DETAIL_PX
+// A segment this wide (px) has room for its share
 const SHARE_PX = 30;
-const HOURS_PX = 40;
-const DETAIL_PX = 80;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
-// Puts every segment and its hours where its x and w say, and shows what fits. The segments at either end
+// Puts every segment where its x and w say, and shows what fits. The segments at either end
 // round the bar's outer corners.
 function place() {
   const bar = $("mix-bar");
   const W = bar.clientWidth + GAP;
   for (const e of entries.values()) {
     const px = Math.max(0, e.w * W - GAP);
-    for (const el of [e.seg, e.under]) {
-      el.style.left = `${e.x * W}px`;
-      el.style.width = `${px}px`;
-    }
+    e.seg.style.left = `${e.x * W}px`;
+    e.seg.style.width = `${px}px`;
     e.label.textContent = Math.round(e.w * 100) + "%";
     // Under a pixel wide (no listening in the period) the segment isn't drawn at all: its padding and a pin's
     // outline would otherwise still show
     e.seg.classList.toggle("gone", px < 1);
     e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
-    e.seg.classList.toggle("fits-detail", px >= DETAIL_PX && !e.leaving);
-    e.under.classList.toggle("fits", px >= HOURS_PX && !e.leaving && !e.off);
     e.seg.classList.toggle("outer-l", e.x <= EDGE);
     e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
@@ -107,7 +89,6 @@ function glide() {
     for (const [name, e] of entries) {
       if (!e.leaving) continue;
       e.seg.remove();
-      e.under.remove();
       e.row.remove();
       entries.delete(name);
     }
@@ -176,7 +157,7 @@ export function updateMix(next) {
     if (!e) {
       e = makeEntry(name);
       entries.set(name, e);
-      bar.append(e.seg, e.under);
+      bar.append(e.seg);
       const t = target.get(name);
       Object.assign(e, { x: t.x, w: 0 }); // grows from nothing where it will sit
     }
@@ -192,21 +173,16 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
-    tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     const other = hasOther && i === names.length - 1;
-    e.nameEl.textContent = other ? name : ctx.title?.(name) ?? name;
-    e.byEl.textContent = other ? "" : ctx.by?.(name) ?? "";
-    const by = e.byEl.textContent ? ` ${e.byEl.textContent}` : "";
+    e.rowName.textContent = other ? name : ctx.title?.(name) ?? name; // from the user's files
+    e.rowBy.textContent = other ? "" : ctx.by?.(name) ?? "";
+    const by = e.rowBy.textContent ? ` ${e.rowBy.textContent}` : "";
     e.row.style.setProperty("--c", color);
     e.row.classList.toggle("pinnable", e.pinnable);
     e.row.classList.toggle("pinned", pinned);
     e.row.classList.toggle("off", off);
-    e.rowName.textContent = e.nameEl.textContent;
-    e.rowBy.textContent = e.byEl.textContent;
-    e.rowPct.textContent = off ? "hidden" : `${Math.round(e.to.w * 100)}%`;
-    tweenNumber(e.rowHours, hours[i], { format: fmtHours });
     const share = e.to.w;
-    e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.nameEl.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
+    e.row.title = e.seg.title = off ? "" : `${pinned ? "Click to unpin · " : e.pinnable ? "Click to pin · " : ""}${e.rowName.textContent}${by} · ${(share * 100).toFixed(share < 0.1 ? 1 : 0)}% · ${fmtHours(hours[i])}`;
   });
   for (const e of entries.values()) if (e.leaving) { e.from = { x: e.x, w: e.w }; e.row.remove(); }
   list.replaceChildren(...names.map((n) => entries.get(n).row));
@@ -230,7 +206,6 @@ function dim() {
   for (const e of entries.values()) {
     const lit = !any || e === focus || pinned(e);
     e.seg.classList.toggle("dim", !lit);
-    e.under.classList.toggle("dim", !lit);
     e.row.classList.toggle("dim", !lit);
   }
 }
