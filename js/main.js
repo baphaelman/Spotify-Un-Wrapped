@@ -442,8 +442,9 @@ $("period-resize").addEventListener("click", (e) => {
       apply();
       return setRange(range);
     }
-    const trip = panMs(state.range) + dur(MORPH_MS);
+    const was = state.range;
     setRange(range);
+    const trip = panMs(was) + dur(MORPH_MS); // (panMs reads the new range as the destination)
     const mine = resizeRun;
     return void setTimeout(() => {
       if (mine !== resizeRun) return;

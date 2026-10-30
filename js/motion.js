@@ -11,7 +11,7 @@ export const ENTER_MS = 550; // something appearing for the first time: the dash
 export const MORPH_MS = 750; // the data changes: bands, bars, list rows, numbers and the mix bar move from old to new. In-out
 export const PAN_MS = 900; // the view travels to another period of the same length. In-out
 export const ZOOM_MS = 1400; // the view travels to a period of another length (all time ↔ a year). In-out
-export const ZOOM_FAR_MS = 2000; // the view travels to a period several times longer or shorter (3 months ↔ 2 years). In-out
+export const ZOOM_FAR_MS = 2600; // the view travels to a period several times longer or shorter (3 months ↔ 2 years). In-out
 export const STAGGER_MS = 18; // between items entering one after another, up to STAGGER_MAX_MS in all
 export const STAGGER_MAX_MS = 240;
 

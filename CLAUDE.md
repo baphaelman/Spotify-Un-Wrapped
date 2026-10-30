@@ -129,7 +129,7 @@ matches what is moving.
 | `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
 | `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
 | `ZOOM_MS` | 1400 | in-out | The view travels to a period of another length |
-| `ZOOM_FAR_MS` | 2000 | in-out | The view travels to a period more than ~3.5× longer or shorter (3M ↔ 2Y) |
+| `ZOOM_FAR_MS` | 2600 | in-out | The view travels to a period more than ~3.5× longer or shorter (3M ↔ 2Y) |
 | `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
 
 - **Two easings.** In-out (`EASE_IN_OUT`, `--ease-in-out`) for things that travel on their own from one
