@@ -874,6 +874,20 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const atTop = !location.search.includes("capbar");
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
+  // Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right.
+  // Neighbouring lines join into one strip, meeting halfway between the bars and rounded only at its two ends,
+  // and a run of months with the same artist is one piece: [first month, last month, rounded left, rounded right]
+  const underlines = [];
+  if (caption && atTop)
+    rows.forEach((r, i) => {
+      const n = barView(st, r).top[0]?.name;
+      if (!slotOf.has(n) || off.has(n)) return;
+      const last = underlines[underlines.length - 1];
+      const joins = last && last.value[1] === i - 1;
+      if (joins && last.name === n) return void (last.value[1] = i);
+      if (joins) last.value[3] = 0;
+      underlines.push({ name: n, value: [i, i, joins ? 0 : 1, 1], itemStyle: { color: colorOf(n) } });
+    });
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -927,7 +941,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           axisTick: { show: false },
           splitLine: { show: false },
           axisPointer: { show: false },
-          axisLabel: { show: caption && atTop, interval: 0, margin: 6, ...captionStyle },
+          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle },
         },
       ],
       yAxis: {
@@ -951,6 +965,28 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
             align: "center",
             ...captionStyle,
             formatter: (p) => captionOf(rows[p.dataIndex]),
+          },
+        },
+        {
+          id: "underlines",
+          type: "custom",
+          silent: true,
+          clip: false,
+          tooltip: { show: false },
+          encode: { x: [0, 1] },
+          data: underlines,
+          renderItem: (params, api) => {
+            const [i0, i1, roundL, roundR] = [0, 1, 2, 3].map((d) => api.value(d));
+            const slot = api.size([1, 0])[0];
+            const barW = slot * 0.7; // barCategoryGap 30%
+            const x0 = api.coord([i0, 0])[0] - (roundL ? barW : slot) / 2;
+            const x1 = api.coord([i1, 0])[0] + (roundR ? barW : slot) / 2;
+            const [h, r] = [3, 1.5];
+            return {
+              type: "rect",
+              shape: { x: x0, y: params.coordSys.y - 4 - h, width: x1 - x0, height: h, r: [roundL * r, roundR * r, roundR * r, roundL * r] },
+              style: { fill: api.visual("color") },
+            };
           },
         },
       ],
