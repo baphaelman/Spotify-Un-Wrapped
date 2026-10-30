@@ -291,7 +291,7 @@ function applyDim() {
 // Another view: its pins, hidden names and colors come back as the reader left them, and every graph morphs
 // from the old view's names to the new one's. find: optional, returns the name in the new view to pin (and show)
 // as well, once its names are in place
-function setDim(dim, find = null) {
+function setDim(dim, find = null, slot) {
   if (dim === state.dim || !state.raw) return;
   // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not
   state.dims.set(state.dim, {
@@ -311,6 +311,11 @@ function setDim(dim, find = null) {
     state.pinned = state.pinned.filter((n) => n !== key).slice(-(MAX_PINS - 1)).concat(key);
     state.hidden = state.hidden.filter((n) => n !== key);
     setHidden($("chart-rolling"), (saved?.kept ?? []).filter((n) => n !== key));
+    // It keeps the color it was clicked in, taking the slot from whoever had it there (they get a free one)
+    if (slot !== undefined) {
+      state.colorSlots = new Map([...state.colorSlots].filter(([n, s]) => s !== slot && n !== key));
+      state.colorSlots.set(key, slot);
+    }
   }
   // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
   // old view's names over the new plays first
@@ -354,10 +359,12 @@ function segThumbs() {
 segThumbs();
 
 // A part clicked in the rolling chart (an artist's album or song, or an album's song): its own view, with it pinned.
-// Names there are told apart by their artist; an album's songs belong to the album's artist.
+// Names there are told apart by their artist; an album's songs belong to the album's artist. It takes its
+// band's color, so the eye can follow it through the morph.
 function openPart(artist, kind, name) {
   const by = state.dim === "artist" ? artist : state.owner.get(artist);
-  setDim(kind, () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0]);
+  const slot = state.colorSlots.get(artist);
+  setDim(kind, () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
 }
 
 $("view-tabs").addEventListener("click", (e) => {
