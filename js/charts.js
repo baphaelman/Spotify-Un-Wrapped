@@ -873,7 +873,15 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
-  const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
+  // A pinned artist's caption stands out, bold in the main ink (a name with ECharts' rich-text marks stays plain)
+  const captionText = (n) => (n && pins?.has(n) && !off.has(n) && !/[{}|]/.test(n) ? `{pin|${n}}` : n);
+  const captionStyle = {
+    color: t.secondary,
+    fontSize: 11,
+    width: slotW - 6,
+    overflow: "truncate",
+    rich: { pin: { color: t.primary, fontSize: 11, fontWeight: 700 } },
+  };
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -927,7 +935,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
           axisTick: { show: false },
           splitLine: { show: false },
           axisPointer: { show: false },
-          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle },
+          axisLabel: { show: caption && atTop, interval: 0, margin: 10, ...captionStyle, formatter: captionText },
         },
       ],
       yAxis: {
@@ -950,7 +958,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
             distance: 6,
             align: "center",
             ...captionStyle,
-            formatter: (p) => captionOf(rows[p.dataIndex]),
+            formatter: (p) => captionText(captionOf(rows[p.dataIndex])),
           },
         },
       ],
@@ -1136,10 +1144,9 @@ function monthlySeries(st) {
   return [gray, ...slices, ...topBlocks, top];
 }
 
-// Under a caption whose artist is in the chart, a line in their color, from their bar's left edge to its right, all
-// one thickness, dimmed only while another artist is hovered. Neighbouring lines join into one strip, meeting halfway
-// between the bars and rounded only at its two ends; a strip that reaches across a gap reaches out as far at both
-// ends, so it sits evenly over its bars. They're elements over the chart rather than shapes in it, so CSS tweens
+// Under a caption whose artist is in the chart, a line in their color across their bar's column, all one length and
+// thickness, dimmed only while another artist is hovered and they aren't pinned. Neighbouring lines join into one
+// strip, rounded only at its two ends. They're elements over the chart rather than shapes in it, so CSS tweens
 // them: a strip that comes or goes (an artist selected, deselected or pinned in) grows from or shrinks to a point in
 // its middle; lines joining or leaving a strip that stays grow from or shrink to their seam with it; the strips'
 // lengths morph with the bars, and color fades with a hover. still: place them without tweening (a resize).
@@ -1165,7 +1172,6 @@ function paintUnderlines(el, st, still = false) {
   const before = layer._drawn?.who.length === rows.length ? layer._drawn : null;
   const was = before?.who ?? who.map(() => null);
   const slot = (el.clientWidth - grid.left - grid.right) / Math.max(1, rows.length);
-  const half = (slot * 0.7) / 2; // barCategoryGap 30%
   const bottom = `${el.clientHeight - grid.top + 4}px`;
   layer.classList.toggle("still", still);
   while (layer.children.length > rows.length) layer.lastChild.remove();
@@ -1173,16 +1179,12 @@ function paintUnderlines(el, st, still = false) {
     const d = layer.appendChild(document.createElement("div"));
     Object.assign(d.style, { position: "absolute", width: "0px", height: `${LINE_H}px`, bottom });
   }
-  // Each line's [left, right]. Joined: halfway into the gap (the right one half a pixel past it, so the seam doesn't
-  // show); an end: at the bar's edge, or halfway into the gap if the strip reaches across one
+  // Each line's [left, right]: its bar's whole column, halfway into the gaps either side, so lines keep one length
+  // whatever their neighbours do (a joined one reaches half a pixel further left, so the seam doesn't show)
   const rects = who.map((n, i) => {
     if (n == null) return null;
     const mid = c ? c.convertToPixel({ xAxisIndex: 0 }, i) : grid.left + slot * (i + 0.5);
-    let a = i, b = i;
-    while (who[a - 1] != null) a--;
-    while (who[b + 1] != null) b++;
-    const reach = a === b ? half : slot / 2;
-    return [mid - (who[i - 1] != null ? slot / 2 + 0.5 : reach), mid + (who[i + 1] != null ? slot / 2 : reach)];
+    return [mid - slot / 2 - (who[i - 1] != null ? 0.5 : 0), mid + slot / 2];
   });
   // Where a run of lines that come (or go) grows from (or shrinks to): its seam with the part of its strip that
   // stays, else the run's middle. inRun picks the run; at holds where each of its lines is (or was)
@@ -1224,7 +1226,7 @@ function paintUnderlines(el, st, still = false) {
       bottom,
       height: `${LINE_H}px`,
       borderRadius: `${rl}px ${rr}px ${rr}px ${rl}px`,
-      background: st.hovered == null || st.hovered === n ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
+      background: st.hovered == null || st.hovered === n || st.pins?.has(n) ? st.colorOf(n) : mix(t.surface, st.colorOf(n), 0.35),
     });
   });
   layer._drawn = { who, rects };
