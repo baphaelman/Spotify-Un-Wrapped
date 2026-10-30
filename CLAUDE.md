@@ -128,8 +128,7 @@ matches what is moving.
 | `ENTER_MS` / `--motion-enter` | 550 | out | First appearance: the dashboard rising in, a chart's first draw, a new list row |
 | `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
 | `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
-| `ZOOM_MS` | 1400 | in-out | The view travels to a period of another length |
-| `ZOOM_FAR_MS` | 2600 | in-out | The view travels to a period more than ~3.5× longer or shorter (3M ↔ 2Y) |
+| `scaledMs` | 900 – 2200 | in-out | A change that has a size: the view zooming to a period of another length (from `PAN_MS`), days per slice, a blur radius (from `MORPH_MS`) |
 | `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
 
 - **Two easings.** In-out (`EASE_IN_OUT`, `--ease-in-out`) for things that travel on their own from one
@@ -142,7 +141,7 @@ matches what is moving.
   Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
 - **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
   timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
-  the exception by design: the view pans first (`PAN_MS`/`ZOOM_MS`), then the new artists morph in. So is
+  the exception by design: the view pans first (`PAN_MS`, longer when the length changes), then the new artists morph in. So is
   the bar's timeline when its bands change shape and its ends move too: the bands morph first, then the ends
   travel, each at the tier (`setBrushBands`).
 - **Things come and go by shrinking or fading, not by appearing.** A hidden artist collapses to zero
@@ -157,6 +156,11 @@ matches what is moving.
   and number travel with the change on the same tier and curve as the graphs: the slice slider's
   `glideWindow` lifts the range input's step and walks a fractional value along the sweep's curve, with its
   number counting through the sizes in between. A drag is the pointer's, so it never glides.
+- **Time follows the size of the change.** A change that has a size (a period's length, days per slice, a blur
+  radius) takes `scaledMs(from, to, base)`: the base tier plus 380 ms per doubling between the old and new
+  value, up to 2.2 s, so 3 months → 2 years and 15 → 75 days both take longer than a small step and never
+  rush. Everything riding the change (the slider's thumb, the bar's backdrop, a sweep's keyframes through
+  `sweepSteps`) takes that same time. Use it for any new variable that interpolates; don't hand-pick a duration.
 - **A zoom is steady, not linear.** Moving a range's two ends linearly rushes the first half of a big zoom;
   `travel` (`motion.js`) zooms at a constant rate about the point that stays put, and both the chart and the
   bar's frame take their place from it.

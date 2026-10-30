@@ -2,7 +2,7 @@ import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, disposeAll, currentZoom, setZoom, focusArtist, toggleArtist, showArtists, focusMonthly, focusClock, onFocusChange, onSelectionChange, onZoomChange, hiddenIn, setHidden } from "./charts.js";
 import { setupBrush, setBrushData, setBrushRange, setBrushBands, brushRange, glideBrushRange } from "./brush.js";
-import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, ZOOM_MS, ZOOM_FAR_MS, EASE_IN_OUT, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, dur, flip, FADE_MS, GROW_MS, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, sweepSteps, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { updateMix, setupMix, highlightMix } from "./mix.js";
 import { renderList, renderTiles } from "./lists.js";
 import { buildSummary, submissionKey } from "./summary.js";
@@ -578,14 +578,12 @@ $("year-menu").addEventListener("keydown", (e) => {
   }
 });
 
-// A preset or step pans the chart sideways between periods of about the same length, and zooms (a longer
-// trip, ZOOM_MS) when the length changes a lot, as between all time and a year
+// A preset or step pans the chart sideways between periods of about the same length, and zooms when the length
+// changes, taking longer the more doublings it is (3 months to 2 years is three; see scaledMs)
 
 // `from` is the range being left, to animate from (false to just draw)
 function panMs(from) {
-  const ratio = from ? spanOf(from) / spanOf(state.range) : 1;
-  const far = Math.max(ratio, 1 / ratio);
-  return dur(far > 3.5 ? ZOOM_FAR_MS : far > 1.5 ? ZOOM_MS : PAN_MS);
+  return from ? scaledMs(spanOf(from), spanOf(state.range), PAN_MS) : dur(PAN_MS);
 }
 
 function renderAll(keepZoom, from = false) {
@@ -1225,10 +1223,12 @@ $("smoothify").addEventListener("change", (e) => {
   const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
   const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span, autoSpans()));
   const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
+  // (a blur radius under half a day counts as half a day: "off" to a little is a small change)
+  const total = scaledMs(s0, s1, MORPH_MS, undefined, 0.5);
   sweep((t, ms) => {
     const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
     renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
-  });
+  }, total, sweepSteps(total));
 });
 
 // In auto, the smoothing follows the zoom: once the range settles, ease to the blur it now calls for
@@ -1262,9 +1262,8 @@ function endGlide(to = WINDOWS[$("window").value]) {
   paintSlider(input);
   for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) tick.textContent = WINDOWS[tick.dataset.v];
 }
-function glideWindow(from, to) {
+function glideWindow(from, to, ms) {
   const input = $("window");
-  const ms = dur(MORPH_MS);
   if (!ms) return;
   // A window size's place on the slider: between two steps in proportion to the log of its size
   const place = (w) => {
@@ -1302,14 +1301,16 @@ function sweepWindow(glide = false) {
   endGlide(to);
   if (!from || from === to) return Promise.resolve(renderRollingChart(zoom()));
   cancelSweep();
-  if (glide) glideWindow(from, to);
+  // Taking longer the more doublings the slice size changes by, the slider's thumb, the chart and the bar's
+  // backdrop all on that time
+  const total = scaledMs(from, to);
+  if (glide) glideWindow(from, to, total);
   renderRollingChart(zoom(), false, { window: from, grid: to });
-  // The brush glides to the new window's shape over the same time as the chart's sweep
-  paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: MORPH_MS });
+  paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: total });
   return sweep((t, ms) => {
     const window = t === 1 ? to : Math.round(from * (to / from) ** t);
     renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });
-  });
+  }, total, sweepSteps(total));
 }
 
 let pending = 0;

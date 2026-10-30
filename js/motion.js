@@ -9,11 +9,24 @@ export const GROW_MS = 250; // a small reflow: a row of chips appearing, a dialo
 export const CHASE_MS = 450; // a morph that follows a moving input (a dragged period window), each cut short by the next. Eases out
 export const ENTER_MS = 550; // something appearing for the first time: the dashboard, a chart's first draw. Eases out
 export const MORPH_MS = 750; // the data changes: bands, bars, list rows, numbers and the mix bar move from old to new. In-out
-export const PAN_MS = 900; // the view travels to another period of the same length. In-out
-export const ZOOM_MS = 1400; // the view travels to a period of another length (all time ↔ a year). In-out
-export const ZOOM_FAR_MS = 2600; // the view travels to a period several times longer or shorter (3 months ↔ 2 years). In-out
+export const PAN_MS = 900; // the view travels to another period of the same length. In-out; a different length adds time (scaledMs)
 export const STAGGER_MS = 18; // between items entering one after another, up to STAGGER_MAX_MS in all
 export const STAGGER_MAX_MS = 240;
+
+// How long a change takes, by how big it is. `from` and `to` are the old and new value of anything that scales
+// (a period's length, days per slice, a blur radius): the size of the change is the number of doublings between
+// them, so 15 → 30 days and 30 → 60 are alike, and each doubling adds `perOctave` ms to the `base` time, up to
+// `max`. A small change takes its tier's time; a big one takes longer, so it never rushes. Values at or below 0
+// count as `floor` (a blur radius of 0). Zero under reduced motion.
+export const OCTAVE_MS = 380; // added per doubling
+export const SCALED_MAX_MS = 2200; // the longest any one movement takes
+export function scaledMs(from, to, base = MORPH_MS, perOctave = OCTAVE_MS, floor = 1) {
+  const octaves = Math.abs(Math.log2(Math.max(to, floor) / Math.max(from, floor)));
+  return dur(Math.min(SCALED_MAX_MS, base + perOctave * octaves));
+}
+// How many keyframes a sweep of `ms` wants: about one per 94 ms (the default's eight over MORPH_MS), so a slower
+// sweep keeps its steps as fine
+export const sweepSteps = (ms) => Math.max(8, Math.round(ms / 94));
 
 // The range [lo, hi] a fraction e of the way from range a to range b, as one steady zoom: scale and position
 // both change in constant proportion, so a zoom reads as a constant rate rather than rushing at the start
