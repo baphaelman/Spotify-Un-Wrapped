@@ -72,8 +72,6 @@
     <section id="dashboard" class="dashboard" hidden>
       <!-- The period: presets on top, and the brush below, which can pick any stretch of days (js/brush.js) -->
       <div class="filters sticky period-bar">
-        <!-- Back to the view a part was clicked in from (main.js openPart), shown only after one was -->
-        <div id="view-back-wrap" class="view-back-wrap"><button type="button" id="view-back" class="ghost view-back" tabindex="-1">‹ <span id="view-back-label">Artists</span></button></div>
         <!-- What every graph is about: the slider, search and key below follow it (main.js setDim) -->
         <div id="view-tabs" class="segmented solid view-tabs" role="group" aria-label="Graphs by">
           <button type="button" data-dim="artist" aria-pressed="true">Artists</button>
@@ -163,6 +161,8 @@
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
+              <!-- Back to the view a part was clicked in from (main.js openPart); faded while there's none -->
+              <button type="button" id="view-back" class="ghost view-back" aria-label="Back" disabled>‹</button>
               <div id="rolling-split" class="segmented solid" role="group" aria-label="Split each band into">
                 <button type="button" data-split="" aria-pressed="true">Whole</button>
                 <button type="button" data-split="album" aria-pressed="false">Albums</button>

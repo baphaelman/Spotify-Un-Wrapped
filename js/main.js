@@ -377,11 +377,9 @@ function openPart(artist, kind, name) {
 function setBack(trail) {
   viewTrail = trail;
   const to = trail.at(-1);
-  if (to) $("view-back-label").textContent = VIEW_NAMES[to];
-  if (to) $("view-back").setAttribute("aria-label", `Back to ${VIEW_NAMES[to]}`);
-  $("view-back").tabIndex = to ? 0 : -1;
-  $("view-back-wrap").setAttribute("aria-hidden", !to);
-  $("view-back-wrap").classList.toggle("open", !!to);
+  $("view-back").disabled = !to;
+  $("view-back").setAttribute("aria-label", to ? `Back to ${VIEW_NAMES[to]}` : "Back");
+  $("view-back").title = to ? `Back to ${VIEW_NAMES[to]}` : "";
 }
 $("view-back").addEventListener("click", () => {
   const to = viewTrail.at(-1);
