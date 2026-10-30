@@ -917,7 +917,7 @@ dialog pre {
 .mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
 .mix-list li.pinnable:hover::after, .mix-list li.focus::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
 .mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
-.mix-list li.pinned::after { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--c) 70%, transparent); }
+.mix-list li.pinned::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
 .mix-list li.pinned:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
 .mix-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
