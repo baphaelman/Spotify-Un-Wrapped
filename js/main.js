@@ -52,7 +52,7 @@ async function open(plays) {
   state.colorSlots = new Map();
   state.dims = new Map();
   state.dim = "artist";
-  $("window").value = VIEW_START.artist.window;
+  $("window").value = START_WINDOW;
   setHidden($("chart-rolling"), []);
   applyDim();
   state.key = await submissionKey(plays);
@@ -216,15 +216,10 @@ const NOUN = {
 };
 const noun = () => NOUN[state.dim];
 
-// What each view starts on, and the lengths its period buttons offer. Tracks come and go faster than
-// artists, so their view looks closer: a 30-day slice over the last three months, smoothed sooner.
-// window: the "Days per slice" slider's step (see WINDOWS); period: the length the view first opens on, or
-// null to keep the period as it is.
-const VIEW_START = {
-  artist: { window: 3, period: null },
-  track: { window: 2, period: "3m" },
-  album: { window: 3, period: null },
-};
+// The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
+// are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go
+// shorter, and their graphs are smoothed sooner.
+const START_WINDOW = 3;
 const RESIZES = {
   artist: ["3m", "6m", "1y", "2y"],
   track: ["30d", "3m", "6m", "1y"],
@@ -330,28 +325,21 @@ function applyDim() {
 // from the old view's names to the new one's
 function setDim(dim) {
   if (dim === state.dim || !state.raw) return;
-  // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not;
-  // window: the slice slider's step
+  // hidden: the names hidden in the chart now; kept: every name the chart keeps hidden, shown or not
   state.dims.set(state.dim, {
-    pinned: state.pinned, hidden: state.hidden, kept: hiddenIn($("chart-rolling")), colorSlots: state.colorSlots, window: $("window").value,
+    pinned: state.pinned, hidden: state.hidden, kept: hiddenIn($("chart-rolling")), colorSlots: state.colorSlots,
   });
   const saved = state.dims.get(dim);
-  const start = VIEW_START[dim];
   state.dim = dim;
   state.pinned = saved?.pinned ?? [];
   state.colorSlots = saved?.colorSlots ?? new Map();
   state.hidden = saved?.hidden ?? [];
   setHidden($("chart-rolling"), saved?.kept ?? []);
-  $("window").value = saved?.window ?? start.window;
   closeResults();
   applyDim();
   // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
   // old view's names over the new plays first
   mixArgs = null;
-  // A view's first visit opens on its own length of period, ending where the period ends now: the chart travels
-  // there with the old view's bands, then they morph into the new view's, as for a preset
-  const range = !saved && start.period ? resized(state.range, start.period) : state.range;
-  if (!sameRange(range, state.range)) return setRange(range);
   syncPeriod(); // the period buttons are the view's own
   renderDependents();
   brushMorph = { ms: MORPH_MS };
