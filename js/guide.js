@@ -5,16 +5,6 @@
 import { dur, FADE_MS } from "./motion.js";
 import { $, noun } from "./state.js";
 
-// The panel hangs under the period bar, so it never covers a control it points at
-export function placeControls() {
-  const panel = $("controls-panel");
-  const bar = document.querySelector(".period-bar");
-  const shown = bar && !$("dashboard").hidden;
-  const top = shown ? bar.getBoundingClientRect().bottom - panel.offsetParent.getBoundingClientRect().top + 8 : null;
-  panel.style.top = top != null && top > 0 ? `${top}px` : "";
-  panel.style.maxHeight = `calc(100vh - ${Math.max(0, panel.getBoundingClientRect().top) + 16}px)`;
-}
-
 // Copies of a segmented control's buttons, with their pressed state; a click on one clicks the real one
 function mirrorSegments(copy, real) {
   copy.replaceChildren(
@@ -84,8 +74,11 @@ function ringOn(selector) {
     if (!b.width || b.bottom < 0 || b.top > innerHeight) continue;
     const r = document.createElement("div");
     r.className = "guide-ring";
+    // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
+    // the rest just above the period bar's layer (style.css)
+    const bar = el.closest(".topbar");
+    (bar ?? document.body).append(r);
     Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.width + 8}px`, height: `${b.height + 8}px` });
-    document.body.append(r);
     requestAnimationFrame(() => r.classList.add("on"));
     rings.push(r);
   }

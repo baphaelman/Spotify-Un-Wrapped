@@ -937,8 +937,9 @@ dialog pre {
 .g-colors { gap: 10px; }
 .g-dot { cursor: default; animation-play-state: running; }
 .g-theme { display: grid; place-items: center; width: 26px; height: 24px; border-radius: 6px; color: var(--text-secondary); }
-/* The ring around the real control while its row is hovered */
-.guide-ring { position: fixed; z-index: 30; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+/* The ring around the real control while its row is hovered: over the period bar (same layer, later on the page),
+   under the top bar and so under the panel, which hangs from it */
+.guide-ring { position: fixed; z-index: 10; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .guide-ring.on { opacity: 1; }
 .controls-data { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
 .controls-note { margin: 0; padding: 6px 8px 8px; font-size: 12px; color: var(--text-muted); }
