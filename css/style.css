@@ -374,7 +374,8 @@ button.ghost:hover { background: var(--border); }
 .tav-head > div:first-child { flex: 1; min-width: 0; }
 .segmented.solid { position: relative; padding: 2px; background: var(--surface-2); border: 1px solid var(--border); }
 /* The chosen option's white is one shape that slides between buttons (and to where the chosen one now sits
-   when the buttons change), rather than each button fading its own; placed by segThumbs in main.js */
+   when the buttons change), rather than each button fading its own; placed by segThumbs in main.js. It moves
+   on the morph tier, as the graphs do for the same click. */
 .segmented.solid::before {
   content: "";
   position: absolute;
@@ -385,9 +386,9 @@ button.ghost:hover { background: var(--border); }
   border-radius: 6px;
   background: #e6e8e7;
   opacity: var(--thumb-o, 0);
-  transition: left var(--motion-fade) var(--ease-out), width var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+  transition: left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out), opacity var(--motion-morph) var(--ease-in-out);
 }
-.segmented.solid.thumb-still::before { transition: opacity var(--motion-fade) var(--ease-out); }
+.segmented.solid.thumb-still::before { transition: opacity var(--motion-morph) var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .segmented.solid::before { transition: none !important; } }
 .segmented.solid button { position: relative; }
 .segmented.solid button[aria-pressed="true"] { background: transparent; color: #0a0c0e; }
