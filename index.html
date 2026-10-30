@@ -16,16 +16,37 @@
       <button id="tab-community" type="button" class="tab">Community</button>
     </nav>
     <div class="topbar-actions">
-      <!-- Settings for the loaded data: sharing it with the community, and forgetting it (main.js) -->
-      <div class="settings">
-        <button id="settings-button" class="ghost" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-menu" aria-label="Settings" title="Settings" hidden>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.6 1h2.8l.4 1.9c.4.2.8.4 1.2.7l1.8-.7 1.4 2.4-1.4 1.3a5 5 0 0 1 0 1.4l1.4 1.3-1.4 2.4-1.8-.7c-.4.3-.8.5-1.2.7L9.4 15H6.6l-.4-1.9c-.4-.2-.8-.4-1.2-.7l-1.8.7-1.4-2.4 1.4-1.3a5 5 0 0 1 0-1.4L1.8 6.7l1.4-2.4 1.8.7c.4-.3.8-.5 1.2-.7L6.6 1ZM8 10.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z"/></svg>
+      <!-- Controls: a short guide to the page's features, then the settings for the loaded data (sharing it with
+           the community, and forgetting it) (main.js) -->
+      <div class="controls">
+        <button id="controls-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="controls-panel" title="Controls and settings" hidden>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></g><g fill="currentColor"><circle class="knob k1" cx="10" cy="4" r="2"/><circle class="knob k2" cx="5" cy="8" r="2"/><circle class="knob k3" cx="11" cy="12" r="2"/></g></svg>
+          <span>Controls</span>
         </button>
-        <div id="settings-menu" class="settings-menu" role="menu" aria-label="Settings" hidden>
-          <p id="share-state" class="settings-note"></p>
-          <button id="share-toggle" class="settings-item" type="button" role="menuitem" hidden>Share with community</button>
-          <button id="share-preview" class="settings-item" type="button" role="menuitem">Preview shared data</button>
-          <button id="reset" class="settings-item danger" type="button" role="menuitem" title="Forget the data remembered on this device and load new files">Forget my data</button>
+        <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Controls" hidden>
+          <dl class="controls-guide">
+            <dt>Artists, Albums, Tracks</dt>
+            <dd>The switch at the left of the bar picks what every graph is about. Each view keeps its own pins and
+              hidden picks. In the chart, split an artist into albums or songs and click one to open it in that view.</dd>
+            <dt>Pin</dt>
+            <dd>Click an artist anywhere (a band in the chart, a chip in the key, a tile in the listening mix) to pin
+              them: they stay lit and stay in every graph, whatever the period. Click again to unpin. Up to 10.</dd>
+            <dt>Search to pin</dt>
+            <dd>Type in <em>Pin an artist…</em> to pin anyone in your history, even outside your top list.</dd>
+            <dt>Show and hide</dt>
+            <dd>The colored box on a chip (or the color tab beside a tile in the listening mix) hides that artist from
+              every graph; click it again to bring them back. The box before the chips shows or hides all your top
+              artists at once, and the <em>Everyone else</em> chip shows or hides the gray band of everyone else.</dd>
+            <dt>Colors</dt>
+            <dd>The round dot before the search picks the artists' color scheme, and the sun beside this button
+              flips between light and dark.</dd>
+          </dl>
+          <div class="controls-data">
+            <p id="share-state" class="controls-note"></p>
+            <button id="share-toggle" class="controls-item" type="button" hidden>Share with community</button>
+            <button id="share-preview" class="controls-item" type="button">Preview shared data</button>
+            <button id="reset" class="controls-item danger" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
+          </div>
         </div>
       </div>
       <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">

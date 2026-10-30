@@ -90,7 +90,7 @@ All in `js/` unless noted. Read a file's own comments for the details.
 - `state.js`: the shared `state` and small readers (`rangePlays`, `shownPlays`, `presetRange`…), and `hooks`.
   **The period is `state.range`, `{lo, hi}` day indices (inclusive), not a year.** Years and "All time" are
   presets that set it; anything else the brush picks shows as "Custom". Every graph, list and stat reads it.
-- `main.js`: the entry point: loading, tabs, settings, sharing, the Artists/Tracks/Albums switch, and the
+- `main.js`: the entry point: loading, tabs, the controls panel, sharing, the Artists/Tracks/Albums switch, and the
   orchestration every change goes through (`renderAll`, `renderDependents`).
 - `period.js`: the sticky bar's period controls: presets, ‹ › steps, length buttons, the year menu, live dragging (`liveRender`).
 - `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`,

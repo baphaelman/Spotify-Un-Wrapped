@@ -102,39 +102,40 @@ function showView(view) {
   $("landing").hidden = !(view === "you" && !state.plays);
   $("dashboard").hidden = !(view === "you" && state.plays);
   $("community").hidden = view !== "community";
-  // The settings act on loaded data, so there's nothing to show before an upload
-  $("settings-button").hidden = !state.plays;
-  closeSettings();
+  // The controls are about the loaded data, so there's nothing to show before an upload
+  $("controls-button").hidden = !state.plays;
+  closeControls();
   if (view === "community") renderCommunity(state.raw);
 }
 
-// The settings menu: sharing and forgetting the loaded data, behind the gear in the top bar
-function openSettings() {
-  $("settings-menu").hidden = false;
-  $("settings-button").setAttribute("aria-expanded", "true");
-  $("settings-menu").querySelector(".settings-item:not([hidden])")?.focus({ preventScroll: true });
+// The controls panel behind the button in the top bar: a short guide to the page, then sharing and forgetting
+// the loaded data
+function openControls() {
+  $("controls-panel").hidden = false;
+  $("controls-button").setAttribute("aria-expanded", "true");
+  $("controls-panel").querySelector(".controls-item:not([hidden])")?.focus({ preventScroll: true });
 }
 
-function closeSettings(refocus = false) {
-  if ($("settings-menu").hidden) return;
-  $("settings-menu").hidden = true;
-  $("settings-button").setAttribute("aria-expanded", "false");
-  if (refocus) $("settings-button").focus();
+function closeControls(refocus = false) {
+  if ($("controls-panel").hidden) return;
+  $("controls-panel").hidden = true;
+  $("controls-button").setAttribute("aria-expanded", "false");
+  if (refocus) $("controls-button").focus();
 }
 
-$("settings-button").addEventListener("click", () => ($("settings-menu").hidden ? openSettings() : closeSettings()));
-// Any choice closes the menu (its own handler runs as well)
-$("settings-menu").addEventListener("click", (e) => {
-  if (e.target.closest(".settings-item")) closeSettings();
+$("controls-button").addEventListener("click", () => ($("controls-panel").hidden ? openControls() : closeControls()));
+// Any choice closes the panel (its own handler runs as well)
+$("controls-panel").addEventListener("click", (e) => {
+  if (e.target.closest(".controls-item")) closeControls();
 });
 document.addEventListener("pointerdown", (e) => {
-  if (!e.target.closest(".settings")) closeSettings();
+  if (!e.target.closest(".controls")) closeControls();
 });
-$("settings-menu").addEventListener("keydown", (e) => {
-  const items = [...$("settings-menu").querySelectorAll(".settings-item:not([hidden])")];
+$("controls-panel").addEventListener("keydown", (e) => {
+  const items = [...$("controls-panel").querySelectorAll(".controls-item:not([hidden])")];
   const i = items.indexOf(document.activeElement);
-  if (e.key === "Escape") closeSettings(true);
-  else if (e.key === "Tab") closeSettings();
+  if (e.key === "Escape") closeControls(true);
+  else if (e.key === "Tab") closeControls();
   else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
     items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
