@@ -550,7 +550,7 @@ button.ghost:hover { background: var(--border); }
 .month-lines.still > div { transition: none; }
 /* Monthly captions, and the wash over pinned and hovered artists' columns (see paintCaptionMarks). --gt is the top
    of the plot: captions sit 10-23px above it, the line 4-6px above it; --axis is the axis. The wash rises from the axis */
-.month-caps { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.month-caps { position: absolute; inset: 0; pointer-events: none; z-index: 2; } /* above a crossfading frame (fadeOutFrame), which has no captions */
 .month-caps .cap {
   position: absolute;
   bottom: calc(100% - var(--gt) + 10px);

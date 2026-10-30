@@ -1246,7 +1246,7 @@ function paintCaptionMarks(el, st) {
     layer = document.createElement("div");
     layer.className = "month-caps";
     // (placed here as well as in the stylesheet, so a cached stylesheet can't drop them in a heap)
-    Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 1 });
+    Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 2 });
     layer.append(document.createElement("div"), document.createElement("div"));
     el.appendChild(layer);
   }
