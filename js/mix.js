@@ -26,13 +26,14 @@ const span = (cls) => {
   return el;
 };
 
-// A segment shows only its share; who it is reads in its tile of the key under the bar, in the same color
+// A segment shows its share and, beneath it, its hours; who it is reads in its tile of the key under the bar, in the same color
 // and never cut short. A click on either pins them; a click on the tile's color tab hides or shows them.
 function makeEntry(name) {
   const seg = document.createElement("div");
   seg.className = "mix-seg";
   const label = span("mix-pct");
-  seg.append(label);
+  const hoursEl = span("mix-hours");
+  seg.append(label, hoursEl);
   const row = document.createElement("li");
   const tab = document.createElement("button");
   tab.type = "button";
@@ -50,7 +51,7 @@ function makeEntry(name) {
   img.addEventListener("load", () => img.classList.add("shown"));
   art.append(img);
   row.append(tab, art, rowWho);
-  const e = { name, seg, label, row, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const e = { name, seg, label, hoursEl, row, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   for (const el of [seg, row]) {
     el.addEventListener("pointerenter", () => hover(name));
     el.addEventListener("pointerleave", () => hover(null));
@@ -71,8 +72,9 @@ function makeEntry(name) {
   return e;
 }
 
-// A segment this wide (px) has room for its share
+// A segment this wide (px) has room for its share, and from HOURS_PX for its hours beneath
 const SHARE_PX = 30;
+const HOURS_PX = 48;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
 // Puts every segment where its x and w say, and shows what fits. The segments at either end
@@ -89,6 +91,7 @@ function place() {
     // outline would otherwise still show
     e.seg.classList.toggle("gone", px < 1);
     e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
+    e.seg.classList.toggle("fits-hours", px >= HOURS_PX && !e.leaving && !e.off);
     e.seg.classList.toggle("outer-l", e.x <= EDGE);
     e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
@@ -175,7 +178,7 @@ export function updateMix(next) {
   });
 
   const list = $("mix-list");
-  list.classList.toggle("with-covers", !!ctx.cover && names.some((n) => ctx.cover(n)));
+  list.classList.toggle("with-covers", !!ctx.cover && names.some((n) => ctx.cover(n)?.ids.length));
   list.classList.toggle("portraits", ctx.noun?.one === "artist"); // artists' photos are round, albums' covers square
   const rowsBefore = new Map([...entries].map(([n, e]) => [n, e.row.getBoundingClientRect()]));
   names.forEach((name, i) => {
@@ -199,6 +202,7 @@ export function updateMix(next) {
     const off = hidden.has(name);
     e.off = off;
     e.seg.classList.toggle("off", off);
+    tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     const other = hasOther && i === names.length - 1;
     e.rowName.textContent = other ? name : ctx.title?.(name) ?? name; // from the user's files
     e.rowBy.textContent = other ? "" : ctx.by?.(name) ?? "";

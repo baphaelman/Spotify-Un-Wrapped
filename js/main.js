@@ -262,13 +262,23 @@ const autoSpans = () => (state.dim === "track" ? agg.TRACK_AUTO_SPAN : undefined
 // A track or album is called by its name, with its artist after it where more than one artist has that name
 // (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
 let keyedMemo = new Map();
+
+// Up to three of an item's track IDs, most played first: the picture lookup tries them in turn (covers.js)
+const PICTURE_TRACKS = 3;
+const countId = (ids, id) => id && ids.set(id, (ids.get(id) ?? 0) + 1);
+const topIds = (ids) => [...ids].sort((a, b) => b[1] - a[1]).slice(0, PICTURE_TRACKS).map(([id]) => id);
+
 function keyedPlays(dim) {
   const memo = keyedMemo.get(dim);
   if (memo?.raw === state.raw) return memo;
   if (dim === "artist") {
-    // An artist's photo is found through any track of theirs (covers.js)
-    const cover = new Map();
-    for (const p of state.raw) if (p.id && !cover.has(p.artist)) cover.set(p.artist, `artist:${p.id}`);
+    // An artist's photo is found through their most-played tracks
+    const ids = new Map();
+    for (const p of state.raw) {
+      if (!ids.has(p.artist)) ids.set(p.artist, new Map());
+      countId(ids.get(p.artist), p.id);
+    }
+    const cover = new Map([...ids].map(([name, m]) => [name, { kind: "artist", name, ids: topIds(m) }]));
     const out = { raw: state.raw, plays: state.raw, owner: null, title: null, album: null, cover };
     keyedMemo.set(dim, out);
     return out;
@@ -283,7 +293,7 @@ function keyedPlays(dim) {
   const keys = new Map(); // name + artist -> what the view calls it
   const owner = new Map(); // what the view calls it -> artist
   const title = new Map(); // what the view calls it -> its own name, without the artist
-  const albums = new Map(); // what the view calls it -> album -> { n: plays from it, id: a track ID on it }
+  const albums = new Map(); // what the view calls it -> album -> { n: plays from it, ids: its track IDs -> plays }
   const plays = state.raw.map((p) => {
     const n = nameOf(p), id = n + "\u0000" + p.artist;
     let key = keys.get(id);
@@ -294,17 +304,18 @@ function keyedPlays(dim) {
       title.set(key, n);
       albums.set(key, new Map());
     }
-    const on = albums.get(key), a = on.get(p.album) ?? { n: 0, id: undefined };
+    const on = albums.get(key), a = on.get(p.album) ?? { n: 0, ids: new Map() };
     a.n++;
-    a.id ??= p.id;
+    countId(a.ids, p.id);
     on.set(p.album, a);
     return { ...p, artist: key, by: p.artist };
   });
   // A track on several albums (a single, then the album) is called by the one it was played from most, and
-  // shows that album's cover, found through a track on it (data saved before IDs were kept has none)
+  // shows that album's cover, found through its tracks (data saved before IDs were kept has none)
   const most = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1].n - a[1].n)[0]]));
   const album = dim === "track" ? new Map([...most].map(([k, [name]]) => [k, name || undefined])) : null;
-  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? a.id : undefined])); // no album, no cover
+  // No album, no cover
+  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? { kind: "album", name: owner.get(k), ids: topIds(a.ids) } : undefined]));
   const out = { raw: state.raw, plays, owner, title, album, cover };
   keyedMemo.set(dim, out);
   return out;
