@@ -184,11 +184,16 @@
         </div>
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
-          <!-- The same artists' hours per week, read against the axis above it (charts.js linkStrip) -->
-          <div class="strip-wrap" id="strip-wrap" data-sep="panel label">
-            <div class="strip-label">Hours per week</div>
-            <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
-          </div>
+        </div>
+      </article>
+
+      <!-- The same artists' hours, following the chart above: its period, artists, pins and hover (charts.js linkStrip) -->
+      <article class="card" id="hours-card">
+        <h2 id="hours-title">Hours per week</h2>
+        <p class="muted" id="hours-sub"></p>
+        <div class="strip-wrap" id="strip-wrap">
+          <div class="strip-label">Hours per week</div>
+          <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
         </div>
       </article>
 

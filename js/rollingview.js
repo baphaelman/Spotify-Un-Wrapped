@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, stripLook } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -58,6 +58,25 @@ const spanDays = (zoom, dates) =>
 // Under the chart's axis, a short copy of it in hours per week that follows every render, zoom and hover
 linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 
+// The hours card's averaging: null follows the chart's days per slice; 1 is each day as it was; more is a plain
+// average over that many days, unblurred
+let stripDays = null;
+let stripMemo = null;
+export function setStripAverage(days) {
+  stripDays = days;
+  stripLook.unit = days === 1 ? 1 : 7;
+  stripLook.source = days && ((names, hasOther) => {
+    const artists = hasOther ? names.slice(0, -1) : names;
+    const key = [state.dim, state.plays.length, days, hasOther, ...artists].join("\u0000");
+    if (stripMemo?.key !== key) {
+      const raw = agg.rolling(state.plays, artists, days, hasOther);
+      // A day with nothing played is 0 here, not a gap, so the lines don't break up
+      stripMemo = { key, data: { ...raw, share: raw.share.map((row) => row.map((v) => v ?? 0)) } };
+    }
+    return { data: stripMemo.data, window: days, smooth: 0 };
+  });
+}
+
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
 // followers: false leaves the lists, mix bar, monthly chart and the bar's backdrop for the caller to update.
@@ -96,6 +115,8 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   state.chartNames = artists;
 
   $("rolling-sub").textContent = rollingSub(n, target, includeOther);
+  $("hours-title").textContent = stripDays === 1 ? "Hours per day" : "Hours per week";
+  $("hours-sub").textContent = stripDays === 1 ? `Each ${noun().one}'s hours, day by day` : `Each ${noun().one}'s hours per week, ${stripDays ?? target}-day rolling average`;
   const slots = assignSlots(artists);
   const pins = {
     has: (name) => state.pinned.includes(name),

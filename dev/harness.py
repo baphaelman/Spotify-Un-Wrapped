@@ -73,7 +73,7 @@ strip_panel = """<style>
 </style>
 <script type="module">
 import { stripLook, currentZoom } from "./js/charts.js";
-import { renderRollingChart } from "./js/rollingview.js";
+import { renderRollingChart, setStripAverage } from "./js/rollingview.js";
 const OPTS = {
   height: ["90", "120", "160", "200", "260", "320", "400"],
   gap: ["0", "12", "24", "40"],
@@ -81,26 +81,24 @@ const OPTS = {
   line: ["1", "1.5", "2", "2.5", "3"],
   shading: ["none", "lit", "all"],
   breakdown: ["on", "off"],
+  average: ["same", "daily", "7", "30", "90"],
 };
-const DEF = { height: "260", gap: "12", marker: "panel label", line: "2", shading: "all", breakdown: "off" };
+const DEF = { height: "400", gap: "12", marker: "own card", line: "1.5", shading: "lit", breakdown: "off", average: "same" };
 let cur = { ...DEF };
 try { cur = { ...DEF, ...JSON.parse(localStorage.getItem("strip-try") || "{}") }; } catch {}
 const wrap = document.getElementById("strip-wrap");
-// "own card": the strip moves out into a card of its own under the rolling chart's, with its own dates
-const home = wrap.parentElement;
-const card = document.createElement("article");
-card.className = "card";
-card.hidden = true;
-card.innerHTML = '<h2>Hours per week</h2><p class="muted">Each artist\\'s hours per week, same days per slice as above</p>';
-home.closest(".card").after(card);
+// "own card" is where it lives in the page; the others put it back under the rolling chart's axis
+const card = document.getElementById("hours-card");
+const under = document.getElementById("chart-rolling").parentElement;
 const apply = (redraw) => {
   const own = cur.marker === "own card";
   card.hidden = !own;
-  (own ? card : home).append(wrap);
+  (own ? card : under).append(wrap);
   stripLook.labels = own;
   wrap.style.setProperty("--strip-h", cur.height + "px");
   wrap.style.setProperty("--strip-gap", own ? "0px" : cur.gap + "px");
   wrap.dataset.sep = own ? "" : cur.marker;
+  setStripAverage(cur.average === "same" ? null : cur.average === "daily" ? 1 : +cur.average);
   stripLook.width = +cur.line;
   stripLook.fill = cur.shading;
   stripLook.parts = cur.breakdown === "on";

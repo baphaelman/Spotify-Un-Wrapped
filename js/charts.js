@@ -130,17 +130,26 @@ export function linkStrip(el, strip) {
 let relaying = false; // a hover passed from one to the other isn't passed back
 // How the strip draws its lines: width at rest (lit ones are 1px thicker); fill "none", "lit" (only lit lines) or
 // "all" (every line faintly, lit ones more); parts: whether it splits into albums or songs along with the bands;
-// labels: its own date labels, for when it stands apart from the main chart
-export const stripLook = { width: 2, fill: "all", parts: false, labels: false };
+// labels: its own date labels, for when it stands apart from the main chart; unit: hours per this many days.
+// source: optional (names, hasOther) => {data, window, smooth} giving the strip its own averaging instead of the
+// main chart's (the same artists, in the same order)
+export const stripLook = { width: 1.5, fill: "lit", parts: false, labels: true, unit: 7, source: null };
+
+// What the strip draws for a render of the main chart
+function stripDraw(data, names, window, hasOther, smooth) {
+  const own = stripLook.source?.(names, hasOther);
+  if (own) return own;
+  return { data: stripLook.parts ? data : { ...data, parts: undefined }, window, smooth };
+}
 
 // The hours axis top for the zoom range: the tallest shown line in it, in whole hours
-function hoursTop(data, names, window, hasOther, hide, zoom) {
+function hoursTop(data, names, window, hasOther, hide, zoom, unit = 7) {
   let m = 0;
   names.forEach((n, s) => {
     if (hasOther && s === names.length - 1) return;
     if (hide?.[n] === false) return;
     data.dates.forEach((d, i) => {
-      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
+      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * unit);
     });
   });
   return Math.max(1, Math.ceil(m));
@@ -369,13 +378,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
     if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
       // Hours: the axis top the final chart will have, to travel to alongside the range
-      const travelMax = (el) => {
+      const travelMax = (el, d = data, w = window, unit = 7) => {
         const now = instances.get(el)?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
-        return Number.isFinite(now) ? { from: now, to: hoursTop(data, names, window, hasOther, prev.selected, zoom) } : null;
+        return Number.isFinite(now) ? { from: now, to: hoursTop(d, names, w, hasOther, prev.selected, zoom, unit) } : null;
       };
       const strip = stripOf.get(el);
+      const sd = strip && stripDraw(data, names, window, hasOther, smooth);
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
-        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip) });
+        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip, sd.data, sd.window, stripLook.unit) });
       return;
     }
     else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
@@ -391,8 +401,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // "Everyone else" is always gray, never borrowing the next artist's slot
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  const perWeek = (h) => (h / window) * 7;
   const isStrip = mainOf.has(el);
+  const unit = isStrip ? stripLook.unit : 7;
+  const perWeek = (h) => (h / window) * unit;
 
   let st = rollingState.get(el);
   if (!st || st.names.join("\u0000") !== names.join("\u0000")) {
@@ -697,7 +708,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
         ...partTips(sIdx(p), params[0].dataIndex, (j) => perWeek(parts.hours[sIdx(p)][j][params[0].dataIndex]), (v) => `${v.toFixed(1)} h`, () => ""),
       ]);
-    return `<div style="color:${t.muted};margin-bottom:4px">Hours per week, ${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
+    const head = window === 1 ? `Hours on ${fmtDate(params[0].value[0])}`
+      : `Hours per ${unit === 1 ? "day" : "week"}, ${window} days around ${fmtDate(params[0].value[0])}`;
+    return `<div style="color:${t.muted};margin-bottom:4px">${head}</div>${rows.join("")}`;
   };
 
   st.mode = mode;
@@ -1040,7 +1053,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // An artist kept lit through a click on the main chart stays lit in the strip too
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
-    renderRolling(strip, stripLook.parts ? data : { ...data, parts: undefined }, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
+    const sd = stripDraw(data, names, window, hasOther, smooth);
+    // A different set of points (its averaging changed) redraws rather than tweening point by point
+    const drawn = rollingState.get(strip)?.args?.[0];
+    const same = !drawn || drawn.dates.length === sd.data.dates.length;
+    renderRolling(strip, sd.data, names, sd.window, zoom, "hours", hasOther, same && morph, pins, slots, sd.smooth);
     if (keep) sst.keepFocus = null;
   }
 }
