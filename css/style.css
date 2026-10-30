@@ -890,24 +890,34 @@ dialog pre {
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 /* Under the bar, every segment in full as a tile: a light wash of its color, a faint outline in it, and a tab of
-   it to the left. Tiles meet edge to edge; the list is clipped a pixel in on every side, so the outlines show only
-   on the seams between tiles and never as a border around the block */
+   it to the left. Tiles meet edge to edge; the list is clipped an outline's width in on every side, so the outlines
+   show only on the seams between tiles and never as a border around the block. A hovered or pinned tile draws a
+   thicker ring just inside the clip, so it shows on all four sides wherever the tile sits */
 .mix-list {
-  list-style: none; margin: 12px -1px -1px; padding: 0;
+  --seam: 1.5px;
+  list-style: none; margin: 12px calc(-1 * var(--seam)) calc(-1 * var(--seam)); padding: 0;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  clip-path: inset(1px);
+  clip-path: inset(var(--seam));
 }
 .mix-list li {
   --art: 60px;
   display: grid; grid-template-columns: 28px 1fr; align-items: center; column-gap: 12px;
   padding: 10px 12px 10px 0; font-size: 13px;
   background: color-mix(in srgb, var(--c) 9%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+  box-shadow: inset 0 0 0 var(--seam) color-mix(in srgb, var(--c) 30%, transparent);
+  position: relative;
   transition: background-color var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+}
+.mix-list li::after {
+  content: ""; position: absolute; inset: var(--seam); pointer-events: none;
+  box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);
+  transition: box-shadow var(--motion-fade) var(--ease-out);
 }
 .mix-list li.pinnable { cursor: pointer; }
 .mix-list li.pinnable:hover, .mix-list li.focus { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
-.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 65%, transparent); }
+.mix-list li.pinnable:hover::after, .mix-list li.focus::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
+.mix-list li.pinned { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
+.mix-list li.pinned::after { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--c) 70%, transparent); }
 .mix-list li.pinned:hover { background-color: color-mix(in srgb, var(--c) 22%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
 .mix-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
