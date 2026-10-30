@@ -102,6 +102,10 @@ function emit(lo, hi) {
 // real first day if the timeline starts later (the sparse start is cut off, as in the rolling chart)
 export function setBrushData(first, last, min = first) {
   model = { first, last, min, end: last };
+  // The window is placed for the whole history until the first bands say where the timeline really starts, so
+  // it stays out of sight till then (a new load starts afresh) rather than showing one size and jumping to another
+  bands = null;
+  $("brush-track").classList.add("waiting");
   draw();
   position();
 }
@@ -180,6 +184,7 @@ function applyBands(next) {
     void track.offsetWidth; // commit the new place before the transition returns
     track.classList.remove("morphing");
   }
+  track.classList.remove("waiting");
 }
 
 // Whether the timeline's ends move, and whether any band's edges do
