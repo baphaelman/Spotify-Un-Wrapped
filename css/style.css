@@ -912,8 +912,10 @@ dialog pre {
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
 .mix-list .art { display: none; }
-.mix-list.with-covers li { grid-template-columns: 8px 40px 1fr; align-items: center; }
-.mix-list.with-covers .swatch { align-self: center; margin-top: 0; }
+/* Every row reads from the top, so a name that wraps grows downward without pulling its cover off the row's line */
+.mix-list.with-covers li { grid-template-columns: 8px 40px 1fr; align-items: start; }
+.mix-list.with-covers .swatch { margin-top: 16px; }
+.mix-list.with-covers .who { padding-top: 2px; }
 .mix-list.with-covers .art {
   display: block; width: 40px; height: 40px; border-radius: 4px; overflow: hidden;
   background: color-mix(in srgb, var(--c) 22%, var(--surface));
