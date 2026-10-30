@@ -1148,6 +1148,9 @@ function paintUnderlines(el, st, still = false) {
   if (!layer) {
     layer = document.createElement("div");
     layer.className = "month-lines";
+    // (placed here as well as in the stylesheet, so a cached stylesheet can't drop them in a heap)
+    Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: 2 });
+    if (getComputedStyle(el).position === "static") el.style.position = "relative";
     el.appendChild(layer);
     new ResizeObserver(() => monthlyState.has(el) && paintUnderlines(el, monthlyState.get(el), true)).observe(el);
   }
@@ -1163,6 +1166,7 @@ function paintUnderlines(el, st, still = false) {
   while (layer.children.length > rows.length) layer.lastChild.remove();
   while (layer.children.length < rows.length) {
     const d = layer.appendChild(document.createElement("div"));
+    d.style.position = "absolute";
     const i = layer.children.length - 1;
     Object.assign(d.style, { left: `${grid.left + slot * (i + 0.5)}px`, width: "0px", height: "2px", bottom: `${el.clientHeight - grid.top + 4}px` });
   }
