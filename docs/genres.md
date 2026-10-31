@@ -104,8 +104,8 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
    functions). Safe to re-run.
 4. Make up a worker key, a long random string (for example the output of `openssl rand -hex 24`), and add it
    under Edge Functions -> Secrets as `GENRES_WORKER_KEY`.
-5. Edge Functions -> deploy `genres` (or open it, if it exists) -> paste `supabase/functions/genres/index.ts`
-   -> JWT verification off. From here, the page's requests only queue names, so step 6 is what looks them up.
+5. Deploy `genres`: `supabase functions deploy genres --project-ref qvsoxqeuvpnryitechsf --no-verify-jwt`
+   (see "Edge functions" in CLAUDE.md). From here, the page's requests only queue names, so step 6 is what looks them up.
 6. Integrations -> Cron -> enable it (this turns on the `pg_cron` and `pg_net` extensions). Then, in the SQL
    editor, with your key in place of `<key>`:
 

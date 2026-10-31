@@ -122,8 +122,7 @@ function's secrets; JWT verification off). It tries each track, then a search by
 of picture, and skips Spotify's ~1 KB blank placeholder. **Read `docs/pictures.md` before touching either:**
 answers are kept for everyone in the `pictures` table, Spotify lookups share one allowance a minute
 (`PER_MINUTE`), and what it can't cover is queued for a pg_cron worker. The page also remembers found URLs in
-localStorage (`unwrapped-pictures`). The owner redeploys by pasting the file into the Supabase dashboard (no CLI here),
-and a deployed function can't be renamed.
+localStorage (`unwrapped-pictures`). A deployed function can't be renamed (see "Edge functions" for deploying).
 
 **The Spotify app behind `smooth-endpoint` is in development mode, with a small, unpublished request
 allowance, and bursts earn long lockouts.** On 2026-10-29 an idle warm-up (about 150 lookups per page load,
@@ -209,6 +208,19 @@ hover are hand-built around ECharts quirks. The rules that reach beyond the char
   up.
 - **Fake data:** `python3 dev/seed_community.py seed|cleanup` adds or removes 12 fake contributors
   (keys from `"synthetic-test-<i>"`). `cleanup` never touches real submissions.
+
+## Edge functions
+
+Deploy them yourself with the Supabase CLI; don't hand the owner a file to paste into the dashboard.
+
+- **Check before deploying:** `/opt/homebrew/bin/deno check supabase/functions/<name>/index.ts` (Deno isn't on the
+  shell's PATH). A deploy goes live for every visitor at once, so deploy only a change that's committed and checked.
+- **Deploy:** `supabase functions deploy <name> --project-ref qvsoxqeuvpnryitechsf --no-verify-jwt`. Every function
+  here has JWT verification off. Then watch its logs or make one test request.
+- **`artist-image` is deployed as `smooth-endpoint`,** and the CLI names a function after its folder, so it needs a
+  `[functions.smooth-endpoint]` entry with an `entrypoint` in `supabase/config.toml` (not set up yet; check it
+  before the first deploy). Each test of it costs Spotify calls (see Pictures).
+- **Secrets** (`LASTFM_API_KEY`, `GENRES_WORKER_KEY`, the Spotify credentials) stay in the dashboard; never print them.
 
 ## Genres
 
