@@ -68,9 +68,13 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   shape into the highlight state.
 - **The legend is HTML, and there's one for the whole page:** the artist key in the sticky period bar
   (`paintArtistKey` in `key.js`), beside the search that pins, and the Artists slider on the bar's first row.
-  Its last chip, "Everyone else", flips the hidden `#include-other` checkbox. No graph has a key of its own. The ECharts legend is hidden and only holds which
-  artists are shown. Hover calls `focusArtist`; a box click goes through `toggleArtist`/`showArtists`, which
-  dispatch `legendToggleSelect` and re-stack the bands as a morph. Repaint the key wherever the chart's
+  Its last chip, "Everyone else", flips the hidden `#include-other` checkbox. No graph has a key of its own. Which artists are shown is
+  `st.selected`; ECharts' legend is hidden and always shows every series. Hover calls `focusArtist`; a box click
+  goes through `toggleArtist`/`showArtists`, which set `st.selected` and re-stack the bands as a morph.
+- **A hidden artist is still drawn:** its band with no thickness, its outlines and parts with none, its hours line on 0
+  and faded out. So hiding or showing one morphs like any other change. Never hide a series through ECharts'
+  legend (`legendToggleSelect`, `selected: false`): it redraws at once with the series gone and the stored
+  styles, which flickers the colors before the morph. Hovering a hidden artist's chip lights nothing. Repaint the key wherever the chart's
   artists, pins or selection change (the rolling chart's followers, `onSelectionChange`, `liveTail`).
 - **Clicking the plot toggles the hovered artist's pin** (`st.zrClick`, through `pins.toggle`). It uses
   the same `pick` as hover, so the clicked band is always the one that was highlighted. "Everyone else"

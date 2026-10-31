@@ -438,7 +438,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Hours per week for artist s at date i. Where nothing at all was played in the window, share mode has
   // a gap (null); hours leaves the same gap rather than drawing 0, so a morph never tweens between a
   // gap and a value, which draws a vertical stroke at each such date mid-morph.
-  const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx ? 0 : perWeek(data.hours[s][i]));
+  // A hidden artist's line lies on 0 (and fades out, lineLook), so hiding it sinks it rather than snapping it away
+  const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx || !visible(s) ? 0 : perWeek(data.hours[s][i]));
 
   // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in MAX_PARTS slots per band. In
   // share mode they stack up from the band's floor, biggest first, and the band's own fill above them is the
@@ -482,7 +483,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const edgeData = (s, side) =>
     points((i) => (bottom[s][i] == null ? null : !share ? hoursAt(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
   // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
-  const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share ? 1 : 0, cap: "butt", join: "round" });
+  const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
 
   // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
@@ -514,10 +515,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const restWidth = isStrip ? 1.5 : 2; // the strip's lines are finer
   const lineLook =(k, lit) => ({
     width: lit.has(k) ? restWidth + 1 : restWidth,
-    opacity: !share && k === otherIdx ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
+    opacity: (!share && k === otherIdx) || !visible(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
-  const partShown = (k, j) => !!parts && j < partRows(k).length;
+  const partShown = (k, j) => !!parts && visible(k) && j < partRows(k).length;
   // The part under the pointer ({k, j}, or null): filled deeper than its siblings and outlined on both sides
   let hotPart = null;
   const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
@@ -595,7 +596,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // Each part paints over the band it's in, and over the parts above it, but under the band below
       partKeys.map(([k, j]) => ({
         id: `p${k}_${j}`,
-        name: names[k], // hiding an artist hides its parts too
+        name: names[k],
         type: "line",
         silent: true,
         showSymbol: false,
@@ -613,7 +614,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       names.flatMap((name, s) =>
         ["t", "b"].map((side) => ({
           id: `${side}${s}`,
-          name, // shares the band's legend entry, so hiding an artist hides its outline too
+          name,
           type: "line",
           silent: true,
           showSymbol: false,
@@ -671,6 +672,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (!params.length || !Number.isFinite(params[0].value[1])) return "";
     const i = params[0].dataIndex;
     const rows = params
+      .filter((p) => visible(sIdx(p)))
       .map((p) => ({ p, share: data.share[sIdx(p)][i] * scale[i], hours: data.hours[sIdx(p)][i] }))
       // Drop anyone who would read as 0%
       .filter((r) => r.share >= 0.005)
@@ -789,9 +791,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       grid: { left: 48, right: 16, top: isStrip ? 14 : 12, bottom: 28 },
-      // Hidden: it only holds which artists are shown. The visible key is HTML in the period bar (key.js paintArtistKey), so
-      // hovering it never puts ECharts' own highlight states on the bands.
-      legend: { show: false, data: names, selected: st.selected },
+      // The key is HTML in the period bar (key.js paintArtistKey), and which artists are shown is st.selected. ECharts'
+      // legend is hidden and shows every series: a hidden artist's is drawn with no thickness (share) or on 0 and faded
+      // out (hours), so showing or hiding one morphs, where a legend-hidden series would vanish or appear in one frame
+      legend: { show: false, data: names, selected: Object.fromEntries(names.map((n) => [n, true])) },
       tooltip: {
         ...tooltipBase(t),
         trigger: "axis",
@@ -901,11 +904,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     }
     let k = name == null ? -1 : names.indexOf(name);
     if (!share && k === otherIdx) k = -1; // "Everyone else" isn't drawn in hours mode
+    // A hidden artist (its chip hovered in the key) has no band to light, so nothing around it dims either
+    if (k >= 0 && !visible(k)) k = -1;
     (share ? focusBand : focusLine)(k < 0 ? null : k);
   };
-
-  // Show or hide an artist as the legend's box does
-  st.toggleArtist = (name) => c.dispatchAction({ type: "legendToggleSelect", name });
 
   // The tooltip formats before the pointer handler runs, so redraw it once the focused series is known
   const retip = (x, y) => c.dispatchAction({ type: "showTip", x, y });
@@ -1012,6 +1014,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const [d, n, w, , m, o, p, sl, sm] = st.args;
     renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl, sm);
   };
+  // Show or hide an artist as the legend's box does. Not through ECharts' legendToggleSelect: that redraws the
+  // chart at once with the artist toggled in its stored styles, so the colors flicker before the morph takes over
+  st.toggleArtist = (name) => {
+    st.selected = { ...st.selected, [name]: st.selected[name] === false };
+    restack();
+  };
   // Several at once in a single re-stack, rather than one morph per artist
   // Showing them all starts over: artists hidden while in another period don't come back hidden
   st.showAll = (list, show) => {
@@ -1020,14 +1028,6 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     restack();
   };
 
-  // (legendToggleSelect fires legendselectchanged; other legend actions fire the other two)
-  for (const ev of ["legendselectchanged", "legendselected", "legendunselected"]) {
-    c.off(ev);
-    c.on(ev, (e) => {
-      st.selected = { ...e.selected };
-      restack();
-    });
-  }
   const hidden = hiddenNames.get(el) ?? new Set();
   for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
   hiddenNames.set(el, hidden);
