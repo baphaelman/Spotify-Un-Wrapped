@@ -1,5 +1,5 @@
 // The page's state and the small readers every part of the page shares: the plays in the period, the
-// presets, and the words for the current view (artists, tracks or albums).
+// presets, and the words for the current view (genres, artists, albums or tracks).
 // hooks: functions main.js registers at startup, so the modules under it can call back up without importing it.
 import * as agg from "./aggregate.js";
 
@@ -8,9 +8,9 @@ export const $ = (id) => document.getElementById(id);
 // range: the period every graph shows, { lo, hi } as inclusive day indices (see agg.dayIndex). The brush picks
 // it, and the presets in the dropdown are just ranges (a year, or all time).
 // pinned: artists the reader added to the rolling chart through the search; artists: every artist, by hours;
-// colorSlots: the palette slot (0-7) each artist last had in the rolling chart, so colors follow the artist
+// colorSlots: the palette slot (0-9) each artist last had in the rolling chart, so colors follow the artist
 // raw: the plays as loaded. plays: the same plays as the current view (dim) sees them, where "artist" can be a
-// track or an album (see keyedPlays); owner: each track's or album's artist in that view. dims: the pins,
+// track, an album or a genre (see views.js); owner: each track's or album's artist in that view. dims: the pins,
 // hidden names and colors each view had when the reader left it.
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
@@ -29,7 +29,7 @@ export const splitKind = () =>
 // Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
 // `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period
 // bar's slider, search, key and pins work on any of them unchanged. Only the words differ.
-const NOUN = {
+export const NOUN = {
   artist: { one: "artist", many: "artists", Many: "Artists", a: "an artist", who: "Who" },
   track: { one: "track", many: "tracks", Many: "Tracks", a: "a track", who: "What" },
   album: { one: "album", many: "albums", Many: "Albums", a: "an album", who: "What" },

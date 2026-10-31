@@ -9,9 +9,9 @@ import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
-import { genresOf, genresVersion, askGenres } from "./genres.js";
-import { artistFamilies } from "./families.js";
-import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
+import { askGenres } from "./genres.js";
+import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
+import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
@@ -23,7 +23,6 @@ Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];
-const VIEW_NAMES = { artist: "Artists", album: "Albums", track: "Tracks", genre: "Genres" };
 
 // ---------- Loading ----------
 
@@ -209,99 +208,7 @@ $("share-preview").addEventListener("click", () => {
 });
 $("preview-close").addEventListener("click", () => $("preview-dialog").close());
 
-// ---------- Artists, tracks or albums ----------
-
-// A track or album is called by its name, with its artist after it where more than one artist has that name
-// (an "Intro", a "Greatest Hits"). Worked out once per view and kept.
-let keyedMemo = new Map();
-
-// Up to five of an item's track IDs, most played first: the picture lookup tries them in turn (covers.js)
-const PICTURE_TRACKS = 5;
-const countId = (ids, id) => id && ids.set(id, (ids.get(id) ?? 0) + 1);
-const topIds = (ids) => [...ids].sort((a, b) => b[1] - a[1]).slice(0, PICTURE_TRACKS).map(([id]) => id);
-
-function keyedPlays(dim) {
-  const memo = keyedMemo.get(dim);
-  if (memo?.raw === state.raw && memo.version === (dim === "genre" ? genresVersion : undefined)) return memo;
-  if (dim === "genre") return genrePlays();
-  if (dim === "artist") {
-    // An artist's photo is found through their most-played tracks
-    const ids = new Map();
-    for (const p of state.raw) {
-      if (!ids.has(p.artist)) ids.set(p.artist, new Map());
-      countId(ids.get(p.artist), p.id);
-    }
-    const cover = new Map([...ids].map(([name, m]) => [name, { kind: "artist", name, ids: topIds(m) }]));
-    const out = { raw: state.raw, plays: state.raw, owner: null, title: null, album: null, cover };
-    keyedMemo.set(dim, out);
-    return out;
-  }
-  const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
-  const artistsOf = new Map();
-  for (const p of state.raw) {
-    const n = nameOf(p);
-    if (!artistsOf.has(n)) artistsOf.set(n, new Set());
-    artistsOf.get(n).add(p.artist);
-  }
-  const keys = new Map(); // name + artist -> what the view calls it
-  const owner = new Map(); // what the view calls it -> artist
-  const title = new Map(); // what the view calls it -> its own name, without the artist
-  const albums = new Map(); // what the view calls it -> album -> { n: plays from it, ids: its track IDs -> plays }
-  const plays = state.raw.map((p) => {
-    const n = nameOf(p), id = n + "\u0000" + p.artist;
-    let key = keys.get(id);
-    if (key === undefined) {
-      key = artistsOf.get(n).size > 1 || n === "Everyone else" ? `${n} · ${p.artist}` : n;
-      keys.set(id, key);
-      owner.set(key, p.artist);
-      title.set(key, n);
-      albums.set(key, new Map());
-    }
-    const on = albums.get(key), a = on.get(p.album) ?? { n: 0, ids: new Map() };
-    a.n++;
-    countId(a.ids, p.id);
-    on.set(p.album, a);
-    return { ...p, artist: key, by: p.artist };
-  });
-  // A track on several albums (a single, then the album) is called by the one it was played from most, and
-  // shows that album's cover, found through its tracks (data saved before IDs were kept has none)
-  const most = new Map([...albums].map(([k, m]) => [k, [...m].sort((a, b) => b[1].n - a[1].n)[0]]));
-  const album = dim === "track" ? new Map([...most].map(([k, [name]]) => [k, name || undefined])) : null;
-  // No album, no cover
-  const cover = new Map([...most].map(([k, [name, a]]) => [k, name ? { kind: "album", name: owner.get(k), album: name, ids: topIds(a.ids) } : undefined]));
-  const out = { raw: state.raw, plays, owner, title, album, cover };
-  keyedMemo.set(dim, out);
-  return out;
-}
-
-// The genres view: each play goes to its artist's genre families (families.js), shared by their weight, so an
-// artist who is both rock and electronic counts a part of each play in each (`ms` times the weight, and the weight
-// in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by. Artists with no
-// genre (yet) are left out, so no graph, list, key or search has them. A genre's picture is its most-played artist's
-// photo, from the artists view.
-function genrePlays() {
-  const families = new Map(); // artist -> [[family, weight], ...]
-  const top = new Map(); // family -> artist -> ms
-  const plays = [];
-  for (const p of state.raw) {
-    let fams = families.get(p.artist);
-    if (!fams) {
-      fams = artistFamilies(genresOf(p.artist) ?? []);
-      families.set(p.artist, fams);
-    }
-    for (const [family, w] of fams) {
-      plays.push(w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w });
-      if (!top.has(family)) top.set(family, new Map());
-      const m = top.get(family);
-      m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms * w);
-    }
-  }
-  const artistCovers = keyedPlays("artist").cover;
-  const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get([...m].sort((a, b) => b[1] - a[1])[0][0])]));
-  const out = { raw: state.raw, version: genresVersion, plays, owner: null, title: null, album: null, cover };
-  keyedMemo.set("genre", out);
-  return out;
-}
+// ---------- Views: genres, artists, albums or tracks ----------
 
 // Asks for the genres this device doesn't know yet, once the genres view is first opened, and redraws it as they
 // arrive: at most every REGENRE_MS, so the bands morph in steps rather than twitching with each answer
@@ -440,8 +347,8 @@ function setBack(trail) {
   viewTrail = trail;
   const to = trail.at(-1);
   $("view-back").disabled = !to;
-  $("view-back").setAttribute("aria-label", to ? `Back to ${VIEW_NAMES[to]}` : "Back");
-  $("view-back").title = to ? `Back to ${VIEW_NAMES[to]}` : "";
+  $("view-back").setAttribute("aria-label", to ? `Back to ${NOUN[to].Many}` : "Back");
+  $("view-back").title = to ? `Back to ${NOUN[to].Many}` : "";
 }
 $("view-back").addEventListener("click", () => {
   const to = viewTrail.at(-1);
