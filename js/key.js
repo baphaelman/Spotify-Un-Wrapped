@@ -3,7 +3,7 @@ import { focusArtist, showArtists } from "./charts.js";
 import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
 import { $, state, noun, otherLabel } from "./state.js";
 import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
-import { recolorRanking } from "./ranking.js";
+import { recolorRanking, focusRanking } from "./ranking.js";
 
 // The hovered artist lights everything that belongs to them, as pinning does: their chip in the period bar's
 // key (the mix bar is lit in mix.js)
@@ -13,6 +13,7 @@ export function paintFocus(name = listFocus) {
   for (const item of document.querySelectorAll("#artist-key [data-artist]")) {
     item.classList.toggle("focus", name != null && item.dataset.artist === name);
   }
+  focusRanking(name);
 }
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and

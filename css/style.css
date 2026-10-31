@@ -690,6 +690,12 @@ dialog pre {
 .toplist .bar.muted-bar { background: var(--other); }
 /* The page's last card: every item of the view. Ranks run to five digits, so their column fits the longest */
 .ranking li { grid-template-columns: var(--rank-w, 2ch) 1fr auto; }
+/* Its rows pin like the key's chips: hover (here or anywhere on the page) shades the item's color, a pin outlines it */
+.ranking li.pinnable { cursor: pointer; transition: background-color var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
+.ranking li[aria-disabled] { cursor: default; }
+.ranking li:is(:hover, .focus):not([aria-disabled]), .ranking li.pinned { background-color: color-mix(in srgb, var(--c, var(--other)) 14%, transparent); }
+.ranking li.pinned { box-shadow: inset 0 0 0 1.5px var(--c, var(--other)); }
+.ranking li:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ranking-more { display: block; margin: 12px auto 0; }
 .ranking-more[hidden] { display: none; }
 /* A clear top and bottom border keeps adjacent tinted rows apart without changing the row pitch */
