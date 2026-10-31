@@ -216,7 +216,8 @@ Deploy them yourself with the Supabase CLI; don't hand the owner a file to paste
 - **Check before deploying:** `/opt/homebrew/bin/deno check supabase/functions/<name>/index.ts` (Deno isn't on the
   shell's PATH). A deploy goes live for every visitor at once, so deploy only a change that's committed and checked.
 - **Deploy:** `supabase functions deploy <name> --project-ref qvsoxqeuvpnryitechsf --no-verify-jwt`. Every function
-  here has JWT verification off. Then watch its logs or make one test request.
+  here has JWT verification off. Then watch its logs or make one test request. The CLI is at
+  `/opt/homebrew/bin/supabase`, logged in as the owner; its "Docker is not running" warning doesn't matter for a deploy.
 - **`artist-image` is deployed as `smooth-endpoint`,** and the CLI names a function after its folder, so it needs a
   `[functions.smooth-endpoint]` entry with an `entrypoint` in `supabase/config.toml` (not set up yet; check it
   before the first deploy). Each test of it costs Spotify calls (see Pictures).
