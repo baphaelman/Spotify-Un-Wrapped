@@ -296,7 +296,7 @@ for (const btn of document.querySelectorAll("#rolling-split button")) {
   btn.addEventListener("click", () => {
     const to = btn.dataset.split || null;
     if (to === splitKind()) return;
-    state.split = to;
+    state.split = { ...state.split, [state.dim]: to };
     syncSplit();
     renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
   });

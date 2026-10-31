@@ -15,16 +15,18 @@ export const $ = (id) => document.getElementById(id);
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: "track",
+  split: { artist: "track", album: "track", genre: "artist" },
 };
 
-// split: what the rolling chart splits each band into, "album" or "track" (songs, the default), "artist", or null for whole
-// bands. The view limits it: an artist splits into albums or songs, an album into songs, a genre into its artists (whatever
-// was chosen elsewhere), a track not at all.
-export const splitKind = () =>
-  state.dim === "genre" ? (state.split ? "artist" : null)
-  : state.dim === "artist" ? (state.split === "artist" ? "track" : state.split)
-  : state.dim === "album" && state.split && state.split !== "album" ? "track" : null;
+// split: what the rolling chart splits each band into, per view: "album", "track" (songs), "artist", or null for
+// whole bands. Each view keeps its own choice, so an album opened from an artist's breakdown arrives broken down by
+// song. An artist splits into albums or songs, an album into songs, a genre into its artists, albums or songs, a
+// track not at all.
+const SPLITS = { artist: ["album", "track"], album: ["track"], genre: ["artist"] };
+export const splitKind = () => {
+  const to = state.split[state.dim];
+  return SPLITS[state.dim]?.includes(to) ? to : null;
+};
 
 // Each view is the same page over the plays keyed another way. The tracks view's plays carry the track in
 // `artist` (and the real artist in `by`), the albums view's the album, so every graph, list, and the period
