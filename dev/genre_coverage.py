@@ -115,7 +115,15 @@ def lookup(name, track, genres):
             raise RuntimeError(f"Last.fm error {j.get('error')}")
         tags = (j.get("toptags") or {}).get("tag") or []
         tags = [tags] if isinstance(tags, dict) else tags  # a lone tag comes as an object, not a list
-        g = [[t["name"].lower(), int(t["count"])] for t in tags if t["name"].lower() in genres and int(t["count"]) >= 10][:8]
+        # Matched ignoring spaces, hyphens and case, plus a few aliases (as the function's genreOfTag)
+        tag_key = lambda t: re.sub(r"[\s\-_]", "", t.lower())
+        by_key = {tag_key(x): x for x in genres} | {k: v for k, v in {"rap": "hip hop", "rnb": "r&b", "randb": "r&b"}.items() if v in genres}
+        best_n = {}
+        for t in tags:
+            x, n = by_key.get(tag_key(t["name"])), int(t["count"])
+            if x and n >= 10 and n > best_n.get(x, 0):
+                best_n[x] = n
+        g = sorted(([x, n] for x, n in best_n.items()), key=lambda e: -e[1])[:8]
         if g:
             return {**entry, "genres": g, "source": "lastfm"}
     return {**entry, "source": "none"}

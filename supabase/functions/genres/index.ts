@@ -145,6 +145,19 @@ async function findArtist(name: string, track: string): Promise<MbArtist | null>
 
 // ---- Last.fm, for artists MusicBrainz lacks or has no genres for ----
 
+// Last.fm's tags are free text ("Hip-Hop", "hiphop", "synthpop"), so they're matched to MusicBrainz's genres ignoring
+// spaces, hyphens and case, plus a few common tags MusicBrainz spells another way or doesn't list
+const ALIASES: Record<string, string> = { rap: "hip hop", rnb: "r&b", randb: "r&b" };
+const tagKey = (t: string) => t.toLowerCase().replace(/[\s\-_]/g, "");
+let byTagKey: Map<string, string> | null = null;
+function genreOfTag(tag: string, genres: Set<string>): string | undefined {
+  if (!byTagKey) {
+    byTagKey = new Map([...genres].map((g) => [tagKey(g), g]));
+    for (const [tag, g] of Object.entries(ALIASES)) if (genres.has(g)) byTagKey.set(tag, g);
+  }
+  return byTagKey.get(tagKey(tag));
+}
+
 async function lastfm(name: string, genres: Set<string>): Promise<Genres> {
   const key = Deno.env.get("LASTFM_API_KEY");
   if (!key) return [];
@@ -158,10 +171,13 @@ async function lastfm(name: string, genres: Set<string>): Promise<Genres> {
   if (!r.ok || j.error) throw new Error(`Last.fm ${r.status} ${j.error ?? ""} ${j.message ?? ""}`);
   // Free-text tags with counts 0-100 relative to the top one; a lone tag comes as an object, not a list
   const tags = [j.toptags?.tag ?? []].flat() as { name: string; count: number | string }[];
-  return tags
-    .map((t): [string, number] => [String(t.name).toLowerCase(), Number(t.count)])
-    .filter(([g, n]) => genres.has(g) && n >= 10)
-    .slice(0, 8);
+  // Several tags can land on one genre ("rap" and "Hip-Hop"): it keeps the highest count
+  const out = new Map<string, number>();
+  for (const t of tags) {
+    const g = genreOfTag(String(t.name), genres), n = Number(t.count);
+    if (g && n >= 10 && n > (out.get(g) ?? 0)) out.set(g, n);
+  }
+  return [...out].sort((a, b) => b[1] - a[1]).slice(0, 8);
 }
 
 async function lookup(name: string, track: string): Promise<Omit<Row, "name_key" | "name" | "fetched_at">> {
