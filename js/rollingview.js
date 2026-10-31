@@ -492,6 +492,9 @@ export function pin(name) {
 function unpin(name) {
   state.pinned = state.pinned.filter((a) => a !== name);
   brushMorph = { ms: MORPH_MS };
+  // Hovering a pinned artist doesn't tell the page (they're lit already), so say so before the key's chips are
+  // rebuilt unpinned: otherwise they'd show unhovered for a beat before the hover reaches them
+  focusArtist($("chart-rolling"), name);
   holdFocus($("chart-rolling"), name);
   renderRollingChart(currentZoom($("chart-rolling")));
   holdFocus($("chart-rolling"), null);

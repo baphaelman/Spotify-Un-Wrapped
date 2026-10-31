@@ -1340,7 +1340,7 @@ function monthlySeries(st) {
   const lit = litSet(st);
   // A hovered artist's slices take a lighter shade (0.32) that deepens to 0.5 once they're pinned
   const fill = (col, on, dim, base) => mix(t.surface, col, on === "hover" ? 0.32 : on ? 0.5 : dim ? 0.1 : base);
-  // A hairline in the surface color between slices, or the artist's color around a pinned one
+  // A hairline in the surface color between slices, or the artist's color around a lit one
   const edge = (col, on) => (on ? { borderColor: col, borderWidth: 1.5 } : { borderColor: t.surface, borderWidth: 1 });
   const radius = { borderRadius: [1.5, 1.5, 0, 0] };
   // A zero-height bar still strokes its outline, so an emptied bar keeps it only while it shrinks (settleMonthly
@@ -1362,8 +1362,7 @@ function monthlySeries(st) {
     const col = colorOf(n);
     return {
       id: `m${k}`,
-      // Hover only shades the slice; the outline belongs to the pin and fades in and out with it
-      itemStyle: { color: fill(col, on && (pinned ? "pin" : "hover"), lit.size && !on, 0.25), ...edge(col, pinned) },
+      itemStyle: { color: fill(col, on && (pinned ? "pin" : "hover"), lit.size && !on, 0.25), ...edge(col, on && "lit") },
       data: items(`m${k}`, rows.map((r, i) => (shown[k][i] ? r.by[k] : 0))),
     };
   });
