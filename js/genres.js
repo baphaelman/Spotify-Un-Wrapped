@@ -16,8 +16,9 @@ const COVER = 0.97;
 const MAX_ARTISTS = 2000;
 // Requests that failed in a row before this visit stops asking (offline, or the function isn't deployed)
 const GIVE_UP_AFTER = 3;
-// Times a name can come back pending before this visit stops asking about it (one that always fails to look up)
-const MAX_TRIES = 5;
+// Requests in a row that brought no new answer before this visit stops asking: the function looks up a few names a
+// request, so a name can rightly come back pending many times, but when nothing moves, what's left keeps failing
+const STALLS = 3;
 
 let known = new Map(); // artist -> [[genre, votes], ...]
 try {
@@ -70,9 +71,8 @@ export async function askGenres(raw, onChange) {
   if (asking === raw) return;
   asking = raw;
   let todo = wanted(raw).filter((a) => !known.has(a.name));
-  let failures = 0;
-  const tries = new Map(); // name -> times it came back pending
-  while (todo.length && asking === raw && failures < GIVE_UP_AFTER) {
+  let failures = 0, stalls = 0;
+  while (todo.length && asking === raw && failures < GIVE_UP_AFTER && stalls < STALLS) {
     const batch = todo.slice(0, BATCH);
     let answer;
     try {
@@ -89,8 +89,9 @@ export async function askGenres(raw, onChange) {
       await new Promise((go) => setTimeout(go, AGAIN_MS * failures));
       continue;
     }
-    const got = Object.entries(answer.genres ?? {});
+    const got = Object.entries(answer.genres ?? {}).filter(([name]) => !known.has(name));
     for (const [name, genres] of got) known.set(name, genres);
+    stalls = got.length ? 0 : stalls + 1;
     if (got.length) {
       genresVersion++;
       save();
@@ -98,9 +99,7 @@ export async function askGenres(raw, onChange) {
     }
     // The pending ones go to the back, so the next request starts with names the table may already have
     const pending = new Set(answer.pending ?? []);
-    for (const name of pending) tries.set(name, (tries.get(name) ?? 0) + 1);
-    const again = batch.filter((a) => pending.has(a.name) && !known.has(a.name) && tries.get(a.name) < MAX_TRIES);
-    todo = [...todo.slice(BATCH), ...again];
+    todo = [...todo.slice(BATCH), ...batch.filter((a) => pending.has(a.name) && !known.has(a.name))];
     if (pending.size) await new Promise((go) => setTimeout(go, AGAIN_MS));
   }
   if (asking === raw) asking = null;
