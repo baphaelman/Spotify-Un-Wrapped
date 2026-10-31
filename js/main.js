@@ -279,7 +279,7 @@ function applyDim() {
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
   $("monthly-other-label").textContent = otherLabel();
-  $("clock-note").textContent = `${w.who} you listen to through each day of the week, as a share of that time, in your local time zone (better with a smaller window size)`;
+  $("clock-note").textContent = `${w.who} you listen to through the day, as a share of that time, in your local time zone (better with a smaller window size)`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
   for (const b of $("view-tabs").children) b.setAttribute("aria-pressed", b.dataset.dim === state.dim);

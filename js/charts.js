@@ -1668,18 +1668,18 @@ export function focusMonthly(el, name) {
   settleMonthly(el, st, series);
 }
 
-// When you listened: one small share stack graph per weekday, across the hours of the day, drawn like the rolling
-// chart's Share mode (bands bottom up in rank order, a pale tint of each artist's color under an outline). With
+// When you listened: one share stack graph across the hours of the day (every weekday together), drawn like the
+// rolling chart's Share mode (bands bottom up in rank order, a pale tint of each artist's color under an outline). With
 // includeOther, the rest of the time is a gray "Everyone else" band on top; without, the shares are among the artists
-// shown. grid is clockBy's, by the hour; the hours are smoothed around the week's clock (late Sunday runs into Monday
-// morning) so a band doesn't jump between neighbouring hours. Pins and hover work as in renderMonthly (focusClock
-// lights an artist from elsewhere): names/slots are the artists and their palette slots, off the deselected ones
-// (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing, in hours.
+// shown. grid is clockBy's, by weekday and hour; the hours are summed over the week and smoothed around the day's clock
+// (late night runs into the early morning) so a band doesn't jump between neighbouring hours. Pins and hover work as
+// in renderMonthly (focusClock lights an artist from elsewhere): names/slots are the artists and their palette slots,
+// off the deselected ones (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing,
+// in hours.
 const clockState = new WeakMap();
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const hourLabel = (h) => (h % 24 === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
 
-// Gaussian blur of a 168-hour ring
+// Gaussian blur of a ring (the day's 24 hours)
 function blurRing(v, sigma) {
   if (!(sigma > 0)) return v;
   const n = v.length, r = Math.ceil(sigma * 3);
@@ -1696,27 +1696,23 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
   const prev = clockState.get(el);
   const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
 
-  // Hours on the week's ring (168 hours from Monday midnight) for each series, then smoothed
-  const ring = all.map((_, k) =>
-    grid.flatMap((row) => row.map((e) => (k < otherIdx ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0)))
-  );
+  // Hours on the day's ring (24 hours from midnight, every weekday summed) for each series, then smoothed
+  const cell = (e, k) => (k < otherIdx ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0);
+  const ring = all.map((_, k) => Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + cell(row[h], k), 0)));
   const smooth = ring.map((v) => blurRing(v, sigma));
-  // Each hour's value sits at the middle of the hour; points go on the hour (0..24 each day), halfway between two
-  const at = (v, d, h) => (v[(d * 24 + h - 1 + 168) % 168] + v[(d * 24 + h) % 168]) / 2;
-  const hours = all.map((_, k) => DAYS.map((_, d) => Array.from({ length: 25 }, (_, h) => at(smooth[k], d, h))));
-  const total = DAYS.map((_, d) => Array.from({ length: 25 }, (_, h) => all.reduce((s, _n, k) => s + hours[k][d][h], 0)));
+  // Each hour's value sits at the middle of the hour; points go on the hour (0..24), halfway between two
+  const hours = smooth.map((v) => Array.from({ length: 25 }, (_, h) => (v[(h + 23) % 24] + v[h % 24]) / 2));
+  const total = Array.from({ length: 25 }, (_, h) => all.reduce((s, _n, k) => s + hours[k][h], 0));
   // Each band's share, and its bottom and top in the stack (for hover)
-  const share = all.map((_, k) => DAYS.map((_, d) => total[d].map((tot, h) => (tot > 1e-9 ? hours[k][d][h] / tot : 0))));
-  const bottom = all.map(() => DAYS.map(() => new Array(25).fill(0)));
-  DAYS.forEach((_, d) => {
-    for (let h = 0; h < 25; h++) {
-      let acc = 0;
-      all.forEach((_, k) => {
-        bottom[k][d][h] = acc;
-        acc += share[k][d][h];
-      });
-    }
-  });
+  const share = all.map((_, k) => total.map((tot, h) => (tot > 1e-9 ? hours[k][h] / tot : 0)));
+  const bottom = all.map(() => new Array(25).fill(0));
+  for (let h = 0; h < 25; h++) {
+    let acc = 0;
+    all.forEach((_, k) => {
+      bottom[k][h] = acc;
+      acc += share[k][h];
+    });
+  }
 
   const st = { names, all, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
   st.zrMove = prev?.zrMove;
@@ -1724,22 +1720,15 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
   st.zrClick = prev?.zrClick;
   clockState.set(el, st);
 
-  // A row per weekday, each its own grid, with the hour labels under the last. Laid out in pixels from the chart's
-  // height (the card sets it in CSS)
-  const top = 8, bottomPad = 28, gap = 28;
-  const each = ((el.clientHeight || 640) - top - bottomPad + gap) / 7;
-  const grids = DAYS.map((_, d) => ({ left: 48, right: 16, top: top + d * each, height: each - gap }));
-
   const tip = (params) => {
     if (!params.length) return "";
-    const d = params[0].axisIndex ?? 0;
     const h = Math.round(params[0].axisValue);
     const rows = all
-      .map((n, k) => ({ k, s: share[k][d][h], hrs: hours[k][d][h] }))
+      .map((n, k) => ({ k, s: share[k][h] }))
       .filter((r) => r.s >= 0.005 && !off.has(all[r.k]))
       .sort((a, b) => b.k - a.k)
       .map((r) => row(colors[r.k], (r.s * 100).toFixed(0) + "%", shownName(all[r.k]), all[r.k] === st.hovered));
-    return `<div style="color:${t.muted};margin-bottom:4px">${DAYS[d]} around ${hourLabel(h)}</div>${rows.join("")}`;
+    return `<div style="color:${t.muted};margin-bottom:4px">Around ${hourLabel(h)}</div>${rows.join("")}`;
   };
 
   setOptionFaded(
@@ -1749,65 +1738,46 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
       animationDuration: ENTER_MS,
       animationDurationUpdate: MORPH_MS,
       animationEasingUpdate: EASE_IN_OUT.echarts,
-      grid: grids,
+      grid: { left: 16, right: 16, top: 8, bottom: 28 },
       tooltip: {
         ...tooltipBase(t),
         trigger: "axis",
         axisPointer: { type: "line", lineStyle: { color: t.muted, width: 1 }, triggerEmphasis: false },
         formatter: tip,
       },
-      axisPointer: { triggerEmphasis: false, link: [{ xAxisIndex: "all" }] },
-      xAxis: DAYS.map((_, d) => ({
+      axisPointer: { triggerEmphasis: false },
+      xAxis: {
         type: "value",
-        gridIndex: d,
         min: 0,
         max: 24,
         interval: 3,
         ...baseAxis(t),
         axisLine: { show: false },
         splitLine: { show: false },
-        axisLabel: { show: d === 6, color: t.muted, formatter: (v) => hourLabel(v) },
+        axisLabel: { color: t.muted, formatter: (v) => hourLabel(v) },
         axisPointer: { triggerEmphasis: false },
+      },
+      yAxis: { type: "value", min: 0, max: 1, ...baseAxis(t), axisLine: { show: false }, splitLine: { show: false }, axisLabel: { show: false } },
+      series: all.map((n, k) => ({
+        id: `c${k}`,
+        name: n,
+        type: "line",
+        silent: true,
+        symbol: "none",
+        smooth: 0.3,
+        // Stacked by hand, as in the rolling chart: each band is its top edge filled down to the axis, and the
+        // bands below paint over it
+        z: 2 + all.length - k,
+        ...clockLook(st, k),
+        data: share[k].map((s, h) => [h, bottom[k][h] + s]),
       })),
-      yAxis: DAYS.map((day, d) => ({
-        type: "value",
-        gridIndex: d,
-        min: 0,
-        max: 1,
-        ...baseAxis(t),
-        axisLine: { show: false },
-        splitLine: { show: false },
-        axisLabel: { show: false },
-        name: day,
-        nameLocation: "middle",
-        nameRotate: 0,
-        nameGap: 14,
-        nameTextStyle: { color: t.muted, align: "right" },
-      })),
-      series: DAYS.flatMap((_, d) =>
-        all.map((n, k) => ({
-          id: `c${d}_${k}`,
-          name: n,
-          type: "line",
-          xAxisIndex: d,
-          yAxisIndex: d,
-          silent: true,
-          symbol: "none",
-          smooth: 0.3,
-          // Stacked by hand, as in the rolling chart: each band is its top edge filled down to the axis, and the
-          // bands below paint over it
-          z: 2 + all.length - k,
-          ...clockLook(st, k),
-          data: share[k][d].map((s, h) => [h, bottom[k][d][h] + s]),
-        }))
-      ),
     },
     // Outlines and fills fade with the morph (deselecting an artist), rather than snapping before it
     { notMerge: fresh },
     fresh ? 0 : dur(MORPH_MS)
   );
 
-  // Hover from the data, as in the rolling chart: the band under the pointer, in the row under it
+  // Hover from the data, as in the rolling chart: the band under the pointer
   const zr = c.getZr();
   if (st.zrMove) {
     zr.off("mousemove", st.zrMove);
@@ -1815,13 +1785,12 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
     zr.off("click", st.zrClick);
   }
   const pick = (px) => {
-    const d = DAYS.findIndex((_, i) => c.containPixel({ gridIndex: i }, px));
-    if (d < 0) return undefined;
-    const [x, y] = c.convertFromPixel({ gridIndex: d }, px);
+    if (!c.containPixel({ gridIndex: 0 }, px)) return undefined;
+    const [x, y] = c.convertFromPixel({ gridIndex: 0 }, px);
     const h = Math.max(0, Math.min(24, Math.round(x)));
     for (let k = 0; k < all.length; k++) {
       if (off.has(all[k])) continue;
-      if (y >= bottom[k][d][h] && y <= bottom[k][d][h] + share[k][d][h] && share[k][d][h] > 0) return all[k];
+      if (y >= bottom[k][h] && y <= bottom[k][h] + share[k][h] && share[k][h] > 0) return all[k];
     }
     return null;
   };
@@ -1882,7 +1851,7 @@ export function focusClock(el, name) {
   if (next === st.hovered) return;
   st.hovered = next;
   // Faded, as hover in the rolling chart is
-  setOptionFaded(c, { series: DAYS.flatMap((_, d) => st.all.map((n, k) => ({ id: `c${d}_${k}`, ...clockLook(st, k) }))) }, undefined, dur(FADE_MS));
+  setOptionFaded(c, { series: st.all.map((n, k) => ({ id: `c${k}`, ...clockLook(st, k) })) }, undefined, dur(FADE_MS));
 }
 
 // Contributors by total hours, with the viewer's bin picked out in the accent.
