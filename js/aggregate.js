@@ -198,8 +198,9 @@ const tables = new WeakMap(); // plays → { first, last, len, byArtist: artist 
 export function dailyTable(plays, artists, includeOther) {
   let tb = tables.get(plays);
   if (!tb) {
-    const first = dayIndex(plays[0].t);
-    const last = dayIndex(plays[plays.length - 1].t);
+    // (no plays at all, as in the genres view before any genres are known: no days)
+    const first = plays.length ? dayIndex(plays[0].t) : 0;
+    const last = plays.length ? dayIndex(plays[plays.length - 1].t) : -1;
     const byArtist = new Map();
     for (const p of plays) {
       const list = byArtist.get(p.artist);
