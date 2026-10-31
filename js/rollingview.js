@@ -280,14 +280,13 @@ export function chartArtists(plays, n) {
   return [...top, ...extra];
 }
 
-// Whole bands, or each split into its albums or songs (a genre's into its artists). The buttons on offer follow the
-// view (see splitKind).
+// Whole bands, or each split into its albums or songs (a genre's also into its artists). The buttons on offer follow
+// the view (see splitKind).
 export function syncSplit() {
   const group = $("rolling-split");
   const genre = state.dim === "genre";
   group.hidden = state.dim === "track";
-  group.querySelector('[data-split="album"]').hidden = state.dim !== "artist" || !state.raw?.some((p) => p.album);
-  group.querySelector('[data-split="track"]').hidden = genre;
+  group.querySelector('[data-split="album"]').hidden = (state.dim !== "artist" && !genre) || !state.raw?.some((p) => p.album);
   group.querySelector('[data-split="artist"]').hidden = !genre;
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);

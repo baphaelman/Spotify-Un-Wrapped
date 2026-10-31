@@ -333,15 +333,15 @@ function segThumbs() {
 }
 segThumbs();
 
-// A part clicked in the rolling chart (an artist's album or song, or an album's song): its own view, with it pinned.
+// A part clicked in the rolling chart (an artist's album or song, an album's song, or a genre's artist, album or song): its own view, with it pinned.
 // Names there are told apart by their artist; an album's songs belong to the album's artist. It takes its
 // band's color, so the eye can follow it through the morph.
 function openPart(artist, kind, name) {
   const by = state.dim === "artist" ? artist : state.owner?.get(artist);
   const slot = state.colorSlots.get(artist);
   const from = state.dim;
-  // (a genre's artist is called by their own name in the artists view)
-  setDim(kind, kind === "artist" ? () => name : () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
+  // (a genre's parts are called what their own view calls them, see views.js)
+  setDim(kind, kind === "artist" || from === "genre" ? () => name : () => [...state.titles].find(([key, title]) => title === name && state.owner.get(key) === by)?.[0], slot);
   if (state.dim !== from) setBack([...viewTrail, from]);
 }
 

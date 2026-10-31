@@ -36,14 +36,27 @@ function artistPlays() {
 
 // The tracks and albums views. A track or album is called by its name, with its artist after it where more than
 // one artist has that name (an "Intro", a "Greatest Hits")
-function namedPlays(dim) {
-  const nameOf = dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album";
+const nameOfIn = (dim) => (dim === "track" ? (p) => p.track : (p) => p.album || "Unknown album");
+// What the tracks or albums view (dim) calls a play's track or album: (name, artist) -> key. Kept per loaded plays.
+const keysMemo = new Map();
+function viewKeys(dim) {
+  const kept = keysMemo.get(dim);
+  if (kept?.raw === state.raw) return kept.keyOf;
+  const nameOf = nameOfIn(dim);
   const artistsOf = new Map();
   for (const p of state.raw) {
     const n = nameOf(p);
     if (!artistsOf.has(n)) artistsOf.set(n, new Set());
     artistsOf.get(n).add(p.artist);
   }
+  const keyOf = (n, artist) => (artistsOf.get(n).size > 1 || n === "Everyone else" ? `${n} · ${artist}` : n);
+  keysMemo.set(dim, { raw: state.raw, keyOf });
+  return keyOf;
+}
+
+function namedPlays(dim) {
+  const nameOf = nameOfIn(dim);
+  const keyOf = viewKeys(dim);
   const keys = new Map(); // name + artist -> what the view calls it
   const owner = new Map(); // what the view calls it -> artist
   const title = new Map(); // what the view calls it -> its own name, without the artist
@@ -52,7 +65,7 @@ function namedPlays(dim) {
     const n = nameOf(p), id = n + "\u0000" + p.artist;
     let key = keys.get(id);
     if (key === undefined) {
-      key = artistsOf.get(n).size > 1 || n === "Everyone else" ? `${n} · ${p.artist}` : n;
+      key = keyOf(n, p.artist);
       keys.set(id, key);
       owner.set(key, p.artist);
       title.set(key, n);
@@ -75,24 +88,30 @@ function namedPlays(dim) {
 
 // The genres view: each play goes to its artist's genre families (families.js), shared by their weight, so an
 // artist who is both rock and electronic counts a part of each play in each (`ms` times the weight, and the weight
-// in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by. Artists with no
+// in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by, and its track and
+// album also come as the tracks and albums views call them (`trackKey`, `albumKey`), so a genre's band splits into
+// albums or songs told apart by artist, and a part clicked opens as itself in its own view. Artists with no
 // genre (yet) are left out, so no graph, list, key or search has them. A genre's picture is its most-played artist's
 // photo, from the artists view.
 function genrePlays() {
   const families = new Map(); // artist -> [[family, weight], ...]
   const top = new Map(); // family -> artist -> ms
   const plays = [];
-  for (const p of state.raw) {
-    let fams = families.get(p.artist);
+  const trackOf = viewKeys("track"), albumOf = viewKeys("album");
+  for (const raw of state.raw) {
+    let fams = families.get(raw.artist);
     if (!fams) {
-      fams = artistFamilies(genresOf(p.artist) ?? []);
-      families.set(p.artist, fams);
+      fams = artistFamilies(genresOf(raw.artist) ?? []);
+      families.set(raw.artist, fams);
     }
+    if (!fams.length) continue;
+    const trackKey = trackOf(raw.track, raw.artist), albumKey = albumOf(raw.album || "Unknown album", raw.artist);
     for (const [family, w] of fams) {
-      plays.push(w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w });
+      const p = { ...raw, artist: family, by: raw.artist, trackKey, albumKey };
+      plays.push(w === 1 ? p : { ...p, ms: raw.ms * w, w });
       if (!top.has(family)) top.set(family, new Map());
       const m = top.get(family);
-      m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms * w);
+      m.set(raw.artist, (m.get(raw.artist) ?? 0) + raw.ms * w);
     }
   }
   const artistCovers = keyedPlays("artist").cover;

@@ -22,7 +22,7 @@ export const state = {
 // whole bands. Each view keeps its own choice, so an album opened from an artist's breakdown arrives broken down by
 // song. An artist splits into albums or songs, an album into songs, a genre into its artists, albums or songs, a
 // track not at all.
-const SPLITS = { artist: ["album", "track"], album: ["track"], genre: ["artist"] };
+const SPLITS = { artist: ["album", "track"], album: ["track"], genre: ["artist", "album", "track"] };
 export const splitKind = () => {
   const to = state.split[state.dim];
   return SPLITS[state.dim]?.includes(to) ? to : null;

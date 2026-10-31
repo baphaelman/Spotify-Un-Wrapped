@@ -86,8 +86,10 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
   so no artist is forced into one box. Each play becomes one weighted copy per family (`ms` times the
   weight, and a `w` for counting plays); everything that sums `ms` needs no change, and the lists count
   `p.w ?? 1`. The simpler choice, one family per artist, is a one-line change if this reads badly.
-- **The split** (`#rolling-split`): in the Genres view, "Albums / Songs" becomes "Artists", so a genre's band
-  breaks into its artists, colored as in the Artists view.
+- **The split** (`#rolling-split`): in the Genres view it offers "Artists" as well as "Albums / Songs" (Artists by
+  default; each view keeps its own choice in `state.split`), so a genre's band breaks into its artists, albums or
+  songs. The albums and songs are named as the Albums and Tracks views name them (`albumKey`, `trackKey` on the
+  genre plays), so clicking one opens it pinned in that view, like an artist's parts.
 - **Not yet known:** artists still being looked up, or with no genre anywhere, are left out of the view's
   plays, so they're on no graph, list, key or search (not even in "Everyone else"); shares are of the listening
   that has a genre.
