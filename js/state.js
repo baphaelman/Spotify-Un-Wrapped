@@ -44,20 +44,15 @@ export const otherLabel = () => (state.dim === "genre" ? "No genre" : OTHER);
 export const shownName = (n) => (n === OTHER ? otherLabel() : n);
 
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
-// are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go
-// shorter, and their graphs are smoothed sooner.
+// are, and every view offers the same period buttons, so the bar never changes between tabs. Tracks come and go
+// faster than artists, so their graphs get finer slices and are smoothed sooner (RESIZE_LOOK).
 export const START_WINDOW = 3;
-export const RESIZES = {
-  artist: ["3m", "6m", "1y", "2y"],
-  track: ["30d", "3m", "6m", "1y"],
-  album: ["3m", "6m", "1y", "2y"],
-  genre: ["3m", "6m", "1y", "2y"],
-};
+export const RESIZES = ["30d", "3m", "6m", "1y", "2y"];
 // What each period button also sets on the graphs: the days per slice, and the smoothing where it names one
 // (Off 0 … Max 4); left out, the smoothing stays as it is. A shorter period gets a finer slice.
 export const RESIZE_LOOK = {
-  artist: { "3m": { window: 15 }, "6m": { window: 30 }, "1y": { window: 45 }, "2y": { window: 75 } },
-  track: { "30d": { window: 15 }, "3m": { window: 30 }, "6m": { window: 45, smooth: 1 }, "1y": { window: 45, smooth: 2 } },
+  artist: { "30d": { window: 7 }, "3m": { window: 15 }, "6m": { window: 30 }, "1y": { window: 45 }, "2y": { window: 75 } },
+  track: { "30d": { window: 15 }, "3m": { window: 30 }, "6m": { window: 45, smooth: 1 }, "1y": { window: 45, smooth: 2 }, "2y": { window: 75, smooth: 2 } },
 };
 RESIZE_LOOK.album = RESIZE_LOOK.genre = RESIZE_LOOK.artist;
 

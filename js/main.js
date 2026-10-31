@@ -249,8 +249,9 @@ function applyDim() {
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
   for (const b of $("view-tabs").children) b.setAttribute("aria-pressed", b.dataset.dim === state.dim);
   syncSplit();
-  $("period-resize").replaceChildren(
-    ...RESIZES[state.dim].map((len) => {
+  // The same lengths in every view, so they're made once and the bar stays put when the tab changes
+  if (!$("period-resize").children.length) $("period-resize").replaceChildren(
+    ...RESIZES.map((len) => {
       const b = document.createElement("button");
       b.type = "button";
       b.dataset.len = len;
