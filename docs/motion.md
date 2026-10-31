@@ -27,6 +27,11 @@ matches what is moving.
   drag tracks the pointer directly. ECharts applies style changes instantly, so restyle charts with
   `setOptionFaded` (`FADE_MS` for hover, `MORPH_MS` alongside a data morph), never a bare `setOption`.
   Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
+- **Hover shades, a pin outlines.** Anywhere an artist (or a card, chip or bar) is lit, hovering only animates a
+  shade of its color (`FADE_MS`); the outline is the pin's, and fades in and out only as the artist is pinned or
+  unpinned. Where the pinned shade is deeper than the hovered one (the monthly bars), a pin deepens the hover's
+  shade. The period bar's chips are the model (`.legend-item`: `:hover`/`.focus` tint, `.pinned` border). A
+  lit segment of the mix bar sets its hours in the main ink and leaves its percentage in the artist's color.
 - **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
   timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
   the exception by design: the view pans first (`PAN_MS`, longer when the length changes), then the new artists morph in. So is

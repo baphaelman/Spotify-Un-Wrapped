@@ -1005,7 +1005,7 @@ dialog pre {
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 /* Under the bar, every segment in full as a card: a light wash of its color, with a tab of it just outside to the
-   left. A hovered or pinned card draws a ring in its color on all four sides. Cards are narrow enough that the
+   left. A hovered card deepens its wash; a pinned one also draws a ring in its color on all four sides. Cards are narrow enough that the
    default 8 artists fit on two rows of four */
 .mix-list {
   list-style: none; margin: 12px 0 0; padding: 0;
@@ -1072,10 +1072,13 @@ dialog pre {
    card) looks the same in the bar and in its card: a deeper wash of its color, a ring in it, and bold text in the
    main ink. Segments and cards are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }
-.mix-seg:is(:hover, .focus, .pinned) { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
-.mix-seg:is(:hover, .focus, .pinned) > * { color: var(--text-primary); font-weight: 700; }
+.mix-seg { box-shadow: inset 0 0 0 0 var(--c); }
+.mix-seg:is(:hover, .focus, .pinned) { background: color-mix(in srgb, var(--c) 34%, var(--surface)); font-weight: 700; }
+.mix-seg.pinned { box-shadow: inset 0 0 0 1.5px var(--c); }
+.mix-seg:is(:hover, .focus, .pinned) > * { font-weight: 700; }
+.mix-seg:is(:hover, .focus, .pinned) > .mix-hours { color: var(--text-primary); }
 .mix-list li:is(.pinned, .focus) .mix-card, .mix-list li.pinnable .mix-card:hover { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
-.mix-list li:is(.pinned, .focus) .mix-card::after, .mix-list li.pinnable .mix-card:hover::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
+.mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
 .mix-list li:is(.pinned, .focus) .name, .mix-list li.pinnable .mix-card:hover .name { color: var(--text-primary); font-weight: 600; }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't

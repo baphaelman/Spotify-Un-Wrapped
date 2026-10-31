@@ -172,6 +172,8 @@ form of each rule below, with the worked examples.
 - **Time follows the size of the change:** use `scaledMs` for anything that interpolates a size, and give
   everything riding that change the same time.
 - **Things that travel together share one clock:** drive both from one tick, not two matching tweens.
+- **Hover shades, a pin outlines:** hover animates only a shade of the artist's color; the outline fades in
+  and out only on pin/unpin (like the period bar's chips). Applies to the mix bar and cards and the monthly bars too.
 - **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all.
 - **Reduced motion:** wrap every JS duration in `dur()`, and give every CSS animation an entry in the
   `prefers-reduced-motion` blocks.

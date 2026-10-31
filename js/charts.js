@@ -1338,8 +1338,9 @@ function barView(st, r) {
 function monthlySeries(st) {
   const { t, names, rows, colorOf } = st;
   const lit = litSet(st);
-  const fill = (col, on, dim, base) => mix(t.surface, col, on ? 0.5 : dim ? 0.1 : base);
-  // A hairline in the surface color between slices, or the artist's color around a lit one
+  // A hovered artist's slices take a lighter shade (0.32) that deepens to 0.5 once they're pinned
+  const fill = (col, on, dim, base) => mix(t.surface, col, on === "hover" ? 0.32 : on ? 0.5 : dim ? 0.1 : base);
+  // A hairline in the surface color between slices, or the artist's color around a pinned one
   const edge = (col, on) => (on ? { borderColor: col, borderWidth: 1.5 } : { borderColor: t.surface, borderWidth: 1 });
   const radius = { borderRadius: [1.5, 1.5, 0, 0] };
   // A zero-height bar still strokes its outline, so an emptied bar keeps it only while it shrinks (settleMonthly
@@ -1357,10 +1358,12 @@ function monthlySeries(st) {
   });
   const slices = names.map((n, k) => {
     const on = lit.has(n);
+    const pinned = !!st.pins?.has(n) && !st.off.has(n);
     const col = colorOf(n);
     return {
       id: `m${k}`,
-      itemStyle: { color: fill(col, on, lit.size && !on, 0.25), ...edge(col, on && "lit") },
+      // Hover only shades the slice; the outline belongs to the pin and fades in and out with it
+      itemStyle: { color: fill(col, on && (pinned ? "pin" : "hover"), lit.size && !on, 0.25), ...edge(col, pinned) },
       data: items(`m${k}`, rows.map((r, i) => (shown[k][i] ? r.by[k] : 0))),
     };
   });
