@@ -28,7 +28,7 @@ jobs:
       - name: Copy the site and stamp it
         run: |
           mkdir _site
-          cp -r index.html css js _site/
+          cp -r index.html css js sample _site/
           python3 dev/stamp.py _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

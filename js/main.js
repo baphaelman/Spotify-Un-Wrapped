@@ -18,6 +18,7 @@ import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
 import { paintRanking } from "./ranking.js";
+import { loadSample } from "./sample.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
@@ -46,8 +47,9 @@ async function load(files) {
   }
 }
 
-async function open(plays) {
+async function open(plays, sample = false) {
   state.raw = plays;
+  state.sample = sample;
   state.pinned = [];
   state.hidden = [];
   state.colorSlots = new Map();
@@ -57,10 +59,32 @@ async function open(plays) {
   $("window").value = START_WINDOW;
   setHidden($("chart-rolling"), []);
   applyDim();
-  state.key = await submissionKey(plays);
+  state.key = sample ? null : await submissionKey(plays);
   state.shared = null;
   setStatus("");
+  syncSample();
   showDashboard();
+}
+
+// The sample data: opened from the landing page, never saved on this device (so a visitor's own remembered plays
+// stay as they were) and never shared, whatever the landing page's checkbox says
+async function openSample() {
+  try {
+    setStatus("Loading the sample data…");
+    await open(await loadSample(), true);
+    renderShareState();
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message, true);
+  }
+}
+$("sample-open").addEventListener("click", openSample);
+
+// Settings say whose data this is: the sample can't be shared, and leaving it forgets nothing
+function syncSample() {
+  $("share-preview").hidden = state.sample;
+  $("reset").textContent = state.sample ? "Use my own data" : "Forget my data";
+  $("reset").title = state.sample ? "Leave the sample data and load your own files" : "Forget the data remembered on this device and load new files";
 }
 
 // Returning visitor: reopen the data remembered on this device
@@ -85,8 +109,11 @@ window.addEventListener("drop", (e) => e.preventDefault());
 $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 
 $("reset").addEventListener("click", () => {
-  clearPlays();
-  forgetCovers();
+  if (!state.sample) {
+    clearPlays();
+    forgetCovers();
+  }
+  state.sample = false;
   state.raw = state.plays = state.key = state.shared = null;
   state.pinned = [];
   state.artists = [];
@@ -111,7 +138,7 @@ function showView(view) {
   $("help-button").hidden = $("dashboard").hidden;
   closeControls();
   closeHelp();
-  if (view === "community") renderCommunity(state.raw);
+  if (view === "community") renderCommunity(state.sample ? null : state.raw);
 }
 
 // The settings behind the gear in the top bar: sharing and forgetting the loaded data
@@ -153,6 +180,11 @@ $("tab-community").addEventListener("click", () => showView("community"));
 // ---------- Sharing ----------
 
 function renderShareState(text) {
+  if (state.sample) {
+    $("share-state").textContent = "Sample data: the author's listening history. Nothing here is shared.";
+    $("share-toggle").hidden = $("community-leave").hidden = true;
+    return;
+  }
   $("share-state").textContent = text ?? (state.shared ? "Shared with the community ✓" : "Not shared with the community");
   // Sharing starts from the stats page; removing lives on the Community page
   $("share-toggle").hidden = state.shared !== false;
@@ -161,6 +193,7 @@ function renderShareState(text) {
 }
 
 async function refreshShareState() {
+  if (state.sample) return renderShareState();
   try {
     state.shared = await api.isShared(state.key);
     renderShareState();
@@ -171,6 +204,7 @@ async function refreshShareState() {
 }
 
 async function share() {
+  if (state.sample) return;
   renderShareState("Sharing…");
   try {
     await api.submitSummary(state.key, buildSummary(state.raw));

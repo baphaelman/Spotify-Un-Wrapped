@@ -11,11 +11,12 @@ export const $ = (id) => document.getElementById(id);
 // colorSlots: the palette slot (0-9) each artist last had in the rolling chart, so colors follow the artist
 // raw: the plays as loaded. plays: the same plays as the current view (dim) sees them, where "artist" can be a
 // track, an album or a genre (see views.js); owner: each track's or album's artist in that view. dims: the pins,
-// hidden names and colors each view had when the reader left it.
+// hidden names and colors each view had when the reader left it. sample: the plays are the sample data (sample.js),
+// which is never remembered on this device nor shared with the community.
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: { artist: "track", album: "track", genre: "artist" },
+  split: { artist: "track", album: "track", genre: "artist" }, sample: false,
 };
 
 // split: what the rolling chart splits each band into, per view: "album", "track" (songs), "artist", or null for

@@ -200,6 +200,8 @@ button.ghost:hover { background: var(--border); }
 .dropzone span { color: var(--text-secondary); }
 .dropzone.over { border-color: var(--accent); }
 .dropzone input { display: none; }
+/* "Try it with sample data", under the drop zone */
+.sample-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 12px 0 0; }
 
 .status { min-height: 1.5em; text-align: center; color: var(--text-secondary); }
 .status.error { color: var(--series-8); }

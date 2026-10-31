@@ -18,7 +18,7 @@ MAIN = (ROOT / subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT
 data = Path(sys.argv[1] if len(sys.argv) > 1 else MAIN.parent / "spotify/datas/Spotify Extended Streaming History").resolve()
 
 SITE.mkdir(parents=True, exist_ok=True)
-for name, target in [("css", ROOT / "css"), ("js", ROOT / "js"), ("data", data)]:
+for name, target in [("css", ROOT / "css"), ("js", ROOT / "js"), ("sample", ROOT / "sample"), ("data", data)]:
     link = SITE / name
     if link.is_symlink() or link.exists():
         link.unlink()

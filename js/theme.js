@@ -205,5 +205,5 @@ function rerenderForTheme() {
   const zoom = state.plays ? currentZoom($("chart-rolling")) : undefined;
   disposeAll();
   if (state.plays) renderAll(zoom);
-  if (state.view === "community") renderCommunity(state.raw);
+  if (state.view === "community") renderCommunity(state.sample ? null : state.raw);
 }
