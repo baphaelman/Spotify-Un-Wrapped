@@ -4,8 +4,9 @@
 // and our Supabase function (supabase/functions/artist-image, deployed as smooth-endpoint) asks Spotify's Web API
 // about those tracks: what was asked for through each in turn, then by name, then the other kind (an artist's
 // album cover, an album's artist), skipping Spotify's blank placeholders.
-// Each item is asked about once: the answer, a URL or "" for none, is remembered on this device, and the image
-// itself sits in the browser's cache. Only track IDs and the artist's name are sent, never any listening history.
+// The function keeps every answer for everyone, so Spotify is asked about each picture once, ever; one it can't
+// look up yet (the shared allowance is spent) is queued there and asked about again here after a wait.
+// A found picture's URL is also remembered on this device, and the image itself sits in the browser's cache. Only track IDs and the artist's name are sent, never any listening history.
 
 import { SUPABASE_URL } from "./config.js";
 
@@ -42,6 +43,8 @@ const GIVE_UP_AFTER = 3;
 // wait is long, when this visit stops asking
 let heldUntil = 0;
 const LONGEST_WAIT_S = 120;
+// A picture the function has queued is asked about again after the wait it gives, this many times a visit at most
+const PENDING_TRIES = 10;
 
 function pump() {
   const hold = heldUntil - Date.now();
@@ -65,6 +68,17 @@ function pump() {
           heldUntil = Math.max(heldUntil, Date.now() + wait * 1000);
           queue.unshift(item); // asked again once the wait is over
           again = true;
+          return;
+        }
+        // Queued: this minute's allowance (shared by every visitor) is spent, so ask again once it's back
+        if (r.status === 202) {
+          const wait = (await r.json().catch(() => ({}))).wait ?? 30;
+          if (++item.tries > PENDING_TRIES) return resolve("");
+          again = true;
+          setTimeout(() => {
+            queue.push(item);
+            pump();
+          }, Math.min(Math.max(wait, 5), 60) * 1000);
           return;
         }
         if (!r.ok) throw new Error(r.status);
@@ -97,7 +111,7 @@ export function coverFor(p, { soon = false } = {}) {
   if (known.has(key)) return Promise.resolve(known.get(key));
   if (!pending.has(key)) {
     pending.set(key, new Promise((resolve) => {
-      queue.push({ p, key, resolve });
+      queue.push({ p, key, resolve, tries: 0 });
       pump();
     }));
   }

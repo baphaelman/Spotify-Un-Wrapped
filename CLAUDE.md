@@ -119,8 +119,10 @@ then `main.js`. Each imports only from modules before it; a call the other way g
 `covers.js` looks pictures up by up to five of an item's track IDs through the edge function
 `supabase/functions/artist-image`, deployed as `smooth-endpoint` (Spotify Web API; credentials in the
 function's secrets; JWT verification off). It tries each track, then a search by name, then the other kind
-of picture, and skips Spotify's ~1 KB blank placeholder. Answers are cached in localStorage
-(`unwrapped-pictures`). The owner redeploys by pasting the file into the Supabase dashboard (no CLI here),
+of picture, and skips Spotify's ~1 KB blank placeholder. **Read `docs/pictures.md` before touching either:**
+answers are kept for everyone in the `pictures` table, Spotify lookups share one allowance a minute
+(`PER_MINUTE`), and what it can't cover is queued for a pg_cron worker. The page also remembers found URLs in
+localStorage (`unwrapped-pictures`). The owner redeploys by pasting the file into the Supabase dashboard (no CLI here),
 and a deployed function can't be renamed.
 
 **The Spotify app behind `smooth-endpoint` is in development mode, with a small, unpublished request
@@ -137,7 +139,7 @@ hours). While locked out, every picture is blank for every visitor.
   `{"error":"busy","wait":N}` means locked out for N more seconds; the page then stops asking for that visit
   (waits under 2 minutes it holds and retries).
 - **Don't work around a lockout** (new Spotify apps, other keys, spoofed clients). Wait it out and tell the
-  owner. A shared server-side cache table (each picture looked up once for everyone) is the planned fix.
+  owner. The shared table and allowance (`docs/pictures.md`) are what keep it from happening again.
 
 ## Motion
 

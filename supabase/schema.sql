@@ -321,3 +321,97 @@ returns setof public.genre_queue language sql set search_path = public as $$
 $$;
 revoke execute on function public.genre_enqueue(jsonb), public.genre_claim(integer) from public, anon, authenticated;
 grant execute on function public.genre_enqueue(jsonb), public.genre_claim(integer) to service_role;
+
+-- ---------- Pictures (js/covers.js, supabase/functions/artist-image) ----------
+-- Each picture, looked up once on Spotify and kept for everyone. Only the `smooth-endpoint` function reads and
+-- writes these, with the service role (RLS on, no policies). The key is covers.js's: "<kind>:<first track ID>".
+create table if not exists public.pictures (
+  key        text primary key,
+  image      text not null default '',  -- '' when Spotify has none (asked again after 30 days)
+  from_kind  text not null default '' check (from_kind in ('artist', 'album', '')),
+  fetched_at timestamptz not null default now()
+);
+alter table public.pictures enable row level security;
+grant select, insert, update on public.pictures to service_role;
+
+-- Pictures asked for that the table doesn't know yet and this minute's allowance couldn't cover. The function's
+-- worker (pg_cron, once a minute) works through it, so each is looked up even after its visitor has left. The ones
+-- asked for most recently come first.
+create table if not exists public.picture_queue (
+  key           text primary key,
+  kind          text not null check (kind in ('artist', 'album')),
+  name          text not null default '',
+  album         text not null default '',
+  tracks        text not null,               -- up to five track IDs, comma-separated
+  wanted_at     timestamptz not null default now(),
+  attempts      integer not null default 0,  -- lookups that failed; after 5 it's stored as found nowhere
+  next_try_at   timestamptz not null default now(),
+  claimed_until timestamptz
+);
+create index if not exists picture_queue_order on public.picture_queue (wanted_at desc);
+alter table public.picture_queue enable row level security;
+grant select, insert, update, delete on public.picture_queue to service_role;
+
+-- One allowance of Spotify lookups a minute, shared by every visitor and the worker, and Spotify's lockout
+-- (busy_until), so no instance of the function calls Spotify while another has been told to wait.
+create table if not exists public.picture_budget (
+  id         integer primary key default 1 check (id = 1),
+  minute     timestamptz not null default date_trunc('minute', now()),
+  used       integer not null default 0,
+  busy_until timestamptz not null default '-infinity'
+);
+alter table public.picture_budget enable row level security;
+grant select, insert, update on public.picture_budget to service_role;
+insert into public.picture_budget default values on conflict do nothing;
+
+-- Takes one lookup from this minute's p_max: 0 when it's taken, else the seconds until one may be
+create or replace function public.picture_spend(p_max integer)
+returns integer language plpgsql set search_path = public as $$
+declare
+  b picture_budget;
+  now_min timestamptz := date_trunc('minute', now());
+begin
+  select * into b from picture_budget where id = 1 for update;
+  if b.busy_until > now() then
+    return ceil(extract(epoch from b.busy_until - now()))::int;
+  end if;
+  if b.minute = now_min and b.used >= p_max then
+    return greatest(1, ceil(extract(epoch from now_min + interval '1 minute' - now()))::int);
+  end if;
+  update picture_budget set minute = now_min, used = case when b.minute = now_min then b.used + 1 else 1 end
+  where id = 1;
+  return 0;
+end $$;
+
+-- Spotify said to wait p_seconds
+create or replace function public.picture_busy(p_seconds integer)
+returns void language sql set search_path = public as $$
+  update picture_budget set busy_until = greatest(busy_until, now() + make_interval(secs => p_seconds)) where id = 1
+$$;
+
+-- Asking again moves a picture to the front. Past 20,000 waiting nothing new is added (anyone can ask).
+create or replace function public.picture_enqueue(p_key text, p_kind text, p_name text, p_album text, p_tracks text)
+returns void language sql set search_path = public as $$
+  insert into picture_queue (key, kind, name, album, tracks)
+  select p_key, p_kind, left(p_name, 300), left(p_album, 300), left(p_tracks, 120)
+  where (select count(*) < 20000 from picture_queue) or exists (select 1 from picture_queue where key = p_key)
+  on conflict (key) do update set wanted_at = now()
+$$;
+
+-- Takes the front picture for a worker for two minutes; two workers never get the same one
+create or replace function public.picture_claim()
+returns setof public.picture_queue language sql set search_path = public as $$
+  update picture_queue q set claimed_until = now() + interval '2 minutes'
+  where q.key in (
+    select key from picture_queue
+    where next_try_at <= now() and (claimed_until is null or claimed_until < now())
+    order by wanted_at desc
+    limit 1
+    for update skip locked
+  )
+  returning q.*
+$$;
+revoke execute on function public.picture_spend(integer), public.picture_busy(integer),
+  public.picture_enqueue(text, text, text, text, text), public.picture_claim() from public, anon, authenticated;
+grant execute on function public.picture_spend(integer), public.picture_busy(integer),
+  public.picture_enqueue(text, text, text, text, text), public.picture_claim() to service_role;
