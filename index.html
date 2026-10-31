@@ -16,80 +16,80 @@
       <button id="tab-community" type="button" class="tab">Community</button>
     </nav>
     <div class="topbar-actions">
-      <!-- Controls: a short guide to the page's features, then the settings for the loaded data (sharing it with
-           the community, and forgetting it) (main.js) -->
-      <div class="controls">
-        <button id="controls-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="controls-panel" title="Controls and settings" hidden>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></g><g fill="currentColor"><circle class="knob k1" cx="10" cy="4" r="2"/><circle class="knob k2" cx="5" cy="8" r="2"/><circle class="knob k3" cx="11" cy="12" r="2"/></g></svg>
-          <span>Controls</span>
+      <!-- How the page works: a row per feature, each with a small copy of its control (mirroring its state, filled by
+           guide.js). Hovering a row rings the real control on the page: one ring per |-separated group, around
+           everything the group matches -->
+      <div class="help">
+        <button id="help-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-panel" aria-label="How the page works" title="How the page works" hidden>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.1 6.2a2 2 0 0 1 3.9.5c0 1.3-2 1.6-2 2.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.9" fill="currentColor"/></svg>
         </button>
-        <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Controls" hidden>
-          <!-- The guide: a row per feature, each with a small copy of its control (mirroring its state, filled by
-               guide.js). Hovering a row rings the real control on the page: one ring
-               per |-separated group, around everything the group matches -->
-          <button id="guide-toggle" class="controls-item guide-toggle" type="button" aria-expanded="false" aria-controls="guide">
-            <span>How the page works</span>
-            <svg class="chev" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div id="guide" class="guide" inert>
-            <div class="guide-inner">
-              <div class="guide-row" data-target="#view-tabs">
-                <div class="guide-pic"><span id="g-views" class="segmented g-seg"></span></div>
-                <p><b>View</b> What every graph is about. Each view keeps its own pins and hidden picks.</p>
+        <div id="help-panel" class="help-panel" role="dialog" aria-label="How the page works" hidden>
+          <p class="help-title">How the page works</p>
+          <div id="guide" class="guide">
+            <div class="guide-row" data-target="#view-tabs">
+              <div class="guide-pic"><span id="g-views" class="segmented g-seg"></span></div>
+              <p><b>View</b> What every graph is about. Each view keeps its own pins and hidden picks.</p>
+            </div>
+            <div class="guide-row" data-target="#brush-track">
+              <div class="guide-pic">
+                <svg class="g-brush" viewBox="0 0 120 34" aria-hidden="true">
+                  <rect class="g-track" x="0.5" y="0.5" width="119" height="33" rx="5"/>
+                  <path class="g-wave" d="M2 24 C12 24 14 12 24 14 S38 28 48 22 S60 6 72 10 S86 26 96 18 S110 8 118 12"/>
+                  <rect class="g-dim" x="1" y="1" width="61" height="32" rx="4"/>
+                  <rect class="g-dim" x="96" y="1" width="23" height="32" rx="4"/>
+                  <path class="g-win" d="M62 1H96M62 33H96"/>
+                  <rect class="g-grip" x="60" y="0" width="4" height="34" rx="2"/>
+                  <rect class="g-grip" x="94" y="0" width="4" height="34" rx="2"/>
+                </svg>
               </div>
-              <div class="guide-row" data-target="#brush-track">
-                <div class="guide-pic">
-                  <svg class="g-brush" viewBox="0 0 120 34" aria-hidden="true">
-                    <rect class="g-track" x="0.5" y="0.5" width="119" height="33" rx="5"/>
-                    <path class="g-wave" d="M2 24 C12 24 14 12 24 14 S38 28 48 22 S60 6 72 10 S86 26 96 18 S110 8 118 12"/>
-                    <rect class="g-dim" x="1" y="1" width="61" height="32" rx="4"/>
-                    <rect class="g-dim" x="96" y="1" width="23" height="32" rx="4"/>
-                    <path class="g-win" d="M62 1H96M62 33H96"/>
-                    <rect class="g-grip" x="60" y="0" width="4" height="34" rx="2"/>
-                    <rect class="g-grip" x="94" y="0" width="4" height="34" rx="2"/>
-                  </svg>
-                </div>
-                <p><b>Timeline</b> Drag the window to move through your history, or drag an edge to resize.</p>
+              <p><b>Timeline</b> Drag the window to move through your history, or drag an edge to resize.</p>
+            </div>
+            <div class="guide-row" data-target="#period-resize, .period">
+              <div class="guide-pic g-presets">
+                <span id="g-lengths" class="segmented g-seg"></span>
+                <span class="g-period"><span class="g-step" data-forward="#year-prev">‹</span><span id="g-year"></span><span class="g-step" data-forward="#year-next">›</span></span>
               </div>
-              <div class="guide-row" data-target="#period-resize, .period">
-                <div class="guide-pic g-presets">
-                  <span id="g-lengths" class="segmented g-seg"></span>
-                  <span class="g-period"><span class="g-step" data-forward="#year-prev">‹</span><span id="g-year"></span><span class="g-step" data-forward="#year-next">›</span></span>
-                </div>
-                <p><b>Period</b> Select preset window sizes, pan between periods, and look into specific years.</p>
+              <p><b>Period</b> Select preset window sizes, pan between periods, and look into specific years.</p>
+            </div>
+            <div class="guide-row" data-target="#artist-key .pinnable:not(.other-chip) | #mix-list .pinnable">
+              <div class="guide-pic g-chips">
+                <span class="legend-item g-chip" data-n="0"><span class="swatch"></span><span class="name"></span></span>
+                <span class="legend-item g-chip pinned" data-n="1"><span class="swatch"></span><span class="name"></span></span>
               </div>
-              <div class="guide-row" data-target="#artist-key | #mix-list">
-                <div class="guide-pic g-chips">
-                  <span class="legend-item g-chip" data-n="0"><span class="swatch"></span><span class="name"></span></span>
-                  <span class="legend-item g-chip pinned" data-n="1"><span class="swatch"></span><span class="name"></span></span>
-                </div>
-                <p><b>Pin</b> Click an artist anywhere (a band, chip or tile) to keep them lit and in every graph. Click again to unpin.</p>
+              <p><b>Pin</b> Click an artist anywhere (a band, chip or tile) to keep them lit and in every graph. Click again to unpin.</p>
+            </div>
+            <div class="guide-row" data-target=".artist-search">
+              <div class="guide-pic">
+                <span class="g-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="g-search-text"></span></span>
               </div>
-              <div class="guide-row" data-target=".artist-search">
-                <div class="guide-pic">
-                  <span class="g-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="g-search-text"></span></span>
-                </div>
-                <p><b>Search</b> Pin anyone in your history, even outside your top list.</p>
+              <p><b>Search</b> Pin anyone in your history, even outside your top list.</p>
+            </div>
+            <div class="guide-row" data-target="#artist-key | #mix-list">
+              <div class="guide-pic g-chips">
+                <span class="all-box g-all"><span class="all-glyph"></span></span>
+                <span class="legend-item g-chip g-short" data-n="0"><span class="swatch"></span><span class="name"></span></span>
+                <span class="legend-item g-chip g-short off" data-n="1"><span class="swatch"></span><span class="name"></span></span>
+                <span class="legend-item g-chip g-other"><span class="swatch"></span><span class="name">Everyone else</span></span>
+                <span class="g-tile" data-n="0"><span class="g-tab"></span><span class="g-card"></span></span>
               </div>
-              <div class="guide-row" data-target="#artist-key | #mix-list">
-                <div class="guide-pic g-chips">
-                  <span class="all-box g-all"><span class="all-glyph"></span></span>
-                  <span class="legend-item g-chip g-short" data-n="0"><span class="swatch"></span><span class="name"></span></span>
-                  <span class="legend-item g-chip g-short off" data-n="1"><span class="swatch"></span><span class="name"></span></span>
-                  <span class="legend-item g-chip g-other"><span class="swatch"></span><span class="name">Everyone else</span></span>
-                  <span class="g-tile" data-n="0"><span class="g-tab"></span><span class="g-card"></span></span>
-                </div>
-                <p><b>Show and hide</b> Clicking a chip's color tab hides that artist everywhere. Toggling <em>Everyone else</em> behaves the same way.</p>
+              <p><b>Show and hide</b> Clicking a chip's color tab hides that artist everywhere. Toggling <em>Everyone else</em> behaves the same way.</p>
+            </div>
+            <div class="guide-row" data-target="#palette-button | #theme-toggle">
+              <div class="guide-pic g-colors">
+                <span id="g-palette" class="palette-dot g-dot"></span>
+                <span id="g-theme" class="g-theme"></span>
               </div>
-              <div class="guide-row" data-target="#palette-button | #theme-toggle">
-                <div class="guide-pic g-colors">
-                  <span id="g-palette" class="palette-dot g-dot"></span>
-                  <span id="g-theme" class="g-theme"></span>
-                </div>
-                <p><b>Colors</b> Pick the artists' color scheme, or toggle between light and dark.</p>
-              </div>
+              <p><b>Colors</b> Pick the artists' color scheme, or toggle between light and dark.</p>
             </div>
           </div>
+        </div>
+      </div>
+      <!-- Controls: the settings for the loaded data, sharing it with the community and forgetting it (main.js) -->
+      <div class="controls">
+        <button id="controls-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="controls-panel" aria-label="Settings" title="Settings" hidden>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.6 1h2.8l.4 1.9c.4.2.8.4 1.2.7l1.8-.7 1.4 2.4-1.4 1.3a5 5 0 0 1 0 1.4l1.4 1.3-1.4 2.4-1.8-.7c-.4.3-.8.5-1.2.7L9.4 15H6.6l-.4-1.9c-.4-.2-.8-.4-1.2-.7l-1.8.7-1.4-2.4 1.4-1.3a5 5 0 0 1 0-1.4L1.8 6.7l1.4-2.4 1.8.7c.4-.3.8-.5 1.2-.7L6.6 1ZM8 10.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z"/></svg>
+        </button>
+        <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Settings" hidden>
           <div class="controls-data">
             <p id="share-state" class="controls-note"></p>
             <button id="share-toggle" class="controls-item" type="button" hidden>Share with community</button>

@@ -14,7 +14,7 @@ import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
-import { placeControls, showGuide, watchGuide } from "./guide.js";
+import { closeHelp } from "./guide.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
@@ -105,17 +105,17 @@ function showView(view) {
   $("community").hidden = view !== "community";
   // The controls are about the loaded data, so there's nothing to show before an upload
   $("controls-button").hidden = !state.plays;
+  // The guide points at the stats page's controls
+  $("help-button").hidden = $("dashboard").hidden;
   closeControls();
+  closeHelp();
   if (view === "community") renderCommunity(state.raw);
 }
 
-// The controls panel behind the button in the top bar: a guide to the page (guide.js), then sharing and
-// forgetting the loaded data
+// The settings behind the gear in the top bar: sharing and forgetting the loaded data
 function openControls() {
   $("controls-panel").hidden = false;
   $("controls-button").setAttribute("aria-expanded", "true");
-  placeControls();
-  watchGuide(true);
   $("controls-panel").querySelector(".controls-item:not([hidden])")?.focus({ preventScroll: true });
 }
 
@@ -123,15 +123,13 @@ function closeControls(refocus = false) {
   if ($("controls-panel").hidden) return;
   $("controls-panel").hidden = true;
   $("controls-button").setAttribute("aria-expanded", "false");
-  watchGuide(false);
-  showGuide(false);
   if (refocus) $("controls-button").focus();
 }
 
 $("controls-button").addEventListener("click", () => ($("controls-panel").hidden ? openControls() : closeControls()));
-// Any choice closes the panel (its own handler runs as well); opening the guide doesn't
+// Any choice closes the panel (its own handler runs as well)
 $("controls-panel").addEventListener("click", (e) => {
-  if (e.target.closest(".controls-item:not(.guide-toggle)")) closeControls();
+  if (e.target.closest(".controls-item")) closeControls();
 });
 document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest(".controls")) closeControls();

@@ -1,6 +1,6 @@
-// The guide in the Controls panel: a row per feature, each with a small copy of its control. The copies mirror the
-// real controls (the view, the lengths and period, the artists in the key and their colors, the palette, the theme)
-// and are refreshed whenever the panel opens or a mirrored control changes while it's open. The view, length and
+// The guide behind the ? in the top bar: a row per feature, each with a small copy of its control. The copies mirror
+// the real controls (the view, the lengths and period, the artists in the key and their colors, the palette, the
+// theme) and are refreshed whenever the panel opens or a mirrored control changes while it's open. The view, length and
 // step copies pass a click on to the real control. Hovering a row rings the real control(s) on the page.
 import { dur, FADE_MS } from "./motion.js";
 import { $, noun } from "./state.js";
@@ -8,18 +8,18 @@ import { $, noun } from "./state.js";
 // The panel hangs under the period bar, so it covers as little as possible of the controls it points at, and
 // stays there as the page scrolls (the bar sticks to the top). Without the bar it hangs from its button.
 // Fixed to the window, so it's placed again on every scroll and resize while it's open
-export function placeControls() {
-  const panel = $("controls-panel");
+function placeHelp() {
+  const panel = $("help-panel");
   if (panel.hidden) return;
   const bar = document.querySelector(".period-bar");
-  const button = $("controls-button").getBoundingClientRect();
+  const button = $("help-button").getBoundingClientRect();
   const top = (bar && !$("dashboard").hidden ? bar.getBoundingClientRect().bottom : button.bottom) + 8;
   panel.style.top = `${top}px`;
   panel.style.right = `${document.documentElement.clientWidth - button.right}px`;
   panel.style.maxHeight = `calc(100vh - ${top + 16}px)`;
 }
 let placing = 0;
-const replace = () => (placing ||= requestAnimationFrame(() => ((placing = 0), placeControls())));
+const replace = () => (placing ||= requestAnimationFrame(() => ((placing = 0), placeHelp())));
 addEventListener("scroll", replace, { passive: true });
 addEventListener("resize", replace);
 
@@ -62,7 +62,7 @@ export function syncGuide() {
 
 // Mirrored controls can change while the panel is open (a click on a copy, or a view's new names)
 const watch = new MutationObserver(() => syncGuide());
-export function watchGuide(on) {
+function watchGuide(on) {
   watch.disconnect();
   if (!on) return ringOff();
   for (const id of ["view-tabs", "period-resize", "year-label", "artist-key"]) {
@@ -117,13 +117,27 @@ for (const row of document.querySelectorAll(".guide-row")) {
 }
 addEventListener("scroll", ringOff, { passive: true });
 
-// The guide opens and closes by growing, from a row in the panel. Closing the panel, in any way, folds it
-// away too, so the panel opens next time without it
-export function showGuide(open) {
-  $("guide-toggle").setAttribute("aria-expanded", open);
-  $("guide").classList.toggle("open", open);
-  $("guide").inert = !open;
-  if (open) syncGuide();
-  else ringOff();
+// ---------- The panel ----------
+
+export function openHelp() {
+  $("help-panel").hidden = false;
+  $("help-button").setAttribute("aria-expanded", "true");
+  placeHelp();
+  watchGuide(true);
 }
-$("guide-toggle").addEventListener("click", () => showGuide($("guide-toggle").getAttribute("aria-expanded") !== "true"));
+
+export function closeHelp(refocus = false) {
+  if ($("help-panel").hidden) return;
+  $("help-panel").hidden = true;
+  $("help-button").setAttribute("aria-expanded", "false");
+  watchGuide(false);
+  if (refocus) $("help-button").focus();
+}
+
+$("help-button").addEventListener("click", () => ($("help-panel").hidden ? openHelp() : closeHelp()));
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest(".help")) closeHelp();
+});
+$("help-panel").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeHelp(true);
+});
