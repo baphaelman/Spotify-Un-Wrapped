@@ -173,10 +173,10 @@ export function paintClock(plays = shownPlays()) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   // Smoothed as the rolling chart is: its curve rounding, and its blur as a share of its window, taken as a share of
-  // CLOCK_HOURS (so High blurs about an hour)
+  // CLOCK_HOURS (so High blurs about an hour), but never less than a light smoothing
   const { sigma = 0, curve = 0 } = state.shownSmooth ?? {};
-  const hours = sigma >= 0.5 ? (sigma / state.shownWindow) * CLOCK_HOURS : 0;
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, curve);
+  const hours = Math.max(0.5, sigma >= 0.5 ? (sigma / state.shownWindow) * CLOCK_HOURS : 0);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(0.3, curve));
 }
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
