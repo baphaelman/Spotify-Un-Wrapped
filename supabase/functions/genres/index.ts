@@ -51,9 +51,12 @@ const MB = "https://musicbrainz.org/ws/2";
 const UA = "SpotifyUnwrapped/0.1 (https://baphaelman.github.io/Spotify-Un-Wrapped/)";
 const GAP_MS = 1100; // its limit is one request a second per IP
 
-// Over its limit (a 503): this call stops looking up, and so do others on this instance for a little while
+// Over its limit (a 503) with no time left in the run to wait it out: the run stops looking up
 class Busy extends Error {}
-let busyUntil = 0;
+// When the worker's run ends (set by work()). A 503 is waited out and retried until then: Supabase's functions
+// share outgoing IPs, so other apps' calls put us over MusicBrainz's limit within a request or two of a run's start.
+let deadline = 0;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Every MusicBrainz call on this instance goes through one queue, so calls from requests answered at the same
 // time are still paced
@@ -61,20 +64,24 @@ let queue: Promise<unknown> = Promise.resolve();
 let lastCall = 0;
 function mb(path: string): Promise<any> {
   const run = async () => {
-    if (Date.now() < busyUntil) throw new Busy("MusicBrainz asked us to slow down");
-    const wait = lastCall + GAP_MS - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastCall = Date.now();
-    const r = await fetch(`${MB}/${path}`, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (r.status === 503) {
-      busyUntil = Date.now() + 10_000;
-      throw new Busy(`MusicBrainz 503 on ${path}`);
+    for (let tries = 1; ; tries++) {
+      const wait = lastCall + GAP_MS - Date.now();
+      if (wait > 0) await sleep(wait);
+      lastCall = Date.now();
+      const r = await fetch(`${MB}/${path}`, {
+        headers: { "User-Agent": UA, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (r.status === 503) {
+        // As long as it asks, or 2, 4, 8, then 16 s
+        const backoff = (Number(r.headers.get("Retry-After")) || Math.min(2 ** tries, 16)) * 1000;
+        if (Date.now() + backoff + GAP_MS > deadline) throw new Busy(`MusicBrainz 503 on ${path}`);
+        await sleep(backoff);
+        continue;
+      }
+      if (!r.ok) throw new Error(`MusicBrainz ${path} ${r.status}`);
+      return path.includes("fmt=txt") ? r.text() : r.json();
     }
-    if (!r.ok) throw new Error(`MusicBrainz ${path} ${r.status}`);
-    return path.includes("fmt=txt") ? r.text() : r.json();
   };
   const p = queue.then(run, run);
   queue = p.catch(() => {});
@@ -258,6 +265,7 @@ async function patchQueued(key: string, fields: Record<string, unknown>) {
 // Looks up names from the front of the queue for about WORK_MS, storing each answer as it comes
 async function work() {
   const start = Date.now();
+  deadline = start + WORK_MS;
   const left = () => WORK_MS - (Date.now() - start);
   let done = 0, failed = 0;
   while (left() > LOOKUP_MS) {

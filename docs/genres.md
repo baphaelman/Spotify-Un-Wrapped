@@ -58,8 +58,10 @@ Looking up one person's top 500 artists at 1 a second takes about 10 minutes, so
     front and looks them up (paced to MusicBrainz's limit, Last.fm when MusicBrainz has nothing), storing each
     answer and taking it off the queue. That's about 25 artists a minute, 36,000 a day. Only the worker calls
     MusicBrainz, so visitors asking at once can't go over its limit together. A lookup that fails is tried again
-    after 2, 4, 8 and 16 minutes, then stored as `none`; a 503 from MusicBrainz ends the run without counting
-    against the name.
+    after 2, 4, 8 and 16 minutes, then stored as `none`. A 503 from MusicBrainz is waited out (as long as it
+    asks, or 2, 4, 8, then 16 s) and retried while the run has time, then ends the run without counting against
+    the name. Supabase's functions share outgoing IPs, so other apps' calls put us over the limit often: before
+    this, nearly every run stopped at its first or second request and the worker managed about 2 artists a minute.
   - `none` answers are kept too, and a page asking about one older than 30 days queues it again.
 - **`js/genres.js`** in the page: asks for the artists that matter in the current view (top by listening
   time, the ones on screen first), keeps answers in localStorage like `covers.js`, and fills the view as they
