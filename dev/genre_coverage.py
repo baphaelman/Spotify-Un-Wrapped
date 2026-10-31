@@ -21,6 +21,14 @@ CACHE = ROOT / "dev" / "genre_cache.json"
 UA = "SpotifyUnwrapped/0.1 (https://baphaelman.github.io/Spotify-Un-Wrapped/)"
 MB = "https://musicbrainz.org/ws/2"
 LASTFM_KEY = os.environ.get("LASTFM_API_KEY", "")
+# Last.fm tags MusicBrainz's genre list spells another way, keyed with spaces, hyphens and underscores dropped (as the
+# function's ALIASES; keep the two in step)
+ALIASES = {
+    "rap": "hip hop", "rnb": "r&b", "randb": "r&b",
+    "corridos": "corrido", "corridostumbados": "corrido tumbado", "regionalmexican": "regional mexicano",
+    "banda": "banda sinaloense", "punjabi": "indian pop", "punjabipop": "indian pop",
+    "broadway": "musical", "showtunes": "musical", "musicals": "musical", "musicaltheatre": "musical", "musicaltheater": "musical",
+}
 
 last_call = 0.0
 
@@ -117,7 +125,7 @@ def lookup(name, track, genres):
         tags = [tags] if isinstance(tags, dict) else tags  # a lone tag comes as an object, not a list
         # Matched ignoring spaces, hyphens and case, plus a few aliases (as the function's genreOfTag)
         tag_key = lambda t: re.sub(r"[\s\-_]", "", t.lower())
-        by_key = {tag_key(x): x for x in genres} | {k: v for k, v in {"rap": "hip hop", "rnb": "r&b", "randb": "r&b"}.items() if v in genres}
+        by_key = {tag_key(x): x for x in genres} | {k: v for k, v in ALIASES.items() if v in genres}
         best_n = {}
         for t in tags:
             x, n = by_key.get(tag_key(t["name"])), int(t["count"])

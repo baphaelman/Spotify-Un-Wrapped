@@ -151,8 +151,15 @@ async function findArtist(name: string, track: string): Promise<MbArtist | null>
 // ---- Last.fm, for artists MusicBrainz lacks or has no genres for ----
 
 // Last.fm's tags are free text ("Hip-Hop", "hiphop", "synthpop"), so they're matched to MusicBrainz's genres ignoring
-// spaces, hyphens and case, plus a few common tags MusicBrainz spells another way or doesn't list
-const ALIASES: Record<string, string> = { rap: "hip hop", rnb: "r&b", randb: "r&b" };
+// spaces, hyphens and case, plus common tags MusicBrainz spells another way or doesn't list (keyed as tagKey makes
+// them). Without these, regional Mexican, Punjabi and Broadway artists lose every tag they have. Keep in step with
+// dev/genre_coverage.py.
+const ALIASES: Record<string, string> = {
+  rap: "hip hop", rnb: "r&b", randb: "r&b",
+  corridos: "corrido", corridostumbados: "corrido tumbado", regionalmexican: "regional mexicano",
+  banda: "banda sinaloense", punjabi: "indian pop", punjabipop: "indian pop",
+  broadway: "musical", showtunes: "musical", musicals: "musical", musicaltheatre: "musical", musicaltheater: "musical",
+};
 const tagKey = (t: string) => t.toLowerCase().replace(/[\s\-_]/g, "");
 let byTagKey: Map<string, string> | null = null;
 function genreOfTag(tag: string, genres: Set<string>): string | undefined {
