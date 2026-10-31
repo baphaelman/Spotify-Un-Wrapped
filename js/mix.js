@@ -6,6 +6,7 @@
 import { dayToDate, rangeHours } from "./aggregate.js";
 import { MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 import { coverFor, knownCover } from "./covers.js";
+import { shownName } from "./state.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -158,7 +159,7 @@ export function updateMix(next) {
     totalEl.textContent = "none";
   }
   bar.classList.toggle("empty", !total);
-  bar.setAttribute("aria-label", `Listening mix: ${names.map((n, i) => `${n} ${total ? Math.round((hours[i] / total) * 100) : 0}%`).join(", ")}`);
+  bar.setAttribute("aria-label", `Listening mix: ${names.map((n, i) => `${shownName(n)} ${total ? Math.round((hours[i] / total) * 100) : 0}%`).join(", ")}`);
 
   const first = entries.size === 0;
 
@@ -207,7 +208,7 @@ export function updateMix(next) {
     e.seg.classList.toggle("off", off);
     tweenNumber(e.hoursEl, hours[i], { format: fmtHours });
     const other = hasOther && i === names.length - 1;
-    e.rowName.textContent = other ? name : ctx.title?.(name) ?? name; // from the user's files
+    e.rowName.textContent = other ? shownName(name) : ctx.title?.(name) ?? name; // from the user's files
     e.rowBy.textContent = other ? "" : ctx.by?.(name) ?? "";
     const by = e.rowBy.textContent ? ` ${e.rowBy.textContent}` : "";
     showCover(e, other ? undefined : ctx.cover?.(name));

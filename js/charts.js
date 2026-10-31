@@ -2,6 +2,7 @@
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
 import { MAX_PARTS } from "./aggregate.js";
+import { shownName } from "./state.js";
 
 const instances = new Map();
 
@@ -679,7 +680,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // Top band first, so the rows read in the same order as the bands under the pointer
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
       .flatMap((r) => [
-        row(r.p.color, (r.share * 100).toFixed(0) + "%", `${r.p.seriesName} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
+        row(r.p.color, (r.share * 100).toFixed(0) + "%", `${shownName(r.p.seriesName)} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
         // A part's percent is of everyone's listening, or of its artist's while the artist is pinned or hovered
         ...partTips(sIdx(r.p), i, (j, ofArtist) => parts.share[sIdx(r.p)][j][i] * (ofArtist ? 1 / data.share[sIdx(r.p)][i] : scale[i]),
           (v) => (v * 100).toFixed(0) + "%",
@@ -1735,7 +1736,7 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
       .map((n, k) => ({ k, s: share[k][d][h], hrs: hours[k][d][h] }))
       .filter((r) => r.s >= 0.005 && !off.has(all[r.k]))
       .sort((a, b) => b.k - a.k)
-      .map((r) => row(colors[r.k], (r.s * 100).toFixed(0) + "%", all[r.k], all[r.k] === st.hovered));
+      .map((r) => row(colors[r.k], (r.s * 100).toFixed(0) + "%", shownName(all[r.k]), all[r.k] === st.hovered));
     return `<div style="color:${t.muted};margin-bottom:4px">${DAYS[d]} around ${hourLabel(h)}</div>${rows.join("")}`;
   };
 

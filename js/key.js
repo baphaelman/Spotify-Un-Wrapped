@@ -1,7 +1,7 @@
 // The period bar's artist key (a chip per artist in the rolling chart) and the search that pins artists.
 import { focusArtist, showArtists } from "./charts.js";
 import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
-import { $, state, noun } from "./state.js";
+import { $, state, noun, otherLabel } from "./state.js";
 import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
 
 // The hovered artist lights everything that belongs to them, as pinning does: their chip in the period bar's
@@ -91,9 +91,9 @@ export function paintArtistKey() {
   const restName = document.createElement("button");
   restName.type = "button";
   restName.className = "name";
-  restName.textContent = restName.dataset.text = "Everyone else";
+  restName.textContent = restName.dataset.text = otherLabel();
   restName.setAttribute("aria-pressed", otherOn);
-  rest.title = otherOn ? "Hide everyone else" : "Show everyone else, in gray";
+  rest.title = otherOn ? `Hide ${otherLabel().toLowerCase()}` : `Show ${otherLabel().toLowerCase()}, in gray`;
   restName.setAttribute("aria-label", rest.title);
   rest.append(restSw, restName);
   rest.addEventListener("pointerenter", () => otherOn && hover("Everyone else"));

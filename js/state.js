@@ -37,6 +37,12 @@ export const NOUN = {
 };
 export const noun = () => NOUN[state.dim];
 
+// The gray catch-all keeps the series name "Everyone else" everywhere in the code (it's a key in many maps); only
+// what the reader sees changes: in the Genres view it's the artists with no genre, so it reads "No genre"
+export const OTHER = "Everyone else";
+export const otherLabel = () => (state.dim === "genre" ? "No genre" : OTHER);
+export const shownName = (n) => (n === OTHER ? otherLabel() : n);
+
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
 // are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go
 // shorter, and their graphs are smoothed sooner.

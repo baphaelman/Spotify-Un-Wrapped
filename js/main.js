@@ -10,7 +10,7 @@ import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { askGenres } from "./genres.js";
-import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
+import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
@@ -243,6 +243,7 @@ function applyDim() {
   $("artist-search").placeholder = `Pin ${w.a}…`;
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
+  $("monthly-other-label").textContent = otherLabel();
   $("clock-note").textContent = `${w.who} you listen to through each day of the week, as a share of that time, in your local time zone (better with a smaller window size)`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
