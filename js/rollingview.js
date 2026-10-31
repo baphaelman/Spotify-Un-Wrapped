@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, ho
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, UNCLASSIFIED } from "./state.js";
+import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -27,19 +27,7 @@ export function clampZoom(zoom, dates) {
 export function rollingSub(n, target, includeOther) {
   return `Share of listening time, ${target}-day rolling window` +
     (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`) +
-    (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`) +
-    (state.dim === "genre" && state.showNoGenre ? unclassifiedNote() : "");
-}
-
-// With the development toggle on: how much of the period's listening has no genre (yet)
-function unclassifiedNote() {
-  let all = 0, none = 0;
-  for (const p of agg.filterRange(state.withNoGenre, state.range.lo, state.range.hi)) {
-    all += p.ms;
-    if (p.artist === UNCLASSIFIED) none += p.ms;
-  }
-  const pct = all ? Math.round((100 * none) / all) : 0;
-  return pct ? `. ${pct}% of the listening has no genre${state.genresPending ? " yet" : ""}` : "";
+    (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`);
 }
 
 // Fills a slider's track up to the thumb, places its notches, and marks the notch it sits on
@@ -58,7 +46,6 @@ export const WINDOWS = [7, 15, 30, 45, 75, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 export let rawMemo = null;
-let drawnMemo = null; // the genres view's chart with its "No genre" band
 const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify strength
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
 // Auto's curve rounding: scaled with the amount up to high, then on toward max
@@ -102,19 +89,6 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists, kind, JSON.stringify(split?.names)].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid, split) };
   const raw = rawMemo.raw;
-  // The genres view's stack also has a "No genre" band, for development (#no-genre): with no thickness while the
-  // toggle is off, so it grows and shrinks, and drawn from plays that keep the unclassified. Only this chart has it:
-  // the brush and every other graph go on with `raw` and the chart's own names.
-  const noGenre = state.dim === "genre" && !!state.withNoGenre;
-  let drawn = raw;
-  if (noGenre) {
-    const k = key + "\u0000" + state.showNoGenre;
-    if (drawnMemo?.key !== k) {
-      const plays = state.showNoGenre ? state.withNoGenre : state.plays;
-      drawnMemo = { key: k, raw: agg.rolling(plays, [...artists, UNCLASSIFIED], window, includeOther, grid, split && { ...split, names: [...split.names, []] }) };
-    }
-    drawn = drawnMemo.raw;
-  }
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
   const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
@@ -123,9 +97,8 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   // Auto says which strength it has landed on
   const amount = agg.autoAmount(span);
   $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
-  const data = agg.blur(drawn, sigma);
-  const bands = noGenre ? [...artists, UNCLASSIFIED] : artists;
-  const names = includeOther ? [...bands, "Everyone else"] : bands;
+  const data = agg.blur(raw, sigma);
+  const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
   $("rolling-sub").textContent = rollingSub(n, target, includeOther);
@@ -139,7 +112,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
-  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, noGenre ? [...slots, null] : slots, curve);
+  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
     renderMix(artists, slots, includeOther, pins);
@@ -316,17 +289,9 @@ export function syncSplit() {
   group.querySelector('[data-split="album"]').hidden = state.dim !== "artist" || !state.raw?.some((p) => p.album);
   group.querySelector('[data-split="track"]').hidden = genre;
   group.querySelector('[data-split="artist"]').hidden = !genre;
-  $("no-genre").hidden = !genre;
-  $("no-genre").firstElementChild.setAttribute("aria-pressed", state.showNoGenre);
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
 }
-$("no-genre").addEventListener("click", () => {
-  state.showNoGenre = !state.showNoGenre;
-  syncSplit();
-  renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
-  $("rolling-sub").textContent = rollingSub(Number($("n-artists").value), WINDOWS[$("window").value], $("include-other").checked);
-});
 for (const btn of document.querySelectorAll("#rolling-split button")) {
   btn.addEventListener("click", () => {
     const to = btn.dataset.split || null;

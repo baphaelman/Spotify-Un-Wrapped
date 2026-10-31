@@ -11,7 +11,7 @@ import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { genresOf, genresVersion, askGenres } from "./genres.js";
 import { artistFamilies } from "./families.js";
-import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks, UNCLASSIFIED } from "./state.js";
+import { $, state, noun, START_WINDOW, RESIZES, extent, shownPlays, hooks } from "./state.js";
 import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
@@ -277,25 +277,20 @@ function keyedPlays(dim) {
 // The genres view: each play goes to its artist's genre families (families.js), shared by their weight, so an
 // artist who is both rock and electronic counts a part of each play in each (`ms` times the weight, and the weight
 // in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by. Artists with no
-// genre (yet) are left out of the view's plays, so no graph, list, key or search has them; `withNoGenre` keeps them
-// (as UNCLASSIFIED), for the stack chart's development toggle. A genre's picture is its most-played artist's photo,
-// from the artists view.
+// genre (yet) are left out, so no graph, list, key or search has them. A genre's picture is its most-played artist's
+// photo, from the artists view.
 function genrePlays() {
   const families = new Map(); // artist -> [[family, weight], ...]
   const top = new Map(); // family -> artist -> ms
-  const plays = [], withNoGenre = [];
+  const plays = [];
   for (const p of state.raw) {
     let fams = families.get(p.artist);
     if (!fams) {
       fams = artistFamilies(genresOf(p.artist) ?? []);
-      if (!fams.length) fams = [[UNCLASSIFIED, 1]];
       families.set(p.artist, fams);
     }
     for (const [family, w] of fams) {
-      const keyed = w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w };
-      withNoGenre.push(keyed);
-      if (family === UNCLASSIFIED) continue;
-      plays.push(keyed);
+      plays.push(w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w });
       if (!top.has(family)) top.set(family, new Map());
       const m = top.get(family);
       m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms * w);
@@ -303,8 +298,7 @@ function genrePlays() {
   }
   const artistCovers = keyedPlays("artist").cover;
   const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get([...m].sort((a, b) => b[1] - a[1])[0][0])]));
-  top.delete(UNCLASSIFIED);
-  const out = { raw: state.raw, version: genresVersion, plays, withNoGenre, owner: null, title: null, album: null, cover };
+  const out = { raw: state.raw, version: genresVersion, plays, owner: null, title: null, album: null, cover };
   keyedMemo.set("genre", out);
   return out;
 }
@@ -317,13 +311,11 @@ let genresAsked = null; // the plays asked about
 function startGenres() {
   if (genresAsked === state.raw) return;
   genresAsked = state.raw;
-  state.genresPending = true;
   const onChange = () => {
     if (regenreTimer) return;
     regenreTimer = setTimeout(regenre, REGENRE_MS);
   };
   askGenres(state.raw, onChange, agg.filterRange(state.raw, state.range.lo, state.range.hi)).finally(() => {
-    state.genresPending = false;
     if (!regenreTimer) regenre();
   });
 }
@@ -337,7 +329,7 @@ function regenre() {
 
 // Puts the view's plays and words in place (the graphs are drawn by the caller)
 function applyDim() {
-  ({ plays: state.plays, withNoGenre: state.withNoGenre = null, owner: state.owner, title: state.titles, album: state.albums, cover: state.covers } = keyedPlays(state.dim));
+  ({ plays: state.plays, owner: state.owner, title: state.titles, album: state.albums, cover: state.covers } = keyedPlays(state.dim));
   state.artists = agg.topArtists(state.plays, Infinity);
   const w = noun();
   $("n-label").textContent = w.Many;

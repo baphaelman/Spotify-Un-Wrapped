@@ -15,7 +15,7 @@ export const $ = (id) => document.getElementById(id);
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: "track", genresPending: false, showNoGenre: false, withNoGenre: null,
+  split: "track",
 };
 
 // split: what the rolling chart splits each band into, "album" or "track" (songs, the default), "artist", or null for whole
@@ -36,7 +36,6 @@ const NOUN = {
   genre: { one: "genre", many: "genres", Many: "Genres", a: "a genre", who: "What" },
 };
 export const noun = () => NOUN[state.dim];
-export { UNCLASSIFIED } from "./aggregate.js";
 
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
 // are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go

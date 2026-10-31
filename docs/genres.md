@@ -1,9 +1,9 @@
 # Genres
 
-The plan for a Genres view: a fourth tab beside Artists, Albums and Tracks, with the same graphs, lists and
-period bar, keyed by genre, where a genre's bands split into its artists (instead of albums or songs).
+The Genres view: the first tab, before Artists, Albums and Tracks, with the same graphs, lists and period bar,
+keyed by genre family, where a genre's bands split into its artists (instead of albums or songs).
 
-Status: planning. `dev/genre_coverage.py` measures how well the data source below knows a real history.
+Status: built. `dev/genre_coverage.py` measures how well the data source below knows a real history.
 
 ## Where the genres come from
 
@@ -86,8 +86,9 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
   `p.w ?? 1`. The simpler choice, one family per artist, is a one-line change if this reads badly.
 - **The split** (`#rolling-split`): in the Genres view, "Albums / Songs" becomes "Artists", so a genre's band
   breaks into its artists, colored as in the Artists view.
-- **Not yet known:** artists still being looked up, or with no genre anywhere, go to "Unclassified", shown in
-  gray like "Everyone else" and said plainly (how much of the time it is), never dropped silently.
+- **Not yet known:** artists still being looked up, or with no genre anywhere, are left out of the view's
+  plays, so they're on no graph, list, key or search (not even in "Everyone else"); shares are of the listening
+  that has a genre.
 - **Pictures:** a genre's key entry shows its top artist's photo (already cached from the Artists view), so
   genres cost no new picture lookups.
 
