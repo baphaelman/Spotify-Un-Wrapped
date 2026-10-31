@@ -17,11 +17,27 @@ const hoursText = (ms) => {
   return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h).toLocaleString()} h`;
 };
 
+// The chart's artists keep their colors here, so the list reads with the bands above; the rest stay gray
+const colorOf = (key) => {
+  const slot = state.chartNames?.includes(key) ? state.colorSlots?.get(key) : undefined;
+  return slot === undefined ? null : `var(--series-${slot + 1})`;
+};
+
+// The chart picks its artists after the list is drawn, so the key's repaint recolors the rows already shown
+export function recolorRanking() {
+  for (const li of $("ranking-list").children) {
+    const c = colorOf(li._key);
+    if (c) li._bar.style.setProperty("--c", c);
+    else li._bar.style.removeProperty("--c");
+  }
+}
+
 const rowOf = ([key, ms, plays]) => {
   const n = Math.round(plays);
   const count = `${n.toLocaleString()} play${n === 1 ? "" : "s"}`;
   const by = state.owner?.get(key);
   return {
+    color: colorOf(key),
     key,
     name: state.titles?.get(key) ?? key,
     detail: by ? `${by} · ${count}` : count,

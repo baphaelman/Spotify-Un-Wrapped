@@ -82,6 +82,7 @@ function makeRow(r, i) {
   bar.className = "bar" + (r.muted ? " muted-bar" : "");
   const frac = Math.max(0, Math.min(1, r.frac));
   bar.style.width = `${frac * 100}%`;
+  if (r.color) bar.style.setProperty("--c", r.color);
   li.append(rank, name, val, bar);
   li._key = r.key ?? r.name;
   li._frac = frac;

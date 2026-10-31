@@ -630,6 +630,7 @@ button.ghost:hover { background: var(--border); }
   height: 2px;
   border-radius: 1px;
   background: var(--c, var(--other));
+  transition: background-color var(--motion-morph) var(--ease-in-out);
 }
 
 @media (max-width: 800px) {
