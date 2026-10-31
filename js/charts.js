@@ -1113,15 +1113,12 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   // A new bar size changes every bar, so the chart draws afresh rather than morphing bars into unrelated ones
   const fresh = !prev || prev.span !== span || prev.names.join("\u0000") !== names.join("\u0000");
   // last: each series' values on screen (see settleMonthly)
-  // Captions: the top artist's name, in one row along the top of the plot above every column (trial: add
-  // ?capbar to the URL to put each one just above its bar instead)
-  const atTop = !location.search.includes("capbar");
-  // with room for every line a caption can take
-  if (caption && atTop) grid.top += (CAP_LINES - 1) * CAP_LINE_H;
-  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption && atTop, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, full: prev?.full ?? null, fullNext: prev?.full ?? null, last: fresh ? null : prev.last };
+  // Captions: the top artist's name, in one row along the top of the plot above every column, with room for every
+  // line a caption can take
+  if (caption) grid.top += (CAP_LINES - 1) * CAP_LINE_H;
+  const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, full: prev?.full ?? null, fullNext: prev?.full ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
-  const captionStyle = { color: t.secondary, fontSize: 11, width: slotW - 6, overflow: "truncate" };
   const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
@@ -1188,20 +1185,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
       series: [
         { ...looks[0], name: "Everyone else", ...bar, silent: true },
         ...[...names, ...names].map((n, j) => ({ ...looks[j + 1], name: n, ...bar, cursor: pins ? "pointer" : "default" })),
-        {
-          ...looks[2 * names.length + 1],
-          name: "Top artist",
-          ...bar,
-          // Topmost, so it carries the caption (from a zero-height bar when the top artist is in the chart)
-          label: {
-            show: caption && !atTop,
-            position: "top",
-            distance: 6,
-            align: "center",
-            ...captionStyle,
-            formatter: (p) => captionOf(rows[p.dataIndex]),
-          },
-        },
+        { ...looks[2 * names.length + 1], name: "Top artist", ...bar },
       ],
     },
     // Colors and outlines fade with the bars' morph rather than snapping before it
