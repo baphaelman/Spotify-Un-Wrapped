@@ -1003,6 +1003,8 @@ dialog pre {
 .mix-seg > * { max-width: 100%; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-hours .mix-hours { opacity: 1; }
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mix-seg > .mix-hours { transition: opacity var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out); }
+.mix-seg:is(:hover, .focus, .pinned) .mix-hours { color: color-mix(in srgb, var(--c) 45%, var(--text-primary)); }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 /* Under the bar, every segment in full as a card: a light wash of its color, with a tab of it just outside to the
    left. A hovered or pinned card draws a ring in its color on all four sides. Cards are narrow enough that the
@@ -1055,7 +1057,8 @@ dialog pre {
 .mix-list li.off .tab:not(:disabled):hover .bar { background: color-mix(in srgb, var(--c) 65%, transparent); }
 .mix-list .tab:focus-visible { outline: 2px solid var(--c); outline-offset: 0; border-radius: 6px; }
 .mix-list .who { min-width: 0; overflow-wrap: anywhere; }
-.mix-list .name { display: block; color: var(--text-primary); }
+.mix-list .name { display: block; color: color-mix(in srgb, var(--text-primary) 80%, var(--c)); transition: color var(--motion-fade) var(--ease-out); }
+.mix-list li:is(.focus, .pinnable:hover) .name { color: var(--text-primary); }
 .mix-list li.pinned .name { color: var(--c); font-weight: 600; }
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
