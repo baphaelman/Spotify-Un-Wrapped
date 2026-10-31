@@ -68,7 +68,7 @@ setTimeout(() => { if (!document.title.startsWith("DONE")) document.title = "DON
 cache = ROOT / "dev" / "genre_cache.json"
 seed = ""
 if cache.exists():
-    known = {a: e["genres"] for a, e in json.loads(cache.read_text()).items() if e.get("mbid") or e.get("genres")}
+    known = {a: e["genres"] for a, e in json.loads(cache.read_text()).items() if e.get("genres")}
     seed = """<script>
 try { const k = "unwrapped-genres"; localStorage.setItem(k, JSON.stringify({ ...%s, ...JSON.parse(localStorage.getItem(k) ?? "{}") })); } catch {}
 </script>""" % json.dumps(known, ensure_ascii=False).replace("</", "<\\/")

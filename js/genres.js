@@ -20,9 +20,11 @@ const GIVE_UP_AFTER = 3;
 // request, so a name can rightly come back pending many times, but when nothing moves, what's left keeps failing
 const STALLS = 3;
 
-let known = new Map(); // artist -> [[genre, votes], ...]
+// artist -> [[genre, votes], ...]. Only answers with genres are kept between visits: a "nothing found" is asked again
+// next visit (the function answers it from its table, and looks again after a while)
+let known = new Map();
 try {
-  known = new Map(Object.entries(JSON.parse(localStorage.getItem(STORE)) ?? {}));
+  known = new Map(Object.entries(JSON.parse(localStorage.getItem(STORE)) ?? {}).filter(([, g]) => g.length));
 } catch {}
 
 let saveTimer = 0;
@@ -30,7 +32,7 @@ function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
-      localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(known)));
+      localStorage.setItem(STORE, JSON.stringify(Object.fromEntries([...known].filter(([, g]) => g.length))));
     } catch {}
   }, 500);
 }
