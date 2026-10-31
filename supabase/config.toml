@@ -1,0 +1,7 @@
+# Read by the Supabase CLI (see "Edge functions" in CLAUDE.md). `artist-image` is deployed as `smooth-endpoint`, and a
+# deployed function can't be renamed, so the CLI is told which folder holds it.
+project_id = "qvsoxqeuvpnryitechsf"
+
+[functions.smooth-endpoint]
+entrypoint = "./functions/artist-image/index.ts"
+verify_jwt = false

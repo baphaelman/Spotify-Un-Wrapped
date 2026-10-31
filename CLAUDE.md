@@ -218,9 +218,12 @@ Deploy them yourself with the Supabase CLI; don't hand the owner a file to paste
 - **Deploy:** `supabase functions deploy <name> --project-ref qvsoxqeuvpnryitechsf --no-verify-jwt`. Every function
   here has JWT verification off. Then watch its logs or make one test request. The CLI is at
   `/opt/homebrew/bin/supabase`, logged in as the owner; its "Docker is not running" warning doesn't matter for a deploy.
-- **`artist-image` is deployed as `smooth-endpoint`,** and the CLI names a function after its folder, so it needs a
-  `[functions.smooth-endpoint]` entry with an `entrypoint` in `supabase/config.toml` (not set up yet; check it
-  before the first deploy). Each test of it costs Spotify calls (see Pictures).
+- **`artist-image` is deployed as `smooth-endpoint`:** `supabase functions deploy smooth-endpoint` (the
+  `[functions.smooth-endpoint]` entry in `supabase/config.toml` points at the `artist-image` folder). It reads the
+  pictures tables and functions in `supabase/schema.sql`, so confirm the owner has run that SQL and set
+  `PICTURES_WORKER_KEY` before deploying a version that needs them, or every picture goes blank. Never probe the
+  database's functions to find out (`picture_busy` writes the shared lockout). Each test of it costs Spotify calls
+  (see Pictures).
 - **Secrets** (`LASTFM_API_KEY`, `GENRES_WORKER_KEY`, the Spotify credentials) stay in the dashboard; never print them.
 
 ## Genres
