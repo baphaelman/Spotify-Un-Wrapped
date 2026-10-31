@@ -873,12 +873,6 @@ dialog pre {
 /* The gear turns while its panel is open */
 #controls-button svg { transition: transform var(--motion-grow) var(--ease-out); }
 #controls-button[aria-expanded="true"] svg { transform: rotate(60deg); }
-/* The question mark in its bubble leans in on hover and tilts while its panel is open, and the dot hops as it opens */
-#help-button .hook { transform-origin: 8px 8.2px; transition: transform var(--motion-grow) var(--ease-out); }
-#help-button:hover .hook { transform: rotate(-8deg); }
-#help-button[aria-expanded="true"] .hook { transform: rotate(-16deg); }
-#help-button[aria-expanded="true"] .dot { animation: hop var(--motion-grow) var(--ease-out); }
-@keyframes hop { 40% { transform: translateY(-2.2px); } }
 .controls-panel, .help-panel {
   position: absolute;
   top: calc(100% + 6px);
@@ -934,16 +928,18 @@ dialog pre {
 .g-colors { gap: 10px; }
 .g-dot { cursor: default; animation-play-state: running; }
 .g-theme { display: grid; place-items: center; width: 26px; height: 24px; border-radius: 6px; color: var(--text-secondary); }
-/* The ring around the real control while its row is hovered: over the period bar (same layer, later on the page),
-   under the top bar and so under the panel, which hangs from it */
-.guide-ring { position: fixed; z-index: 10; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+/* While a row is hovered the page dims around its controls, and a ring lights each of them. Both live in the top
+   bar, whose layer tops the page, under the panel (z-index 20), which stays lit */
+.guide-dim { position: fixed; inset: 0; z-index: 15; pointer-events: none; background: color-mix(in srgb, var(--page) 62%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+.guide-dim.on { opacity: 1; }
+.guide-ring { position: fixed; z-index: 16; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 14px 2px color-mix(in srgb, var(--accent) 40%, transparent); opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .guide-ring.on { opacity: 1; }
 .controls-note { margin: 0; padding: 6px 8px 8px; font-size: 12px; color: var(--text-muted); }
 .controls-item { display: block; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; }
 .controls-item[hidden] { display: none; }
 .controls-item:hover, .controls-item:focus-visible { background: var(--border); outline: none; }
 .controls-item.danger { color: var(--text-secondary); }
-@media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]), #help-button .dot { animation: none !important; } #controls-button svg, #help-button .hook, .guide-row, .g-step, .guide-ring { transition: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]) { animation: none; } #controls-button svg, .guide-dim, .guide-row, .g-step, .guide-ring { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
 @keyframes palette-drift-lg { to { background-position: -40px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }

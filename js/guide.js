@@ -77,58 +77,78 @@ for (const s of document.querySelectorAll("#guide [data-forward]")) {
 
 // ---------- Rings on the real controls ----------
 
+// While a row is hovered, the page dims around its controls (one shade with a hole per ring) and a ring lights
+// each of them. Moving to another row fades the old shade and rings out as the new ones fade in
 let rings = [];
+let shade = null;
 let tracking = 0;
 function ringOff() {
   cancelAnimationFrame(tracking);
-  for (const r of rings) {
+  for (const r of [...rings, shade]) {
+    if (!r) continue;
     r.classList.remove("on");
     setTimeout(() => r.remove(), dur(FADE_MS));
   }
   rings = [];
+  shade = null;
 }
 
-// The box around everything a group of selectors matches, or nothing when none of it is laid out
+// The box around everything a group of selectors matches, padded to the ring, or nothing when none of it is laid out
 function bounds(group) {
   const rects = [...document.querySelectorAll(group)].map((el) => el.getBoundingClientRect()).filter((r) => r.width);
   if (!rects.length) return null;
-  return {
-    left: Math.min(...rects.map((r) => r.left)),
-    top: Math.min(...rects.map((r) => r.top)),
-    right: Math.max(...rects.map((r) => r.right)),
-    bottom: Math.max(...rects.map((r) => r.bottom)),
-  };
-}
-function fit(r, b) {
-  Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.right - b.left + 8}px`, height: `${b.bottom - b.top + 8}px` });
+  const left = Math.min(...rects.map((r) => r.left)) - 4;
+  const top = Math.min(...rects.map((r) => r.top)) - 4;
+  return { left, top, width: Math.max(...rects.map((r) => r.right)) + 4 - left, height: Math.max(...rects.map((r) => r.bottom)) + 4 - top };
 }
 
-// One ring per |-separated group of selectors, around everything the group matches. A ring is measured again every
-// frame while it shows, so it follows its controls as they move or resize (a copy's click picking another length
-// grows the period button, which pushes the controls beside it along)
+// Rounded holes cut from a shade over the whole window (the rings' 10px corners)
+function holes(boxes) {
+  const r = 10;
+  const cut = boxes.map(({ left: x, top: y, width: w, height: h }) =>
+    `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}` +
+    `H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`
+  );
+  return `path(evenodd, "M0 0H${innerWidth}V${innerHeight}H0Z${cut.join("")}")`;
+}
+
+function fit() {
+  const boxes = [];
+  for (const r of rings) {
+    const b = bounds(r.dataset.group);
+    if (!b) continue;
+    Object.assign(r.style, { left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` });
+    boxes.push(b);
+  }
+  shade.style.clipPath = holes(boxes);
+}
+
+// One ring per |-separated group of selectors, around everything the group matches. Rings and holes are measured
+// again every frame while they show, so they follow their controls as they move or resize (a copy's click picking
+// another length grows the period button, which pushes the controls beside it along)
 function ringOn(target) {
   ringOff();
+  const bar = document.querySelector(".topbar");
+  shade = document.createElement("div");
+  shade.className = "guide-dim";
+  bar.append(shade);
   for (const group of target.split("|")) {
     const b = bounds(group);
-    if (!b || b.bottom < 0 || b.top > innerHeight) continue;
+    if (!b || b.top + b.height < 0 || b.top > innerHeight) continue;
     const r = document.createElement("div");
     r.className = "guide-ring";
     r.dataset.group = group;
-    fit(r, b);
-    // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
-    // the rest just above the period bar's layer (style.css)
-    (document.querySelector(group).closest(".topbar") ?? document.body).append(r);
-    requestAnimationFrame(() => r.classList.add("on"));
+    bar.append(r);
     rings.push(r);
   }
+  fit();
+  const on = [shade, ...rings];
+  requestAnimationFrame(() => on.forEach((r) => r.classList.add("on")));
   const track = () => {
-    for (const r of rings) {
-      const b = bounds(r.dataset.group);
-      if (b) fit(r, b);
-    }
+    fit();
     tracking = requestAnimationFrame(track);
   };
-  if (rings.length) tracking = requestAnimationFrame(track);
+  tracking = requestAnimationFrame(track);
 }
 
 for (const row of document.querySelectorAll(".guide-row")) {
