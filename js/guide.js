@@ -78,7 +78,9 @@ for (const s of document.querySelectorAll("#guide [data-forward]")) {
 // ---------- Rings on the real controls ----------
 
 let rings = [];
+let tracking = 0;
 function ringOff() {
+  cancelAnimationFrame(tracking);
   for (const r of rings) {
     r.classList.remove("on");
     setTimeout(() => r.remove(), dur(FADE_MS));
@@ -86,29 +88,47 @@ function ringOff() {
   rings = [];
 }
 
-// One ring per |-separated group of selectors, around everything the group matches
+// The box around everything a group of selectors matches, or nothing when none of it is laid out
+function bounds(group) {
+  const rects = [...document.querySelectorAll(group)].map((el) => el.getBoundingClientRect()).filter((r) => r.width);
+  if (!rects.length) return null;
+  return {
+    left: Math.min(...rects.map((r) => r.left)),
+    top: Math.min(...rects.map((r) => r.top)),
+    right: Math.max(...rects.map((r) => r.right)),
+    bottom: Math.max(...rects.map((r) => r.bottom)),
+  };
+}
+function fit(r, b) {
+  Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.right - b.left + 8}px`, height: `${b.bottom - b.top + 8}px` });
+}
+
+// One ring per |-separated group of selectors, around everything the group matches. A ring is measured again every
+// frame while it shows, so it follows its controls as they move or resize (a copy's click picking another length
+// grows the period button, which pushes the controls beside it along)
 function ringOn(target) {
   ringOff();
   for (const group of target.split("|")) {
-    const els = [...document.querySelectorAll(group)].filter((el) => el.getBoundingClientRect().width);
-    if (!els.length) continue;
-    const rects = els.map((el) => el.getBoundingClientRect());
-    const b = {
-      left: Math.min(...rects.map((r) => r.left)),
-      top: Math.min(...rects.map((r) => r.top)),
-      right: Math.max(...rects.map((r) => r.right)),
-      bottom: Math.max(...rects.map((r) => r.bottom)),
-    };
-    if (b.bottom < 0 || b.top > innerHeight) continue;
+    const b = bounds(group);
+    if (!b || b.bottom < 0 || b.top > innerHeight) continue;
     const r = document.createElement("div");
     r.className = "guide-ring";
-    Object.assign(r.style, { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.right - b.left + 8}px`, height: `${b.bottom - b.top + 8}px` });
+    r.dataset.group = group;
+    fit(r, b);
     // Rings sit under the panel: one around a control in the top bar goes in the bar (whose layer the panel tops),
     // the rest just above the period bar's layer (style.css)
-    (els[0].closest(".topbar") ?? document.body).append(r);
+    (document.querySelector(group).closest(".topbar") ?? document.body).append(r);
     requestAnimationFrame(() => r.classList.add("on"));
     rings.push(r);
   }
+  const track = () => {
+    for (const r of rings) {
+      const b = bounds(r.dataset.group);
+      if (b) fit(r, b);
+    }
+    tracking = requestAnimationFrame(track);
+  };
+  if (rings.length) tracking = requestAnimationFrame(track);
 }
 
 for (const row of document.querySelectorAll(".guide-row")) {

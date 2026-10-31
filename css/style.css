@@ -873,6 +873,12 @@ dialog pre {
 /* The gear turns while its panel is open */
 #controls-button svg { transition: transform var(--motion-grow) var(--ease-out); }
 #controls-button[aria-expanded="true"] svg { transform: rotate(60deg); }
+/* The question mark in its bubble leans in on hover and tilts while its panel is open, and the dot hops as it opens */
+#help-button .hook { transform-origin: 8px 8.2px; transition: transform var(--motion-grow) var(--ease-out); }
+#help-button:hover .hook { transform: rotate(-8deg); }
+#help-button[aria-expanded="true"] .hook { transform: rotate(-16deg); }
+#help-button[aria-expanded="true"] .dot { animation: hop var(--motion-grow) var(--ease-out); }
+@keyframes hop { 40% { transform: translateY(-2.2px); } }
 .controls-panel, .help-panel {
   position: absolute;
   top: calc(100% + 6px);
@@ -937,7 +943,7 @@ dialog pre {
 .controls-item[hidden] { display: none; }
 .controls-item:hover, .controls-item:focus-visible { background: var(--border); outline: none; }
 .controls-item.danger { color: var(--text-secondary); }
-@media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]) { animation: none; } #controls-button svg, .guide-row, .g-step, .guide-ring { transition: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]), #help-button .dot { animation: none !important; } #controls-button svg, #help-button .hook, .guide-row, .g-step, .guide-ring { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
 @keyframes palette-drift-lg { to { background-position: -40px 0; } }
 .palette-menu .group { padding: 6px 8px 4px; font-size: 11px; color: var(--text-muted); }
