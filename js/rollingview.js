@@ -165,13 +165,18 @@ export function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
 }
 
 // When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
+const CLOCK_HOURS = 4;
 export function paintClock(plays = shownPlays()) {
   if (!mixArgs) return;
   const [artists, , includeOther, pins] = mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, 0.5);
+  // Smoothed as the rolling chart is: its curve rounding, and its blur as a share of its window, taken as a share of
+  // CLOCK_HOURS (so High blurs about an hour)
+  const { sigma = 0, curve = 0 } = state.shownSmooth ?? {};
+  const hours = sigma >= 0.5 ? (sigma / state.shownWindow) * CLOCK_HOURS : 0;
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, curve);
 }
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
@@ -326,6 +331,7 @@ export function sweepSmoothing(from) {
     if (t < 1 && !chartSeen()) return;
     const look = { sigma: s0 + (s1 - s0) * t, smooth: c0 + (c1 - c0) * t };
     renderRollingChart(currentZoom($("chart-rolling")), { ms, easing: "linear" }, look);
+    if (t === 1) paintClock(); // the clock follows the new smoothing once, at the end
   }, total, sweepSteps(total));
 }
 $("smoothify").addEventListener("change", (e) => {
@@ -348,6 +354,7 @@ onZoomChange($("chart-rolling"), () => {
     if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
     cancelSweep();
     renderRollingChart(zoom, { ms: GROW_MS, easing: EASE_OUT.echarts }, { sigma, smooth: curve });
+    paintClock();
   }, 150);
 });
 

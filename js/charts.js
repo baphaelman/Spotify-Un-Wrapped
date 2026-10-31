@@ -1675,7 +1675,7 @@ export function focusMonthly(el, name) {
 // (late night runs into the early morning) so a band doesn't jump between neighbouring hours. Pins and hover work as
 // in renderMonthly (focusClock lights an artist from elsewhere): names/slots are the artists and their palette slots,
 // off the deselected ones (already left out of grid's plays, so shares are of what's shown). sigma is the smoothing,
-// in hours.
+// in hours, and curve the line's rounding (ECharts' smooth).
 const clockState = new WeakMap();
 const hourLabel = (h) => (h % 24 === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
 
@@ -1687,7 +1687,7 @@ function blurRing(v, sigma) {
   return v.map((_, i) => w.reduce((s, wj, j) => s + wj * v[(i + j - r + n) % n], 0));
 }
 
-export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 0.5) {
+export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 0.5, curve = 0.3) {
   const t = tokens();
   const all = [...names, "Everyone else"];
   const colors = [...names.map((n, k) => t.series[slots[k]]), t.other];
@@ -1764,7 +1764,7 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
         type: "line",
         silent: true,
         symbol: "none",
-        smooth: 0.3,
+        smooth: curve,
         // Stacked by hand, as in the rolling chart: each band is its top edge filled down to the axis, and the
         // bands below paint over it
         z: 2 + all.length - k,
