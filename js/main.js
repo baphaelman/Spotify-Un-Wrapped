@@ -312,10 +312,11 @@ function startGenres() {
   if (genresAsked === state.raw) return;
   genresAsked = state.raw;
   state.genresPending = true;
-  askGenres(state.raw, () => {
+  const onChange = () => {
     if (regenreTimer) return;
     regenreTimer = setTimeout(regenre, REGENRE_MS);
-  }).finally(() => {
+  };
+  askGenres(state.raw, onChange, agg.filterRange(state.raw, state.range.lo, state.range.hi)).finally(() => {
     state.genresPending = false;
     if (!regenreTimer) regenre();
   });
