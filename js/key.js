@@ -125,6 +125,9 @@ export function paintArtistKey() {
   box.append(mark);
   box.addEventListener("click", () => showArtists($("chart-rolling"), top, on !== top.length));
   key.replaceChildren(...(top.length ? [box] : []), ...items);
+  // Lit before anything reads the new chips' style: one styled without its hover would start a CSS transition
+  // from the unhovered look (and the fade below would read it as where the chip is headed)
+  paintFocus();
   const underEl = under != null ? chips(key).get(under) : null;
   if (underEl) {
     underEl.classList.add("hover");
@@ -142,7 +145,6 @@ export function paintArtistKey() {
     const chip = n == null ? null : chips(key).get(n);
     (n == null ? key.querySelector(".legend-all") : chip?.querySelector(`[class="${cls}"]`) ?? chip?.querySelector(".name"))?.focus({ preventScroll: true });
   }
-  paintFocus();
   if (!dur(GROW_MS)) return;
   for (const [n, el] of chips(key)) {
     const was = looked.get(n);

@@ -584,12 +584,13 @@ button.ghost:hover { background: var(--border); }
   top: -4px;
   height: calc(var(--axis) + 4px);
   border-radius: 5px 5px 0 0;
-  background: color-mix(in srgb, var(--c) 9%, transparent);
+  background: color-mix(in srgb, var(--c) 5%, transparent);
   clip-path: inset(100% 0 0 0);
   transition: clip-path var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out),
     left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out);
 }
 .month-caps .mark.on { clip-path: inset(0); }
+.month-caps .mark.pin { background: color-mix(in srgb, var(--c) 9%, transparent); } /* hovered: lighter; pinned: deeper */
 /* Joined to a neighbour: square corners there */
 .month-caps .mark.jl { border-top-left-radius: 0; }
 .month-caps .mark.jr { border-top-right-radius: 0; }

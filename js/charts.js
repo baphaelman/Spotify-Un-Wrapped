@@ -1338,8 +1338,7 @@ function barView(st, r) {
 function monthlySeries(st) {
   const { t, names, rows, colorOf } = st;
   const lit = litSet(st);
-  // A hovered artist's slices take a lighter shade (0.32) that deepens to 0.5 once they're pinned
-  const fill = (col, on, dim, base) => mix(t.surface, col, on === "hover" ? 0.32 : on ? 0.5 : dim ? 0.1 : base);
+  const fill = (col, on, dim, base) => mix(t.surface, col, on ? 0.5 : dim ? 0.1 : base);
   // A hairline in the surface color between slices, or the artist's color around a lit one
   const edge = (col, on) => (on ? { borderColor: col, borderWidth: 1.5 } : { borderColor: t.surface, borderWidth: 1 });
   const radius = { borderRadius: [1.5, 1.5, 0, 0] };
@@ -1358,11 +1357,10 @@ function monthlySeries(st) {
   });
   const slices = names.map((n, k) => {
     const on = lit.has(n);
-    const pinned = !!st.pins?.has(n) && !st.off.has(n);
     const col = colorOf(n);
     return {
       id: `m${k}`,
-      itemStyle: { color: fill(col, on && (pinned ? "pin" : "hover"), lit.size && !on, 0.25), ...edge(col, on && "lit") },
+      itemStyle: { color: fill(col, on, lit.size && !on, 0.25), ...edge(col, on && "lit") },
       data: items(`m${k}`, rows.map((r, i) => (shown[k][i] ? r.by[k] : 0))),
     };
   });
@@ -1568,6 +1566,7 @@ function paintCaptionMarks(el, st) {
     const n = mark[i];
     d.classList.toggle("on", n != null);
     if (n == null) return; // sinks away as it was, in its color
+    d.classList.toggle("pin", pinned(n)); // a pin deepens the hover's lighter wash
     d.classList.toggle("jl", mark[i - 1] != null);
     d.classList.toggle("jr", mark[i + 1] != null);
     Object.assign(d.style, { left: `${mid - slot / 2}px`, width: `${slot}px` });
