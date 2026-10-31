@@ -1033,10 +1033,8 @@ dialog pre {
   transition: box-shadow var(--motion-fade) var(--ease-out);
 }
 .mix-list li.pinnable .mix-card { cursor: pointer; }
-.mix-list li.pinnable .mix-card:hover, .mix-list li.focus .mix-card { background-color: color-mix(in srgb, var(--c) 14%, transparent); }
-.mix-list li.pinnable .mix-card:hover::after, .mix-list li.focus .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); }
-.mix-list li.pinned .mix-card { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
-.mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
+.mix-list li.pinnable .mix-card:hover, .mix-list li.focus .mix-card, .mix-list li.pinned .mix-card { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
+.mix-list li.pinnable .mix-card:hover::after, .mix-list li.focus .mix-card::after, .mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
 .mix-list li.dim, .mix-list li.off { opacity: 0.45; }
 .mix-list .mix-card:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
 /* The tab: the whole strip left of the card is its button, so it's easy to hit. Hovering it previews the click
@@ -1058,8 +1056,7 @@ dialog pre {
 .mix-list .tab:focus-visible { outline: 2px solid var(--c); outline-offset: 0; border-radius: 6px; }
 .mix-list .who { min-width: 0; overflow-wrap: anywhere; }
 .mix-list .name { display: block; color: color-mix(in srgb, var(--text-primary) 80%, var(--c)); transition: color var(--motion-fade) var(--ease-out); }
-.mix-list li:is(.focus, .pinnable:hover) .name { color: var(--text-primary); }
-.mix-list li.pinned .name { color: var(--c); font-weight: 600; }
+.mix-list li:is(.pinned, .focus, .pinnable:hover) .name { color: var(--c); font-weight: 600; }
 .mix-list .by { display: block; color: var(--text-muted); font-size: 12px; }
 .mix-list .by:empty { display: none; }
 .mix-list .art { display: none; }
@@ -1072,14 +1069,13 @@ dialog pre {
 .mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .mix-list .art img.shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .mix-card, .mix-list .mix-card::after, .mix-list .tab .bar, .mix-list .art img { transition: none; } }
-.mix-seg:not(.pinned):is(:hover, .focus) { background: color-mix(in srgb, var(--c) 28%, var(--surface)); }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }
 .mix-legend-item .swatch { transition: background var(--motion-morph) var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .mix-seg, .mix-seg > * { transition: none; } }
 
 /* Pinned artists: lit like a pinned band in the chart; segments are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }
-.mix-seg.pinned { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
+.mix-seg:is(:hover, .focus, .pinned) { background: color-mix(in srgb, var(--c) 34%, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); font-weight: 700; }
 .mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
