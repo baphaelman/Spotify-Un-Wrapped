@@ -266,3 +266,5 @@ create table if not exists public.artist_genres (
   fetched_at timestamptz not null default now()
 );
 alter table public.artist_genres enable row level security;
+-- Newer projects don't grant new tables to the function's role on their own
+grant select, insert, update on public.artist_genres to service_role;
