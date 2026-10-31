@@ -277,11 +277,13 @@ function keyedPlays(dim) {
 // The genres view: each play goes to its artist's genre families (families.js), shared by their weight, so an
 // artist who is both rock and electronic counts a part of each play in each (`ms` times the weight, and the weight
 // in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by. Artists with no
-// genre (yet) go to UNCLASSIFIED. A genre's picture is its most-played artist's photo, from the artists view.
+// genre (yet) are left out of the view's plays, so no graph, list, key or search has them; `withNoGenre` keeps them
+// (as UNCLASSIFIED), for the stack chart's development toggle. A genre's picture is its most-played artist's photo,
+// from the artists view.
 function genrePlays() {
   const families = new Map(); // artist -> [[family, weight], ...]
   const top = new Map(); // family -> artist -> ms
-  const plays = [];
+  const plays = [], withNoGenre = [];
   for (const p of state.raw) {
     let fams = families.get(p.artist);
     if (!fams) {
@@ -290,7 +292,10 @@ function genrePlays() {
       families.set(p.artist, fams);
     }
     for (const [family, w] of fams) {
-      plays.push(w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w });
+      const keyed = w === 1 ? { ...p, artist: family, by: p.artist } : { ...p, artist: family, by: p.artist, ms: p.ms * w, w };
+      withNoGenre.push(keyed);
+      if (family === UNCLASSIFIED) continue;
+      plays.push(keyed);
       if (!top.has(family)) top.set(family, new Map());
       const m = top.get(family);
       m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms * w);
@@ -298,7 +303,8 @@ function genrePlays() {
   }
   const artistCovers = keyedPlays("artist").cover;
   const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get([...m].sort((a, b) => b[1] - a[1])[0][0])]));
-  const out = { raw: state.raw, version: genresVersion, plays, owner: null, title: null, album: null, cover };
+  top.delete(UNCLASSIFIED);
+  const out = { raw: state.raw, version: genresVersion, plays, withNoGenre, owner: null, title: null, album: null, cover };
   keyedMemo.set("genre", out);
   return out;
 }
@@ -331,7 +337,7 @@ function regenre() {
 
 // Puts the view's plays and words in place (the graphs are drawn by the caller)
 function applyDim() {
-  ({ plays: state.plays, owner: state.owner, title: state.titles, album: state.albums, cover: state.covers } = keyedPlays(state.dim));
+  ({ plays: state.plays, withNoGenre: state.withNoGenre = null, owner: state.owner, title: state.titles, album: state.albums, cover: state.covers } = keyedPlays(state.dim));
   state.artists = agg.topArtists(state.plays, Infinity);
   const w = noun();
   $("n-label").textContent = w.Many;

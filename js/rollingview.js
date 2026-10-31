@@ -28,13 +28,13 @@ export function rollingSub(n, target, includeOther) {
   return `Share of listening time, ${target}-day rolling window` +
     (includeOther ? "" : state.pinned.length ? `, among the ${noun().many} shown` : `, among your top ${n} ${noun().many}`) +
     (presetOf(state.range) === "all" ? "" : `, top ${noun().many} of ${presetLabel() === "Custom" ? "the selected period" : presetLabel()}`) +
-    (state.dim === "genre" ? unclassifiedNote() : "");
+    (state.dim === "genre" && state.showNoGenre ? unclassifiedNote() : "");
 }
 
-// How much of the period's listening has no genre (yet), said plainly rather than left out silently
+// With the development toggle on: how much of the period's listening has no genre (yet)
 function unclassifiedNote() {
   let all = 0, none = 0;
-  for (const p of rangePlays()) {
+  for (const p of agg.filterRange(state.withNoGenre, state.range.lo, state.range.hi)) {
     all += p.ms;
     if (p.artist === UNCLASSIFIED) none += p.ms;
   }
@@ -58,6 +58,7 @@ export const WINDOWS = [7, 15, 30, 45, 75, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 export let rawMemo = null;
+let drawnMemo = null; // the genres view's chart with its "No genre" band
 const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify strength
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
 // Auto's curve rounding: scaled with the amount up to high, then on toward max
@@ -101,6 +102,19 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists, kind, JSON.stringify(split?.names)].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid, split) };
   const raw = rawMemo.raw;
+  // The genres view's stack also has a "No genre" band, for development (#no-genre): with no thickness while the
+  // toggle is off, so it grows and shrinks, and drawn from plays that keep the unclassified. Only this chart has it:
+  // the brush and every other graph go on with `raw` and the chart's own names.
+  const noGenre = state.dim === "genre" && !!state.withNoGenre;
+  let drawn = raw;
+  if (noGenre) {
+    const k = key + "\u0000" + state.showNoGenre;
+    if (drawnMemo?.key !== k) {
+      const plays = state.showNoGenre ? state.withNoGenre : state.plays;
+      drawnMemo = { key: k, raw: agg.rolling(plays, [...artists, UNCLASSIFIED], window, includeOther, grid, split && { ...split, names: [...split.names, []] }) };
+    }
+    drawn = drawnMemo.raw;
+  }
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
   const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
@@ -109,8 +123,9 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   // Auto says which strength it has landed on
   const amount = agg.autoAmount(span);
   $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
-  const data = agg.blur(raw, sigma);
-  const names = includeOther ? [...artists, "Everyone else"] : artists;
+  const data = agg.blur(drawn, sigma);
+  const bands = noGenre ? [...artists, UNCLASSIFIED] : artists;
+  const names = includeOther ? [...bands, "Everyone else"] : bands;
   state.chartNames = artists;
 
   $("rolling-sub").textContent = rollingSub(n, target, includeOther);
@@ -124,7 +139,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
-  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
+  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, noGenre ? [...slots, null] : slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
     renderMix(artists, slots, includeOther, pins);
@@ -283,8 +298,7 @@ function assignSlots(artists) {
 // the stack in the next colors, so the artists already shown keep theirs. They push out the
 // lowest-ranked unpinned artists, keeping n artists (or as many as are pinned, if that's more).
 export function chartArtists(plays, n) {
-  // Genres not known yet aren't one of them: they go with everyone else
-  const top = agg.topArtists(plays, n + 1).map((a) => a.name).filter((a) => a !== UNCLASSIFIED).slice(0, n);
+  const top = agg.topArtists(plays, n).map((a) => a.name);
   const extra = state.pinned.filter((a) => !top.includes(a));
   const keep = Math.max(n, state.pinned.length) - extra.length;
   for (let i = top.length - 1; top.length > keep && i >= 0; i--) {
@@ -302,9 +316,17 @@ export function syncSplit() {
   group.querySelector('[data-split="album"]').hidden = state.dim !== "artist" || !state.raw?.some((p) => p.album);
   group.querySelector('[data-split="track"]').hidden = genre;
   group.querySelector('[data-split="artist"]').hidden = !genre;
+  $("no-genre").hidden = !genre;
+  $("no-genre").firstElementChild.setAttribute("aria-pressed", state.showNoGenre);
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
 }
+$("no-genre").addEventListener("click", () => {
+  state.showNoGenre = !state.showNoGenre;
+  syncSplit();
+  renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
+  $("rolling-sub").textContent = rollingSub(Number($("n-artists").value), WINDOWS[$("window").value], $("include-other").checked);
+});
 for (const btn of document.querySelectorAll("#rolling-split button")) {
   btn.addEventListener("click", () => {
     const to = btn.dataset.split || null;

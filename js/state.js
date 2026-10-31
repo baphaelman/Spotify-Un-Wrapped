@@ -15,7 +15,7 @@ export const $ = (id) => document.getElementById(id);
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: "track", genresPending: false,
+  split: "track", genresPending: false, showNoGenre: false, withNoGenre: null,
 };
 
 // split: what the rolling chart splits each band into, "album" or "track" (songs, the default), "artist", or null for whole
@@ -36,9 +36,7 @@ const NOUN = {
   genre: { one: "genre", many: "genres", Many: "Genres", a: "a genre", who: "What" },
 };
 export const noun = () => NOUN[state.dim];
-
-// The genres view's name for listening by artists with no genre (yet): kept out of the chart's own bands (see chartArtists)
-export const UNCLASSIFIED = "No genre";
+export { UNCLASSIFIED } from "./aggregate.js";
 
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
 // are; only the period buttons on offer change. Tracks come and go faster than artists, so their buttons go
@@ -58,8 +56,8 @@ export const RESIZE_LOOK = {
 };
 RESIZE_LOOK.album = RESIZE_LOOK.genre = RESIZE_LOOK.artist;
 
-// The days the history covers, as day indices
-export const extent = () => ({ lo: agg.dayIndex(state.plays[0].t), hi: agg.dayIndex(state.plays[state.plays.length - 1].t) });
+// The days the history covers, as day indices: all of it, in every view (the genres view's plays leave some out)
+export const extent = () => ({ lo: agg.dayIndex(state.raw[0].t), hi: agg.dayIndex(state.raw[state.raw.length - 1].t) });
 
 // A preset's range: "all" is the whole history, a year is January 1 to December 31 (or as much of it as exists)
 export function presetRange(value) {

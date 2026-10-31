@@ -234,6 +234,8 @@
             <div class="tav-toggles">
               <!-- Back to the view a part was clicked in from (main.js openPart); faded while there's none -->
               <button type="button" id="view-back" class="ghost view-back" aria-label="Back" disabled>‹</button>
+              <!-- Development only: the genres view's listening with no genre, as a band in this chart (rollingview.js) -->
+              <div id="no-genre" class="segmented solid" hidden><button type="button" aria-pressed="false" title="Development: show listening with no genre yet">No genre</button></div>
               <div id="rolling-split" class="segmented solid" role="group" aria-label="Split each band into">
                 <button type="button" data-split="" aria-pressed="true">Whole</button>
                 <button type="button" data-split="album" aria-pressed="false">Albums</button>

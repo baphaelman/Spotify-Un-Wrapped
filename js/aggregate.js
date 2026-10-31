@@ -53,6 +53,10 @@ export function topArtists(plays, n) {
     .slice(0, n);
 }
 
+// The genres view's name for listening by artists with no genre (yet). It's on no graph but the stack chart, and
+// there only while its development toggle is on (rollingview.js)
+export const UNCLASSIFIED = "No genre";
+
 // The parts an item's band splits into (see topParts): its albums, its songs, or (a genre's) its artists
 export const partOf = (kind) =>
   kind === "album" ? (p) => p.album || "Unknown album" : kind === "artist" ? (p) => p.by ?? p.artist : (p) => p.track;

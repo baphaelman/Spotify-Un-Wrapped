@@ -1,7 +1,7 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
-import { MAX_PARTS } from "./aggregate.js";
+import { MAX_PARTS, UNCLASSIFIED } from "./aggregate.js";
 
 const instances = new Map();
 
@@ -383,8 +383,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const c = chart(el);
   const share = mode === "share";
   const otherIdx = hasOther ? names.length - 1 : -1;
-  // "Everyone else" is always gray, never borrowing the next artist's slot
-  const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
+  // "Everyone else" is always gray, never borrowing the next artist's slot ("No genre", a development band, a light gray)
+  const colors = names.map((n, i) => (i === otherIdx ? t.other : n === UNCLASSIFIED ? t.secondary : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const isStrip = mainOf.has(el);
   const perWeek = (h) => (h / window) * 7;
@@ -963,8 +963,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     });
     return best == null ? null : { k: best, j: null };
   };
-  // "Everyone else" can't be pinned, so it isn't offered as clickable
-  const pinnable = (k) => k != null && k !== otherIdx;
+  // "Everyone else" (and "No genre") can't be pinned, so they aren't offered as clickable
+  const pinnable = (k) => k != null && k !== otherIdx && names[k] !== UNCLASSIFIED;
   // Lights the part (or none) along with its artist: the artist's restyle carries the part's, or alone it's just
   // the parts. Returns whether the part changed.
   const focusPart = (k, j) => {
