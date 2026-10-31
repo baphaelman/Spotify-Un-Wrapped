@@ -1004,7 +1004,7 @@ dialog pre {
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-hours .mix-hours { opacity: 1; }
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-seg > .mix-hours { transition: opacity var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out); }
-.mix-seg:is(:hover, .focus, .pinned) .mix-hours { color: var(--text-primary); }
+.mix-seg:is(:hover, .focus, .pinned) .mix-hours { color: var(--text-primary); font-weight: 700; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
 /* Under the bar, every segment in full as a card: a light wash of its color, with a tab of it just outside to the
    left. A hovered or pinned card draws a ring in its color on all four sides. Cards are narrow enough that the
