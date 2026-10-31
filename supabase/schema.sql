@@ -268,3 +268,56 @@ create table if not exists public.artist_genres (
 alter table public.artist_genres enable row level security;
 -- Newer projects don't grant new tables to the function's role on their own
 grant select, insert, update on public.artist_genres to service_role;
+
+-- The artists asked about that the table doesn't know yet. The `genres` function adds to it when the page asks, and
+-- works through it once a minute (pg_cron, docs/genres.md), so every name asked about is looked up even after its
+-- visitor has left. The names someone is asking about right now come first (`wanted_at`, to the minute, newest
+-- first), in the order that page sent them (`rank`: the period on screen first).
+create table if not exists public.genre_queue (
+  name_key      text primary key,
+  name          text not null,
+  track         text not null default '',   -- their most-played title, which tells namesakes apart
+  rank          integer not null default 0,
+  wanted_at     timestamptz not null default date_trunc('minute', now()),
+  attempts      integer not null default 0, -- lookups that failed; after 5 it's stored as found nowhere
+  next_try_at   timestamptz not null default now(),
+  claimed_until timestamptz                 -- a worker is looking it up until then
+);
+create index if not exists genre_queue_order on public.genre_queue (wanted_at desc, rank);
+alter table public.genre_queue enable row level security;
+grant select, insert, update, delete on public.genre_queue to service_role;
+
+-- p_artists: [{key, name, track, rank}, ...], each key once. Asking again moves a name to the front. Past 20,000
+-- waiting names nothing new is added (anyone can ask, so this caps what a flood can queue).
+create or replace function public.genre_enqueue(p_artists jsonb)
+returns void language plpgsql set search_path = public as $$
+declare
+  room boolean := (select count(*) < 20000 from genre_queue);
+begin
+  insert into genre_queue (name_key, name, track, rank, wanted_at)
+  select a->>'key', left(a->>'name', 300), left(coalesce(a->>'track', ''), 300), coalesce((a->>'rank')::int, 0),
+         date_trunc('minute', now())
+  from jsonb_array_elements(p_artists) as t(a)
+  where coalesce(a->>'key', '') <> ''
+    and (room or exists (select 1 from genre_queue q where q.name_key = a->>'key'))
+  on conflict (name_key) do update set
+    wanted_at = excluded.wanted_at,
+    rank = excluded.rank,
+    track = case when genre_queue.track = '' then excluded.track else genre_queue.track end;
+end $$;
+
+-- Takes up to p_n names for a worker for two minutes, front of the queue first; two workers never get the same one
+create or replace function public.genre_claim(p_n integer)
+returns setof public.genre_queue language sql set search_path = public as $$
+  update genre_queue q set claimed_until = now() + interval '2 minutes'
+  where q.name_key in (
+    select name_key from genre_queue
+    where next_try_at <= now() and (claimed_until is null or claimed_until < now())
+    order by wanted_at desc, rank
+    limit least(p_n, 50)
+    for update skip locked
+  )
+  returning q.*
+$$;
+revoke execute on function public.genre_enqueue(jsonb), public.genre_claim(integer) from public, anon, authenticated;
+grant execute on function public.genre_enqueue(jsonb), public.genre_claim(integer) to service_role;

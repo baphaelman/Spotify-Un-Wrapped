@@ -43,17 +43,32 @@ Looking up one person's top 500 artists at 1 a second takes about 10 minutes, so
 - **Table `artist_genres`** (in `supabase/schema.sql`): `name_key` (the normalized name) primary key, `name`,
   `mbid`, `genres` (jsonb, `[[genre, votes], ...]`), `source` (`musicbrainz` / `lastfm` / `none`),
   `fetched_at`. RLS on with no policies, like the pool; the browser reads it only through a function.
-- **Edge function `genres`** (`supabase/functions/genres/index.ts`): `POST {artists: [{name, track}, ...]}`
-  (up to 100; `track` optional) answers `{genres: {name: [[genre, votes], ...]}, pending: [name, ...]}`. It
-  answers what the table has at once, looks up up to 10 of the missing ones within about 25 s (paced to
-  MusicBrainz's limit, Last.fm when MusicBrainz has nothing), stores them, and lists the rest as pending so the
-  page asks again. `none` answers are kept too, and re-asked after 30 days.
+- **Table `genre_queue`**: the names asked about that `artist_genres` doesn't know yet (`name_key`, `name`,
+  `track`, `rank`, `wanted_at`, `attempts`, `next_try_at`, `claimed_until`). The names someone is asking about
+  right now come first (`wanted_at`, to the minute, newest first), in the order their page sent them (`rank`, the
+  period on screen first); names whose visitor left are done after. It holds at most 20,000 names, since anyone can
+  add to it. Two functions, callable only by the service role: `genre_enqueue` and `genre_claim` (takes a few
+  names for two minutes, `for update skip locked`, so two workers never take the same one).
+- **Edge function `genres`** (`supabase/functions/genres/index.ts`), in two modes:
+  - **The page asks:** `POST {artists: [{name, track}, ...], offset}` (up to 100; `track` optional; `offset` is
+    where this list starts in the page's whole list) answers `{genres: {name: [[genre, votes], ...]}, pending:
+    [name, ...]}` at once from the table, and puts the pending ones on the queue. It never calls MusicBrainz.
+  - **The worker:** pg_cron posts to it once a minute with the header `x-worker-key` (the secret
+    `GENRES_WORKER_KEY`). It answers at once and, in the background for about 50 s, claims names from the queue's
+    front and looks them up (paced to MusicBrainz's limit, Last.fm when MusicBrainz has nothing), storing each
+    answer and taking it off the queue. That's about 25 artists a minute, 36,000 a day. Only the worker calls
+    MusicBrainz, so visitors asking at once can't go over its limit together. A lookup that fails is tried again
+    after 2, 4, 8 and 16 minutes, then stored as `none`; a 503 from MusicBrainz ends the run without counting
+    against the name.
+  - `none` answers are kept too, and a page asking about one older than 30 days queues it again.
 - **`js/genres.js`** in the page: asks for the artists that matter in the current view (top by listening
   time, the ones on screen first), keeps answers in localStorage like `covers.js`, and fills the view as they
-  arrive. Unlike pictures, genres can't wait for what's on screen (a genre's band is the sum of many artists),
-  but the cost lands on MusicBrainz and our table, never on Spotify.
-- **Pre-filling (later, not a priority):** a slow job over the artists in the community pool's summaries, so
-  most names are in the table before anyone asks.
+  arrive. Its first pass hands its whole list to the queue, so all of it is looked up even if the tab closes;
+  then it polls the first 100 still pending every few seconds, which keeps them at the queue's front. Unlike
+  pictures, genres can't wait for what's on screen (a genre's band is the sum of many artists), but the cost lands
+  on MusicBrainz and our table, never on Spotify.
+- **Pre-filling:** `dev/prefill_genres.py` hands a history's artists and the community pool's top artists to the
+  queue in a few seconds; the worker does the rest.
 
 ## How the view works
 
@@ -82,9 +97,28 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
    description; the callback URL can stay empty). Copy the **API key** (the shared secret isn't needed).
 2. In the Supabase dashboard: Project `qvsoxqeuvpnryitechsf` -> Edge Functions -> Secrets -> add
    `LASTFM_API_KEY` with that key.
-3. Later, when the function exists: Edge Functions -> Deploy a new function -> name it `genres` (it can't be
-   renamed afterward) -> paste `supabase/functions/genres/index.ts` -> turn JWT verification off.
-4. Run the new part of `supabase/schema.sql` in the SQL editor.
+3. Run the Genres part of `supabase/schema.sql` in the SQL editor (`artist_genres`, `genre_queue` and its two
+   functions). Safe to re-run.
+4. Make up a worker key, a long random string (for example the output of `openssl rand -hex 24`), and add it
+   under Edge Functions -> Secrets as `GENRES_WORKER_KEY`.
+5. Edge Functions -> deploy `genres` (or open it, if it exists) -> paste `supabase/functions/genres/index.ts`
+   -> JWT verification off. From here, the page's requests only queue names, so step 6 is what looks them up.
+6. Integrations -> Cron -> enable it (this turns on the `pg_cron` and `pg_net` extensions). Then, in the SQL
+   editor, with your key in place of `<key>`:
+
+   ```sql
+   select cron.schedule('genres-worker', '* * * * *', $$
+     select net.http_post(
+       url := 'https://qvsoxqeuvpnryitechsf.supabase.co/functions/v1/genres',
+       headers := '{"Content-Type": "application/json", "x-worker-key": "<key>"}'::jsonb,
+       body := '{}'::jsonb,
+       timeout_milliseconds := 10000)
+   $$);
+   ```
+
+   To check it: `select * from cron.job_run_details order by start_time desc limit 5;` shows each run, the
+   function's logs show `worker: N looked up, ...`, and `select count(*) from genre_queue;` shrinks. To stop it:
+   `select cron.unschedule('genres-worker');`.
 
 ## Steps
 
@@ -92,7 +126,7 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
 2. Table, function and `genres.js`, with the coverage script's matching rules.
 3. Family mapping, checked against the genres the coverage run found.
 4. The Genres view: tab, keyed plays with weights, the Artists split, Unclassified, words.
-5. Pre-filling from the community pool.
+5. Pre-filling from the community pool, through a queue the server works through on its own. Built.
 
 ## Coverage on the owner's history
 

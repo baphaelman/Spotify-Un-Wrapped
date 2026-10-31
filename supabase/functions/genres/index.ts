@@ -1,17 +1,21 @@
 // Genres for the Genres view (js/genres.js; the plan is docs/genres.md). The export names artists but has no
 // genres, and Spotify no longer gives them out, so they come from MusicBrainz (Last.fm as a fallback) and are kept
 // for everyone in the table public.artist_genres (supabase/schema.sql), so each artist is looked up once.
-//   POST { "artists": [{ "name": "<as the export spells it>", "track": "<one of their most-played titles>" }, ...] }
+//   POST { "artists": [{ "name": "<as the export spells it>", "track": "<one of their most-played titles>" }, ...],
+//          "offset": <where this list starts in the page's whole list> }
 // Up to 100 artists; `track` is optional and only settles a name several artists share. Answer:
 //   { "genres": { "<name>": [["<genre>", <votes>], ...], ... }, "pending": ["<name>", ...] }
 // `genres` has every name that's known, most votes first (an empty list when it was looked up and nothing was
-// found); `pending` has the names not looked up yet, which the page asks about again a little later. MusicBrainz
-// allows one request a second, so each call looks up only a few missing artists (in the order given) and answers
-// within about 25 s.
+// found); `pending` has the names not looked up yet. Those go on the queue (public.genre_queue), in the order given,
+// and the page asks about them again a little later.
+// The same function works through the queue: pg_cron posts to it once a minute with the header x-worker-key (the
+// secret GENRES_WORKER_KEY), and it looks names up for about 50 s, paced to MusicBrainz's one request a second. Only
+// the worker calls MusicBrainz, so visitors asking at once can't go over that limit together, and every name asked
+// about is looked up even after its visitor has left.
 // The matching rules are mirrored in dev/genre_coverage.py, which measures them on a real history; keep the two in
-// step. Needs nothing set up beyond the table: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided to every
-// function. LASTFM_API_KEY (a function secret) turns the Last.fm fallback on. Deployed as "genres", with JWT
-// verification off: it's open, and holds nothing private.
+// step. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided to every function. LASTFM_API_KEY (a function
+// secret) turns the Last.fm fallback on. Deployed as "genres", with JWT verification off: it's open, and holds
+// nothing private.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,9 +30,10 @@ const json = (body: unknown, status = 200) =>
   });
 
 const MAX_ARTISTS = 100;
-const MAX_LOOKUPS = 10; // missing artists looked up per call
-const BUDGET_MS = 25_000; // answer within this
+const WORK_MS = 50_000; // a worker run looks up for this long, so runs a minute apart don't overlap
 const LOOKUP_MS = 5_000; // the most one lookup can take (three paced MusicBrainz calls and Last.fm), kept in hand
+const CLAIM = 5; // names a worker takes at a time, so few are left claimed when its time runs out
+const MAX_ATTEMPTS = 5; // failed lookups before a name is stored as found nowhere
 const NONE_STALE_MS = 30 * 86_400_000; // a "nothing found" is asked again after 30 days
 
 type Genres = [string, number][];
@@ -226,10 +231,81 @@ async function writeRows(rows: Row[]) {
   if (!r.ok) throw new Error(`write ${r.status} ${await r.text()}`);
 }
 
+// ---- The queue ----
+
+type Queued = { name_key: string; name: string; track: string; rank: number; wanted_at: string; attempts: number };
+
+async function rpc(name: string, args: unknown) {
+  const r = await db(`rpc/${name}`, { method: "POST", body: JSON.stringify(args) });
+  if (!r.ok) throw new Error(`${name} ${r.status} ${await r.text()}`);
+  return r.status === 204 ? null : r.json();
+}
+
+const queued = (key: string) => `genre_queue?name_key=eq.${encodeURIComponent(key)}`;
+
+async function patchQueued(key: string, fields: Record<string, unknown>) {
+  const r = await db(queued(key), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(fields) });
+  if (!r.ok) throw new Error(`queue patch ${r.status} ${await r.text()}`);
+}
+
+// Looks up names from the front of the queue for about WORK_MS, storing each answer as it comes
+async function work() {
+  const start = Date.now();
+  const left = () => WORK_MS - (Date.now() - start);
+  let done = 0, failed = 0;
+  while (left() > LOOKUP_MS) {
+    const claimed: Queued[] = ((await rpc("genre_claim", { p_n: CLAIM })) ?? [])
+      .sort((a: Queued, b: Queued) => b.wanted_at.localeCompare(a.wanted_at) || a.rank - b.rank);
+    if (!claimed.length) break;
+    let stop = false;
+    for (const q of claimed) {
+      if (stop || left() < LOOKUP_MS) {
+        // Back to the queue for the next run
+        await patchQueued(q.name_key, { claimed_until: null });
+        continue;
+      }
+      try {
+        const found = await lookup(q.name, q.track);
+        await writeRows([{ name_key: q.name_key, name: q.name, ...found, fetched_at: new Date().toISOString() }]);
+        await db(queued(q.name_key), { method: "DELETE" });
+        done++;
+      } catch (err) {
+        console.error(q.name, err);
+        failed++;
+        if (err instanceof Busy) {
+          // MusicBrainz asked us to slow down: not the name's fault, so it isn't counted against it
+          stop = true;
+          await patchQueued(q.name_key, { claimed_until: null });
+        } else if (q.attempts + 1 >= MAX_ATTEMPTS) {
+          // Stored as found nowhere, so it's tried again after NONE_STALE_MS if someone still asks
+          await writeRows([{ name_key: q.name_key, name: q.name, mbid: null, genres: [], source: "none", fetched_at: new Date().toISOString() }]);
+          await db(queued(q.name_key), { method: "DELETE" });
+        } else {
+          // Tried again after 2, 4, 8, 16 minutes
+          const next = new Date(Date.now() + 2 ** (q.attempts + 1) * 60_000).toISOString();
+          await patchQueued(q.name_key, { attempts: q.attempts + 1, next_try_at: next, claimed_until: null });
+        }
+      }
+    }
+    if (stop) break;
+  }
+  console.log(`worker: ${done} looked up, ${failed} failed, ${Math.round((Date.now() - start) / 1000)} s`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST { artists: [{ name, track }] }" }, 405);
-  const start = Date.now();
+
+  // The worker, posted to by pg_cron. It answers at once and keeps working in the background.
+  const workerKey = Deno.env.get("GENRES_WORKER_KEY");
+  if (req.headers.has("x-worker-key")) {
+    if (!workerKey || req.headers.get("x-worker-key") !== workerKey) return json({ error: "wrong worker key" }, 403);
+    const run = work().catch((err) => console.error("worker", err));
+    // @ts-ignore EdgeRuntime is Supabase's, for work that outlives the response
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(run);
+    else await run;
+    return json({ working: true }, 202);
+  }
 
   // The artists asked about, once each by key, in the order given
   let body: any;
@@ -239,7 +315,8 @@ Deno.serve(async (req) => {
     return json({ error: "the body must be JSON" }, 400);
   }
   if (!Array.isArray(body?.artists)) return json({ error: "artists must be a list" }, 400);
-  const asked = new Map<string, { names: string[]; name: string; track: string }>();
+  const offset = Number.isInteger(body.offset) && body.offset >= 0 ? Math.min(body.offset, 1_000_000) : 0;
+  const asked = new Map<string, { names: string[]; name: string; track: string; rank: number }>();
   for (const a of body.artists.slice(0, MAX_ARTISTS)) {
     const name = typeof a?.name === "string" ? a.name.trim().slice(0, 300) : "";
     if (!name) continue;
@@ -249,7 +326,7 @@ Deno.serve(async (req) => {
     if (seen) {
       if (!seen.names.includes(name)) seen.names.push(name);
       if (!seen.track) seen.track = track;
-    } else asked.set(key, { names: [name], name, track });
+    } else asked.set(key, { names: [name], name, track, rank: offset + asked.size });
   }
 
   const genres: Record<string, Genres> = {};
@@ -273,33 +350,16 @@ Deno.serve(async (req) => {
     answer(row.name_key, row.genres ?? []);
   }
 
-  // A few of the missing ones, paced to MusicBrainz's limit and within the time budget; the rest wait
-  const fresh: Row[] = [];
-  let looked = 0, stop = false;
-  for (const [key, a] of asked) {
-    if (known.has(key)) continue;
-    if (stop || looked >= MAX_LOOKUPS || Date.now() - start > BUDGET_MS - LOOKUP_MS) {
-      pending.push(...a.names);
-      continue;
-    }
-    looked++;
+  // The rest go on the queue (or to its front, if they're there already)
+  const missing = [...asked].filter(([key]) => !known.has(key));
+  for (const [, a] of missing) pending.push(...a.names);
+  if (missing.length) {
     try {
-      const found = await lookup(a.name, a.track);
-      fresh.push({ name_key: key, name: a.name, ...found, fetched_at: new Date().toISOString() });
-      answer(key, found.genres);
+      await rpc("genre_enqueue", { p_artists: missing.map(([key, a]) => ({ key, name: a.name, track: a.track, rank: a.rank })) });
     } catch (err) {
-      // Not stored, so it's asked again; over MusicBrainz's limit, nothing more is asked this time
-      console.error(a.name, err);
-      if (err instanceof Busy) stop = true;
-      pending.push(...a.names);
+      // They're still pending, and queued when the page asks again
+      console.error(err);
     }
-  }
-
-  try {
-    await writeRows(fresh);
-  } catch (err) {
-    // The answers still go back; they're looked up again next time
-    console.error(err);
   }
   return json({ genres, pending });
 });

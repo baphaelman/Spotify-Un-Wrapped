@@ -2,9 +2,10 @@
 # genres already there: the artists in a streaming history (the latest year's first, then all time), then the
 # community pool's top artists. MusicBrainz and Last.fm only, through the function; never Spotify.
 #   python3 dev/prefill_genres.py [data_dir]      (default: ../spotify/datas/Spotify Extended Streaming History)
-# Takes about two seconds an artist the table doesn't know yet (MusicBrainz allows one request a second). Safe to
-# stop and rerun: what's already stored comes back at once.
-import json, re, subprocess, sys, time, urllib.request
+# It only hands the names to the function's queue, in that order, which takes a few seconds; the worker then looks
+# them up at about one artist every two seconds (MusicBrainz allows one request a second), with names visitors are
+# asking about going first. Rerun it to see how many are answered so far.
+import json, re, subprocess, sys, urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -56,30 +57,14 @@ for a, t in pool:
         order[a] = t
 print(f"community ({stats.get('contributors')} contributors): {added} more artists", flush=True)
 
-# Ask in batches: names the table knows come back at once, and the function looks up about ten a request
+# Hand everything to the queue, a batch at a time and in order; names the table knows come back at once
 todo = [{"name": a, "track": t} if t else {"name": a} for a, t in order.items()]
-found = none = 0
-stalls, start = 0, time.time()
-while todo and stalls < 8:
-    batch = todo[:100]
-    try:
-        j = post("functions/v1/genres", {"artists": batch})
-    except Exception as e:
-        print(f"  request failed: {e}", flush=True)
-        stalls += 1
-        time.sleep(min(60, 5 * 2 ** stalls))
-        continue
+found = none = pending = 0
+for i in range(0, len(todo), 100):
+    j = post("functions/v1/genres", {"artists": todo[i:i + 100], "offset": i})
     got = j.get("genres", {})
     found += sum(1 for g in got.values() if g)
     none += sum(1 for g in got.values() if not g)
-    pending = set(j.get("pending", []))
-    # Answered names are done; pending ones go to the back
-    todo = todo[100:] + [a for a in batch if a["name"] in pending]
-    stalls = 0 if len(got) else stalls + 1
-    done = found + none
-    if done and (done % 50 < len(got) or not todo):
-        print(f"  {done}/{len(order)} answered ({found} with genres, {none} none), {len(todo)} to go, {(time.time() - start) / 60:.0f} min", flush=True)
-    if not got:
-        time.sleep(min(60, 2 * 2 ** stalls))
+    pending += len(j.get("pending", []))
 
-print(f"done: {found} with genres, {none} with none, {len(todo)} left unanswered, {(time.time() - start) / 60:.0f} min", flush=True)
+print(f"{found} with genres, {none} with none, {pending} queued (about {pending * 2 / 60:.0f} min for the worker)", flush=True)
