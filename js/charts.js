@@ -500,7 +500,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // any band is lit the rest dim slightly (t.shade.dim); with none lit, every band has its resting tint
   const bandFill = (k, lit) =>
     mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band);
-  // Hours: lit lines thicken and the rest fade, and only a lit line gets a faint fill. The fill is the same
+  // Hours: pinned lines are thicker; lit lines (pinned or hovered) stay while the rest fade, and only a lit line gets a faint fill. The fill is the same
   // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color. Sharing the
   // color means a morph only changes opacity: tweening a band's opaque tint to the artist's full color at
   // low opacity would pass through a stronger fill than either end.
@@ -514,8 +514,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const holdFill = morph && !share && st.mode === "share";
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
   const restWidth = isStrip ? 1.5 : 2; // the strip's lines are finer
-  const lineLook =(k, lit) => ({
-    width: lit.has(k) ? restWidth + 1 : restWidth,
+  // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
+  const lineLook = (k, lit) => ({
+    width: base.has(k) ? restWidth + 1 : restWidth,
     opacity: (!share && k === otherIdx) || !visible(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
@@ -538,7 +539,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const partLine = (k, j, lit) => {
     const hot = isHot(k, j) || (share && isHot(k, j + 1));
     return {
-      width: hot ? 2 : share ? 1 : lit.has(k) ? 1.5 : 1.25,
+      width: hot ? 2 : share ? 1 : base.has(k) ? 1.5 : 1.25,
       opacity: !partShown(k, j) ? 0 : hot ? 1 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
     };
   };
@@ -581,10 +582,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
-        // hand instead (see focusBand below). Hours mode: built-in emphasis on the hovered line.
+        // hand instead (see focusBand below). Hours mode: the series are silent, so this never fires; it keeps
+        // the line's width, since hover only shades a line (focusLine) and only a pin thickens it.
         emphasis: share
           ? { disabled: true, areaStyle: null, lineStyle: null }
-          : { disabled: false, focus: "series", areaStyle: null, lineStyle: { width: 3 } },
+          : { disabled: false, focus: "series", areaStyle: null, lineStyle: null },
         blur: share
           ? { areaStyle: null, lineStyle: null }
           : { areaStyle: null, lineStyle: { opacity: hide ? 0 : 0.2 } },
@@ -875,7 +877,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     }, undefined, FADE_MS);
     clipEdges();
   };
-  // Hours mode: thicken one line and fade the rest, by restyling directly (ECharts' own blur state is
+  // Hours mode: shade one line (its faint fill) and fade the rest, by restyling directly (ECharts' own blur state is
   // cleared on every pointer move over empty plot space, which is all of it once lines are silent).
   // Only a lit line gets a faint fill (hoursFillOpacity); nothing is filled at rest.
   const focusLine = (k) => {
