@@ -685,6 +685,10 @@ dialog pre {
   margin-left: 6px;
 }
 .toplist .bar.muted-bar { background: var(--other); }
+/* The page's last card: every item of the view. Ranks run to five digits, so their column fits the longest */
+.ranking li { grid-template-columns: var(--rank-w, 2ch) 1fr auto; }
+.ranking-more { display: block; margin: 12px auto 0; }
+.ranking-more[hidden] { display: none; }
 /* A clear top and bottom border keeps adjacent tinted rows apart without changing the row pitch */
 .toplist li { position: relative; border-radius: 8px; margin: 0 -8px; padding: 5px 8px; border-block: 1px solid transparent; background-clip: padding-box; }
 .toplist li .name small { color: var(--text-muted); }

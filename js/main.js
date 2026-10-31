@@ -17,6 +17,7 @@ import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, pai
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
+import { paintRanking } from "./ranking.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
@@ -392,6 +393,7 @@ function renderDependents() {
   const plays = shownPlays();
   paintMonthly(plays);
   paintClock(plays);
+  paintRanking(plays);
   paintFocus();
 }
 
