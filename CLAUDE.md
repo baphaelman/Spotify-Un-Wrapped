@@ -100,12 +100,17 @@ All in `js/` unless noted. Read a file's own comments for the details.
   that lights the real control while a guide row is hovered.
 - `theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark flip.
 - `brush.js`: the sticky bar's timeline and its draggable window. It owns no state beyond the window.
+- `views.js`: the plays as each view (Genres, Artists, Albums, Tracks) sees them (`keyedPlays`): the view's item in
+  `artist`, the real artist in `by`, and what each item is called and pictured by.
+- `genres.js`, `families.js`: the Genres view's data: each artist's genres from our `genres` edge function, and the
+  broad families they're grouped into (see Genres below).
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
 - `covers.js`: the pictures in the mix's key (see Pictures below).
 - `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).
+- `feedback.js`: the "Missing something?" requests, and the owner's inbox (open the site with `#inbox`).
 - `dev/`: test tools (see Testing). `docs/`: the long-form rules this file points to.
 
-**Keep imports one-way:** `state.js`, then `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
+**Keep imports one-way:** `state.js`, then `views.js`, `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
 then `main.js`. Each imports only from modules before it; a call the other way goes through `hooks`, which
 `main.js` fills at startup.
 
@@ -187,7 +192,9 @@ hover are hand-built around ECharts quirks. The rules that reach beyond the char
 - **Supabase project `qvsoxqeuvpnryitechsf`.** The publishable key in `js/config.js` is meant to be
   public.
 - **The browser can only call these functions:** `submit_summary`, `delete_summary`, `is_shared`,
-  `community_stats` and `artist_ranks`. RLS is on with no policies, so direct table access is refused.
+  `community_stats` and `artist_ranks`, plus the feedback ones (`submit_feedback`, and `list_feedback`,
+  `set_feedback_done`, `delete_feedback`, which need the owner's admin key). RLS is on with no policies, so direct
+  table access is refused.
 - **The shared summary** (`summary.js`) holds totals, the top 500 artists and tracks with hours, and
   the 168-cell clock. Nothing else leaves the browser.
 - **Submission key:** sha256 of the user's first 200 plays. Re-uploading replaces the old summary, and
@@ -198,6 +205,20 @@ hover are hand-built around ECharts quirks. The rules that reach beyond the char
   up.
 - **Fake data:** `python3 dev/seed_community.py seed|cleanup` adds or removes 12 fake contributors
   (keys from `"synthetic-test-<i>"`). `cleanup` never touches real submissions.
+
+## Genres
+
+**Read `docs/genres.md` before touching the Genres view, `genres.js` or `supabase/functions/genres`.** The rules
+that reach beyond it:
+
+- **Genres never cost Spotify calls.** They come from MusicBrainz (Last.fm as a fallback) through the `genres` edge
+  function, which answers from the shared `artist_genres` table and queues unknown names (`genre_queue`, worked by
+  pg_cron once a minute). Only that worker calls MusicBrainz.
+- **Artists with no genre (yet) are left out of the Genres view entirely,** so no graph, list, key or search has
+  them. A genre's band splits into its artists.
+- **Testing without the network:** `dev/harness.py` seeds the page's genre cache from `dev/genre_cache.json` when
+  it exists (written by `dev/genre_coverage.py`, gitignored), and `OFFLINE=1 python3 dev/shot.py ...` cuts the page
+  off from Supabase.
 
 ## Testing
 
