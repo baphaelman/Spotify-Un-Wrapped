@@ -157,45 +157,49 @@ function partsOf(artists, kind) {
   return agg.topParts(rangePlays(), artists, kind, artists.filter((a) => !off.has(a)));
 }
 
-// The brush's backdrop: the rolling chart's own data over the whole history, in miniature (see
-// brush.setBrushBands). Same artists, colors and stacking, with deselected artists left out, and lit
-// (pinned, or hovered anywhere) artists strong while the rest dim, as in the chart.
+// The brush's backdrop: the view's top 10 of all time over the whole history, in miniature (see
+// brush.setBrushBands). It never changes with the period, the window or the chart's artists, so its bands and its
+// ends hold still. Artists in the chart (and shown) take their color from it; the rest are gray. Lit (pinned, or
+// hovered anywhere) artists are strong while the rest dim, as in the chart.
+const BRUSH_ARTISTS = 10;
+const BRUSH_WINDOW = 30; // days, for the backdrop's own rolling average
 let brushFocus = null; // the artist lit by hover, in the chart, a legend or a list
 let brushMemo = null;
 export let brushMorph = null; // set while a preset or step renders: the new bands wait for the window, then morph in
-// raw: another rolling result to draw instead of the chart's (the end of a window sweep); morph: see setBrushBands
-export function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
-  if (!raw || !state.chartNames || !raw.dates.length) return;
-  if (brushMemo?.raw !== raw) brushMemo = { raw, data: agg.blur(raw, 12) };
-  const { dates, share } = brushMemo.data;
-  const names = $("include-other").checked ? [...state.chartNames, "Everyone else"] : state.chartNames;
-  // Deselected artists stay as bands with no thickness, so showing or hiding one morphs
-  const hidden = names.map((a) => state.hidden.includes(a));
-  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && names.some((n, i) => n === a && !hidden[i])));
-  const total = dates.map((_, k) => names.reduce((t, _n, i) => t + (hidden[i] ? 0 : share[i][k] ?? 0), 0));
-  let acc = new Float64Array(dates.length);
-  const bands = names.map((_n, i) => {
-    const lo = Array.from(acc);
-    if (!hidden[i]) acc = acc.map((a, k) => a + (share[i][k] ?? 0));
-    const frac = (v, k) => (share[i][k] == null || total[k] <= 0 ? null : v / total[k]);
-    const hi = Array.from(acc, frac);
-    return {
-      lo: lo.map(frac),
-      hi,
-      color: names[i] === "Everyone else" ? "var(--other)" : `var(--series-${state.colorSlots.get(names[i]) + 1})`,
-      look: hidden[i] ? "hidden" : lit.has(names[i]) ? "lit" : lit.size ? "dim" : "rest",
-    };
-  });
-  // Without "Everyone else" its band stays on top with no thickness, so toggling it morphs
-  if (!$("include-other").checked) {
-    const top = total.map((t) => (t > 0 ? 1 : null));
-    bands.push({ lo: top, hi: top, color: "var(--other)", look: "hidden" });
+// morph: see setBrushBands (the first argument, the chart's data, is no longer read: the backdrop has its own)
+export function paintBrush(_raw, morph = brushMorph) {
+  if (!state.plays?.length || !state.chartNames) return;
+  if (brushMemo?.plays !== state.plays) {
+    const names = agg.topArtists(state.plays, BRUSH_ARTISTS).map((a) => a.name);
+    const raw = agg.rolling(state.plays, names, BRUSH_WINDOW, false);
+    brushMemo = { plays: state.plays, names, raw, data: agg.blur(raw, 12), bands: null };
   }
-  const days = dates.map(agg.dayIndex);
-  // The timeline begins where the drawn artists' listening does, not where the chart's data does (that's the
-  // same for every artist set, so charts can morph), so a smaller window can cut off more
-  const lead = Math.max(0, agg.leadIn(dates.map((_, k) => names.reduce((t, _n, i) => t + (raw.hours[i][k] ?? 0), 0))));
-  setBrushBands({ start: Math.max(extent().lo, days[lead]), end: days[days.length - 1], days, bands }, morph);
+  const { names, raw, data } = brushMemo;
+  const { dates, share } = data;
+  if (!dates.length) return;
+  // The edges are the same every time, so they're worked out once
+  if (!brushMemo.bands) {
+    const total = dates.map((_, k) => names.reduce((t, _n, i) => t + (share[i][k] ?? 0), 0));
+    let acc = new Float64Array(dates.length);
+    const edges = names.map((_n, i) => {
+      const lo = Array.from(acc);
+      acc = acc.map((a, k) => a + (share[i][k] ?? 0));
+      const frac = (v, k) => (share[i][k] == null || total[k] <= 0 ? null : v / total[k]);
+      return { lo: lo.map(frac), hi: Array.from(acc, frac) };
+    });
+    const days = dates.map(agg.dayIndex);
+    const lead = Math.max(0, agg.leadIn(dates.map((_, k) => names.reduce((t, _n, i) => t + (raw.hours[i][k] ?? 0), 0))));
+    brushMemo.bands = { edges, days, start: Math.max(extent().lo, days[lead]), end: days[days.length - 1] };
+  }
+  const { edges, days, start, end } = brushMemo.bands;
+  const shown = new Set(state.chartNames.filter((a) => !state.hidden.includes(a) && state.colorSlots.has(a)));
+  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && shown.has(a)));
+  const bands = names.map((n, i) => ({
+    ...edges[i],
+    color: shown.has(n) ? `var(--series-${state.colorSlots.get(n) + 1})` : "var(--other)",
+    look: lit.has(n) ? "lit" : lit.size ? "dim" : "rest",
+  }));
+  setBrushBands({ start, end, days, bands }, morph);
 }
 
 // When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
