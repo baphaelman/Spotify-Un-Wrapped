@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
@@ -502,12 +502,11 @@ for (const id of ["n-artists", "window", "include-other"]) {
       if ($(id)._glide && $(id)._glideTo === to) return; // already on its way there
     }
     cancelAnimationFrame(pending);
-    // The artist-count slider re-renders continuously as it drags, so it doesn't animate
+    // A new artist count morphs too: artists grow in or shrink away (each step of a drag carries on from the last)
     pending = requestAnimationFrame(() => {
       if (id === "window") return sweepWindow(true, to);
-      const other = id === "include-other";
-      brushMorph = other ? { ms: MORPH_MS } : null; // the bar's backdrop morphs with the chart
-      renderRollingChart(currentZoom($("chart-rolling")), other);
+      brushMorph = { ms: MORPH_MS }; // the bar's backdrop morphs with the chart
+      renderRollingChart(currentZoom($("chart-rolling")), dur(MORPH_MS));
       brushMorph = null;
     });
   });
@@ -533,7 +532,8 @@ export function pin(name) {
   if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
   state.pinned = [...state.pinned, name];
   brushMorph = { ms: MORPH_MS };
-  renderRollingChart(currentZoom($("chart-rolling")));
+  // The chart morphs with the bar's backdrop: a pin's outline and shade fade in, an artist new to it grows in
+  renderRollingChart(currentZoom($("chart-rolling")), dur(MORPH_MS));
   brushMorph = null;
 }
 
@@ -545,7 +545,7 @@ function unpin(name) {
   // rebuilt unpinned: otherwise they'd show unhovered for a beat before the hover reaches them
   focusArtist($("chart-rolling"), name);
   holdFocus($("chart-rolling"), name);
-  renderRollingChart(currentZoom($("chart-rolling")));
+  renderRollingChart(currentZoom($("chart-rolling")), dur(MORPH_MS));
   holdFocus($("chart-rolling"), null);
   brushMorph = null;
 }

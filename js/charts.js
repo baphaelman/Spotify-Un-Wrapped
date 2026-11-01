@@ -23,8 +23,8 @@ function tokens() {
     seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
     // Rolling chart fills, set per theme: the share of the artist's color mixed into the surface for a
     // band at rest, a hovered band, and the other bands while one is hovered; and the opacity under a
-    // hovered hours line
-    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), dim: +v("--shade-dim"), line: +v("--shade-line") },
+    // hovered hours line, and under a pinned one
+    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), dim: +v("--shade-dim"), line: +v("--shade-line"), linePin: +v("--shade-line-pin") },
   };
 }
 
@@ -212,6 +212,171 @@ function stillChart(c, st) {
   }
 }
 
+// A change of artists (a pin from outside the chart, the artist count, a new period's) as things coming and going
+// rather than series morphing into one another. Series can't tween in or out, and they're matched by position, so
+// the change is drawn on the union of the old and new artists, in up to three steps:
+//  1. The old picture again, on the union (instantly, so nothing moves): newcomers are there with no thickness
+//     (share) or drawn at their final values but clipped away to the plot's left edge (hours).
+//  2. The morph: share bands grow from no thickness or shrink to none; hours lines that arrive draw in from left to
+//     right (paintReveals) while those that leave sink to 0 and fade out.
+//  3. Once it's done, the new artists alone (instantly, the same picture).
+// Share mode needs the artists who stay to keep their order (a band can't pass through another); a new period's,
+// re-ranked, morphs as before. Step 1 is skipped when the union is what's on screen already (artists only leaving),
+// and an interrupted change starts from where its bands had got to (flightData), so a dragged artist count keeps up.
+// Returns true if it handled this render.
+let artistCtx = null; // set while those steps draw: { report, strip, fade, yMax } (see renderRolling)
+const SEP = "\u0000";
+function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth) {
+  const st = rollingState.get(el);
+  if (!morph || morph.pan || morph.live || artistCtx || !st?.args || !data.share.length) return false;
+  if (st.mode !== mode || st.hasOther !== hasOther || st.window !== window) return false;
+  const A = artistsOf(st.names, hasOther), B = artistsOf(names, hasOther);
+  if (A.join(SEP) === B.join(SEP)) return false;
+  const { ms: rawMs, easing = EASE_IN_OUT.echarts } = typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph };
+  const ms = dur(rawMs);
+  const oldData = flightData(st) ?? st.args[0];
+  if (!ms || oldData.dates.length !== data.dates.length || !!oldData.parts !== !!data.parts) return false;
+  const inA = new Set(A), inB = new Set(B);
+  const share = mode === "share";
+  let U;
+  if (share) {
+    if (A.filter((n) => inB.has(n)).join(SEP) !== B.filter((n) => inA.has(n)).join(SEP)) return false;
+    // Each leaver keeps its place among the artists who stay, each newcomer takes its own
+    U = [];
+    for (let i = 0, j = 0; i < A.length || j < B.length;) {
+      if (i < A.length && !inB.has(A[i])) U.push(A[i++]);
+      else if (j < B.length && !inA.has(B[j])) U.push(B[j++]);
+      else (U.push(A[i]), i++, j++);
+    }
+  } else U = [...A, ...B.filter((n) => !inA.has(n))]; // lines overlap, so order hardly shows: keep the old seats
+  const uNames = hasOther ? [...U, "Everyone else"] : U;
+  const arrivals = B.filter((n) => !inA.has(n));
+  const leavers = A.filter((n) => !inB.has(n));
+  const iOld = new Map(st.names.map((n, i) => [n, i]));
+  const iNew = new Map(names.map((n, i) => [n, i]));
+  const oldSlots = st.args[7];
+  const uSlots = uNames.map((n) => (iNew.has(n) ? slots?.[iNew.get(n)] : oldSlots?.[iOld.get(n)]));
+  const zero = (row) => row.map((v) => (v == null ? null : 0));
+  // Each union artist's rows from the old data (before) or the new (after); someone not in it gets none
+  const build = (before) => {
+    const pick = (old, fresh, n, flat) => {
+      const from = before ? (iOld.has(n) ? [old, iOld.get(n)] : [fresh, iNew.get(n)]) : iNew.has(n) ? [fresh, iNew.get(n)] : [old, iOld.get(n)];
+      const row = from[0][from[1]];
+      const gone = before ? !iOld.has(n) : !iNew.has(n);
+      return gone && flat ? (Array.isArray(row?.[0]) ? row.map(zero) : row && zero(row)) : row;
+    };
+    const rows = (key, flat) => uNames.map((n) => pick(oldData[key], data[key], n, flat));
+    const partRows = (key) => uNames.map((n) => pick(oldData.parts[key], data.parts[key], n, true));
+    // Share: whoever isn't in the picture has no thickness. Hours: a newcomer is drawn at its values (clipped
+    // away until it draws in), a leaver lies on 0 (fading out)
+    return {
+      ...data,
+      share: rows("share", share || !before),
+      hours: rows("hours", share || !before),
+      parts: data.parts && { ...data.parts, names: uNames.map((n) => pick(oldData.parts.names, data.parts.names, n, false)), share: partRows("share"), hours: partRows("hours") },
+    };
+  };
+  const before = build(true), after = build(false);
+  const c = instances.get(el);
+  const outer = artistCtx;
+  try {
+    if (!share && arrivals.length) {
+      const R = reveals.get(el) ?? new Map();
+      reveals.set(el, R);
+      const t0 = performance.now();
+      for (const n of arrivals) R.set(n, { t0, ms, ease: easing === EASE_IN_OUT.echarts ? easeInOut : (x) => x });
+    }
+    if (uNames.join(SEP) !== st.names.join(SEP)) {
+      const yMax = share ? null : c?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
+      // Lines already leaving when this change interrupted the last one carry on gone
+      const fade = new Set(st.flight?.fade ?? []);
+      artistCtx = { report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null };
+      renderRolling(el, before, uNames, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, uSlots, st.args[8]);
+    }
+    artistCtx = { report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers) };
+    renderRolling(el, after, uNames, window, zoom, mode, hasOther, { ms, easing }, pins, uSlots, smooth);
+  } finally {
+    artistCtx = outer;
+  }
+  const now = rollingState.get(el);
+  now.flight = { names: uNames.join(SEP), from: before, to: after, t0: performance.now(), ms, fade: share ? [] : leavers };
+  now.final = [data, names, slots];
+  if (uNames.join(SEP) !== names.join(SEP)) {
+    const token = now.renderToken;
+    setTimeout(() => {
+      const st = rollingState.get(el);
+      if (st?.renderToken !== token) return; // something re-rendered since
+      // The same picture with the new artists alone; whatever's under the pointer stays lit
+      artistCtx = { report: B, strip: null };
+      st.keepFocus = st.focused;
+      try {
+        renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth);
+      } finally {
+        artistCtx = outer;
+        st.keepFocus = null;
+        const fresh = rollingState.get(el);
+        if (fresh) fresh.keepFocus = null;
+      }
+    }, ms);
+  }
+  return true;
+}
+
+// The rows on screen now, partway through an artist change: each band's values blended along the morph's curve, so
+// a change that interrupts it starts from what's drawn rather than from where it was going
+function flightData(st) {
+  const F = st.flight;
+  if (!F || F.names !== st.names.join(SEP)) return null;
+  const p = (performance.now() - F.t0) / F.ms;
+  if (!(p < 1)) return null;
+  const e = easeInOut(Math.max(0, p));
+  const lerp = (a, b) => (Array.isArray(a?.[0]) ? a.map((r, j) => lerp(r, b[j])) : a && a.map((v, i) => (v == null || b[i] == null ? v : v + (b[i] - v) * e)));
+  const rows = (a, b) => a.map((r, k) => lerp(r, b[k]));
+  const { from, to } = F;
+  return {
+    ...to,
+    share: rows(from.share, to.share),
+    hours: rows(from.hours, to.hours),
+    parts: to.parts && { ...to.parts, share: rows(from.parts.share, to.parts.share), hours: rows(from.parts.hours, to.parts.hours) },
+  };
+}
+
+// Hours lines drawing in from left to right (an artist arriving): each one's line and fill are clipped to a rect
+// that grows across the plot along the morph's curve. Kept per chart by artist, so a re-render partway (which can
+// replace the shapes) clips the new ones at the same point and the line carries on drawing in. Reaches into
+// ECharts internals like setOptionFaded.
+const reveals = new WeakMap(); // el → Map artist → { t0, ms, ease }
+function paintReveals(el, c) {
+  const R = reveals.get(el);
+  if (!R?.size) return;
+  cancelAnimationFrame(R.raf);
+  const rect = c.getModel().getComponent("grid", 0)?.coordinateSystem?.getRect();
+  const now = performance.now();
+  const PAD = 8; // past the plot's edges, so line caps and strokes aren't cut
+  for (const m of c.getModel().getSeries()) {
+    if (m.id[0] !== "s" || !R.has(m.name)) continue;
+    const r = R.get(m.name);
+    const p = Math.min(1, (now - r.t0) / r.ms);
+    const view = c.getViewOfSeriesModel(m);
+    for (const shape of [view?._polyline, view?._polygon]) {
+      if (!shape) continue;
+      if (p >= 1 || !rect) {
+        if (shape.__reveal) shape.removeClipPath();
+        shape.__reveal = null;
+        continue;
+      }
+      if (!shape.__reveal || shape.getClipPath() !== shape.__reveal) {
+        shape.__reveal = new echarts.graphic.Rect({ shape: { x: rect.x - PAD, y: rect.y - rect.height, width: 0, height: rect.height * 3 } });
+        shape.setClipPath(shape.__reveal);
+      }
+      shape.__reveal.setShape({ width: (rect.width + 2 * PAD) * r.ease(p) });
+      shape.markRedraw();
+    }
+  }
+  for (const [n, r] of R) if (now - r.t0 >= r.ms) R.delete(n);
+  if (R.size) R.raf = requestAnimationFrame(() => paintReveals(el, c));
+}
+
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
 export function setZoom(el, [start, end]) {
   const c = instances.get(el);
@@ -346,7 +511,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     prev.panRaf = 0;
     if (!morph?.pan) prev.panEnd?.(); // whatever rides the pan lands with it (a newer pan carries on from where it was)
   }
-  // Hours mode: lines are matched by series id (their rank), so an artist who moves up or down the ranking
+  // New artists (a pin, the artist count, a new period's): they grow in and the leavers shrink away
+  if (withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth)) return;
+  // Hours mode (a live morph, which withArtistMorph leaves alone): lines are matched by series id (their rank), so an artist who moves up or down the ranking
   // would tween through a neighbour's line, and one who stays would seem to regrow. Seat the drawn lines by
   // artist first (an instant, invisible re-draw), so each returning artist's line is its own series and only
   // the artists who change places move into each other's. Share mode's bands are ranked, so it can't.
@@ -426,11 +593,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     };
     rollingState.set(el, st);
   }
+  // An artist change in flight (withArtistMorph) is over once anything else draws
+  if (!artistCtx) st.final = st.flight = null;
   st.hasOther = hasOther;
   st.window = window;
   st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
+  // Hours: a line leaving in an artist change (withArtistMorph) sinks to 0 and fades out as it goes
+  const fading = (s) => !!artistCtx?.fade?.has(names[s]);
 
   // Cumulative share over visible series, rescaled by the visible total at each date so the bands always
   // fill the plot, as if the hidden artists had never played; a hidden series collapses onto the band below it
@@ -516,12 +687,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const bandFill = (k, lit) =>
     mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band);
   // Hours: pinned lines are thicker; lit lines (pinned or hovered) stay while the rest fade, and only a lit line gets a faint fill. The fill is the same
-  // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color. Sharing the
-  // color means a morph only changes opacity: tweening a band's opaque tint to the artist's full color at
-  // low opacity would pass through a stronger fill than either end.
+  // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color (t.shade.linePin, deeper,
+  // under a pinned line: hover shades, a pin deepens it). Sharing the color means a morph only changes opacity:
+  // tweening a band's opaque tint to the artist's full color at low opacity would pass through a stronger fill than either end.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
-  const hoursArea = (k, lit) => (k !== otherIdx && lit.has(k) ? hoursFillOpacity : 0);
+  const hoursPinOpacity = t.shade.linePin / t.shade.hover;
+  // (a line leaving in an artist change, fading, has none)
+  const hoursArea = (k, lit) =>
+    k === otherIdx || fading(k) || !lit.has(k) ? 0 : base.has(k) ? hoursPinOpacity : hoursFillOpacity;
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
@@ -532,7 +706,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
   const lineLook = (k, lit) => ({
     width: base.has(k) ? restWidth + 1 : restWidth,
-    opacity: (!share && k === otherIdx) || !visible(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
+    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
   const partShown = (k, j) => !!parts && visible(k) && j < partRows(k).length;
@@ -833,8 +1007,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         type: "value",
         min: 0,
         // Function form in both modes so a merge always replaces the previous mode's bound
-        // (data.free: the top of what's in the range, as the filtering would have given it)
-        max: share ? () => 1 : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => Math.max(1, Math.ceil(v.max)),
+        // (data.free: the top of what's in the range, as the filtering would have given it; held where it is while an
+        // artist change redraws what's on screen, see withArtistMorph)
+        max: share ? () => 1 : artistCtx?.yMax != null ? () => artistCtx.yMax : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => Math.max(1, Math.ceil(v.max)),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
         splitNumber: isStrip ? 2 : 4,
@@ -858,6 +1033,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     easing
   );
   clipEdges();
+  paintReveals(el, c);
   if (liveFrom) {
     const L = (st.live = { from: liveFrom, to: st.values, t0: performance.now(), ms });
     paintLive(c, st); // before the new values are ever painted
@@ -875,8 +1051,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (st.renderToken !== renderToken) return;
       setOptionFaded(c, {
         animationDurationUpdate: 0,
-        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursFillOpacity } })),
-      }, undefined, 300);
+        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursPinOpacity } })),
+      }, undefined, dur(FADE_MS));
     }, ms);
   }
 
@@ -1028,6 +1204,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     st.keepFocus = names[hit.k];
     pins.toggle(names[hit.k]);
     st.keepFocus = null;
+    // (a change of artists gave the chart a new state, which carried the artist over)
+    const now = rollingState.get(el);
+    if (now) now.keepFocus = null;
     retip(e.offsetX, e.offsetY);
   };
   zr.on("mousemove", st.zrMove);
@@ -1035,9 +1214,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   zr.on("click", st.zrClick);
 
   // Showing or hiding artists re-stacks the bands around them, as a morph
+  // (mid artist change, re-stacks the artists it's going to, rather than keeping the leavers for good)
   const restack = () => {
     const [d, n, w, , m, o, p, sl, sm] = st.args;
-    renderRolling(el, d, n, w, currentZoom(el), m, o, true, p, sl, sm);
+    const [fd, fn, fsl] = st.final ?? [d, n, sl];
+    renderRolling(el, fd, fn, w, currentZoom(el), m, o, true, p, fsl, sm);
   };
   // Show or hide an artist as the legend's box does. Not through ECharts' legendToggleSelect: that redraws the
   // chart at once with the artist toggled in its stored styles, so the colors flicker before the morph takes over
@@ -1056,23 +1237,31 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const hidden = hiddenNames.get(el) ?? new Set();
   for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
   hiddenNames.set(el, hidden);
-  selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
+  // (mid artist change, the artists it's changing to)
+  selectionHooks.get(el)?.((artistCtx?.report ?? artistsOf(names, hasOther)).filter((n) => st.selected[n] === false));
 
   // The hours strip draws the same render, with the same artists shown. Well off screen, it catches up (at once)
-  // as it comes near, rather than on every render (see putOff)
+  // as it comes near, rather than on every render (see putOff). Mid artist change (withArtistMorph) it draws the
+  // artists the change is going to, once, rather than each step's
   const strip = stripOf.get(el);
+  const sa = artistCtx ? artistCtx.strip : { data, names, slots };
   const drawStrip = (zoom, morph) => {
     hiddenNames.set(strip, new Set(hidden));
     const sst = rollingState.get(strip);
-    if (sst && sst.names.join("\u0000") === names.join("\u0000")) sst.selected = { ...st.selected };
+    if (sst && sst.names.join("\u0000") === sa.names.join("\u0000")) sst.selected = { ...st.selected };
     // An artist kept lit through a click on the main chart stays lit in the strip too
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
     // without the albums or songs: in thin lines they'd only tangle
-    renderRolling(strip, { ...data, parts: undefined }, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
-    if (keep) sst.keepFocus = null;
+    renderRolling(strip, { ...sa.data, parts: undefined }, sa.names, window, zoom, "hours", hasOther, morph, pins, sa.slots, smooth);
+    if (keep) {
+      sst.keepFocus = null;
+      // (a change of artists gave the strip a new state, which carried the artist over)
+      const now = rollingState.get(strip);
+      if (now) now.keepFocus = null;
+    }
   };
-  if (strip && !putOff(strip.closest(".card"), () => drawStrip(currentZoom(el) ?? zoom, false))) drawStrip(zoom, morph);
+  if (strip && sa && !putOff(strip.closest(".card"), () => drawStrip(currentZoom(el) ?? zoom, false))) drawStrip(zoom, morph);
 }
 
 // The names a rolling chart keeps hidden, including ones not in it now (they stay hidden when they come back),

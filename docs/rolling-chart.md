@@ -28,6 +28,13 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   A bigger window has fewer points, so the range shown shrinks with it: the window sweep moves the range on its
   own clock over one fixed, unfiltered set of points (`cutTo`, `data.free`), then hands over to the final chart's. Toggling
   "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
+- **A change of artists (a pin from outside the chart, the artist count, a new period's) comes and goes
+  (`withArtistMorph`).** It's drawn on the union of the old and new artists: the old picture again (instantly), then
+  the morph, then the new artists alone. Share bands grow from no thickness or shrink to none; an arriving hours
+  line draws in from left to right (`paintReveals`, a clip rect on its shapes) while a leaving one sinks to 0 and
+  fades. Share needs the artists who stay to keep their order, so a re-ranked period still morphs band into band.
+  An interrupted change starts from the rows on screen (`flightData`), so a dragged artist count keeps up.
+  Pins and the count pass a morph (`dur(MORPH_MS)`), so a pin's outline and shade fade in with the period bar's.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
 - **Colors follow the artist, not the stack position.** `assignSlots` in `rollingview.js` gives each artist a
