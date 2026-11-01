@@ -75,7 +75,7 @@ export const partOf = (kind) =>
 // A part is drawn when it's at least `cut` of the listening of the items shown (the chart's, less any deselected),
 // and the chart draws at most `cap` parts in all, the biggest across every band. So the fewer items are shown, the
 // finer the split: with one artist shown, every song that's `cut` of theirs, up to `cap`
-export const PARTS = { cap: 30, cut: 0.01 };
+export const PARTS = { cap: 40, cut: 0.01 };
 
 // For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band (see
 // PARTS), biggest first. `shown` is the items on screen (all of `artists` by default); an item not shown has none
