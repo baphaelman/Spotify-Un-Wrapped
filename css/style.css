@@ -39,11 +39,11 @@
   --seq-4: #a3b0b8;
   --seq-5: #f2f4f4;
   /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line, under a
-     pinned one (deeper than a hover's, and shared out when several are pinned), and the other bands while one is hovered */
+     pinned one (deeper than a hover's; overlapping pins just blend), and the other bands while one is hovered */
   --shade-band: 0.1;
   --shade-hover: 0.3;
   --shade-line: 0.05;
-  --shade-line-pin: 0.08;
+  --shade-line-pin: 0.09;
   --shade-dim: 0.03;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
@@ -80,7 +80,7 @@
   --shade-band: 0.2;
   --shade-hover: 0.4;
   --shade-line: 0.1;
-  --shade-line-pin: 0.14;
+  --shade-line-pin: 0.12;
   --shade-dim: 0.06;
 }
 

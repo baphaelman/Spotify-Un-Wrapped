@@ -598,7 +598,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const nSlots = data.parts && ms ? slotsMax(needSlots, hadSlots) : needSlots;
   const t = tokens();
   // (scaled by the tunables, see tune.js; all ×1 by default)
-  t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill };
+  t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill, linePin: t.shade.linePin * tune.lineFill };
   const c = chart(el);
   const share = mode === "share";
   const otherIdx = hasOther ? names.length - 1 : -1;
@@ -729,15 +729,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color (t.shade.linePin, deeper,
   // under a pinned line: hover shades, a pin deepens it). Sharing the color means a morph only changes opacity:
   // tweening a band's opaque tint to the artist's full color at low opacity would pass through a stronger fill than either end.
-  // Several pinned fills overlap, so they share the pin's depth out (by √pins), keeping every line under them
-  // readable; hovering a pinned line gives it the whole depth back.
+  // Pinned fills are faint enough to simply overlap; hovering a pinned line deepens its fill to twice that.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
-  const hoursPinFull = t.shade.linePin / t.shade.hover;
-  const hoursPinOpacity = hoursPinFull / Math.sqrt(Math.max(1, base.size));
+  const hoursPinOpacity = t.shade.linePin / t.shade.hover;
+  const hoursPinHot = Math.min(1, 2 * hoursPinOpacity);
   // (a line leaving in an artist change, fading, has none)
   const hoursArea = (k, lit, hot = null) =>
-    k === otherIdx || fading(k) || !lit.has(k) ? 0 : !base.has(k) ? hoursFillOpacity : k === hot ? hoursPinFull : hoursPinOpacity;
+    k === otherIdx || fading(k) || !lit.has(k) ? 0 : !base.has(k) ? hoursFillOpacity : k === hot ? hoursPinHot : hoursPinOpacity;
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
