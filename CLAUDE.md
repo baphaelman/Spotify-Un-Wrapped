@@ -27,7 +27,7 @@ a stale cached stylesheet or script. The files in git stay unstamped.)
 
 ## Working alongside other agents
 
-The owner runs up to three agents on this project at once. Each agent works on its own branch in its
+The owner often runs several agents on this project at once. Each agent works on its own branch in its
 own folder, so no agent sees another's half-finished edits.
 
 - **At the start of a task, call `EnterWorktree`** with a short name for the task (for example
