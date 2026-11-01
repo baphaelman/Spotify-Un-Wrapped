@@ -896,8 +896,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   let hotPart = null;
   const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
   // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
-  // for the biggest part (and less in a dimmed band)
-  const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
+  // for the biggest part (and less in a dimmed band), one depth per slot (MAX_PARTS)
+  const PART_DEPTH = [0.8, 0.62, 0.47, 0.35, 0.25, 0.17, 0.1, 0.04];
   const HOT_DEPTH = 1.6;
   const partShade = (k, j, w, depth = PART_DEPTH[j]) =>
     mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * tune.partDepth * Math.min(1, w / t.shade.band)));
@@ -1428,9 +1428,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   zr.on("click", st.zrClick);
 
   // Showing or hiding artists re-stacks the bands around them, as a morph
-  // (mid artist change, re-stacks the artists it's going to, rather than keeping the leavers for good)
+  // (mid artist change, re-stacks the artists it's going to, rather than keeping the leavers for good). The page
+  // can redraw instead (pins.restack, returning true), when the artists now shown call for other data: its albums
+  // or songs are picked beside the artists shown, so it reads the new selection from hiddenIn
   const restack = () => {
     const [d, n, w, , m, o, p, sl, sm] = st.args;
+    const hidden = hiddenNames.get(el) ?? new Set();
+    for (const name of n) st.selected[name] === false ? hidden.add(name) : hidden.delete(name);
+    hiddenNames.set(el, hidden);
+    if (!mainOf.has(el) && p?.restack?.()) return; // (the strip only ever follows the main chart)
     const [fd, fn, fsl] = st.final ?? [d, n, sl];
     renderRolling(el, fd, fn, w, currentZoom(el), m, o, true, p, fsl, sm);
   };

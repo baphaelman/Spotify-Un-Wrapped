@@ -72,34 +72,37 @@ export function topArtists(plays, n) {
 // plays carry their album and song as the albums and tracks views call them (views.js), told apart by artist.
 export const partOf = (kind) =>
   kind === "album" ? (p) => p.albumKey ?? (p.album || "Unknown album") : kind === "artist" ? (p) => p.by ?? p.artist : (p) => p.trackKey ?? p.track;
-const PART_OF_ITEM = 0.05; // of the item's own hours
-const PART_OF_ALL = 0.0015; // of all the listening in the plays
-export const MAX_PARTS = 4;
+// A part is drawn when it's at least PART_MIN of the listening of the items shown (the chart's, less any deselected),
+// so the fewer there are, the finer the split: with one artist shown, every song that's PART_MIN of theirs
+const PART_MIN = 0.01;
+export const MAX_PARTS = 8; // slots per band
 
 // For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band:
-// at least PART_OF_ITEM of the item's hours and PART_OF_ALL of everyone's, up to MAX_PARTS, biggest first
-export function topParts(plays, artists, kind) {
+// at least PART_MIN of the hours of `shown` (the items on screen, all of `artists` by default), up to MAX_PARTS,
+// biggest first. An item not shown has none (its band has no thickness)
+export function topParts(plays, artists, kind, shown = artists) {
   const subOf = partOf(kind);
   const want = new Set(artists);
+  const counted = new Set(shown);
   const by = new Map(); // item -> part -> ms
-  const own = new Map(); // item -> ms
   let total = 0;
   for (const p of plays) {
-    total += p.ms;
-    if (!want.has(p.artist)) continue;
+    if (counted.has(p.artist)) total += p.ms;
+    if (!want.has(p.artist) || !counted.has(p.artist)) continue;
     const name = subOf(p);
-    own.set(p.artist, (own.get(p.artist) ?? 0) + p.ms);
     if (name == null) continue;
     if (!by.has(p.artist)) by.set(p.artist, new Map());
     const m = by.get(p.artist);
     m.set(name, (m.get(name) ?? 0) + p.ms);
   }
   return artists.map((a) =>
-    [...(by.get(a) ?? [])]
-      .filter(([, ms]) => ms >= PART_OF_ITEM * own.get(a) && ms >= PART_OF_ALL * total)
-      .sort((x, y) => y[1] - x[1])
-      .slice(0, MAX_PARTS)
-      .map(([name]) => name)
+    total > 0
+      ? [...(by.get(a) ?? [])]
+          .filter(([, ms]) => ms >= PART_MIN * total)
+          .sort((x, y) => y[1] - x[1])
+          .slice(0, MAX_PARTS)
+          .map(([name]) => name)
+      : []
   );
 }
 

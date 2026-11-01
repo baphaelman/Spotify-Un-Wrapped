@@ -69,7 +69,10 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   of a fade is invisible, tween only opacity, or the color blend shows partway.
 
 - **Parts (Whole · Albums · Songs).** `data.parts` (from `agg.rolling`'s `split`) splits each band into up to
-  `MAX_PARTS` albums or songs, as series `p<n>_<j>` that exist only while split. In share mode they stack up from
+  `MAX_PARTS` albums or songs, as series `p<n>_<j>` that exist only while split. Which ones is relative to the artists
+  shown (`agg.topParts`: at least `PART_MIN` of their listening), so showing fewer artists, or deselecting some, splits the
+  rest more finely; when artists are shown or hidden the chart asks the page first (`pins.restack`), which redraws with the new parts
+  in the same morph instead of a plain re-stack. In share mode they stack up from
   the band's floor, each painting just above its band's z; in hours mode they're thin lines. Every slot always
   exists, an empty one with no thickness, so showing more or fewer of an artist's parts (pins, hover) is only a
   restyle. Turning the split on or off swells the parts up from the band's floor or shrinks them back

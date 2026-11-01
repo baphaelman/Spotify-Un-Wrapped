@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours and the clock).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -92,7 +92,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const grid = look?.grid ?? window;
   // Each artist's albums or songs, chosen from the period like the artists themselves
   const kind = splitKind();
-  const split = kind && { kind, names: agg.topParts(rangePlays(), artists, kind) };
+  const split = kind && { kind, names: partsOf(artists, kind) };
   const key = [state.dim, state.plays.length, window, grid, includeOther, ...artists, kind, JSON.stringify(split?.names)].join("\u0000");
   if (rawMemo?.key !== key) rawMemo = { key, raw: agg.rolling(state.plays, artists, window, includeOther, grid, split) };
   const raw = rawMemo.raw;
@@ -118,6 +118,13 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
     hide: (name) => toggleArtist($("chart-rolling"), name),
     openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
+    // Artists shown or hidden: if the rest now split into other albums or songs, the chart is drawn afresh with
+    // them, the bands and parts morphing together (the chart's selection is already set)
+    restack: () => {
+      if (!split || JSON.stringify(partsOf(artists, kind)) === JSON.stringify(split.names)) return false;
+      renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
+      return true;
+    },
   };
   mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
@@ -141,6 +148,13 @@ function cutTo(data, [lo, hi]) {
   const cut = (row) => row.slice(a, b);
   const parts = data.parts && { ...data.parts, hours: data.parts.hours.map((l) => l.map(cut)), share: data.parts.share.map((l) => l.map(cut)) };
   return { dates: cut(dates), hours: data.hours.map(cut), share: data.share.map(cut), parts, free: true };
+}
+
+// The albums or songs each of the chart's artists splits into: those big enough beside the artists shown, so
+// deselecting artists (or showing fewer) splits the rest more finely (agg.topParts)
+function partsOf(artists, kind) {
+  const off = new Set(hiddenIn($("chart-rolling")));
+  return agg.topParts(rangePlays(), artists, kind, artists.filter((a) => !off.has(a)));
 }
 
 // The brush's backdrop: the rolling chart's own data over the whole history, in miniature (see
