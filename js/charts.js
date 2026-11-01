@@ -119,6 +119,17 @@ const hiddenNames = new WeakMap();
 
 const artistsOf = (names, hasOther) => (hasOther ? names.slice(0, -1) : names);
 
+// Series ids belong to an artist, not a rank: each name a chart has drawn keeps its number for good (per chart), and
+// its band or line is s<n>, its outlines t<n> and b<n>, its parts p<n>_<j>. A merge then tweens each artist's own band
+// or line from where it was to where it goes, however the artists are re-ranked, rather than morphing one into another.
+const seriesNums = new WeakMap(); // el → Map name → n
+function seriesNum(el, name) {
+  let m = seriesNums.get(el);
+  if (!m) seriesNums.set(el, (m = new Map()));
+  if (!m.has(name)) m.set(name, m.size);
+  return m.get(name);
+}
+
 // A rolling chart's hours strip: a second chart (the Hours per week card), drawn in hours mode from the same
 // artists, that follows every render, zoom and hover of the main one (and lights the main one when hovered).
 // The main chart holds the legend selection and the pins; the strip copies them on each render.
@@ -166,9 +177,9 @@ function withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
     renderRolling(el, data, names, window, zoom, mode, true, ms, pins, slots, smooth);
   } else {
     renderRolling(el, flat(data), [...names, "Everyone else"], window, zoom, mode, true, ms, pins, slots, smooth);
-    const token = rollingState.get(el).renderToken;
+    const was = rollingState.get(el), token = was.renderToken;
     setTimeout(() => {
-      if (rollingState.get(el)?.renderToken !== token) return; // something re-rendered since
+      if (rollingState.get(el) !== was || was.renderToken !== token) return; // something re-rendered since
       renderRolling(el, data, names, window, currentZoom(el), mode, false, false, pins, slots, smooth);
     }, ms);
   }
@@ -192,8 +203,8 @@ function withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
     draw(data, ms);
   } else {
     draw(flat, ms);
-    const token = rollingState.get(el).renderToken;
-    setTimeout(() => rollingState.get(el)?.renderToken === token && draw(data, false), ms); // unless re-rendered since
+    const was = rollingState.get(el), token = was.renderToken;
+    setTimeout(() => rollingState.get(el) === was && was.renderToken === token && draw(data, false), ms); // unless re-rendered since
   }
   return true;
 }
@@ -212,71 +223,93 @@ function stillChart(c, st) {
   }
 }
 
-// A change of artists (a pin from outside the chart, the artist count, a new period's) as things coming and going
-// rather than series morphing into one another. Series can't tween in or out, and they're matched by position, so
-// the change is drawn on the union of the old and new artists, in up to three steps:
-//  1. The old picture again, on the union (instantly, so nothing moves): newcomers are there with no thickness
-//     (share) or drawn at their final values but clipped away to the plot's left edge (hours).
-//  2. The morph: share bands grow from no thickness or shrink to none; hours lines that arrive draw in from left to
-//     right (paintReveals) while those that leave sink to 0 and fade out.
+// A change of artists (a pin from outside the chart, the artist count, a new period's, a dragged period window's) as
+// things coming and going. Each artist has its own series (seriesNum), but a series can't tween in or out of
+// existence, so the change is drawn on the union of the old and new artists, in up to three steps:
+//  1. The old picture again, in the old order, with the newcomers added (instantly, so nothing moves): with no
+//     thickness (share), or drawn at their final values but clipped away to the plot's left edge (hours).
+//  2. The morph, in the new order with the leavers kept: share bands grow from no thickness, shrink to none, or
+//     travel to their new place in the stack (see strips); hours lines that arrive draw in from left to right
+//     (paintReveals) while those that leave sink to 0 and fade out, and the rest move to their new values.
 //  3. Once it's done, the new artists alone (instantly, the same picture).
-// Share mode needs the artists who stay to keep their order (a band can't pass through another); a new period's,
-// re-ranked, morphs as before. Step 1 is skipped when the union is what's on screen already (artists only leaving),
-// and an interrupted change starts from where its bands had got to (flightData), so a dragged artist count keeps up.
+// Step 1 is skipped when there are no newcomers. An interrupted change starts from where its bands had got to
+// (flightData), so a dragged artist count keeps up. A live morph (a dragged period window) has no step 1: its
+// newcomers grow from nothing as it moves (see liveFrom).
 // Returns true if it handled this render.
-let artistCtx = null; // set while those steps draw: { report, strip, fade, yMax } (see renderRolling)
+let artistCtx = null; // set while those steps draw: { report, strip, fade, leaving, yMax, real } (see renderRolling)
 const SEP = "\u0000";
+// `base` in its own order, with each of `extra` (in `ref`'s order) placed among them: just after the last of `base`
+// that comes before it in `ref` (after = true), or just before the first that comes after it. Placing the newcomers
+// one way and the leavers the other gives both steps the same order when the artists who stay keep theirs.
+function weave(base, extra, ref, after) {
+  const out = [...base];
+  const inBase = new Set(base);
+  const list = after ? extra : [...extra].reverse();
+  for (const n of list) {
+    const r = ref.indexOf(n);
+    if (after) {
+      let k = r - 1;
+      while (k >= 0 && !inBase.has(ref[k])) k--;
+      const at = k < 0 ? 0 : out.indexOf(ref[k]) + 1;
+      // past the extras already placed there, so they keep ref's order
+      let p = at;
+      while (p < out.length && !inBase.has(out[p])) p++;
+      out.splice(p, 0, n);
+    } else {
+      let k = r + 1;
+      while (k < ref.length && !inBase.has(ref[k])) k++;
+      const at = k >= ref.length ? out.length : out.indexOf(ref[k]);
+      out.splice(at, 0, n);
+    }
+  }
+  return out;
+}
 function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth) {
   const st = rollingState.get(el);
-  if (!morph || morph.pan || morph.live || artistCtx || !st?.args || !data.share.length) return false;
+  if (!morph || morph.pan || artistCtx || !st?.args || !data.share.length) return false;
   if (st.mode !== mode || st.hasOther !== hasOther || st.window !== window) return false;
-  const A = artistsOf(st.names, hasOther), B = artistsOf(names, hasOther);
-  if (A.join(SEP) === B.join(SEP)) return false;
-  const { ms: rawMs, easing = EASE_IN_OUT.echarts } = typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph };
+  // (the leavers a live morph keeps while they shrink aren't part of what it went to; a newer one lets them go)
+  const shown = st.real ?? st.names;
+  const A = artistsOf(shown, hasOther), B = artistsOf(names, hasOther);
+  if (A.join(SEP) === B.join(SEP) && shown.length === st.names.length) return false;
+  const { ms: rawMs, easing = EASE_IN_OUT.echarts, live } = typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph };
   const ms = dur(rawMs);
   const oldData = flightData(st) ?? st.args[0];
   if (!ms || oldData.dates.length !== data.dates.length || !!oldData.parts !== !!data.parts) return false;
   const inA = new Set(A), inB = new Set(B);
   const share = mode === "share";
-  let U;
-  if (share) {
-    if (A.filter((n) => inB.has(n)).join(SEP) !== B.filter((n) => inA.has(n)).join(SEP)) return false;
-    // Each leaver keeps its place among the artists who stay, each newcomer takes its own
-    U = [];
-    for (let i = 0, j = 0; i < A.length || j < B.length;) {
-      if (i < A.length && !inB.has(A[i])) U.push(A[i++]);
-      else if (j < B.length && !inA.has(B[j])) U.push(B[j++]);
-      else (U.push(A[i]), i++, j++);
-    }
-  } else U = [...A, ...B.filter((n) => !inA.has(n))]; // lines overlap, so order hardly shows: keep the old seats
-  const uNames = hasOther ? [...U, "Everyone else"] : U;
   const arrivals = B.filter((n) => !inA.has(n));
   const leavers = A.filter((n) => !inB.has(n));
+  const other = hasOther ? ["Everyone else"] : [];
+  const before = [...weave(A, arrivals, B, false), ...other]; // step 1: the old order, newcomers among it
+  const after = [...weave(B, leavers, A, true), ...other]; // step 2: the new order, leavers among it
   const iOld = new Map(st.names.map((n, i) => [n, i]));
   const iNew = new Map(names.map((n, i) => [n, i]));
   const oldSlots = st.args[7];
-  const uSlots = uNames.map((n) => (iNew.has(n) ? slots?.[iNew.get(n)] : oldSlots?.[iOld.get(n)]));
+  const slotsOf = (list) => list.map((n) => (iNew.has(n) ? slots?.[iNew.get(n)] : oldSlots?.[iOld.get(n)]));
   const zero = (row) => row.map((v) => (v == null ? null : 0));
-  // Each union artist's rows from the old data (before) or the new (after); someone not in it gets none
-  const build = (before) => {
-    const pick = (old, fresh, n, flat) => {
-      const from = before ? (iOld.has(n) ? [old, iOld.get(n)] : [fresh, iNew.get(n)]) : iNew.has(n) ? [fresh, iNew.get(n)] : [old, iOld.get(n)];
-      const row = from[0][from[1]];
-      const gone = before ? !iOld.has(n) : !iNew.has(n);
-      return gone && flat ? (Array.isArray(row?.[0]) ? row.map(zero) : row && zero(row)) : row;
+  // Each artist's rows from the old data (step 1) or the new (step 2); whoever isn't in that one gets none
+  const build = (list, old) => {
+    const pick = (o, f, n, flat) => {
+      const has = old ? iOld.has(n) : iNew.has(n);
+      const row = has === old ? o[iOld.get(n)] : f[iNew.get(n)];
+      return !has && flat ? (Array.isArray(row?.[0]) ? row.map(zero) : row && zero(row)) : row;
     };
-    const rows = (key, flat) => uNames.map((n) => pick(oldData[key], data[key], n, flat));
-    const partRows = (key) => uNames.map((n) => pick(oldData.parts[key], data.parts[key], n, true));
+    const rows = (key, flat) => list.map((n) => pick(oldData[key], data[key], n, flat));
+    const partRows = (key) => list.map((n) => pick(oldData.parts[key], data.parts[key], n, true));
     // Share: whoever isn't in the picture has no thickness. Hours: a newcomer is drawn at its values (clipped
     // away until it draws in), a leaver lies on 0 (fading out)
     return {
       ...data,
-      share: rows("share", share || !before),
-      hours: rows("hours", share || !before),
-      parts: data.parts && { ...data.parts, names: uNames.map((n) => pick(oldData.parts.names, data.parts.names, n, false)), share: partRows("share"), hours: partRows("hours") },
+      share: rows("share", share || !old),
+      hours: rows("hours", share || !old),
+      parts: data.parts && { ...data.parts, names: list.map((n) => pick(oldData.parts.names, data.parts.names, n, false)), share: partRows("share"), hours: partRows("hours") },
     };
   };
-  const before = build(true), after = build(false);
+  // A live morph keeps the stack's order while the hand moves (newcomers among it, leavers kept where they are), so
+  // nothing crosses mid-drag; the bands take their new order in one morph once it rests (below)
+  const list = live ? before : after;
+  const from = build(before, true), to = build(list, false);
   const c = instances.get(el);
   const outer = artistCtx;
   try {
@@ -284,33 +317,37 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
       const R = reveals.get(el) ?? new Map();
       reveals.set(el, R);
       const t0 = performance.now();
-      for (const n of arrivals) R.set(n, { t0, ms, ease: easing === EASE_IN_OUT.echarts ? easeInOut : (x) => x });
+      for (const n of arrivals) R.set(n, { t0, ms, ease: easeFn(easing) });
     }
-    if (uNames.join(SEP) !== st.names.join(SEP)) {
+    if (arrivals.length && !live) {
       const yMax = share ? null : c?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
       // Lines already leaving when this change interrupted the last one carry on gone
       const fade = new Set(st.flight?.fade ?? []);
       artistCtx = { report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null };
-      renderRolling(el, before, uNames, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, uSlots, st.args[8]);
+      renderRolling(el, from, before, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slotsOf(before), st.args[8]);
     }
-    artistCtx = { report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers) };
-    renderRolling(el, after, uNames, window, zoom, mode, hasOther, { ms, easing }, pins, uSlots, smooth);
+    const real = live ? list.filter((n) => !leavers.includes(n)) : null;
+    artistCtx = { report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers), leaving: new Set(leavers), real };
+    renderRolling(el, to, list, window, zoom, mode, hasOther, live ? morph : { ms, easing }, pins, slotsOf(list), smooth);
   } finally {
     artistCtx = outer;
   }
   const now = rollingState.get(el);
-  now.flight = { names: uNames.join(SEP), from: before, to: after, t0: performance.now(), ms, fade: share ? [] : leavers };
+  // (what the morph started from, in step 2's order; a live morph carries on from what's on screen by itself)
+  if (!live) now.flight = { names: after.join(SEP), from: build(after, true), to, t0: performance.now(), ms, fade: share ? [] : leavers };
   now.final = [data, names, slots];
-  if (uNames.join(SEP) !== names.join(SEP)) {
+  if (list.join(SEP) !== names.join(SEP)) {
     const token = now.renderToken;
     setTimeout(() => {
       const st = rollingState.get(el);
-      if (st?.renderToken !== token) return; // something re-rendered since
-      // The same picture with the new artists alone; whatever's under the pointer stays lit
-      artistCtx = { report: B, strip: null };
+      // (a change of artists gives the chart a new state, whose count starts afresh)
+      if (st !== now || st.renderToken !== token) return; // something re-rendered since
+      // The same picture with the new artists alone (after a live morph, the bands moving into their new order);
+      // whatever's under the pointer stays lit
+      artistCtx = live ? null : { report: B, strip: null };
       st.keepFocus = st.focused;
       try {
-        renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth);
+        renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, live && dur(MORPH_MS), pins, slots, smooth);
       } finally {
         artistCtx = outer;
         st.keepFocus = null;
@@ -322,6 +359,8 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
   return true;
 }
 
+const easeFn = (name) => (name === EASE_IN_OUT.echarts ? easeInOut : name === EASE_OUT.echarts ? EASE_OUT.js : (x) => x);
+
 // The rows on screen now, partway through an artist change: each band's values blended along the morph's curve, so
 // a change that interrupts it starts from what's drawn rather than from where it was going
 function flightData(st) {
@@ -330,7 +369,8 @@ function flightData(st) {
   const p = (performance.now() - F.t0) / F.ms;
   if (!(p < 1)) return null;
   const e = easeInOut(Math.max(0, p));
-  const lerp = (a, b) => (Array.isArray(a?.[0]) ? a.map((r, j) => lerp(r, b[j])) : a && a.map((v, i) => (v == null || b[i] == null ? v : v + (b[i] - v) * e)));
+  const lerp = (a, b) =>
+    !a || !b || a.length !== b.length ? b ?? a : Array.isArray(a[0]) ? a.map((r, j) => lerp(r, b[j])) : a.map((v, i) => (v == null || b[i] == null ? v : v + (b[i] - v) * e));
   const rows = (a, b) => a.map((r, k) => lerp(r, b[k]));
   const { from, to } = F;
   return {
@@ -375,6 +415,145 @@ function paintReveals(el, c) {
   }
   for (const [n, r] of R) if (now - r.t0 >= r.ms) R.delete(n);
   if (R.size) R.raf = requestAnimationFrame(() => paintReveals(el, c));
+}
+
+// Strips: share mode's bands are each filled down to the axis, the lower ones painted over the higher, which only
+// works while the stack keeps its order. When it re-orders (the artists who stay ranked anew), each band's polygon
+// gets a floor of its own for the morph, travelling from where its floor was to where it goes along the same curve
+// as its top, so every band moves as a strip of its own thickness to its new place rather than being uncovered or
+// buried by its neighbours' fills. The floor is a getter on the polygon's shape (stackedOnPoints, the polygon's lower
+// edge), worked out once a frame from the floors' values (st.bottoms) and the x positions ECharts has laid out; the
+// edge lines' clips read it too. Reaches into ECharts internals like setOptionFaded. A band with no floor to start
+// from (a newcomer) starts from its new one.
+function reordered(a, b) {
+  const inA = new Set(a), inB = new Set(b);
+  return a.filter((n) => inB.has(n)).join(",") !== b.filter((n) => inA.has(n)).join(",");
+}
+// The floors on screen now, per series id: partway from where the last render's morph started to where it went
+// (st.floors: { from, at }), so a morph that interrupts one in flight starts from what's drawn
+function shownBottoms(st) {
+  const F = st?.floors;
+  if (!st?.bottoms || !F?.from) return st?.bottoms ?? null;
+  const e = Math.min(1, F.at());
+  if (e >= 1) return st.bottoms;
+  return new Map([...st.bottoms].map(([id, b]) => {
+    const a = F.from.get(id) ?? b;
+    return [id, b.map((v, i) => a[i] + (v - a[i]) * e)];
+  }));
+}
+function endStrips(st) {
+  const S = st?.strip;
+  if (!S) return;
+  cancelAnimationFrame(S.raf);
+  for (const poly of S.polys) poly.__strip?.restore();
+  if (S.back) S.back.__zr?.remove(S.back);
+  // the outlines come back as the bands settle
+  for (const [line, opacity] of S.edges) line.animateTo({ style: { opacity } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts, scope: "strip" });
+  st.strip = null;
+}
+// below: band id → the band id under it in the new stack. A band's floor never rises above that band's top as drawn
+// now, or two bands crossing would leave a stretch between them that no band covers.
+// (Above the stack, the bands' tops travelling each on its own can stop short of 100% for a moment; a backdrop in the
+// tint of the band that ends on top (topId, topFill) fills that, behind every band, where they have data.)
+function installStrips(c, st, from, at, below, topId, topFill) {
+  const S = (st.strip = { from, to: st.bottoms, at, polys: [], frame: 0 });
+  const views = new Map(c.getModel().getSeries().map((m) => [m.id, c.getViewOfSeriesModel(m)]));
+  const roof = views.get(topId)?._polygon;
+  if (roof && topFill) {
+    const back = new roof.constructor({ z: 1, silent: true, style: { fill: topFill } });
+    back.shape = {
+      get points() {
+        const pts = roof.shape.points;
+        const y1 = c.convertToPixel({ yAxisIndex: 0 }, 1);
+        const out = new Float32Array(pts.length);
+        for (let i = 0; i < pts.length; i += 2) {
+          out[i] = pts[i];
+          out[i + 1] = Number.isFinite(pts[i + 1]) ? y1 : NaN;
+        }
+        return out;
+      },
+      get stackedOnPoints() { return roof.shape.stackedOnPoints; },
+      smooth: 0,
+      stackedOnSmooth: 0,
+    };
+    back.isZeroArea = () => false;
+    c.getZr().add(back);
+    S.back = back;
+  }
+  for (const m of c.getModel().getSeries()) {
+    const b = S.to.get(m.id);
+    const poly = b && c.getViewOfSeriesModel(m)?._polygon;
+    if (!poly) continue;
+    const a = from.get(m.id) ?? b;
+    let base = poly.shape.stackedOnPoints, cache = null, cacheAt = -1, cachePts = null;
+    const compute = () => {
+      const pts = poly.shape.points;
+      const d = m.getData();
+      const n = d.count();
+      if (!pts || pts.length !== n * 2 || !base || base.length !== n * 2) return base;
+      const e = S.at();
+      const y0 = c.convertToPixel({ yAxisIndex: 0 }, 0);
+      const dy = c.convertToPixel({ yAxisIndex: 0 }, 1) - y0;
+      const out = new Float32Array(n * 2);
+      const under = views.get(below.get(m.id))?._polygon?.shape.points;
+      const cap = under?.length === n * 2 ? under : null;
+      for (let i = 0; i < n; i++) {
+        const r = d.getRawIndex(i);
+        const v = a[r] + (b[r] - a[r]) * e;
+        out[2 * i] = pts[2 * i];
+        // (pixels run downward: the lower of the two floors is the larger y)
+        const y = Number.isFinite(v) ? y0 + dy * v : base[2 * i + 1];
+        out[2 * i + 1] = cap && Number.isFinite(cap[2 * i + 1]) ? Math.max(y, cap[2 * i + 1]) : y;
+      }
+      return out;
+    };
+    Object.defineProperty(poly.shape, "stackedOnPoints", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        if (cacheAt !== S.frame || cachePts !== poly.shape.points || !cache) {
+          cache = compute();
+          cacheAt = S.frame;
+          cachePts = poly.shape.points;
+        }
+        // a copy: zrender's animator may write a tween into the array it reads
+        return cache?.slice();
+      },
+      set(v) {
+        base = v;
+        cache = null;
+      },
+    });
+    poly.__strip = {
+      restore() {
+        delete poly.shape.stackedOnPoints;
+        poly.shape.stackedOnPoints = base;
+        poly.__strip = null;
+        poly.markRedraw();
+      },
+    };
+    S.polys.push(poly);
+  }
+  // Outlines fade while the bands slide: drawn over everything, they'd cross the bands a moving one passes over
+  S.edges = [];
+  for (const id of S.to.keys()) {
+    if (id[0] !== "s") continue;
+    for (const side of ["t", "b"]) {
+      const line = views.get(side + id.slice(1))?._polyline;
+      if (!line) continue;
+      S.edges.push([line, line.style.opacity ?? 1]);
+      line.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts, scope: "strip" });
+    }
+  }
+  const tick = () => {
+    if (st.strip !== S) return;
+    S.frame++;
+    for (const poly of S.polys) poly.markRedraw();
+    S.back?.markRedraw();
+    if (S.at() < 1) S.raf = requestAnimationFrame(tick);
+    else endStrips(st);
+  };
+  S.raf = requestAnimationFrame(tick);
 }
 
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
@@ -513,34 +692,21 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   // New artists (a pin, the artist count, a new period's): they grow in and the leavers shrink away
   if (withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth)) return;
-  // Hours mode (a live morph, which withArtistMorph leaves alone): lines are matched by series id (their rank), so an artist who moves up or down the ranking
-  // would tween through a neighbour's line, and one who stays would seem to regrow. Seat the drawn lines by
-  // artist first (an instant, invisible re-draw), so each returning artist's line is its own series and only
-  // the artists who change places move into each other's. Share mode's bands are ranked, so it can't.
-  if (morph && !morph.pan && mode === "hours" && prev?.mode === "hours" && prev.args && prev.hasOther === hasOther && prev.window === window &&
-      prev.names.length === names.length && prev.names.join("\u0000") !== names.join("\u0000")) {
-    const n = artistsOf(names, hasOther).length;
-    const old = artistsOf(prev.names, hasOther);
-    const from = names.slice(0, n).map((a) => old.indexOf(a));
-    const free = old.map((_, j) => j).filter((j) => !from.includes(j));
-    const seat = from.map((j) => (j >= 0 ? j : free.shift()));
-    const [oldData, , , , , , , , oldSmooth] = prev.args;
-    const pick = (rows) => rows.map((_, k) => rows[k < n ? seat[k] : k]);
-    const parts = oldData.parts && { ...oldData.parts, names: pick(oldData.parts.names), share: pick(oldData.parts.share), hours: pick(oldData.parts.hours) };
-    renderRolling(el, { ...oldData, share: pick(oldData.share), hours: pick(oldData.hours), parts }, names, window, currentZoom(el), mode, hasOther, false, pins, slots, oldSmooth);
-    return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
-  }
   const liveFrom =
     morph?.live && prev?.mode === mode && prev.hasOther === hasOther && prev.window === window &&
-    prev.names.length === names.length && prev.values?.dates === data.dates.length ? liveValues(prev) : null;
+    prev.values?.dates === data.dates.length ? liveValues(prev) : null;
+  // The bands' bottoms on screen, for a re-ordering stack to start from (see strips), before anything stops
+  const bottomsFrom = shownBottoms(prev);
   stopLive(prev);
+  endStrips(prev);
   if (morph?.live && !liveFrom) morph = false;
   // A period change ({ms, easing, pan: true}) first scrolls (or zooms) the plot to the new range with the
   // artists already on screen, as if dragging the zoom slider, then morphs the bands into the new
   // period's artists. That needs the same series on screen; otherwise it redraws.
   if (morph?.pan) {
     // (the window can differ: switching to the tracks view changes it, and the pan is drawn with the old one)
-    const same = prev && prev.mode === mode && prev.hasOther === hasOther && prev.names.length === names.length;
+    // (nor the artists: each keeps its own series, and a change of them comes and goes, see withArtistMorph)
+    const same = prev && prev.mode === mode && prev.hasOther === hasOther;
     const from = same && currentZoom(el);
     // All time has no zoom range of its own; give it the whole timeline so there's a range to travel to
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
@@ -569,6 +735,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const isStrip = mainOf.has(el);
+  // Each artist's series number (see seriesNum), and back from a series id to the artist's place in names
+  const num = names.map((n) => seriesNum(el, n));
+  const sid = (k, kind = "s") => `${kind}${num[k]}`;
+  const placeOf = new Map(num.flatMap((n, k) => ["s", "t", "b"].map((kind) => [`${kind}${n}`, k])));
   const unfiltered = data.free && Number.isFinite(zoom?.[0]);
   const perWeek = (h) => (h / window) * 7;
 
@@ -595,13 +765,19 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   // An artist change in flight (withArtistMorph) is over once anything else draws
   if (!artistCtx) st.final = st.flight = null;
+  st.real = artistCtx?.real ?? null; // (a live morph's leavers are kept at nothing, see withArtistMorph)
   st.hasOther = hasOther;
   st.window = window;
   st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
   // Hours: a line leaving in an artist change (withArtistMorph) sinks to 0 and fades out as it goes
-  const fading = (s) => !!artistCtx?.fade?.has(names[s]);
+  // (kept for the restyles that come later, on hover, when the artist change's steps are done drawing)
+  const fadeSet = artistCtx?.fade ?? null;
+  const fading = (s) => !!fadeSet?.has(names[s]);
+  // An artist leaving in that change (unpinned, say, and still hovered) lights nothing else's dimming as it goes
+  const leavingSet = artistCtx?.leaving ?? null;
+  const dims = (lit) => [...lit].some((k) => !leavingSet?.has(names[k]));
 
   // Cumulative share over visible series, rescaled by the visible total at each date so the bands always
   // fill the plot, as if the hidden artists had never played; a hidden series collapses onto the band below it
@@ -685,7 +861,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // Share: lit bands (pinned, or under the pointer) are filled in more strongly (t.shade.hover), and while
   // any band is lit the rest dim slightly (t.shade.dim); with none lit, every band has its resting tint
   const bandFill = (k, lit) =>
-    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band);
+    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : dims(lit) ? t.shade.dim : t.shade.band);
   // Hours: pinned lines are thicker; lit lines (pinned or hovered) stay while the rest fade, and only a lit line gets a faint fill. The fill is the same
   // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color (t.shade.linePin, deeper,
   // under a pinned line: hover shades, a pin deepens it). Sharing the color means a morph only changes opacity:
@@ -704,9 +880,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
   const restWidth = isStrip ? 1.5 : 2; // the strip's lines are finer
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
+  // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
+  const PIN_DIM = 0.2, HOVER_DIM = 0.5;
   const lineLook = (k, lit) => ({
     width: base.has(k) ? restWidth + 1 : restWidth,
-    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
+    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : lit.has(k) || !dims(lit) ? 1 : base.size ? PIN_DIM : HOVER_DIM,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
   const partShown = (k, j) => !!parts && visible(k) && j < partRows(k).length;
@@ -734,7 +912,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   };
   const partStyles = (lit) =>
     partKeys.map(([k, j]) => ({
-      id: `p${k}_${j}`,
+      id: `p${num[k]}_${j}`,
       lineStyle: partLine(k, j, lit),
       ...(share ? { areaStyle: { color: partFill(k, j, lit) } } : {}),
     }));
@@ -743,7 +921,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     .map((name, s) => {
       const hide = !share && s === otherIdx;
       return {
-        id: `s${s}`,
+        id: sid(s),
         name,
         type: "line",
         showSymbol: false,
@@ -787,7 +965,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     .concat(
       // Each part paints over the band it's in, and over the parts above it, but under the band below
       partKeys.map(([k, j]) => ({
-        id: `p${k}_${j}`,
+        id: `p${num[k]}_${j}`,
         name: names[k],
         type: "line",
         silent: true,
@@ -807,7 +985,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     .concat(
       names.flatMap((name, s) =>
         ["t", "b"].map((side) => ({
-          id: `${side}${s}`,
+          id: sid(s, side),
           name,
           type: "line",
           silent: true,
@@ -843,7 +1021,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   };
   // (a strip clicked to pin lights the main chart too, which drew first)
   if (st.focused != (kept < 0 ? null : names[kept])) tellFocus(kept < 0 ? null : names[kept], isStrip && kept >= 0);
-  const sIdx = (p) => Number(p.seriesId.slice(1));
+  const sIdx = (p) => placeOf.get(p.seriesId);
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
   // listening at that date (as the bands are scaled, in either mode). valueOf(j, ofArtist) gives the number
@@ -926,16 +1104,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     let below = null;
     for (let k = 0; k < names.length; k++) {
       if (!visible(k)) continue;
-      const band = shapes.get(`s${k}:area`);
+      const band = shapes.get(`${sid(k)}:area`);
       if (!band) continue;
-      const floorBand = below == null ? null : shapes.get(`s${below}:area`) ?? null;
+      const floorBand = below == null ? null : shapes.get(`${sid(below)}:area`) ?? null;
       below = k;
       for (const side of ["t", "b"]) {
-        const line = shapes.get(`${side}${k}:line`);
+        const line = shapes.get(`${sid(k, side)}:line`);
         if (!line || (line.__clipOf?.[0] === band && line.__clipOf[1] === floorBand)) continue;
         const clip = new band.constructor({});
         const roof = () => band.shape.points;
-        const floor = () => (floorBand ? floorBand.shape.points : band.shape.stackedOnPoints);
+        // (while the stack re-orders, the band's own bottom, which travels: see strips)
+        const floor = () => (band.__strip || !floorBand ? band.shape.stackedOnPoints : floorBand.shape.points);
         clip.shape = {
           get points() { return side === "t" ? roof() : inset(floor(), roof(), floor(), -1); },
           get stackedOnPoints() { return side === "t" ? inset(roof(), roof(), floor(), 1) : floor(); },
@@ -967,6 +1146,28 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     return [s.id, ys];
   }));
   st.values.dates = data.dates.length;
+  // Share: each band's (and part's) floor, the top of whatever is stacked under it, for strips
+  st.bottoms = share ? new Map(names.flatMap((_, k) => {
+    const row = (vals) => Float64Array.from(vals, (v) => v ?? NaN);
+    return [[sid(k), row(bottom[k])], ...(partKeys.length && k !== otherIdx ? partTop[k].map((_, j) => [`p${num[k]}_${j}`, row(j ? partTop[k][j - 1] : bottom[k])]) : [])];
+  })) : null;
+  st.order = num.filter((_, k) => k !== otherIdx);
+  // A live morph's newcomers grow from nothing: a band (its outlines and parts too) from the top of the band it sits
+  // on as drawn now, so the stack stays whole; an hours line drawn in where it is (paintReveals)
+  if (liveFrom) {
+    const kOf = new Map(num.map((n, k) => [String(n), k]));
+    for (const [id, ys] of st.values) {
+      if (liveFrom.has(id)) continue;
+      if (!share) {
+        liveFrom.set(id, ys);
+        continue;
+      }
+      let k = kOf.get(id[0] === "p" ? id.slice(1, id.indexOf("_")) : id.slice(1));
+      let under = null;
+      while (!under && --k >= 0) under = liveFrom.get(sid(k));
+      liveFrom.set(id, under ?? ys.map((v) => (Number.isNaN(v) ? v : 0)));
+    }
+  }
   st.tweens = !liveFrom && ms > 0;
   st.still = !st.tweens; // (see stillChart)
 
@@ -1032,6 +1233,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     ms,
     easing
   );
+  // Share: the stack re-ordering (the artists who stay, ranked anew), each band travels as a strip to its new place
+  {
+    const t0 = performance.now(), ease = easeFn(easing);
+    const at = !ms ? () => 1 : liveFrom ? () => liveAt(st.live ?? { t0, ms }) : () => ease(Math.min(1, (performance.now() - t0) / ms));
+    st.floors = { from: share && ms ? bottomsFrom : null, at };
+    if (share && ms && bottomsFrom && prev?.order && reordered(prev.order, st.order))
+      installStrips(c, st, bottomsFrom, at, new Map(names.slice(1).map((_, k) => [sid(k + 1), sid(k)])),
+        sid(names.length - 1), bandFill(names.length - 1, shown));
+  }
   clipEdges();
   paintReveals(el, c);
   if (liveFrom) {
@@ -1051,7 +1261,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (st.renderToken !== renderToken) return;
       setOptionFaded(c, {
         animationDurationUpdate: 0,
-        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursPinOpacity } })),
+        series: [...base].map((k) => ({ id: sid(k), areaStyle: { opacity: hoursPinOpacity } })),
       }, undefined, dur(FADE_MS));
     }, ms);
   }
@@ -1068,9 +1278,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.flatMap((_, k) => [
-        { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
-        { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
-        { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
+        { id: sid(k), areaStyle: { color: bandFill(k, on) } },
+        { id: sid(k, "t"), lineStyle: overlayStyle(k, on.has(k)) },
+        { id: sid(k, "b"), lineStyle: overlayStyle(k, on.has(k)) },
       ]).concat(partStyles(on)),
     }, undefined, FADE_MS);
     clipEdges();
@@ -1086,7 +1296,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.map((_, j) => ({
-        id: `s${j}`,
+        id: sid(j),
         lineStyle: lineLook(j, on),
         areaStyle: { opacity: hoursArea(j, on) },
       })).concat(partStyles(on)),
@@ -1252,8 +1462,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // An artist kept lit through a click on the main chart stays lit in the strip too
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
-    // without the albums or songs: in thin lines they'd only tangle
-    renderRolling(strip, { ...sa.data, parts: undefined }, sa.names, window, zoom, "hours", hasOther, morph, pins, sa.slots, smooth);
+    // without the albums or songs: in thin lines they'd only tangle. (The strip makes its own artist change, if any.)
+    const outer = artistCtx;
+    artistCtx = null;
+    try {
+      renderRolling(strip, { ...sa.data, parts: undefined }, sa.names, window, zoom, "hours", hasOther, morph, pins, sa.slots, smooth);
+    } finally {
+      artistCtx = outer;
+    }
     if (keep) {
       sst.keepFocus = null;
       // (a change of artists gave the strip a new state, which carried the artist over)
