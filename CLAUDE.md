@@ -104,13 +104,15 @@ All in `js/` unless noted. Read a file's own comments for the details.
   `artist`, the real artist in `by`, and what each item is called and pictured by.
 - `genres.js`, `families.js`: the Genres view's data: each artist's genres from our `genres` edge function, and the
   broad families they're grouped into (see Genres below).
+- `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "You can
+  see everything" switch, and each card's row of sliders for them. Off, `tune` holds the defaults. Imports nothing.
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
 - `covers.js`: the pictures in the mix's key (see Pictures below).
 - `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).
 - `feedback.js`: the "Missing something?" requests, and the owner's inbox (open the site with `#inbox`).
 - `dev/`: test tools (see Testing). `docs/`: the long-form rules this file points to.
 
-**Keep imports one-way:** `state.js`, then `views.js`, `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
+**Keep imports one-way:** `tune.js`, then `state.js`, then `views.js`, `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
 then `main.js`. Each imports only from modules before it; a call the other way goes through `hooks`, which
 `main.js` fills at startup.
 
