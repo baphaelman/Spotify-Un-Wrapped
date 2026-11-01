@@ -300,6 +300,8 @@ export function renderMix(artists, slots, includeOther, pins) {
 // Newcomers take the lowest free slot, but not one just vacated by an artist leaving the chart while another is
 // free: the leaver shrinks away as they grow in, and the same color on both would read as one band changing. (With
 // every color in use, they take the vacated one.) An artist coming back keeps their old slot on the same terms.
+// A pin is the exception: one arriving with a slot was handed it (a part opened in its own view takes its band's
+// color, see openPart), so it takes that slot even though its band has just left.
 let shownSlots = new Map(); // artist → slot, as last drawn
 function assignSlots(artists) {
   const slots = new Array(artists.length);
@@ -314,7 +316,7 @@ function assignSlots(artists) {
   const order = [...artists.keys()].sort((a, b) => state.pinned.includes(artists[b]) - state.pinned.includes(artists[a]));
   for (const i of order) {
     const had = state.colorSlots.get(artists[i]);
-    if (had !== undefined && !used.has(had) && (shownSlots.has(artists[i]) || !vacated.has(had))) take(i, had);
+    if (had !== undefined && !used.has(had) && (shownSlots.has(artists[i]) || !vacated.has(had) || state.pinned.includes(artists[i]))) take(i, had);
   }
   const SLOTS = 10; // one per series color
   for (const i of order) {
