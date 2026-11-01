@@ -104,8 +104,8 @@ All in `js/` unless noted. Read a file's own comments for the details.
   `artist`, the real artist in `by`, and what each item is called and pictured by.
 - `genres.js`, `families.js`: the Genres view's data: each artist's genres from our `genres` edge function, and the
   broad families they're grouped into (see Genres below).
-- `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "You can
-  see everything" switch, and each card's row of sliders for them. Off, `tune` holds the defaults. Imports nothing.
+- `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "Visual
+  tweaks" switch, and each card's row of sliders for them. Off, `tune` holds the defaults. Imports nothing.
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
 - `covers.js`: the pictures in the mix's key (see Pictures below).
 - `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).

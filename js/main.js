@@ -244,7 +244,7 @@ $("share-preview").addEventListener("click", () => {
 });
 $("preview-close").addEventListener("click", () => $("preview-dialog").close());
 
-// ---------- You can see everything ----------
+// ---------- Visual tweaks ----------
 
 // The settings panel's switch: each card unfolds a row of sliders for the graph's hidden variables (tune.js), with
 // a warning under the switch while it's on. Off, the graphs use the defaults, exactly as designed. Remembered on

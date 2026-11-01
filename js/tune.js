@@ -1,5 +1,5 @@
 // The graphs' hidden variables: line widths, tints, blur and cutoffs that are otherwise fixed. The code reads
-// them from `tune` rather than from literals. With the settings panel's "You can see everything" off, `tune`
+// them from `tune` rather than from literals. With the settings panel's "Visual tweaks" off, `tune`
 // holds the defaults (TUNES), so the page is exactly as designed; on, it holds the reader's values, remembered
 // on this device, and each card shows a row of sliders for its own (buildTunes).
 // Imports nothing, so anything can read it (it comes before state.js).
@@ -26,7 +26,6 @@ export const TUNES = [
   { key: "clockCurve", card: "clock-card", label: "Least curve rounding", def: 0.3, min: 0, max: 1, step: 0.05, fmt: (v) => `${v}` },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },
-  { key: "rankChunk", card: "ranking-card", label: "Rows per load", def: 60, min: 10, max: 500, step: 10, fmt: (v) => `${v}` },
 ];
 const DEFAULTS = Object.fromEntries(TUNES.map((s) => [s.key, s.def]));
 

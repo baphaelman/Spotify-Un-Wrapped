@@ -955,7 +955,7 @@ dialog pre {
 .controls-item[hidden] { display: none; }
 .controls-item:hover, .controls-item:focus-visible { background: var(--border); outline: none; }
 .controls-item.danger { color: var(--text-secondary); }
-/* "You can see everything": a switch under the data's items, and its warning, which unfolds while it's on */
+/* "Visual tweaks": a switch under the data's items, and its warning, which unfolds while it's on */
 .controls-extra { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
 .controls-switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .controls-switch .switch { position: relative; flex: none; width: 26px; height: 15px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 16%, transparent); transition: background var(--motion-fade) var(--ease-out); }
