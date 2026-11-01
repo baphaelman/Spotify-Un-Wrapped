@@ -429,7 +429,7 @@ function renderDependents(charts = true) {
     paintMonthly(plays);
     paintClock(plays);
   }
-  paintRanking(plays);
+  paintRanking();
   paintFocus();
 }
 

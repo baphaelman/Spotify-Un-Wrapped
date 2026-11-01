@@ -295,7 +295,7 @@ function liveSettle() {
 
 function liveSettleChart() {
   const n = Number($("n-artists").value);
-  const artists = chartArtists(rangePlays(), n);
+  const artists = chartArtists(null, n);
   if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && mixArgs) {
     $("rolling-sub").textContent = rollingSub(n, WINDOWS[$("window").value], $("include-other").checked);
     renderMix(...mixArgs);

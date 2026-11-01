@@ -7,7 +7,7 @@ import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { genreCoversIn } from "./views.js";
-import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff } from "./state.js";
+import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -83,7 +83,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
 
   // Top artists come from the selected period; the timeline always spans all data, zoomed to the period.
   // A period with no plays falls back to the overall top artists, so the chart still has axes to show.
-  let artists = chartArtists(rangePlays(), n);
+  let artists = chartArtists(null, n);
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
   const grid = look?.grid ?? window;
@@ -234,15 +234,11 @@ export function renderMix(artists, slots, includeOther, pins) {
   // Deselected artists stay in the key but drop out of the bar (see updateMix)
   const all = includeOther ? [...artists, "Everyone else"] : artists;
   // Each segment also shows its plays over the period; everyone else's are the plays of every artist not shown
-  const shown = new Set(artists);
-  const plays = new Map(all.map((n) => [n, 0]));
-  const inRange = rangePlays();
+  const { items, count } = rangeTotals();
+  const plays = new Map(artists.map((n) => [n, items.get(n)?.n ?? 0]));
+  if (includeOther) plays.set("Everyone else", count - [...new Set(artists)].reduce((t, n) => t + (items.get(n)?.n ?? 0), 0));
   // A genre's picture is its biggest artist in the period, so it follows the period
-  const covers = state.dim === "genre" ? genreCoversIn(inRange) : state.covers;
-  for (const p of inRange) {
-    const n = shown.has(p.artist) ? p.artist : "Everyone else";
-    if (plays.has(n)) plays.set(n, plays.get(n) + 1);
-  }
+  const covers = state.dim === "genre" ? genreCoversIn(rangePlays()) : state.covers;
   updateMix({
     table: mixMemo.table,
     names: all,
@@ -297,8 +293,11 @@ function assignSlots(artists) {
 // The period's top n artists plus the pinned ones. Pins outside the top n join at the end, on top of
 // the stack in the next colors, so the artists already shown keep theirs. They push out the
 // lowest-ranked unpinned artists, keeping n artists (or as many as are pinned, if that's more).
+// plays: null for the period's (from rangeTotals, kept per period)
 export function chartArtists(plays, n) {
-  const top = agg.topArtists(plays, n).map((a) => a.name);
+  const top = plays
+    ? agg.topArtists(plays, n).map((a) => a.name)
+    : [...rangeTotals().items].sort((a, b) => b[1].hours - a[1].hours).slice(0, n).map(([name]) => name);
   const extra = state.pinned.filter((a) => !top.includes(a));
   const keep = Math.max(n, state.pinned.length) - extra.length;
   for (let i = top.length - 1; top.length > keep && i >= 0; i--) {

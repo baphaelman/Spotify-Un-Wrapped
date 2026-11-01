@@ -88,6 +88,17 @@ export const presetLabel = () => {
 // The plays in the period
 export const rangePlays = () => agg.filterRange(state.plays, state.range.lo, state.range.hi);
 
+// itemTotals over the period, worked out once per period: the chart's artists, the mix bar and the list all read it
+let totalsMemo = null;
+export function rangeTotals() {
+  const { lo, hi } = state.range;
+  if (totalsMemo?.plays !== state.plays || totalsMemo.lo !== lo || totalsMemo.hi !== hi) {
+    const plays = rangePlays();
+    totalsMemo = { plays: state.plays, lo, hi, count: plays.length, items: agg.itemTotals(plays) };
+  }
+  return totalsMemo;
+}
+
 // The period's plays without the artists deselected in the rolling chart's legend
 export function shownPlays() {
   const plays = rangePlays();

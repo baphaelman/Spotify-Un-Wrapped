@@ -3,7 +3,7 @@
 // the next whenever the reader scrolls near its end (or presses "See more"). A repaint keeps as many rows as were
 // shown, so the list morphs in place rather than collapsing under the reader. No pictures, so no lookups.
 // Like the key's chips, hovering a row lights its item everywhere, and clicking it pins or unpins it.
-import { $, state, noun, shownPlays, putOff } from "./state.js";
+import { $, state, noun, putOff, rangeTotals } from "./state.js";
 import { renderList, appendList } from "./lists.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS } from "./rollingview.js";
@@ -74,13 +74,15 @@ const rowOf = ([key, ms, plays]) => {
   };
 };
 
-export function paintRanking(plays) {
+// The period's items less the ones deselected in the chart (shownPlays), from the totals kept per period
+export function paintRanking() {
   if (putOff($("ranking-card"), () => paintRanking())) return;
-  plays ??= shownPlays();
+  const hidden = new Set(state.hidden);
   const ms = new Map(), count = new Map();
-  for (const p of plays) {
-    ms.set(p.artist, (ms.get(p.artist) ?? 0) + p.ms);
-    count.set(p.artist, (count.get(p.artist) ?? 0) + (p.w ?? 1));
+  for (const [k, e] of rangeTotals().items) {
+    if (hidden.has(k)) continue;
+    ms.set(k, e.ms);
+    count.set(k, e.plays);
   }
   ranked = [...ms].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v, count.get(k)]);
   // Switching views or data starts the list over at its first chunk

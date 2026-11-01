@@ -46,6 +46,21 @@ function sumBy(plays, keyFn) {
   return m;
 }
 
+// Each item's totals over some plays, in order of first play: { hours, ms, plays (a shared genre play counts its
+// share), n (records) }, summed in the same order as sumBy and paintRanking do, so they rank alike
+export function itemTotals(plays) {
+  const m = new Map();
+  for (const p of plays) {
+    let e = m.get(p.artist);
+    if (!e) m.set(p.artist, (e = { hours: 0, ms: 0, plays: 0, n: 0 }));
+    e.hours += p.ms / HOUR;
+    e.ms += p.ms;
+    e.plays += p.w ?? 1;
+    e.n++;
+  }
+  return m;
+}
+
 export function topArtists(plays, n) {
   return [...sumBy(plays, (p) => p.artist)]
     .map(([name, v]) => ({ name, ...v }))
