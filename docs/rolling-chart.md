@@ -11,10 +11,8 @@ both on one clock, and hover in either lights the artist in the other (`tellFocu
 talks to the main chart. Both cards have a Days per slice slider; `#window` is the one read, and
 `windowSliders` in `rollingview.js` keeps the other in step.
 
-- **Each artist owns its series, by id, in both modes.** `seriesNum` gives every name a chart draws a number for
-  good: its band or line is `s<n>`, its outlines `t<n>`/`b<n>`, its parts `p<n>_<j>`. Never read a position from an
-  id (`placeOf` maps an id back to the artist's place in `names`). A morph is a *merge* `setOption`, so ECharts
-  tweens each artist's own points, however the artists are re-ranked; a plain re-render uses `notMerge`.
+- **Both modes are the same series with the same ids (`s0`…).** A mode switch is a *merge*
+  `setOption`, so ECharts tweens every point. Any other re-render uses `notMerge`.
 - **Stacking is done by hand, not with ECharts' `stack`.** Each band is the line at its cumulative top,
   filled down to the axis, and lower bands paint over the bottom of higher ones. That paint order is set
   with each series' `z`, not left to series order: ECharts paints in the order it created each series'
@@ -31,29 +29,20 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   own clock over one fixed, unfiltered set of points (`cutTo`, `data.free`), then hands over to the final chart's. Toggling
   "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
 - **A change of artists (a pin from outside the chart, the artist count, a new period's) comes and goes
-  (`withArtistMorph`).** It's drawn on the union of the old and new artists: the old picture in the old order with
-  the newcomers added (instantly), then the morph in the new order with the leavers kept, then the new artists
-  alone. Share bands grow from no thickness or shrink to none; an arriving hours line draws in from left to right
-  (`paintReveals`, a clip rect on its shapes) while a leaving one sinks to 0 and fades. An interrupted change starts
-  from the rows on screen (`flightData`), so a dragged artist count keeps up. Pins and the count pass a morph
-  (`dur(MORPH_MS)`), so a pin's outline and shade fade in with the period bar's.
-- **A re-ordered stack slides as strips.** Fills down to the axis only work while the stack keeps its order. When
-  the artists who stay are ranked anew, each band's polygon gets a floor of its own for the morph
-  (`installStrips`, a getter on its `stackedOnPoints`), travelling with its top, so it moves as a strip of its own
-  thickness; a floor never rises above the current top of the band under it (no gaps), a backdrop in the top
-  band's tint fills under 100% while the tops travel, and the outlines fade until the bands settle.
-- **A live morph (a dragged period window) keeps the stack's order** while the hand moves: newcomers grow from
-  the top of the band they sit on, leavers shrink where they are, and once the hand rests for `CHASE_MS` the
-  bands take their new order in one `MORPH_MS` morph. Re-ordering on every step would have them crossing all
-  the time.
+  (`withArtistMorph`).** It's drawn on the union of the old and new artists: the old picture again (instantly), then
+  the morph, then the new artists alone. Share bands grow from no thickness or shrink to none; an arriving hours
+  line draws in from left to right (`paintReveals`, a clip rect on its shapes) while a leaving one sinks to 0 and
+  fades. Share needs the artists who stay to keep their order, so a re-ranked period still morphs band into band.
+  An interrupted change starts from the rows on screen (`flightData`), so a dragged artist count keeps up.
+  Pins and the count pass a morph (`dur(MORPH_MS)`), so a pin's outline and shade fade in with the period bar's.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
 - **Colors follow the artist, not the stack position.** `assignSlots` in `rollingview.js` gives each artist a
   palette slot, remembers it in `state.colorSlots`, and passes the slots to `renderRolling` (`slots`).
   Pinned artists are placed first, so they keep their color for as long as they're pinned. A newcomer avoids a
   slot an artist leaving the chart just gave up while another is free, so the two don't read as one band. Stack
-  order is still rank, so don't use a position as a color index.
-- **Overlay series `t<n>`/`b<n>`** draw each band's top and bottom outline.
+  order is still rank, so don't use the series index as a color index.
+- **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
 - **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
   period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first
   window fills).
@@ -69,7 +58,7 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   of a fade is invisible, tween only opacity, or the color blend shows partway.
 
 - **Parts (Whole · Albums · Songs).** `data.parts` (from `agg.rolling`'s `split`) splits each band into its albums or
-  songs, as series `p<n>_<j>` that exist only while split. Which ones (`agg.topParts`, `agg.PARTS`): each at least `cut`
+  songs, as series `p{k}_{j}` that exist only while split. Which ones (`agg.topParts`, `agg.PARTS`): each at least `cut`
   of the listening of the artists shown, and at most `cap` in the whole chart, biggest first across every band. So
   showing fewer artists, or deselecting some, splits the rest more finely, and one artist alone can have many. When
   artists are shown or hidden the chart asks the page first (`pins.restack`), which redraws with the new parts in the

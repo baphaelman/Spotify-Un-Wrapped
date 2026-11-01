@@ -749,9 +749,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }
   const restWidth = isStrip ? tune.hoursLine : 2; // the strip's lines are finer
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
+  // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
+  const PIN_DIM = 0.2, HOVER_DIM = 0.5;
   const lineLook = (k, lit) => ({
     width: base.has(k) ? restWidth + 1 : restWidth,
-    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : 0.2,
+    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : base.size ? PIN_DIM : HOVER_DIM,
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
   const partShown = (k, j) => !!parts && visible(k) && j < partRows(k).length;
