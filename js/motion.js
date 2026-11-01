@@ -113,19 +113,28 @@ let sweepToken = 0;
 export const cancelSweep = () => void sweepToken++;
 // (Its default easing is a gentler in-out, smoothstep: the segments between keyframes are linear, and a cubic
 // would make the middle ones jump.)
+// Each keyframe is morphed to by the time the next one starts, on the clock. Where drawing a keyframe takes this
+// machine more than half a segment (a long period's chart), the sweep skips ahead to the keyframe that leaves as long
+// again for drawing the tween to it, rather than queueing every keyframe and stretching out: fewer, longer segments,
+// and the sweep keeps its length.
 export function sweep(apply, ms = MORPH_MS, steps = 8, ease = (t) => t * t * (3 - 2 * t)) {
   const token = ++sweepToken;
   const segMs = ms / steps;
   const start = performance.now();
+  let k = 0;
+  let cost = 0; // what the last keyframe took to draw
   return new Promise((resolve) => {
-    const step = (k) => {
+    const step = () => {
       if (token !== sweepToken) return resolve(false);
-      apply(ease(k / steps), segMs);
-      if (k === steps) return setTimeout(() => resolve(token === sweepToken), segMs);
-      // Aim for the next segment's slot on the clock, so the time apply() takes doesn't pile up
-      setTimeout(() => step(k + 1), Math.max(0, start + (k * ms) / steps - performance.now()));
+      const now = performance.now();
+      k = Math.min(steps, Math.max(k + 1, Math.round((now + Math.max(segMs, 2 * cost) - start) / segMs)));
+      const due = start + k * segMs; // when this keyframe should be reached, and the next begin
+      apply(ease(k / steps), Math.max(segMs / 2, due - now));
+      cost = performance.now() - now;
+      if (k === steps) return setTimeout(() => resolve(token === sweepToken), Math.max(0, due - performance.now()));
+      setTimeout(step, Math.max(0, due - performance.now()));
     };
-    step(1);
+    step();
   });
 }
 
