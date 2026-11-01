@@ -715,6 +715,9 @@ dialog pre {
 .mix-legend-item .swatch { padding: 0; border: 0; cursor: pointer; background: transparent; }
 .mix-legend-item .swatch[aria-pressed="true"] { background: var(--c); }
 .mix-legend-item.hidden-artist { opacity: 0.4; }
+/* A key artist the period's chart doesn't draw: faded back, and its box can't be pressed */
+.artist-key .legend-item.absent { opacity: 0.55; }
+.artist-key .legend-item.absent .swatch { cursor: default; }
 .mix-seg.off { pointer-events: none; }
 
 @media (max-width: 600px) {

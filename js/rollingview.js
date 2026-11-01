@@ -287,11 +287,16 @@ export function renderMix(artists, slots, includeOther, pins) {
 // Newcomers take the lowest free slot, but not one just vacated by an artist leaving the chart while another is
 // free: the leaver shrinks away as they grow in, and the same color on both would read as one band changing. (With
 // every color in use, they take the vacated one.) An artist coming back keeps their old slot on the same terms.
+// The key's all-time top artists own their slots outright (by all-time rank), so their colors never change; the
+// chart's other artists take what's left, avoiding those slots while any are free.
 let shownSlots = new Map(); // artist → slot, as last drawn
 function assignSlots(artists) {
   const slots = new Array(artists.length);
   const used = new Set();
   const here = new Set(artists);
+  const fixed = fixedSlots();
+  const reserved = new Set(fixed.values());
+  for (const [a, slot] of fixed) state.colorSlots.set(a, slot);
   const vacated = new Set([...shownSlots].filter(([a]) => !here.has(a)).map(([, slot]) => slot));
   const take = (i, slot) => {
     slots[i] = slot;
@@ -299,15 +304,21 @@ function assignSlots(artists) {
     state.colorSlots.set(artists[i], slot);
   };
   const order = [...artists.keys()].sort((a, b) => state.pinned.includes(artists[b]) - state.pinned.includes(artists[a]));
+  for (const i of order) if (fixed.has(artists[i])) take(i, fixed.get(artists[i]));
   for (const i of order) {
+    if (slots[i] !== undefined) continue;
     const had = state.colorSlots.get(artists[i]);
-    if (had !== undefined && !used.has(had) && (shownSlots.has(artists[i]) || !vacated.has(had))) take(i, had);
+    if (had !== undefined && !used.has(had) && !reserved.has(had) && (shownSlots.has(artists[i]) || !vacated.has(had))) take(i, had);
   }
   const SLOTS = 10; // one per series color
   for (const i of order) {
     if (slots[i] !== undefined) continue;
     let slot = 0;
-    while (slot < SLOTS && (used.has(slot) || vacated.has(slot))) slot++;
+    while (slot < SLOTS && (used.has(slot) || vacated.has(slot) || reserved.has(slot))) slot++;
+    if (slot >= SLOTS) {
+      slot = 0;
+      while (slot < SLOTS && (used.has(slot) || vacated.has(slot))) slot++;
+    }
     if (slot >= SLOTS) {
       const had = state.colorSlots.get(artists[i]);
       slot = had !== undefined && !used.has(had) ? had : 0;
@@ -317,6 +328,21 @@ function assignSlots(artists) {
   }
   shownSlots = new Map(artists.map((a, i) => [a, slots[i]]));
   return slots;
+}
+
+// The period bar's key: the view's top n of all time, whatever the period, plus any pins outside them (so they
+// can be unpinned). The first ten own a color each (fixedSlots).
+let keyMemo = null;
+function allTimeTop(n) {
+  if (keyMemo?.plays !== state.plays || keyMemo.n !== n) keyMemo = { plays: state.plays, n, top: agg.topArtists(state.plays, n).map((a) => a.name) };
+  return keyMemo.top;
+}
+export function keyArtists() {
+  const top = allTimeTop(Number($("n-artists").value));
+  return [...top, ...state.pinned.filter((a) => !top.includes(a))];
+}
+function fixedSlots() {
+  return new Map(allTimeTop(Number($("n-artists").value)).slice(0, 10).map((a, i) => [a, i]));
 }
 
 // The period's top n artists plus the pinned ones. Pins outside the top n join at the end, on top of
