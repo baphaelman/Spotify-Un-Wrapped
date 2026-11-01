@@ -159,7 +159,7 @@ function partsOf(artists, kind) {
 
 // The brush's backdrop: the view's top 10 of all time over the whole history, in miniature (see
 // brush.setBrushBands). It never changes with the period, the window or the chart's artists, so its bands and its
-// ends hold still. Artists in the chart (and shown) take their color from it; the rest are gray. Lit (pinned, or
+// ends hold still. Artists in the chart keep their colors from it; the rest take the colors it leaves free. Lit (pinned, or
 // hovered anywhere) artists are strong while the rest dim, as in the chart.
 const BRUSH_ARTISTS = 10;
 const BRUSH_WINDOW = 30; // days, for the backdrop's own rolling average
@@ -192,11 +192,20 @@ export function paintBrush(_raw, morph = brushMorph) {
     brushMemo.bands = { edges, days, start: Math.max(extent().lo, days[lead]), end: days[days.length - 1] };
   }
   const { edges, days, start, end } = brushMemo.bands;
-  const shown = new Set(state.chartNames.filter((a) => !state.hidden.includes(a) && state.colorSlots.has(a)));
+  const inChart = new Set(state.chartNames.filter((a) => state.colorSlots.has(a)));
+  const shown = new Set([...inChart].filter((a) => !state.hidden.includes(a)));
   const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && shown.has(a)));
+  // The rest take, in rank order, the colors no band here has: first those the chart leaves free, then those of
+  // chart artists outside the top 10, so no two bands share one. They aren't the chart's artists, so only their
+  // own name lights them, never a color they happen to share
+  const mine = new Set(names.filter((n) => inChart.has(n)).map((n) => state.colorSlots.get(n)));
+  const used = new Set([...inChart].map((a) => state.colorSlots.get(a)));
+  const spare = [...Array(10).keys()].filter((s) => !mine.has(s)).sort((a, b) => used.has(a) - used.has(b)); // (10 series colors)
+  let next = 0;
+  const slotOf = (n) => (inChart.has(n) ? state.colorSlots.get(n) : spare[next++]);
   const bands = names.map((n, i) => ({
     ...edges[i],
-    color: shown.has(n) ? `var(--series-${state.colorSlots.get(n) + 1})` : "var(--other)",
+    color: `var(--series-${slotOf(n) + 1})`,
     look: lit.has(n) ? "lit" : lit.size ? "dim" : "rest",
   }));
   setBrushBands({ start, end, days, bands }, morph);
