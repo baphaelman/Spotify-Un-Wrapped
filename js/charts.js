@@ -132,12 +132,15 @@ let relaying = false; // a hover passed from one to the other isn't passed back
 // The hours axis top for the zoom range: the tallest shown line in it, in whole hours
 function hoursTop(data, names, window, hasOther, hide, zoom) {
   let m = 0;
+  // The range's points and the one just past each end, which ECharts' filtering keeps (and scales to)
+  const a = Math.max(0, data.dates.findLastIndex((d) => d < zoom[0]));
+  const b = data.dates.findIndex((d) => d > zoom[1]);
   names.forEach((n, s) => {
     if (hasOther && s === names.length - 1) return;
     if (hide?.[n] === false) return;
-    data.dates.forEach((d, i) => {
-      if (d >= zoom[0] && d <= zoom[1] && data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
-    });
+    for (let i = a; i <= (b < 0 ? data.dates.length - 1 : b); i++) {
+      if (data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
+    }
   });
   return Math.max(1, Math.ceil(m));
 }
@@ -388,6 +391,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const isStrip = mainOf.has(el);
+  const unfiltered = data.free && Number.isFinite(zoom?.[0]);
   const perWeek = (h) => (h / window) * 7;
 
   let st = rollingState.get(el);
@@ -814,7 +818,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         type: "value",
         min: 0,
         // Function form in both modes so a merge always replaces the previous mode's bound
-        max: share ? () => 1 : (v) => Math.max(1, Math.ceil(v.max)),
+        // (data.free: the top of what's in the range, as the filtering would have given it)
+        max: share ? () => 1 : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => Math.max(1, Math.ceil(v.max)),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
         splitNumber: isStrip ? 2 : 4,
@@ -825,7 +830,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // The range is chosen in the page's period brush (period.js), which moves it with setZoom. A hidden
       // slider is still a dataZoom, so the plot shows exactly that range. Never an "inside" one: it
       // swallows wheel events even with wheel zoom off, which stops the page scrolling over the chart
-      dataZoom: [{ type: "slider", show: false, startValue: zoom?.[0], endValue: zoom?.[1] }],
+      // data.free: the caller has cut the points to a stretch around the range and keeps that same set while
+      // the range moves (a window sweep), so nothing is filtered in or out and each point tweens, line ends too
+      dataZoom: [{ type: "slider", show: false, startValue: zoom?.[0], endValue: zoom?.[1], filterMode: unfiltered ? "none" : "filter" }],
       series,
     },
     // Morphs merge by series id, so points tween instead of redrawing, while fills and lines fade. The series

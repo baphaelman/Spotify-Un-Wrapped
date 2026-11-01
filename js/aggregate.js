@@ -269,8 +269,8 @@ export function leadIn(totals) {
 //
 // gridWindow: the window that decides which dates get a point (default: `window` itself). A different one
 // gives the points of another window's chart, filled in with this window; where this window sticks out
-// past the data, it's cut off there. That lets a chart tween between window sizes with the same points
-// throughout.
+// past the data, there's no point (null, as where nothing was played), just as this window's own chart has
+// none there. That lets a chart tween between window sizes with the same points throughout.
 //
 // split: optional { kind, names }, each artist's parts (names[s], from topParts) to work out alongside them.
 // They come back as `parts` ({ kind, names, hours, share }, rows by artist, then part); a part's share is of
@@ -293,16 +293,17 @@ export function rolling(plays, artists, window, includeOther, gridWindow = windo
     const center = gridStart + gridHalf;
     const start = Math.max(0, center - half), end = Math.min(len, center - half + window);
     const sums = prefix.map((pre) => pre[end] - pre[start]);
-    const total = sums.reduce((a, b) => a + b, 0);
+    const out = end - start < window; // sticking out past the data
+    const total = out ? 0 : sums.reduce((a, b) => a + b, 0);
     dates.push(dayToDate(first + center).getTime());
     everyoneTotals.push(everyone[gridStart + gridWindow] - everyone[gridStart]);
     for (let s = 0; s < nSeries; s++) {
-      hours[s].push(sums[s]);
+      hours[s].push(out ? null : sums[s]);
       share[s].push(total > 0 ? sums[s] / total : null); // null = gap where nothing was played
     }
     partPre.forEach((list, s) => list.forEach((pre, j) => {
       const sum = pre[end] - pre[start];
-      partHours[s][j].push(sum);
+      partHours[s][j].push(out ? null : sum);
       partShare[s][j].push(total > 0 ? sum / total : null);
     }));
   }

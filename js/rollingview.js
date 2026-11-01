@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
@@ -63,9 +63,12 @@ linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 const windowSliders = [$("window"), $("hours-window")];
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
-// size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding.
+// size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding; { stretch }
+// draws only the points over that [start, end] (and one past each end), unfiltered by the range (see cutTo).
 // followers: false leaves the lists, mix bar, monthly chart and the bar's backdrop for the caller to update.
+let renders = 0; // how many times the chart has been drawn, so a window sweep can tell whether it's still its own
 export function renderRollingChart(zoom, morph = false, look = null, followers = !look) {
+  renders++;
   if (!look) cancelSweep(); // any other render ends a sweep in progress
   const n = Number($("n-artists").value);
   const target = $("window")._glideTo ?? WINDOWS[$("window").value]; // (the thumb is between steps mid-glide)
@@ -98,7 +101,8 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   // Auto says which strength it has landed on
   const amount = agg.autoAmount(span);
   $("smoothify").options[0].textContent = `Auto · ${amount < 0.1 ? "Off" : amount < 0.4 ? "Low" : amount < 0.75 ? "Med" : amount < 1.5 ? "High" : "Max"}`;
-  const data = agg.blur(raw, sigma);
+  let data = agg.blur(raw, sigma);
+  if (look?.stretch) data = cutTo(data, look.stretch);
   const names = includeOther ? [...artists, "Everyone else"] : artists;
   state.chartNames = artists;
 
@@ -122,6 +126,18 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     paintClock();
     paintBrush();
   }
+}
+
+// The points of `data` over the dates [lo, hi], and one past each end so the lines run on past the edges,
+// marked free: the chart draws them all rather than filtering them to its range, so a sweep that moves the
+// range keeps the same points from step to step
+function cutTo(data, [lo, hi]) {
+  const { dates } = data;
+  const a = Math.max(0, dates.findLastIndex((d) => d <= lo));
+  const b = dates.findIndex((d) => d >= hi) + 1 || dates.length;
+  const cut = (row) => row.slice(a, b);
+  const parts = data.parts && { ...data.parts, hours: data.parts.hours.map((l) => l.map(cut)), share: data.parts.share.map((l) => l.map(cut)) };
+  return { dates: cut(dates), hours: data.hours.map(cut), share: data.share.map(cut), parts, free: true };
 }
 
 // The brush's backdrop: the rolling chart's own data over the whole history, in miniature (see
@@ -429,9 +445,9 @@ function glideWindow(from, to, ms) {
 }
 
 // A new window size: sweep through the sizes in between, evenly spaced on a log scale like the slider's
-// ticks. Every step uses the points of the final chart (the window fixed on `grid`), so ECharts can tween
-// each point; the first step is drawn without animation to put the old window on those points. Edges
-// the old window didn't reach appear at once there.
+// ticks. Every step uses the same points (the window fixed on `grid`), so ECharts can tween each point; the
+// first step is drawn without animation to put the old window on those points. Edges the old window didn't
+// reach appear at once there.
 export function sweepWindow(glide = false, to = WINDOWS[$("window").value]) {
   const zoom = () => currentZoom($("chart-rolling"));
   const from = state.shownWindow;
@@ -442,13 +458,35 @@ export function sweepWindow(glide = false, to = WINDOWS[$("window").value]) {
   // backdrop all on that time
   const total = scaledMs(from, to);
   if (glide) glideWindow(from, to, total);
-  renderRollingChart(zoom(), false, { window: from, grid: to });
-  paintBrush(agg.rolling(state.plays, state.chartNames, to, $("include-other").checked), { delay: 0, ms: total });
+  const end = agg.rolling(state.plays, state.chartNames, to, $("include-other").checked);
+  // A bigger window has fewer points (none until its first window fills, none after its last), so the range
+  // shown shrinks to them and a smaller one's widens back to the period. The range travels there on the
+  // sweep's clock, over the points of the smaller window (which reach both ranges): on the bigger one's, the
+  // lines past its last point would vanish at the first step, and the range snap in. The bigger window's
+  // points take over once the sweep lands, where what they leave out is off screen.
+  const z0 = zoom();
+  const z1 = clampZoom(periodZoom(), end.dates);
+  const grid = Math.min(from, to);
+  const moves = Number.isFinite(z0?.[0]) && (z0[0] !== z1[0] || z0[1] !== z1[1]);
+  // While it moves, every step draws the same points, over both ranges, so none is filtered in or out
+  const stretch = moves ? [Math.min(z0[0], z1[0]), Math.max(z0[1], z1[1])] : null;
+  const at = (t) => (moves ? travel(z0, z1, t) : zoom());
+  renderRollingChart(at(0), false, { window: from, grid, stretch });
+  paintBrush(end, { delay: 0, ms: total });
   return sweep((t, ms) => {
     if (t < 1 && !chartSeen()) return;
     const window = t === 1 ? to : Math.round(from * (to / from) ** t);
-    renderRollingChart(zoom(), { ms, easing: "linear" }, { window, grid: to });
-  }, total, sweepSteps(total));
+    renderRollingChart(at(t), { ms, easing: "linear" }, { window, grid, stretch });
+  }, total, sweepSteps(total)).then((done) => {
+    if (!done || (grid === to && !stretch)) return done;
+    // The last step's tween ends a frame or so after the sweep (ECharts draws on the next frame), so the
+    // handover waits a step more. Anything drawn meanwhile has already left these points behind.
+    const mark = renders;
+    return new Promise((resolve) => setTimeout(() => {
+      if (renders === mark) renderRollingChart(zoom(), false, { window: to, grid: to });
+      resolve(true);
+    }, total / sweepSteps(total)));
+  });
 }
 
 let pending = 0;

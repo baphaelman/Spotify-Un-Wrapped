@@ -24,7 +24,9 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
 - **`morph` is `false`, `true`/ms, or `{ms, easing}`.** Re-renders that keep the same series and point
   count can morph. Where a straight point-to-point tween would only crossfade, **sweep** instead
   (`motion.js`): smoothify steps through blur radii, and the window slider steps through window sizes,
-  drawing each step on the final chart's date points (`rolling`'s `gridWindow`) so counts match. Toggling
+  drawing each step on the same date points (`rolling`'s `gridWindow`, the smaller window's) so counts match.
+  A bigger window has fewer points, so the range shown shrinks with it: the window sweep moves the range on its
+  own clock over one fixed, unfiltered set of points (`cutTo`, `data.free`), then hands over to the final chart's. Toggling
   "Everyone else" morphs through a zero-thickness band (`withOtherMorph`), since series can't tween in or out.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
