@@ -267,10 +267,15 @@ export function renderMix(artists, slots, includeOther, pins) {
 // in the stack (which is their rank, and shifts with the period, the artist count and the pins).
 // An artist keeps the slot they last had, if it's free. Pinned artists are placed first, so they always
 // keep theirs: they're in the chart the whole time they're pinned, so nothing else can have taken it.
-// Newcomers take the lowest free slot, which is usually one just vacated by whoever they replaced.
+// Newcomers take the lowest free slot, but not one just vacated by an artist leaving the chart while another is
+// free: the leaver shrinks away as they grow in, and the same color on both would read as one band changing. (With
+// every color in use, they take the vacated one.) An artist coming back keeps their old slot on the same terms.
+let shownSlots = new Map(); // artist → slot, as last drawn
 function assignSlots(artists) {
   const slots = new Array(artists.length);
   const used = new Set();
+  const here = new Set(artists);
+  const vacated = new Set([...shownSlots].filter(([a]) => !here.has(a)).map(([, slot]) => slot));
   const take = (i, slot) => {
     slots[i] = slot;
     used.add(slot);
@@ -279,14 +284,21 @@ function assignSlots(artists) {
   const order = [...artists.keys()].sort((a, b) => state.pinned.includes(artists[b]) - state.pinned.includes(artists[a]));
   for (const i of order) {
     const had = state.colorSlots.get(artists[i]);
-    if (had !== undefined && !used.has(had)) take(i, had);
+    if (had !== undefined && !used.has(had) && (shownSlots.has(artists[i]) || !vacated.has(had))) take(i, had);
   }
+  const SLOTS = 10; // one per series color
   for (const i of order) {
     if (slots[i] !== undefined) continue;
     let slot = 0;
-    while (used.has(slot)) slot++;
+    while (slot < SLOTS && (used.has(slot) || vacated.has(slot))) slot++;
+    if (slot >= SLOTS) {
+      const had = state.colorSlots.get(artists[i]);
+      slot = had !== undefined && !used.has(had) ? had : 0;
+      while (used.has(slot)) slot++;
+    }
     take(i, slot);
   }
+  shownSlots = new Map(artists.map((a, i) => [a, slots[i]]));
   return slots;
 }
 
