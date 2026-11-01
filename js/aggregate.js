@@ -351,27 +351,144 @@ export const smoothifySigma = (window, strength, span) =>
     : strength ? Math.max(1, window * SMOOTHIFY_SIGMA[strength]) : 0;
 export const smoothify = (data, window, strength) => blur(data, smoothifySigma(window, strength));
 
-// Gaussian blur of every series with the given sigma in days; below half a day it changes nothing
+// Gaussian blur of every series with the given sigma in days; below half a day it changes nothing.
+// Each point is the kernel-weighted mean of its neighbours within 3 sigma that have a value. That's two
+// convolutions, of the values (gaps as 0) and of where there are values, worked out by FFT once the kernel is wide,
+// so a wide blur (a long window, high smoothing) costs no more than a narrow one. Rows with the same gaps (every
+// share row has the same) share the second.
 export function blur({ dates, hours, share, parts }, sigma) {
   if (sigma < 0.5) return { dates, hours, share, parts };
   const r = Math.ceil(sigma * 3);
-  const kernel = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-((k - r) ** 2) / (2 * sigma * sigma)));
+  const kernel = new Float64Array(2 * r + 1);
+  for (let k = 0; k <= 2 * r; k++) kernel[k] = Math.exp(-((k - r) ** 2) / (2 * sigma * sigma));
   const n = dates.length;
-  const run = (arr) =>
-    arr.map((_, i) => {
-      if (arr[i] == null) return null;
-      let sum = 0, w = 0;
-      for (let k = Math.max(0, i - r); k <= Math.min(n - 1, i + r); k++) {
-        if (arr[k] == null) continue;
-        const g = kernel[k - i + r];
-        sum += arr[k] * g;
-        w += g;
-      }
-      return sum / w;
+  const rows = [...hours, ...share, ...(parts ? [...parts.hours.flat(), ...parts.share.flat()] : [])];
+  // Each row's values with gaps as 0, and where it has values (1) or gaps (0), one mask per distinct pattern
+  const values = [], masks = [], maskOf = [];
+  for (const arr of rows) {
+    const v = new Float64Array(n);
+    for (let i = 0; i < n; i++) v[i] = arr[i] ?? 0;
+    values.push(v);
+    let k = masks.findIndex((m) => {
+      for (let i = 0; i < n; i++) if ((arr[i] == null) === (m[i] === 1)) return false;
+      return true;
     });
-  const nested = (rows) => rows.map((list) => list.map(run));
+    if (k < 0) {
+      const m = new Float64Array(n);
+      for (let i = 0; i < n; i++) m[i] = arr[i] == null ? 0 : 1;
+      k = masks.push(m) - 1;
+    }
+    maskOf.push(k);
+  }
+  const conv = convolve([...values, ...masks], kernel, r);
+  const weights = conv.slice(values.length);
+  const out = rows.map((arr, s) => {
+    const sum = conv[s], w = weights[maskOf[s]];
+    const row = new Array(n);
+    for (let i = 0; i < n; i++) {
+      if (arr[i] == null) row[i] = null;
+      else {
+        const v = sum[i] / w[i];
+        row[i] = v < 1e-12 && v > -1e-12 ? 0 : v; // (the FFT leaves a rounding speck where every neighbour is 0)
+      }
+    }
+    return row;
+  });
+  let at = 0;
+  const take = (k) => out.slice(at, (at += k));
+  const nested = (list) => list.map((l) => take(l.length));
+  const blurredHours = take(hours.length), blurredShare = take(share.length);
   return {
-    dates, hours: hours.map(run), share: share.map(run),
+    dates, hours: blurredHours, share: blurredShare,
     parts: parts && { ...parts, hours: nested(parts.hours), share: nested(parts.share) },
   };
+}
+
+// Each row convolved with a symmetric kernel of radius r, cut to the row's length: out[i] = sum over k of
+// row[k] * kernel[k - i + r], with nothing beyond either end. Directly for a narrow kernel, by FFT for a wide one
+// (two rows at a time, as the real and imaginary parts: the kernel is real, so they come back apart).
+function convolve(rows, kernel, r) {
+  const n = rows[0]?.length ?? 0;
+  if (!n) return rows.map(() => new Float64Array(0));
+  if (2 * r + 1 <= 48) {
+    return rows.map((row) => {
+      const out = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (let k = Math.max(0, i - r), end = Math.min(n - 1, i + r); k <= end; k++) sum += row[k] * kernel[k - i + r];
+        out[i] = sum;
+      }
+      return out;
+    });
+  }
+  let N = 1;
+  while (N < n + 2 * r) N <<= 1;
+  const plan = fftPlan(N);
+  const kRe = new Float64Array(N), kIm = new Float64Array(N);
+  kRe.set(kernel);
+  fft(kRe, kIm, plan, false);
+  const out = [];
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let s = 0; s < rows.length; s += 2) {
+    re.fill(0);
+    im.fill(0);
+    re.set(rows[s]);
+    if (s + 1 < rows.length) im.set(rows[s + 1]);
+    fft(re, im, plan, false);
+    for (let i = 0; i < N; i++) {
+      const a = re[i], b = im[i];
+      re[i] = a * kRe[i] - b * kIm[i];
+      im[i] = a * kIm[i] + b * kRe[i];
+    }
+    fft(re, im, plan, true);
+    out.push(re.slice(r, r + n));
+    if (s + 1 < rows.length) out.push(im.slice(r, r + n));
+  }
+  return out;
+}
+
+// In-place radix-2 FFT of length N (a power of 2); the inverse is scaled by 1/N
+const plans = new Map();
+function fftPlan(N) {
+  let plan = plans.get(N);
+  if (!plan) {
+    const rev = new Uint32Array(N), cos = new Float64Array(N / 2), sin = new Float64Array(N / 2);
+    for (let i = 0, bits = Math.log2(N); i < N; i++) {
+      let x = i, y = 0;
+      for (let b = 0; b < bits; b++, x >>= 1) y = (y << 1) | (x & 1);
+      rev[i] = y;
+    }
+    for (let k = 0; k < N / 2; k++) {
+      cos[k] = Math.cos((2 * Math.PI * k) / N);
+      sin[k] = Math.sin((2 * Math.PI * k) / N);
+    }
+    plans.set(N, (plan = { rev, cos, sin }));
+  }
+  return plan;
+}
+function fft(re, im, { rev, cos, sin }, inverse) {
+  const N = re.length;
+  for (let i = 0; i < N; i++) {
+    const j = rev[i];
+    if (j > i) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  const sign = inverse ? 1 : -1;
+  for (let size = 2; size <= N; size <<= 1) {
+    const half = size >> 1, step = N / size;
+    for (let start = 0; start < N; start += size) {
+      for (let k = 0, w = 0; k < half; k++, w += step) {
+        const wr = cos[w], wi = sign * sin[w];
+        const a = start + k, b = a + half;
+        const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - tr;
+        im[b] = im[a] - ti;
+        re[a] += tr;
+        im[a] += ti;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < N; i++) { re[i] /= N; im[i] /= N; }
 }
