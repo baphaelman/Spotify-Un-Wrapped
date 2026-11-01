@@ -623,7 +623,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         color: colors[k],
         z: share ? 2 + (names.length - k) / 100 + (MAX_PARTS + 1 - j) / 1000 : 2.9,
         lineStyle: { ...partLine(k, j, shown), color: colors[k], cap: "butt", join: "round" },
-        areaStyle: { color: share ? partFill(k, j, shown) : hoursFill[k], opacity: share ? 1 : 0, origin: "start" },
+        // An empty slot's fill would only repeat its band's tint, so it isn't painted (it fades out as its part goes,
+        // which looks the same as crossfading to the band's tint)
+        areaStyle: { color: share ? partFill(k, j, shown) : hoursFill[k], opacity: share && partShown(k, j) ? 1 : 0, origin: "start" },
         emphasis: { disabled: true },
         data: points((i) => (share ? partTop[k][j][i] : partHoursAt(k, j, i))),
       }))
