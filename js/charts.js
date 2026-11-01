@@ -4,9 +4,9 @@ import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOpt
 import { shownName, putOff, owes } from "./state.js";
 import { tune } from "./tune.js";
 
-// How many part slots each band needs, by band: as many as it has parts, or more if data.parts.slots (artist → count)
-// asks for them
-const partSlots = (parts, names) => (parts ? names.map((n, k) => Math.max(parts.share[k]?.length ?? 0, parts.slots?.get(n) ?? 0)) : []);
+// How many part slots each band needs, by band: as many as it has parts, or data.parts.slots[k] if more
+const slotsMax = (a, b) => Array.from({ length: Math.max(a.length, b.length) }, (_, k) => Math.max(a[k] ?? 0, b[k] ?? 0));
+const partSlots = (parts) => (parts ? slotsMax(parts.share.map((list) => list.length), parts.slots ?? []) : []);
 
 const instances = new Map();
 
@@ -751,20 +751,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // The parts' slots: each band has as many as it has parts (agg.topParts caps the parts of the whole chart, so one
   // artist can have many). A morph that needs more slots than are drawn first redraws what's on screen with the
   // extra ones, empty, so the new parts grow out of them; one that needs fewer keeps the old slots until it lands,
-  // then trims them (below). Slots belong to an artist (like its series), so they're counted by name
-  const needSlots = partSlots(data.parts, names);
-  const hadSlots = prev?.partSlots ?? new Map();
-  const grows = needSlots.some((v, k) => v > (hadSlots.get(names[k]) ?? v));
-  if (ms && !morph?.live && prev?.mode === mode && prev.args?.[0].parts && grows) {
+  // then trims them (below)
+  const needSlots = partSlots(data.parts);
+  const hadSlots = prev?.partSlots ?? [];
+  if (ms && !morph?.live && prev?.mode === mode && prev.args?.[0].parts && needSlots.some((v, k) => v > (hadSlots[k] ?? 0))) {
     const [d, n, w, , m, o, p, sl, sm] = prev.args;
-    const more = new Map(hadSlots);
-    names.forEach((name, k) => more.has(name) && more.set(name, Math.max(more.get(name), needSlots[k])));
     // (an open tooltip re-shows itself a tick after each render, by then against a chart redrawn again, and throws)
     chart(el).dispatchAction({ type: "hideTip" });
-    renderRolling(el, { ...d, parts: { ...d.parts, slots: more } }, n, w, currentZoom(el), m, o, false, p, sl, sm);
+    renderRolling(el, { ...d, parts: { ...d.parts, slots: slotsMax(needSlots, hadSlots) } }, n, w, currentZoom(el), m, o, false, p, sl, sm);
     return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
   }
-  const nSlots = data.parts && ms ? needSlots.map((v, k) => Math.max(v, hadSlots.get(names[k]) ?? 0)) : needSlots;
+  const nSlots = data.parts && ms ? slotsMax(needSlots, hadSlots) : needSlots;
   const t = tokens();
   // (scaled by the tunables, see tune.js; all ×1 by default)
   t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill };
@@ -808,7 +805,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.real = artistCtx?.real ?? null; // (a live morph's leavers are kept at nothing, see withArtistMorph)
   st.hasOther = hasOther;
   st.window = window;
-  st.partSlots = new Map(names.map((n, k) => [n, nSlots[k]]));
+  st.partSlots = nSlots;
   st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
@@ -922,7 +919,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
   // Slots kept through a morph to fewer parts go once it lands (empty, so nothing on screen changes). Not in an
   // artist change, whose own last step redraws once it lands
-  if (!artistCtx && nSlots.some((v, k) => v > needSlots[k])) {
+  if (!artistCtx && nSlots.some((v, k) => v > (needSlots[k] ?? 0))) {
     setTimeout(() => st.renderToken === renderToken && rollingState.get(el) === st &&
       renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth), ms);
   }

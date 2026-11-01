@@ -73,7 +73,7 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   of the listening of the artists shown, and at most `cap` in the whole chart, biggest first across every band. So
   showing fewer artists, or deselecting some, splits the rest more finely, and one artist alone can have many. When
   artists are shown or hidden the chart asks the page first (`pins.restack`), which redraws with the new parts in the
-  same morph instead of a plain re-stack. Each band has as many slots as it has parts (counted by artist, like its series); a morph to
+  same morph instead of a plain re-stack. Each band has as many slots as it has parts; a morph to
   more slots first redraws what's on screen with the extra ones empty, and a morph to fewer keeps them until it lands,
   then trims them. In share mode they stack up from the band's floor, each painting just above its band's z; in
   hours mode they're thin lines. An empty slot has no thickness, so showing more or fewer of an artist's parts (pins,
