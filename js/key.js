@@ -2,7 +2,7 @@
 import { focusArtist, showArtists } from "./charts.js";
 import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
 import { $, state, noun, otherLabel } from "./state.js";
-import { mixArgs, MAX_PINS, pin, keyArtists } from "./rollingview.js";
+import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
 import { recolorRanking, focusRanking } from "./ranking.js";
 
 // The hovered artist lights everything that belongs to them, as pinning does: their chip in the period bar's
@@ -16,18 +16,16 @@ export function paintFocus(name = listFocus) {
   focusRanking(name);
 }
 
-// The artist key in the period bar, for every graph: a chip per artist in the view's all-time top n (keyArtists), in
-// that order and in their colors, the same whatever the period. An artist the period's chart doesn't draw is dimmed,
-// and can't be shown or hidden (pinning brings them in). The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
+// The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
+// colors. The box shows or hides the artist everywhere, clicking the name pins or unpins them, and hovering lights
 // them everywhere. Pinned chips are tinted and outlined. It's led by a box that shows or hides every
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
 export function paintArtistKey() {
   recolorRanking();
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
-  const drawn = new Set(artists);
   // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
-  const keyed = keyArtists().filter((a) => state.colorSlots.has(a));
+  const keyed = artists.filter((a) => state.colorSlots.has(a));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const key = $("artist-key");
   const chips = (root) => new Map([...root.querySelectorAll("[data-artist]")].map((el) => [el.dataset.artist, el]));
@@ -51,11 +49,10 @@ export function paintArtistKey() {
   const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];
 
   const items = keyed.map((n) => {
-    const absent = !drawn.has(n);
-    const off = !absent && state.hidden.includes(n);
+    const off = state.hidden.includes(n);
     const pinned = !off && pins.has(n);
     const item = document.createElement("span");
-    item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "") + (off ? " hidden-artist" : "") + (absent ? " absent" : "");
+    item.className = "legend-item mix-legend-item pinnable" + (pinned ? " pinned" : "") + (off ? " hidden-artist" : "");
     item.style.setProperty("--c", `var(--series-${state.colorSlots.get(n) + 1})`);
     item.dataset.artist = n;
     item.title = off ? `Show ${n}` : pinned ? `Unpin ${n}` : `Pin ${n}`;
@@ -65,7 +62,6 @@ export function paintArtistKey() {
     sw.setAttribute("aria-pressed", !off);
     sw.title = off ? `Show ${n}` : `Hide ${n}`;
     sw.setAttribute("aria-label", sw.title);
-    if (absent) sw.disabled = true;
     sw.addEventListener("click", (e) => {
       e.stopPropagation();
       hover(null);
@@ -114,7 +110,7 @@ export function paintArtistKey() {
   // As in the rolling chart, the box leaves shown pinned artists alone (a hidden one it brings back like the
   // rest). Checked when they're all shown, a plus when some can come back; a click shows them all, or hides
   // them all once they're all shown
-  const top = keyed.filter((n) => drawn.has(n) && (!pins.has(n) || state.hidden.includes(n)));
+  const top = keyed.filter((n) => !pins.has(n) || state.hidden.includes(n));
   const on = top.filter((n) => !state.hidden.includes(n)).length;
   const box = document.createElement("button");
   box.type = "button";
