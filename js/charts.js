@@ -86,7 +86,24 @@ function tooltipBase(t) {
     padding: [8, 12],
     textStyle: { color: t.primary, fontSize: 13 },
     extraCssText: "border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);",
+    position: tipBeside,
   };
+}
+
+// A hover card beside the pointer (right and below it, or left where there's no room), kept inside the window and
+// under the sticky period bar: a long readout (a split chart lists many parts) would otherwise run off the screen.
+// Taller than the room, it starts at the top of it
+function tipBeside(point, _params, dom, _rect, size) {
+  const GAP = 16, EDGE = 8;
+  const [w, h] = size.contentSize;
+  const box = dom.parentElement.getBoundingClientRect();
+  const bar = document.querySelector(".filters.sticky")?.getBoundingClientRect().bottom ?? 0;
+  const top = Math.max(0, bar) + EDGE, bottom = innerHeight - EDGE;
+  let x = box.left + point[0] + GAP;
+  if (x + w > innerWidth - EDGE) x = box.left + point[0] - GAP - w;
+  x = Math.max(EDGE, Math.min(x, innerWidth - EDGE - w));
+  const y = Math.max(top, Math.min(box.top + point[1] + GAP, bottom - h));
+  return [x - box.left, y - box.top];
 }
 
 // Line-key row: value leads, label follows. `strong` picks out the row under the pointer.
