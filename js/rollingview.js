@@ -7,7 +7,7 @@ import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { genreCoversIn } from "./views.js";
-import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
+import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -183,8 +183,9 @@ export function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
 
 // When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
 const CLOCK_HOURS = 4;
-export function paintClock(plays = shownPlays()) {
-  if (!mixArgs) return;
+export function paintClock(plays) {
+  if (!mixArgs || putOff($("chart-clock").closest(".card"), () => paintClock())) return;
+  plays ??= shownPlays();
   const [artists, , includeOther, pins] = mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
@@ -206,8 +207,9 @@ const SPAN_WORDS = {
   12: ["per year", "year's"],
   24: ["every 2 years", "two years'"],
 };
-export function paintMonthly(plays = shownPlays()) {
-  if (!mixArgs) return;
+export function paintMonthly(plays) {
+  if (!mixArgs || putOff($("chart-monthly").closest(".card"), () => paintMonthly())) return;
+  plays ??= shownPlays();
   const [artists, , , pins] = mixArgs;
   // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
   const keyed = artists.filter((a) => state.colorSlots.has(a));

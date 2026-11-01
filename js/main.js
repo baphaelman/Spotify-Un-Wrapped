@@ -415,7 +415,7 @@ function showDashboard() {
 }
 
 function renderAll(keepZoom, from = false) {
-  renderDependents();
+  renderDependents(false); // the rolling chart's render paints the monthly chart and the clock, with its artists
   const ms = panMs(from);
   const frame = brushRange(), to = state.range;
   renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true, onFrame: (e) => glideBrushRange(frame, to, e) });
@@ -423,10 +423,12 @@ function renderAll(keepZoom, from = false) {
 
 // Everything that follows the legend's selection: monthly hours and the clock
 // (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
-function renderDependents() {
+function renderDependents(charts = true) {
   const plays = shownPlays();
-  paintMonthly(plays);
-  paintClock(plays);
+  if (charts) {
+    paintMonthly(plays);
+    paintClock(plays);
+  }
   paintRanking(plays);
   paintFocus();
 }

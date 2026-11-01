@@ -98,3 +98,36 @@ export function shownPlays() {
 
 // Set by main.js at startup (renderAll, renderDependents, paintArtistKey)
 export const hooks = {};
+
+// Cards well off screen aren't redrawn on every change (each step of a drag of the period window, a sweep), only as
+// they come back near the screen: the latest paint asked for while a card is away is kept, and run as the card comes
+// within half a screen of view, before it shows. `putOff(card, paint)` returns true when it kept the paint for
+// later, false when the caller should paint now. `paint` must draw from the state as it is when it runs.
+const away = new Set(), owed = new Map(), watched = new WeakSet();
+const nearScreen = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    // (a card that isn't laid out, as in the hidden dashboard, paints when asked, as it always has)
+    if (!e.isIntersecting && e.boundingClientRect.height > 0) {
+      away.add(e.target);
+      continue;
+    }
+    away.delete(e.target);
+    const paint = owed.get(e.target);
+    owed.delete(e.target);
+    paint?.();
+  }
+}, { rootMargin: "50% 0px" });
+export function putOff(card, paint) {
+  if (!watched.has(card)) {
+    watched.add(card);
+    nearScreen.observe(card);
+  }
+  if (!away.has(card)) {
+    owed.delete(card);
+    return false;
+  }
+  owed.set(card, paint);
+  return true;
+}
+// Whether a card has a paint waiting, so what it shows is out of date anyway
+export const owes = (card) => owed.has(card);

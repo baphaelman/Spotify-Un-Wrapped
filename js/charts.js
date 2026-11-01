@@ -2,7 +2,7 @@
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
 import { MAX_PARTS } from "./aggregate.js";
-import { shownName } from "./state.js";
+import { shownName, putOff, owes } from "./state.js";
 
 const instances = new Map();
 
@@ -221,7 +221,7 @@ export function setZoom(el, [start, end]) {
   stillChart(c, st);
   c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
   if (st?.live) paintLive(c, st); // the zoom redrew the new values; put the blend back before it's painted
-  if (stripOf.has(el)) setZoom(stripOf.get(el), [start, end]);
+  if (stripOf.has(el) && !owes(stripOf.get(el).closest(".card"))) setZoom(stripOf.get(el), [start, end]);
 }
 
 // A live morph (morph.live): new artists while the range is moving under the reader's hand, as in a drag
@@ -385,7 +385,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       };
       const strip = stripOf.get(el);
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
-        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && { el: strip, yMax: travelMax(strip) });
+        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && !owes(strip.closest(".card")) && { el: strip, yMax: travelMax(strip) });
       return;
     }
     else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
@@ -1056,9 +1056,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   hiddenNames.set(el, hidden);
   selectionHooks.get(el)?.(artistsOf(names, hasOther).filter((n) => st.selected[n] === false));
 
-  // The hours strip draws the same render, with the same artists shown
+  // The hours strip draws the same render, with the same artists shown. Well off screen, it catches up (at once)
+  // as it comes near, rather than on every render (see putOff)
   const strip = stripOf.get(el);
-  if (strip) {
+  const drawStrip = (zoom, morph) => {
     hiddenNames.set(strip, new Set(hidden));
     const sst = rollingState.get(strip);
     if (sst && sst.names.join("\u0000") === names.join("\u0000")) sst.selected = { ...st.selected };
@@ -1068,7 +1069,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // without the albums or songs: in thin lines they'd only tangle
     renderRolling(strip, { ...data, parts: undefined }, names, window, zoom, "hours", hasOther, morph, pins, slots, smooth);
     if (keep) sst.keepFocus = null;
-  }
+  };
+  if (strip && !putOff(strip.closest(".card"), () => drawStrip(currentZoom(el) ?? zoom, false))) drawStrip(zoom, morph);
 }
 
 // The names a rolling chart keeps hidden, including ones not in it now (they stay hidden when they come back),
