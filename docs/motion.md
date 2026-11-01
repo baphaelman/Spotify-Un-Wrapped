@@ -30,7 +30,7 @@ matches what is moving.
 - **Hover shades, a pin outlines.** Anywhere an artist (or a card, chip or bar) is lit, hovering only animates a
   shade of its color (`FADE_MS`); the outline is the pin's, and fades in and out only as the artist is pinned or
   unpinned. Where the pinned shade is deeper than the hovered one (the monthly bars), a pin deepens the hover's
-  shade (the Hours lines too: a pinned line's fill, `--shade-line-pin`, is deeper than a hovered one's, and a hover dims
+  shade (the Hours lines too: a pinned line's fill, `--shade-line-pin`, is deeper than a hovered one's but shared out by √pins when several are pinned, back to full while hovered; every fill lies under every line; and a hover dims
   the other lines less than a pin does). The period bar's chips are the model (`.legend-item`: `:hover`/`.focus` tint, `.pinned` border). A
   lit segment of the mix bar sets its hours in the main ink and leaves its percentage in the artist's color.
 - **One action, one tier, one start.** Everything an action changes (the charts, the period bar's

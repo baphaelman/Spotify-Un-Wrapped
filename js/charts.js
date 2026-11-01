@@ -729,12 +729,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color (t.shade.linePin, deeper,
   // under a pinned line: hover shades, a pin deepens it). Sharing the color means a morph only changes opacity:
   // tweening a band's opaque tint to the artist's full color at low opacity would pass through a stronger fill than either end.
+  // Several pinned fills overlap, so they share the pin's depth out (by √pins), keeping every line under them
+  // readable; hovering a pinned line gives it the whole depth back.
   const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
   const hoursFillOpacity = t.shade.line / t.shade.hover;
-  const hoursPinOpacity = t.shade.linePin / t.shade.hover;
+  const hoursPinFull = t.shade.linePin / t.shade.hover;
+  const hoursPinOpacity = hoursPinFull / Math.sqrt(Math.max(1, base.size));
   // (a line leaving in an artist change, fading, has none)
-  const hoursArea = (k, lit) =>
-    k === otherIdx || fading(k) || !lit.has(k) ? 0 : base.has(k) ? hoursPinOpacity : hoursFillOpacity;
+  const hoursArea = (k, lit, hot = null) =>
+    k === otherIdx || fading(k) || !lit.has(k) ? 0 : !base.has(k) ? hoursFillOpacity : k === hot ? hoursPinFull : hoursPinOpacity;
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
@@ -750,7 +753,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const restWidth = isStrip ? tune.hoursLine : 2; // the strip's lines are finer
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
   // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
-  const PIN_DIM = 0.2, HOVER_DIM = 0.5;
+  const PIN_DIM = 0.3, HOVER_DIM = 0.5;
   const lineLook = (k, lit) => ({
     width: base.has(k) ? restWidth + 1 : restWidth,
     opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : base.size ? PIN_DIM : HOVER_DIM,
@@ -802,7 +805,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Lower bands paint over the bottom of the ones above them. That order has to be explicit:
         // ECharts paints series in the order their views were created, so artists added later (raising
         // the artist count) would otherwise paint over everything below them
-        z: (share ? 2 : 3) + (names.length - s) / 100,
+        // Hours mode gives every line one z, so every fill (z2 below the line's) paints under every line: a
+        // pinned line's fill never covers the lines below it, nor their ends poking out past its edge
+        z: share ? 2 + (names.length - s) / 100 : 3,
         // Share: hidden; the edge overlays draw each band's borders instead (see edgeData)
         lineStyle: {
           ...(share ? { width: 2, opacity: 0 } : lineLook(s, shown)),
@@ -816,7 +821,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // bands can fade it in rather than have it appear
         areaStyle: {
           color: share ? bandFill(s, shown) : hoursFill[s],
-          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, shown) : 0,
+          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, shown, kept) : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -1138,7 +1143,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       series: names.map((_, j) => ({
         id: `s${j}`,
         lineStyle: lineLook(j, on),
-        areaStyle: { opacity: hoursArea(j, on) },
+        areaStyle: { opacity: hoursArea(j, on, focused) },
       })).concat(partStyles(on)),
     }, undefined, FADE_MS);
   };
