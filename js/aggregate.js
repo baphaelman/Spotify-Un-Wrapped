@@ -72,38 +72,36 @@ export function topArtists(plays, n) {
 // plays carry their album and song as the albums and tracks views call them (views.js), told apart by artist.
 export const partOf = (kind) =>
   kind === "album" ? (p) => p.albumKey ?? (p.album || "Unknown album") : kind === "artist" ? (p) => p.by ?? p.artist : (p) => p.trackKey ?? p.track;
-// A part is drawn when it's at least PART_MIN of the listening of the items shown (the chart's, less any deselected),
-// so the fewer there are, the finer the split: with one artist shown, every song that's PART_MIN of theirs
-const PART_MIN = 0.01;
-export const MAX_PARTS = 8; // slots per band
+// A part is drawn when it's at least `cut` of the listening of the items shown (the chart's, less any deselected),
+// and the chart draws at most `cap` parts in all, the biggest across every band. So the fewer items are shown, the
+// finer the split: with one artist shown, every song that's `cut` of theirs, up to `cap`
+export const PARTS = { cap: 30, cut: 0.01 };
 
-// For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band:
-// at least PART_MIN of the hours of `shown` (the items on screen, all of `artists` by default), up to MAX_PARTS,
-// biggest first. An item not shown has none (its band has no thickness)
-export function topParts(plays, artists, kind, shown = artists) {
+// For each of `artists`, the albums or songs (kind) prominent enough to draw as their own part of its band (see
+// PARTS), biggest first. `shown` is the items on screen (all of `artists` by default); an item not shown has none
+// (its band has no thickness)
+export function topParts(plays, artists, kind, shown = artists, { cap, cut } = PARTS) {
   const subOf = partOf(kind);
   const want = new Set(artists);
   const counted = new Set(shown);
   const by = new Map(); // item -> part -> ms
   let total = 0;
   for (const p of plays) {
-    if (counted.has(p.artist)) total += p.ms;
-    if (!want.has(p.artist) || !counted.has(p.artist)) continue;
+    if (!counted.has(p.artist)) continue;
+    total += p.ms;
+    if (!want.has(p.artist)) continue;
     const name = subOf(p);
     if (name == null) continue;
     if (!by.has(p.artist)) by.set(p.artist, new Map());
     const m = by.get(p.artist);
     m.set(name, (m.get(name) ?? 0) + p.ms);
   }
-  return artists.map((a) =>
-    total > 0
-      ? [...(by.get(a) ?? [])]
-          .filter(([, ms]) => ms >= PART_MIN * total)
-          .sort((x, y) => y[1] - x[1])
-          .slice(0, MAX_PARTS)
-          .map(([name]) => name)
-      : []
-  );
+  const kept = [];
+  if (total > 0) for (const [a, m] of by) for (const [name, ms] of m) if (ms >= cut * total) kept.push([a, name, ms]);
+  kept.sort((x, y) => y[2] - x[2]).length = Math.min(kept.length, cap);
+  const out = new Map(artists.map((a) => [a, []]));
+  for (const [a, name] of kept) out.get(a).push(name); // still biggest first within each
+  return artists.map((a) => out.get(a));
 }
 
 // A track view's or album view's plays (main.js keyedPlays) have the track or album in `artist` and the artist

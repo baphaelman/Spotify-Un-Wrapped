@@ -68,14 +68,16 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   running animation onto the new style object and it paints its old target back; and when either end
   of a fade is invisible, tween only opacity, or the color blend shows partway.
 
-- **Parts (Whole · Albums · Songs).** `data.parts` (from `agg.rolling`'s `split`) splits each band into up to
-  `MAX_PARTS` albums or songs, as series `p<n>_<j>` that exist only while split. Which ones is relative to the artists
-  shown (`agg.topParts`: at least `PART_MIN` of their listening), so showing fewer artists, or deselecting some, splits the
-  rest more finely; when artists are shown or hidden the chart asks the page first (`pins.restack`), which redraws with the new parts
-  in the same morph instead of a plain re-stack. In share mode they stack up from
-  the band's floor, each painting just above its band's z; in hours mode they're thin lines. Every slot always
-  exists, an empty one with no thickness, so showing more or fewer of an artist's parts (pins, hover) is only a
-  restyle. Turning the split on or off swells the parts up from the band's floor or shrinks them back
+- **Parts (Whole · Albums · Songs).** `data.parts` (from `agg.rolling`'s `split`) splits each band into its albums or
+  songs, as series `p<n>_<j>` that exist only while split. Which ones (`agg.topParts`, `agg.PARTS`): each at least `cut`
+  of the listening of the artists shown, and at most `cap` in the whole chart, biggest first across every band. So
+  showing fewer artists, or deselecting some, splits the rest more finely, and one artist alone can have many. When
+  artists are shown or hidden the chart asks the page first (`pins.restack`), which redraws with the new parts in the
+  same morph instead of a plain re-stack. Every band has as many slots as the band with the most parts; a morph to
+  more slots first redraws what's on screen with the extra ones empty, and a morph to fewer keeps them until it lands,
+  then trims them. In share mode they stack up from the band's floor, each painting just above its band's z; in
+  hours mode they're thin lines. An empty slot has no thickness, so showing more or fewer of an artist's parts (pins,
+  hover) is only a restyle. Turning the split on or off swells the parts up from the band's floor or shrinks them back
   (`withSplitMorph`). Hovering a part lights it with its artist; clicking it opens its own view with it pinned
   (`pins.openPart`, `openPart` in `main.js`).
 

@@ -346,6 +346,7 @@ export function syncSplit() {
   group.querySelector('[data-split="track"]').hidden = state.dim === "track";
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
+  $("parts-compare").hidden = !kind; // TEMPORARY (see below)
 }
 for (const btn of document.querySelectorAll("#rolling-split button")) {
   btn.addEventListener("click", () => {
@@ -355,6 +356,34 @@ for (const btn of document.querySelectorAll("#rolling-split button")) {
     syncSplit();
     renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
   });
+}
+
+// TEMPORARY, while the owner compares variants: the split's part cap and cutoff (agg.PARTS), from ?parts=&cut= in
+// the URL and the two rows under the split buttons (#parts-compare), shown only while split. Remove once picked.
+{
+  const q = new URLSearchParams(location.search);
+  const cap = Number(q.get("parts")), cut = Number(q.get("cut"));
+  if ([20, 30, 40].includes(cap)) agg.PARTS.cap = cap;
+  if ([1, 1.5, 2, 2.5].includes(cut)) agg.PARTS.cut = cut / 100;
+  const paint = () => {
+    for (const group of document.querySelectorAll("#parts-compare [data-parts]")) {
+      for (const b of group.children) b.setAttribute("aria-pressed", Number(b.dataset.v) === agg.PARTS[group.dataset.parts]);
+    }
+  };
+  paint();
+  for (const group of document.querySelectorAll("#parts-compare [data-parts]")) {
+    for (const b of group.children) {
+      b.addEventListener("click", () => {
+        agg.PARTS[group.dataset.parts] = Number(b.dataset.v);
+        paint();
+        const url = new URL(location.href);
+        url.searchParams.set("parts", agg.PARTS.cap);
+        url.searchParams.set("cut", +(agg.PARTS.cut * 100).toFixed(1));
+        history.replaceState(null, "", url);
+        if (splitKind()) renderRollingChart(currentZoom($("chart-rolling")), true, null, false);
+      });
+    }
+  }
 }
 
 // Whether any of the chart or its Hours per week card is on screen (one render draws both). A sweep's in-between

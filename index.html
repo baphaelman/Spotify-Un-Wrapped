@@ -255,6 +255,17 @@
                 <button type="button" data-split="track" aria-pressed="false">Songs</button>
               </div>
             </div>
+            <!-- TEMPORARY: the owner comparing part caps and cutoffs for the split (rollingview.js); remove once picked -->
+            <div id="parts-compare" class="tav-toggles parts-compare" hidden>
+              <span class="toggle-label">Parts</span>
+              <div class="segmented solid" data-parts="cap" role="group" aria-label="Most parts in all">
+                <button type="button" data-v="20">20</button><button type="button" data-v="30">30</button><button type="button" data-v="40">40</button>
+              </div>
+              <span class="toggle-label">Cutoff</span>
+              <div class="segmented solid" data-parts="cut" role="group" aria-label="Smallest part, of the shown artists' listening">
+                <button type="button" data-v="0.01">1%</button><button type="button" data-v="0.015">1.5%</button><button type="button" data-v="0.02">2%</button><button type="button" data-v="0.025">2.5%</button>
+              </div>
+            </div>
             <div class="tav-smooth">
               <span class="toggle-label" id="smoothify-label">Smoothing</span>
               <select id="smoothify" aria-labelledby="smoothify-label">

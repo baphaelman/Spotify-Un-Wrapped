@@ -1,9 +1,12 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
-import { MAX_PARTS } from "./aggregate.js";
 import { shownName, putOff, owes } from "./state.js";
 import { tune } from "./tune.js";
+
+// How many part slots each band needs, by band: as many as it has parts, or more if data.parts.slots (artist → count)
+// asks for them
+const partSlots = (parts, names) => (parts ? names.map((n, k) => Math.max(parts.share[k]?.length ?? 0, parts.slots?.get(n) ?? 0)) : []);
 
 const instances = new Map();
 
@@ -728,6 +731,23 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const { ms, easing = EASE_IN_OUT.echarts } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   if (ms && withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
+  // The parts' slots: each band has as many as it has parts (agg.topParts caps the parts of the whole chart, so one
+  // artist can have many). A morph that needs more slots than are drawn first redraws what's on screen with the
+  // extra ones, empty, so the new parts grow out of them; one that needs fewer keeps the old slots until it lands,
+  // then trims them (below). Slots belong to an artist (like its series), so they're counted by name
+  const needSlots = partSlots(data.parts, names);
+  const hadSlots = prev?.partSlots ?? new Map();
+  const grows = needSlots.some((v, k) => v > (hadSlots.get(names[k]) ?? v));
+  if (ms && !morph?.live && prev?.mode === mode && prev.args?.[0].parts && grows) {
+    const [d, n, w, , m, o, p, sl, sm] = prev.args;
+    const more = new Map(hadSlots);
+    names.forEach((name, k) => more.has(name) && more.set(name, Math.max(more.get(name), needSlots[k])));
+    // (an open tooltip re-shows itself a tick after each render, by then against a chart redrawn again, and throws)
+    chart(el).dispatchAction({ type: "hideTip" });
+    renderRolling(el, { ...d, parts: { ...d.parts, slots: more } }, n, w, currentZoom(el), m, o, false, p, sl, sm);
+    return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
+  }
+  const nSlots = data.parts && ms ? needSlots.map((v, k) => Math.max(v, hadSlots.get(names[k]) ?? 0)) : needSlots;
   const t = tokens();
   // (scaled by the tunables, see tune.js; all ×1 by default)
   t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill };
@@ -771,6 +791,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.real = artistCtx?.real ?? null; // (a live morph's leavers are kept at nothing, see withArtistMorph)
   st.hasOther = hasOther;
   st.window = window;
+  st.partSlots = new Map(names.map((n, k) => [n, nSlots[k]]));
   st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
@@ -807,18 +828,18 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // A hidden artist's line lies on 0 (and fades out, lineLook), so hiding it sinks it rather than snapping it away
   const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx || !visible(s) ? 0 : perWeek(data.hours[s][i]));
 
-  // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in MAX_PARTS slots per band. In
+  // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in nSlots[k] slots for band k. In
   // share mode they stack up from the band's floor, biggest first, and the band's own fill above them is the
   // rest; a slot with no part (or a hidden artist's) has no thickness. In hours mode each is a thin line.
   const parts = data.parts;
   const partRows = (k) => parts?.share[k] ?? [];
-  const partKeys = parts ? names.flatMap((_, k) => (k === otherIdx ? [] : Array.from({ length: MAX_PARTS }, (_, j) => [k, j]))) : [];
+  const partKeys = parts ? names.flatMap((_, k) => (k === otherIdx ? [] : Array.from({ length: nSlots[k] ?? 0 }, (_, j) => [k, j]))) : [];
   const partTop = names.map((_, k) => {
     if (!parts || k === otherIdx) return [];
     const rows = partRows(k);
     const out = [];
     let run = bottom[k];
-    for (let j = 0; j < MAX_PARTS; j++) {
+    for (let j = 0; j < (nSlots[k] ?? 0); j++) {
       const row = rows[j];
       run = run.map((b, i) => (b == null ? null : Math.min(top[k][i], b + (row && visible(k) ? (row[i] ?? 0) * scale[i] : 0))));
       out.push(run);
@@ -882,6 +903,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // once the morph is done (below).
   const holdFill = morph && !share && st.mode === "share";
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
+  // Slots kept through a morph to fewer parts go once it lands (empty, so nothing on screen changes). Not in an
+  // artist change, whose own last step redraws once it lands
+  if (!artistCtx && nSlots.some((v, k) => v > needSlots[k])) {
+    setTimeout(() => st.renderToken === renderToken && rollingState.get(el) === st &&
+      renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth), ms);
+  }
   const restWidth = isStrip ? tune.hoursLine : 2; // the strip's lines are finer
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
   // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
@@ -896,15 +923,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   let hotPart = null;
   const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
   // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
-  // for the biggest part (and less in a dimmed band), one depth per slot (MAX_PARTS)
-  const PART_DEPTH = [0.8, 0.62, 0.47, 0.35, 0.25, 0.17, 0.1, 0.04];
+  // for the biggest part (and less in a dimmed band). The four biggest step down; past them the parts alternate
+  // between two depths, so any two neighbours differ (their dividers tell the rest apart)
+  const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
+  const partDepth = (j) => PART_DEPTH[j] ?? (j % 2 ? 0.06 : 0.3);
   const HOT_DEPTH = 1.6;
-  const partShade = (k, j, w, depth = PART_DEPTH[j]) =>
+  const partShade = (k, j, w, depth = partDepth(j)) =>
     mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * tune.partDepth * Math.min(1, w / t.shade.band)));
   const partFill = (k, j, lit) =>
     !partShown(k, j)
       ? bandFill(k, lit)
-      : partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band, isHot(k, j) ? HOT_DEPTH : PART_DEPTH[j]);
+      : partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band, isHot(k, j) ? HOT_DEPTH : partDepth(j));
   // Its divider (share), or its line (hours): faint beside its artist's, and fainter while others are lit
   // (the hot part's own divider and the one below it, its outline; a line, in hours mode)
   const partLine = (k, j, lit) => {
@@ -977,7 +1006,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         symbol: "none",
         smooth,
         color: colors[k],
-        z: share ? 2 + (names.length - k) / 100 + (MAX_PARTS + 1 - j) / 1000 : 2.9,
+        z: share ? 2 + (names.length - k) / 100 + (nSlots[k] + 1 - j) / (100 * (nSlots[k] + 2)) : 2.9,
         lineStyle: { ...partLine(k, j, shown), color: colors[k], cap: "butt", join: "round" },
         // An empty slot's fill would only repeat its band's tint, so it isn't painted (it fades out as its part goes,
         // which looks the same as crossfading to the band's tint)
@@ -1175,8 +1204,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.tweens = !liveFrom && ms > 0;
   st.still = !st.tweens; // (see stillChart)
 
-  // An open tooltip still points at the series it was drawn from, and throws once one of them is removed
-  if (morph) {
+  // An open tooltip still points at the series it was drawn from, and throws once one of them is removed (by a
+  // morph, or by the part slots trimmed after one)
+  {
     const ids = new Set(series.map((x) => x.id));
     if (c.getModel()?.getSeries().some((m) => !ids.has(m.id))) c.dispatchAction({ type: "hideTip" });
   }
