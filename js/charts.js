@@ -289,8 +289,10 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
   const st = rollingState.get(el);
   if (!morph || morph.pan || artistCtx || !st?.args || !data.share.length) return false;
   if (st.mode !== mode || st.hasOther !== hasOther || st.window !== window) return false;
-  // (the leavers a live morph keeps while they shrink aren't part of what it went to; a newer one lets them go)
-  const shown = st.real ?? st.names;
+  // (the leavers a live morph keeps while they shrink aren't part of what it went to; a newer one lets them go. One
+  // that's back stays where it's drawn and grows again there, rather than arriving afresh elsewhere in the stack)
+  const back = st.real && new Set([...st.real, ...artistsOf(names, hasOther)]);
+  const shown = back ? st.names.filter((n) => back.has(n)) : st.names;
   const A = artistsOf(shown, hasOther), B = artistsOf(names, hasOther);
   if (A.join(SEP) === B.join(SEP) && shown.length === st.names.length) return false;
   const { ms: rawMs, easing = EASE_IN_OUT.echarts, live } = typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph };
@@ -473,12 +475,14 @@ function endStrips(st) {
   st.strip = null;
 }
 // below: band id → the band id under it in the new stack. A band's floor never rises above that band's top as drawn
-// now, or two bands crossing would leave a stretch between them that no band covers.
+// now, or two bands crossing would leave a stretch between them that no band covers; the bottom one's (bottomId)
+// stays on the axis.
 // (Above the stack, the bands' tops travelling each on its own can stop short of 100% for a moment; a backdrop in the
 // tint of the band that ends on top (topId, topFill) fills that, behind every band, where they have data.)
-function installStrips(c, st, from, at, below, topId, topFill) {
+function installStrips(c, st, from, at, below, bottomId, topId, topFill) {
   const S = (st.strip = { from, to: st.bottoms, at, polys: [], frame: 0 });
-  const views = new Map(c.getModel().getSeries().map((m) => [m.id, c.getViewOfSeriesModel(m)]));
+  const models = new Map(c.getModel().getSeries().map((m) => [m.id, m]));
+  const views = new Map([...models].map(([id, m]) => [id, c.getViewOfSeriesModel(m)]));
   const roof = views.get(topId)?._polygon;
   if (roof && topFill) {
     const back = new roof.constructor({ z: 1, silent: true, style: { fill: topFill } });
@@ -518,13 +522,15 @@ function installStrips(c, st, from, at, below, topId, topFill) {
       const out = new Float32Array(n * 2);
       const under = views.get(below.get(m.id))?._polygon?.shape.points;
       const cap = under?.length === n * 2 ? under : null;
+      // (the bottom band has the axis under it: its floor stays there, or the page would show beneath it)
+      const ground = m.id === bottomId;
       for (let i = 0; i < n; i++) {
         const r = d.getRawIndex(i);
         const v = a[r] + (b[r] - a[r]) * e;
         out[2 * i] = pts[2 * i];
         // (pixels run downward: the lower of the two floors is the larger y)
         const y = Number.isFinite(v) ? y0 + dy * v : base[2 * i + 1];
-        out[2 * i + 1] = cap && Number.isFinite(cap[2 * i + 1]) ? Math.max(y, cap[2 * i + 1]) : y;
+        out[2 * i + 1] = ground && Number.isFinite(y) ? y0 : cap && Number.isFinite(cap[2 * i + 1]) ? Math.max(y, cap[2 * i + 1]) : y;
       }
       return out;
     };
@@ -555,14 +561,16 @@ function installStrips(c, st, from, at, below, topId, topFill) {
     };
     S.polys.push(poly);
   }
-  // Outlines fade while the bands slide: drawn over everything, they'd cross the bands a moving one passes over
+  // Outlines fade while the bands slide: drawn over everything, they'd cross the bands a moving one passes over.
+  // They come back to what their series asks for, not what's on screen now (partway out, if strips cut short
+  // other strips)
   S.edges = [];
   for (const id of S.to.keys()) {
     if (id[0] !== "s") continue;
     for (const side of ["t", "b"]) {
       const line = views.get(side + id.slice(1))?._polyline;
       if (!line) continue;
-      S.edges.push([line, line.style.opacity ?? 1]);
+      S.edges.push([line, models.get(side + id.slice(1)).get(["lineStyle", "opacity"]) ?? 1]);
       line.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts, scope: "strip" });
     }
   }
@@ -1290,7 +1298,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const at = !ms ? () => 1 : liveFrom ? () => liveAt(st.live ?? { t0, ms }) : () => ease(Math.min(1, (performance.now() - t0) / ms));
     st.floors = { from: share && ms ? bottomsFrom : null, at };
     if (share && ms && bottomsFrom && prev?.order && reordered(prev.order, st.order))
-      installStrips(c, st, bottomsFrom, at, new Map(names.slice(1).map((_, k) => [sid(k + 1), sid(k)])),
+      installStrips(c, st, bottomsFrom, at, new Map(names.slice(1).map((_, k) => [sid(k + 1), sid(k)])), sid(0),
         sid(names.length - 1), bandFill(names.length - 1, shown));
   }
   clipEdges();
