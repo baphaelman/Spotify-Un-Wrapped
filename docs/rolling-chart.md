@@ -40,12 +40,10 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
 - **A re-ordered stack slides as strips.** Fills down to the axis only work while the stack keeps its order. When
   the artists who stay are ranked anew, each band's polygon gets a floor of its own for the morph
   (`installStrips`, a getter on its `stackedOnPoints`), travelling with its top, so it moves as a strip of its own
-  thickness; a floor never rises above the current top of the band under it (no gaps; the bottom band's stays on the
-  axis), a backdrop in the top
-  band's tint fills under 100% while the tops travel, and the outlines fade until the bands settle (then come back to what their series asks for, not
-  to what was on screen as the strips began, which is partway out when strips cut short other strips).
+  thickness; a floor never rises above the current top of the band under it (no gaps), a backdrop in the top
+  band's tint fills under 100% while the tops travel, and the outlines fade until the bands settle.
 - **A live morph (a dragged period window) keeps the stack's order** while the hand moves: newcomers grow from
-  the top of the band they sit on, leavers shrink where they are (one that comes back grows again there), and once the hand rests for `CHASE_MS` the
+  the top of the band they sit on, leavers shrink where they are, and once the hand rests for `CHASE_MS` the
   bands take their new order in one `MORPH_MS` morph. Re-ordering on every step would have them crossing all
   the time.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
