@@ -198,16 +198,27 @@ function withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins,
   return true;
 }
 
+// Each zoom step of a drag or a pan is a plain redraw. ECharts' animation is switched off for them, not just given no
+// duration: with it on, every step still diffs each series' old and new points for a tween of no length (~150 ms a
+// step at all time). A morph in flight lands where it was going, as a zero-length tween left it; fades
+// (setOptionFaded) carry on. The next render switches the animation back on.
+function stillChart(c, st) {
+  if (st?.still) return;
+  if (st?.tweens) for (const e of drawnShapes(c).values()) e.stopAnimation("update", true);
+  c.setOption({ animation: false });
+  if (st) {
+    st.still = true;
+    st.tweens = false;
+  }
+}
+
 // Shows [start, end] (dates) of the rolling chart's timeline right now, without redrawing the series
 export function setZoom(el, [start, end]) {
   const c = instances.get(el);
   if (!c) return;
   const st = rollingState.get(el);
-  // The range follows the reader's hand, so it mustn't tween behind it (a morph leaves a duration set)
-  if (st?.tweens) {
-    c.setOption({ animationDurationUpdate: 0 });
-    st.tweens = false;
-  }
+  // The range follows the reader's hand, so it mustn't tween behind it
+  stillChart(c, st);
   c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue: start, endValue: end });
   if (st?.live) paintLive(c, st); // the zoom redrew the new values; put the blend back before it's painted
   if (stripOf.has(el)) setZoom(stripOf.get(el), [start, end]);
@@ -276,9 +287,9 @@ function paintLive(c, st) {
 function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
   const c = chart(el);
   const st = rollingState.get(el);
-  c.setOption({ animationDurationUpdate: 0 }); // each frame is a plain redraw, not a tween
+  stillChart(c, st); // each frame is a plain redraw, not a tween
   const sc = strip && instances.get(strip.el);
-  sc?.setOption({ animationDurationUpdate: 0 });
+  if (sc) stillChart(sc, rollingState.get(strip.el));
   st.panEnd = () => onFrame?.(1);
   const t0 = performance.now();
   const tick = (now) => {
@@ -781,6 +792,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   }));
   st.values.dates = data.dates.length;
   st.tweens = !liveFrom && ms > 0;
+  st.still = !st.tweens; // (see stillChart)
 
   // An open tooltip still points at the series it was drawn from, and throws once one of them is removed
   if (morph) {
@@ -790,8 +802,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   setOptionFaded(
     c,
     {
-      // No animation on first draw or data changes; only morphs between modes tween
-      animation: true,
+      // No animation on first draw or data changes; only morphs between modes tween. Off altogether when nothing
+      // tweens, or ECharts would still diff every series' points for a tween of no length (see stillChart)
+      animation: st.tweens,
       animationDuration: 0,
       // A live morph moves the points itself (paintLive); its colors still fade
       animationDurationUpdate: liveFrom ? 0 : ms,
