@@ -5,13 +5,13 @@
 // Like the key's chips, hovering a row lights its item everywhere, and clicking it pins or unpins it.
 import { $, state, noun, putOff, rangeTotals } from "./state.js";
 import { renderList, appendList } from "./lists.js";
+import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS } from "./rollingview.js";
 
-const CHUNK = 60;
 const NEAR_PX = 600; // how far below the screen the next chunk starts loading
 let ranked = []; // [item, ms, plays], most hours first
-let shown = CHUNK;
+let shown = tune.rankChunk;
 let shownRaw = null, shownDim = null; // the data and view the shown count belongs to
 
 const hoursText = (ms) => {
@@ -89,7 +89,7 @@ export function paintRanking() {
   if (shownRaw !== state.raw || shownDim !== state.dim) {
     shownRaw = state.raw;
     shownDim = state.dim;
-    shown = CHUNK;
+    shown = tune.rankChunk;
   }
   const words = noun();
   $("ranking-title").textContent = `All your ${words.many}`;
@@ -106,7 +106,7 @@ export function paintRanking() {
 function more() {
   if (shown >= ranked.length) return;
   const start = Math.min(shown, $("ranking-list").children.length);
-  shown += CHUNK;
+  shown += tune.rankChunk;
   appendList($("ranking-list"), ranked.slice(start, shown).map(rowOf), start);
   markRows([...$("ranking-list").children].slice(start));
   syncMore();

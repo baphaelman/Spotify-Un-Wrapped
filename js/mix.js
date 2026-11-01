@@ -7,6 +7,7 @@ import { dayToDate, rangeHours } from "./aggregate.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 import { coverFor, knownCover } from "./covers.js";
 import { shownName } from "./state.js";
+import { tune } from "./tune.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -71,13 +72,11 @@ function makeEntry(name) {
   return e;
 }
 
-// A segment this wide (px) has room for its share, and from HOURS_PX for its hours beneath
-const SHARE_PX = 30;
-const HOURS_PX = 48;
 const EDGE = 1e-6; // how close to an end of the bar counts as touching it
 
-// Puts every segment where its x and w say, and shows what fits. The segments at either end
-// round the bar's outer corners.
+// Puts every segment where its x and w say, and shows what fits: a segment tune.sharePx wide (30px) has room for
+// its share, and from tune.hoursPx (48px) for its hours beneath. The segments at either end round the bar's outer
+// corners. (Exported as placeMix, to show what fits after the tunables change.)
 function place() {
   const bar = $("mix-bar");
   const W = bar.clientWidth + GAP;
@@ -89,12 +88,14 @@ function place() {
     // Under a pixel wide (no listening in the period) the segment isn't drawn at all: its padding and a pin's
     // outline would otherwise still show
     e.seg.classList.toggle("gone", px < 1);
-    e.seg.classList.toggle("fits-share", px >= SHARE_PX && !e.leaving);
-    e.seg.classList.toggle("fits-hours", px >= HOURS_PX && !e.leaving && !e.off);
+    e.seg.classList.toggle("fits-share", px >= tune.sharePx && !e.leaving);
+    e.seg.classList.toggle("fits-hours", px >= tune.hoursPx && !e.leaving && !e.off);
     e.seg.classList.toggle("outer-l", e.x <= EDGE);
     e.seg.classList.toggle("outer-r", e.x + e.w >= 1 - EDGE);
   }
 }
+
+export const placeMix = () => place();
 
 function frame(p) {
   for (const e of entries.values()) {

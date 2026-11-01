@@ -1,9 +1,10 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
-import { focusArtist, focusMonthly, focusClock, onFocusChange, onSelectionChange, hiddenIn, setHidden } from "./charts.js";
+import { focusArtist, focusMonthly, focusClock, onFocusChange, onSelectionChange, hiddenIn, setHidden, currentZoom } from "./charts.js";
 import { setBrushData, brushRange, glideBrushRange } from "./brush.js";
 import { FADE_MS, MORPH_MS, EASE_IN_OUT } from "./motion.js";
-import { setupMix, highlightMix } from "./mix.js";
+import { setupMix, highlightMix, placeMix } from "./mix.js";
+import { buildTunes, useTunes, tunesChanged } from "./tune.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
@@ -158,7 +159,7 @@ function closeControls(refocus = false) {
 $("controls-button").addEventListener("click", () => ($("controls-panel").hidden ? openControls() : closeControls()));
 // Any choice closes the panel (its own handler runs as well)
 $("controls-panel").addEventListener("click", (e) => {
-  if (e.target.closest(".controls-item")) closeControls();
+  if (e.target.closest(".controls-item:not([role=switch])")) closeControls(); // a switch stays to show what it did
 });
 document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest(".controls")) closeControls();
@@ -242,6 +243,39 @@ $("share-preview").addEventListener("click", () => {
   $("preview-dialog").showModal();
 });
 $("preview-close").addEventListener("click", () => $("preview-dialog").close());
+
+// ---------- You can see everything ----------
+
+// The settings panel's switch: each card unfolds a row of sliders for the graph's hidden variables (tune.js), with
+// a warning under the switch while it's on. Off, the graphs use the defaults, exactly as designed. Remembered on
+// this device.
+let everything = false;
+try { everything = localStorage.getItem("see-everything") === "1"; } catch {}
+// Redraws what a card shows, through the usual paths (so it morphs as for any other change)
+function retune(card) {
+  if (!state.plays) return;
+  if (card === "rolling-card" || card === "hours-card") renderRollingChart(currentZoom($("chart-rolling")), true);
+  else if (card === "monthly-card") paintMonthly();
+  else if (card === "clock-card") paintClock();
+  else if (card === "mix-card") placeMix();
+}
+function syncEverything() {
+  $("see-everything").setAttribute("aria-checked", everything);
+  $("see-everything-warn").classList.toggle("on", everything);
+  useTunes(everything);
+}
+buildTunes(retune);
+syncEverything();
+$("see-everything").addEventListener("click", () => {
+  everything = !everything;
+  try { localStorage.setItem("see-everything", everything ? "1" : "0"); } catch {}
+  syncEverything();
+  // The reader's own values come in (or go) everywhere at once
+  if (tunesChanged() && state.plays) {
+    renderRollingChart(currentZoom($("chart-rolling")), true);
+    placeMix();
+  }
+});
 
 // ---------- Views: genres, artists, albums or tracks ----------
 

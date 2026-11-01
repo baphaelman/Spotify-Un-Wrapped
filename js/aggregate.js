@@ -143,11 +143,11 @@ export function summary(plays) {
 // in monthly)
 const SPANS = [1, 3, 6, 12, 24];
 const MAX_BARS = 18;
-export function monthSpan(plays) {
+export function monthSpan(plays, maxBars = MAX_BARS) {
   if (!plays.length) return 1;
   const k = (t) => new Date(t).getFullYear() * 12 + new Date(t).getMonth();
   const lo = k(plays[0].t), hi = k(plays[plays.length - 1].t);
-  return SPANS.find((s) => Math.floor(hi / s) - Math.floor(lo / s) + 1 <= MAX_BARS) ?? SPANS[SPANS.length - 1];
+  return SPANS.find((s) => Math.floor(hi / s) - Math.floor(lo / s) + 1 <= maxBars) ?? SPANS[SPANS.length - 1];
 }
 
 // [{ month: Date, hours, by, top }] with empty months filled in, in blocks of `span` calendar months (one of SPANS,

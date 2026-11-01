@@ -99,6 +99,13 @@
             <button id="share-preview" class="controls-item" type="button">Preview shared data</button>
             <button id="reset" class="controls-item danger" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
           </div>
+          <!-- The graphs' hidden variables, as sliders at the foot of each card (tune.js, main.js) -->
+          <div class="controls-extra">
+            <button id="see-everything" class="controls-item controls-switch" type="button" role="switch" aria-checked="false" aria-describedby="see-everything-warn">
+              <span>You can see everything</span><span class="switch" aria-hidden="true"></span>
+            </button>
+            <div id="see-everything-warn" class="controls-warn"><div><p class="controls-note">Shows every setting for every graph, even ones that weren't designed for it. Many graph views will likely break.</p></div></div>
+          </div>
         </div>
       </div>
       <button id="theme-toggle" class="ghost" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -224,7 +231,7 @@
         <ol id="mix-list" class="mix-list"></ol>
       </article>
 
-      <article class="card">
+      <article class="card" id="rolling-card">
         <div class="tav-head">
           <div>
             <h2 id="rolling-title">Top Artists View</h2>
@@ -281,7 +288,7 @@
         <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
       </article>
 
-      <article class="card">
+      <article class="card" id="monthly-card">
         <div class="monthly-head">
           <div>
             <h2 id="monthly-title">Hours per month</h2>
@@ -293,7 +300,7 @@
         <div id="chart-monthly" class="chart"></div>
       </article>
 
-      <article class="card">
+      <article class="card" id="clock-card">
         <h2>When you listened</h2>
         <p class="muted" id="clock-note">Who you listen to through the day, as a share of that time, in your local time zone</p>
         <div id="chart-clock" class="chart"></div>

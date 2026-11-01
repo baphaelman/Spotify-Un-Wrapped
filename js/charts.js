@@ -3,6 +3,7 @@
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
 import { MAX_PARTS } from "./aggregate.js";
 import { shownName, putOff, owes } from "./state.js";
+import { tune } from "./tune.js";
 
 const instances = new Map();
 
@@ -728,6 +729,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (ms && withOtherMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   if (ms && withSplitMorph(el, data, names, window, zoom, mode, hasOther, ms, pins, slots, smooth)) return;
   const t = tokens();
+  // (scaled by the tunables, see tune.js; all ×1 by default)
+  t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill };
   const c = chart(el);
   const share = mode === "share";
   const otherIdx = hasOther ? names.length - 1 : -1;
@@ -845,8 +848,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // ECharts tweens point by point, and a break never tweens into a value (a vertical stroke).
   const edgeData = (s, side) =>
     points((i) => (bottom[s][i] == null ? null : !share ? hoursAt(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
-  // Visible widths 1.5px, or 2.5px for lit bands, doubled since half is clipped away; hours mode hides them
-  const overlayStyle = (s, on) => ({ width: on ? 5 : 3, color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
+  // Visible widths 1.5px, or 2.5px for lit bands (tune.edgeWidth, and 1 more), doubled since half is clipped away;
+  // hours mode hides them
+  const overlayStyle = (s, on) => ({ width: 2 * (on ? tune.edgeWidth + 1 : tune.edgeWidth), color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
 
   // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
   // legend or a list) while there is one. Built into the options below as well as applied on hover, so
@@ -878,7 +882,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // once the morph is done (below).
   const holdFill = morph && !share && st.mode === "share";
   const renderToken = (st.renderToken = (st.renderToken ?? 0) + 1);
-  const restWidth = isStrip ? 1.5 : 2; // the strip's lines are finer
+  const restWidth = isStrip ? tune.hoursLine : 2; // the strip's lines are finer
   // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
   // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
   const PIN_DIM = 0.2, HOVER_DIM = 0.5;
@@ -896,7 +900,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
   const HOT_DEPTH = 1.6;
   const partShade = (k, j, w, depth = PART_DEPTH[j]) =>
-    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * Math.min(1, w / t.shade.band)));
+    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * tune.partDepth * Math.min(1, w / t.shade.band)));
   const partFill = (k, j, lit) =>
     !partShown(k, j)
       ? bandFill(k, lit)
@@ -1551,7 +1555,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, full: prev?.full ?? null, fullNext: prev?.full ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
-  const bar = { type: "bar", stack: "month", barCategoryGap: "30%" };
+  const bar = { type: "bar", stack: "month", barCategoryGap: `${tune.barGap}%` };
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
   // changes, so the old chart fades out over the new one instead of the bars growing in again

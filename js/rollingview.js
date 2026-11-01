@@ -6,6 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, ho
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur } from "./motion.js";
 import { updateMix } from "./mix.js";
+import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
 
@@ -51,7 +52,9 @@ const SMOOTH_CURVE = [0, 0.5, 0.6, 0.75, 0.85]; // curve rounding per smoothify 
 // "auto" scales both the blur and the curve rounding with how much time is on screen (see agg.autoAmount)
 // Auto's curve rounding: scaled with the amount up to high, then on toward max
 const autoCurve = (a) => (a <= 1 ? a * SMOOTH_CURVE[3] : SMOOTH_CURVE[3] + (a - 1) * (SMOOTH_CURVE[4] - SMOOTH_CURVE[3]));
-const smoothCurve = (strength, span) => (strength === "auto" ? autoCurve(agg.autoAmount(span)) : SMOOTH_CURVE[strength]);
+// (both scaled by the tunables, ×1 by default; see tune.js)
+const smoothCurve = (strength, span) => Math.min(1, (strength === "auto" ? autoCurve(agg.autoAmount(span)) : SMOOTH_CURVE[strength]) * tune.curveScale);
+const smoothSigma = (window, strength, span) => agg.smoothifySigma(window, strength, span) * tune.blurScale;
 // Days on screen: the zoom range, or the whole timeline when there isn't one (all time)
 const spanDays = (zoom, dates) =>
   (Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0]) / 86400000 || 0;
@@ -95,7 +98,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   const raw = rawMemo.raw;
   if (Number.isFinite(zoom?.[0])) zoom = clampZoom(zoom, raw.dates);
   const span = spanDays(zoom, raw.dates);
-  const sigma = look?.sigma ?? agg.smoothifySigma(window, strength, span);
+  const sigma = look?.sigma ?? smoothSigma(window, strength, span);
   const curve = look?.smooth ?? smoothCurve(strength, span);
   state.shownSmooth = { sigma, curve }; // what the zoom hook compares against
   // Auto says which strength it has landed on
@@ -182,7 +185,6 @@ export function paintBrush(raw = rawMemo?.raw, morph = brushMorph) {
 }
 
 // When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
-const CLOCK_HOURS = 4;
 export function paintClock(plays) {
   if (!mixArgs || putOff($("chart-clock").closest(".card"), () => paintClock())) return;
   plays ??= shownPlays();
@@ -191,10 +193,11 @@ export function paintClock(plays) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   // Smoothed as the rolling chart is: its curve rounding, and its blur as a share of its window, taken as a share of
-  // CLOCK_HOURS (so High blurs about an hour), but never less than a light smoothing
+  // tune.clockReach hours (4, so High blurs about an hour), but never less than a light smoothing (tune.clockMinBlur
+  // and tune.clockCurve)
   const { sigma = 0, curve = 0 } = state.shownSmooth ?? {};
-  const hours = Math.max(0.5, sigma >= 0.5 ? (sigma / state.shownWindow) * CLOCK_HOURS : 0);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(0.3, curve));
+  const hours = Math.max(tune.clockMinBlur, sigma >= 0.5 ? (sigma / state.shownWindow) * tune.clockReach : 0);
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(tune.clockCurve, curve));
 }
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
@@ -216,7 +219,7 @@ export function paintMonthly(plays) {
   // Deselected artists keep their (empty) series, so unticking one shrinks its bars in place instead of redrawing the chart
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  const span = agg.monthSpan(plays);
+  const span = agg.monthSpan(plays, tune.maxBars);
   $("monthly-title").textContent = `Hours ${SPAN_WORDS[span][0]}`;
   $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top ${noun().one} on top`;
   const other = $("monthly-other").checked;
@@ -323,9 +326,10 @@ export function chartArtists(plays, n) {
 export function syncSplit() {
   const group = $("rolling-split");
   const genre = state.dim === "genre";
-  group.hidden = state.dim === "track";
+  // The row is always there; a track can't be split, so its view offers only Whole
   group.querySelector('[data-split="album"]').hidden = (state.dim !== "artist" && !genre) || !state.raw?.some((p) => p.album);
   group.querySelector('[data-split="artist"]').hidden = !genre;
+  group.querySelector('[data-split="track"]').hidden = state.dim === "track";
   const kind = splitKind() ?? "";
   for (const b of group.children) b.setAttribute("aria-pressed", b.dataset.split === kind);
 }
@@ -356,7 +360,7 @@ export function sweepSmoothing(from) {
   const days = WINDOWS[$("window").value];
   const zoom = currentZoom($("chart-rolling"));
   const span = spanDays(zoom, rawMemo?.raw.dates ?? []);
-  const [s0, s1] = [from, state.smoothify].map((k) => agg.smoothifySigma(days, k, span));
+  const [s0, s1] = [from, state.smoothify].map((k) => smoothSigma(days, k, span));
   const [c0, c1] = [from, state.smoothify].map((k) => smoothCurve(k, span));
   // (a blur radius under half a day counts as half a day: "off" to a little is a small change)
   const total = scaledMs(s0, s1, MORPH_MS, undefined, 0.5);
@@ -382,7 +386,7 @@ onZoomChange($("chart-rolling"), () => {
     const zoom = currentZoom($("chart-rolling"));
     if (!rawMemo || !state.shownSmooth || !Number.isFinite(zoom?.[0])) return;
     const span = spanDays(zoom, rawMemo.raw.dates);
-    const sigma = agg.smoothifySigma(state.shownWindow, "auto", span);
+    const sigma = smoothSigma(state.shownWindow, "auto", span);
     const curve = smoothCurve("auto", span);
     if (Math.abs(sigma - state.shownSmooth.sigma) < 0.2 && Math.abs(curve - state.shownSmooth.curve) < 0.02) return;
     cancelSweep();

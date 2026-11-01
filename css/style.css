@@ -955,6 +955,28 @@ dialog pre {
 .controls-item[hidden] { display: none; }
 .controls-item:hover, .controls-item:focus-visible { background: var(--border); outline: none; }
 .controls-item.danger { color: var(--text-secondary); }
+/* "You can see everything": a switch under the data's items, and its warning, which unfolds while it's on */
+.controls-extra { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.controls-switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.controls-switch .switch { position: relative; flex: none; width: 26px; height: 15px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 16%, transparent); transition: background var(--motion-fade) var(--ease-out); }
+.controls-switch .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--text-primary); transition: transform var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out); }
+.controls-switch[aria-checked="true"] .switch { background: var(--accent); }
+.controls-switch[aria-checked="true"] .switch::after { transform: translateX(11px); background: #fff; }
+/* The warning, and each card's row of tunables (tune.js): folded to nothing, unfolding while everything's on */
+:is(.controls-warn, .tune-row) { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--motion-grow) var(--ease-out), opacity var(--motion-grow) var(--ease-out); }
+:is(.controls-warn, .tune-row) > div { min-height: 0; overflow: hidden; }
+:is(.controls-warn, .tune-row).on { grid-template-rows: 1fr; opacity: 1; }
+.controls-warn p { padding-top: 2px; }
+.tune-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 20px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.tune { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name val" "input input" "def def"; column-gap: 8px; font-size: 11px; color: var(--text-secondary); }
+.tune-name { grid-area: name; }
+.tune-val { grid-area: val; font-family: var(--mono); color: var(--text-primary); transition: color var(--motion-fade) var(--ease-out); }
+.tune-val.changed { color: var(--accent); }
+.tune .slider { grid-area: input; width: 100%; margin: 3px 0 1px; }
+.tune-def { grid-area: def; font-size: 10px; color: var(--text-muted); }
+.tune-reset { justify-self: start; align-self: center; padding: 4px 10px; font-size: 12px; }
+.tune-reset:disabled { opacity: 0.4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .controls-switch .switch, .controls-switch .switch::after, .controls-warn, .tune-row, .tune-val { transition: none; } }
 @media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]) { animation: none; } #controls-button svg, .guide-dim, .guide-row, .g-step, .guide-ring { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
 @keyframes palette-drift-lg { to { background-position: -40px 0; } }
