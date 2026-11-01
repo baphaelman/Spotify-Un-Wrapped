@@ -4,7 +4,7 @@
 // Segments are kept per artist, so changing the period slides and resizes the ones that stay (colors and identity preserved), grows newcomers from nothing and collapses whoever leaves.
 
 import { dayToDate, rangeHours } from "./aggregate.js";
-import { MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
+import { ENTER_MS, MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 import { coverFor, knownCover } from "./covers.js";
 import { shownName } from "./state.js";
 
@@ -48,15 +48,10 @@ function makeEntry(name) {
   rowWho.append(rowName, rowBy);
   // Tracks and albums: the album's cover, on a square of the artist's color until it arrives
   const art = span("art");
-  const img = new Image();
-  img.alt = "";
-  img.decoding = "async";
-  img.addEventListener("load", () => img.classList.add("shown"));
-  art.append(img);
   const card = span("mix-card");
   card.append(art, rowWho);
   row.append(tab, card);
-  const e = { name, seg, label, hoursEl, row, card, tab, rowName, rowBy, img, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
+  const e = { name, seg, label, hoursEl, row, card, tab, rowName, rowBy, art, img: null, coverId: undefined, coverTimer: 0, x: 0, w: 0, from: null, to: null, leaving: false, pinnable: false };
   for (const el of [seg, card]) {
     el.addEventListener("pointerenter", () => hover((under = name)));
     el.addEventListener("pointerleave", () => hover((under = null)));
@@ -245,13 +240,45 @@ function showCover(e, id) {
   if (id === e.coverId) return;
   e.coverId = id;
   clearTimeout(e.coverTimer);
-  e.img.classList.remove("shown");
-  e.img.removeAttribute("src");
-  if (!id) return;
-  const put = (url) => e.coverId === id && url && (e.img.src = url);
+  if (!id) return void fadeCover(e, null);
+  const put = (url) => e.coverId === id && fadeCover(e, url);
   const known = knownCover(id);
   if (known !== undefined) return put(known);
+  // Not known yet: the one showing isn't this item's, so it goes rather than stand in while this is looked up
+  fadeCover(e, null);
   e.coverTimer = setTimeout(() => coverFor(id, { soon: true }).then(put), COVER_WAIT_MS);
+}
+
+// A new picture fades in over the one on screen (a genre's changes with the period), which leaves once it's
+// covered; no picture fades the one on screen out to the color square. One still loading is dropped when another
+// is asked for, so a quick back-and-forth never blanks what's showing.
+function fadeCover(e, url) {
+  const imgs = [...e.art.querySelectorAll("img")];
+  const onScreen = imgs.findLast((i) => i.classList.contains("shown"));
+  for (const i of imgs) if (i !== onScreen) i.remove();
+  if (onScreen && onScreen.src === url) return void (e.img = onScreen);
+  if (!url) {
+    e.img = null;
+    if (onScreen) {
+      onScreen.classList.remove("shown");
+      setTimeout(() => onScreen.remove(), dur(ENTER_MS));
+    }
+    return;
+  }
+  const img = new Image();
+  img.alt = "";
+  img.decoding = "async";
+  img.addEventListener("load", () => {
+    if (e.img !== img) return;
+    img.classList.add("shown");
+    // The one beneath stays until this one is fully in
+    if (onScreen) setTimeout(() => onScreen.remove(), dur(ENTER_MS));
+  });
+  // A picture that won't load is no picture
+  img.addEventListener("error", () => e.img === img && fadeCover(e, null));
+  img.src = url;
+  e.art.append(img);
+  e.img = img;
 }
 
 // Pinned artists and the hovered one stay lit and the rest dim (nobody dims while there's neither). A hover

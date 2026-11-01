@@ -93,8 +93,10 @@ It's the same page over the plays keyed another way, as Albums and Tracks alread
 - **Not yet known:** artists still being looked up, or with no genre anywhere, are left out of the view's
   plays, so they're on no graph, list, key or search (not even in "Everyone else"); shares are of the listening
   that has a genre.
-- **Pictures:** a genre's key entry shows its top artist's photo (already cached from the Artists view), so
-  genres cost no new picture lookups.
+- **Pictures:** a genre's key entry shows the photo of its biggest contributor in the period on screen
+  (`genreCoversIn`), the same picture the Artists view looks up for that artist, so a genre costs no lookup of its
+  own. When the period changes who that is, the new photo fades in over the old one (or the old one fades out
+  while an unknown one is looked up, once the bar holds still).
 
 ## Setting up Last.fm (the owner)
 

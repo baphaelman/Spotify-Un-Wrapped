@@ -1071,11 +1071,11 @@ dialog pre {
 .mix-list .art { display: none; }
 .mix-list.with-covers .mix-card { grid-template-columns: var(--art) 1fr; min-height: calc(var(--art) + 20px); }
 .mix-list.with-covers .art {
-  display: block; width: var(--art); height: var(--art); border-radius: 4px; overflow: hidden;
+  display: block; position: relative; width: var(--art); height: var(--art); border-radius: 4px; overflow: hidden;
   background: color-mix(in srgb, var(--c) 22%, var(--surface));
 }
 .mix-list.portraits .art { border-radius: 50%; }
-.mix-list .art img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
+.mix-list .art img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .mix-list .art img.shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .mix-list li, .mix-list .mix-card, .mix-list .mix-card::after, .mix-list .tab .bar, .mix-list .art img { transition: none; } }
 .mix-legend-item { transition: background var(--motion-fade) var(--ease-out); }

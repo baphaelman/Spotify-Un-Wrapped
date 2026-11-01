@@ -6,6 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, ho
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT } from "./motion.js";
 import { updateMix } from "./mix.js";
+import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
@@ -217,7 +218,10 @@ export function renderMix(artists, slots, includeOther, pins) {
   // Each segment also shows its plays over the period; everyone else's are the plays of every artist not shown
   const shown = new Set(artists);
   const plays = new Map(all.map((n) => [n, 0]));
-  for (const p of rangePlays()) {
+  const inRange = rangePlays();
+  // A genre's picture is its biggest artist in the period, so it follows the period
+  const covers = state.dim === "genre" ? genreCoversIn(inRange) : state.covers;
+  for (const p of inRange) {
     const n = shown.has(p.artist) ? p.artist : "Everyone else";
     if (plays.has(n)) plays.set(n, plays.get(n) + 1);
   }
@@ -233,7 +237,7 @@ export function renderMix(artists, slots, includeOther, pins) {
     noun: noun(),
     // Tracks and albums: the name alone, then who made it (and a track's album) beneath
     title: (n) => state.titles?.get(n) ?? n,
-    cover: state.covers ? (n) => state.covers.get(n) : null,
+    cover: covers ? (n) => covers.get(n) : null,
     by: (n) => {
       const artist = state.owner?.get(n);
       if (!artist) return "";

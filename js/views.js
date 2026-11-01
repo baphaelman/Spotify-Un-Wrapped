@@ -91,8 +91,8 @@ function namedPlays(dim) {
 // in `w`, which counts plays). The artist stays in `by`, which the chart splits a genre's band by, and its track and
 // album also come as the tracks and albums views call them (`trackKey`, `albumKey`), so a genre's band splits into
 // albums or songs told apart by artist, and a part clicked opens as itself in its own view. Artists with no
-// genre (yet) are left out, so no graph, list, key or search has them. A genre's picture is its most-played artist's
-// photo, from the artists view.
+// genre (yet) are left out, so no graph, list, key or search has them. A genre's picture is the photo (from the
+// artists view) of its biggest contributor in the period on screen (`genreCoversIn`); `cover` holds the all-time one.
 function genrePlays() {
   const families = new Map(); // artist -> [[family, weight], ...]
   const top = new Map(); // family -> artist -> ms
@@ -115,6 +115,29 @@ function genrePlays() {
     }
   }
   const artistCovers = keyedPlays("artist").cover;
-  const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get([...m].sort((a, b) => b[1] - a[1])[0][0])]));
+  const cover = new Map([...top].map(([family, m]) => [family, artistCovers.get(biggest(m))]));
   return { raw: state.raw, version: genresVersion, plays, owner: null, title: null, album: null, cover };
+}
+
+const biggest = (m) => {
+  let best, most = -1;
+  for (const [k, v] of m) if (v > most) [best, most] = [k, v];
+  return best;
+};
+
+// Each genre's picture over some of the genres view's plays (the period's): the photo of the artist who gave it the
+// most listening there, so it's one the artists view already looks up and costs no picture lookup of its own. A
+// genre with no listening in them keeps its all-time picture.
+export function genreCoversIn(plays) {
+  const all = keyedPlays("genre").cover;
+  const top = new Map(); // genre -> artist -> ms
+  for (const p of plays) {
+    let m = top.get(p.artist);
+    if (!m) top.set(p.artist, (m = new Map()));
+    m.set(p.by, (m.get(p.by) ?? 0) + p.ms);
+  }
+  const artistCovers = keyedPlays("artist").cover;
+  const out = new Map(all);
+  for (const [genre, m] of top) out.set(genre, artistCovers.get(biggest(m)));
+  return out;
 }
