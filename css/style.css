@@ -1267,8 +1267,13 @@ button:not(:disabled):active { transform: scale(0.96); }
 .slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 6px; transition: opacity var(--motion-fade) var(--ease-out); }
 .race-window.off { opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .race-window { transition: none; } }
-.race-stage { --race-row: 34px; --race-val: 64px; position: relative; margin-top: 14px; height: calc(var(--n, 8) * var(--race-row)); overflow: hidden; transition: height var(--motion-morph) var(--ease-in-out); }
+.race-stage { --race-row: 34px; --race-val: 64px; --race-axis: 16px; position: relative; margin-top: 4px; padding-top: var(--race-axis); height: calc(var(--n, 8) * var(--race-row) + var(--race-axis)); overflow: hidden; transition: height var(--motion-morph) var(--ease-in-out); }
 .race-rows { list-style: none; margin: 0; padding: 0; position: relative; height: 100%; overflow: hidden; }
+/* The scale lines share the rows' columns, so a line at h hours sits where a bar of h hours ends */
+.race-scale { position: absolute; inset: 0; display: grid; grid-template-columns: 2.5ch minmax(0, 200px) 1fr; gap: 10px; padding: 0 8px; pointer-events: none; }
+.race-scale-track { grid-column: 3; position: relative; }
+.race-scale-track span { position: absolute; top: var(--race-axis); bottom: 0; left: calc((100% - var(--race-val)) * var(--f, 0)); border-left: 1px solid var(--grid); }
+.race-scale-track span::after { content: attr(data-label); position: absolute; top: calc(-1 * var(--race-axis)); left: 0; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; line-height: var(--race-axis); color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .race-rows li {
   --tint: 12%;
   position: absolute;
@@ -1319,19 +1324,25 @@ button:not(:disabled):active { transform: scale(0.96); }
 .race-date { position: absolute; right: 4px; bottom: 2px; font-family: var(--mono); font-size: 28px; font-weight: 500; letter-spacing: -0.02em; color: var(--text-muted); opacity: 0.6; pointer-events: none; font-variant-numeric: tabular-nums; }
 /* Play, the time slider (running with the video) and the speed */
 .race-controls { display: flex; align-items: flex-start; gap: 14px; margin-top: 12px; }
-.race-play { flex: none; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 50%; margin-top: -9px; }
+.race-controls { --race-density: 22px; }
+.race-play { flex: none; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 50%; margin-top: calc(var(--race-density) - 9px); }
 .race-play svg { width: 14px; height: 14px; fill: currentColor; }
 .race-play .i-pause, .playing .race-play .i-play { display: none; }
 .playing .race-play .i-pause { display: inline; }
 .slider.race-time { flex: 1; width: auto; min-width: 0; }
+/* The density strip spans the thumb's travel (5px in from each end), as the ticks do */
+.race-density { display: block; width: calc(100% - 10px); height: var(--race-density); margin: 0 5px; overflow: visible; }
+.race-density-fill { fill: color-mix(in srgb, var(--text-muted) 16%, transparent); }
+.race-density-played { fill: color-mix(in srgb, var(--accent) 34%, transparent); }
+.race-density-line { fill: none; stroke: var(--text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .race-ticks { position: relative; height: 16px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
 .race-ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); white-space: nowrap; }
-.race-speed-box { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: -7px; }
+.race-speed-box { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: calc(var(--race-density) - 7px); }
 .race-speed { flex: none; }
 .race-rate { font-family: var(--mono); font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .race-speed button { padding: 3px 9px; font-size: 12px; }
 @media (max-width: 600px) {
-  .race-rows li { grid-template-columns: 2ch minmax(0, 110px) 1fr; gap: 6px; }
+  .race-rows li, .race-scale { grid-template-columns: 2ch minmax(0, 110px) 1fr; gap: 6px; }
   .race-stage { margin-top: 36px; overflow: visible; } /* (the rows clip themselves) */
   .race-date { bottom: auto; top: -30px; font-size: 18px; }
 }

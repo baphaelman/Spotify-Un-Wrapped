@@ -317,6 +317,8 @@
           </div>
         </div>
         <div id="race-stage" class="race-stage">
+          <!-- Scale lines at round hours behind the bars, sliding with the widest one (race.js) -->
+          <div class="race-scale" aria-hidden="true"><div id="race-scale" class="race-scale-track"></div></div>
           <ol id="race-rows" class="race-rows"></ol>
           <div id="race-date" class="race-date" aria-live="off"></div>
         </div>
@@ -325,6 +327,13 @@
             <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
           </button>
           <div class="slider race-time">
+            <!-- When the plays bunch up: hours in the "Days" window up to each day, deeper where already played (race.js) -->
+            <svg id="race-density" class="race-density" preserveAspectRatio="none" aria-hidden="true">
+              <defs><clipPath id="race-played" clipPathUnits="userSpaceOnUse"><rect y="-1" height="3"></rect></clipPath></defs>
+              <path class="race-density-fill"></path>
+              <path class="race-density-played" clip-path="url(#race-played)"></path>
+              <path class="race-density-line"></path>
+            </svg>
             <input id="race-time" type="range" min="0" max="1" step="any" value="1" aria-label="Day shown">
             <div id="race-ticks" class="race-ticks" aria-hidden="true"></div>
           </div>

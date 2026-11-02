@@ -11,7 +11,7 @@ import * as agg from "./aggregate.js";
 import { $, state, noun, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
-import { CHASE_MS, dur, litLook, scaledMs, easeInOut } from "./motion.js";
+import { CHASE_MS, ENTER_MS, FADE_MS, MORPH_MS, dur, litLook, scaledMs, easeInOut, easeOut } from "./motion.js";
 import { tune } from "./tune.js";
 
 const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
@@ -259,20 +259,155 @@ function frame(now) {
     const text = hoursText(r.v);
     if (text !== r.text) r.val.textContent = r.text = text;
   }
+  if (!paintLines(dt)) settled = false;
   $("race-stage").style.setProperty("--n", count);
   paintTime();
   if (playing || !settled) raf = requestAnimationFrame(frame);
   else last = 0;
 }
 
+// The scale lines: round hours (1, 2 or 5 × a power of ten) about a quarter of the widest bar apart, placed by the
+// chased scale so they slide with the bars. A step is kept while 2 to 8 of it fit, so a scale hovering at a boundary
+// doesn't flicker; a line leaving the step or the track fades out on FADE_MS and a new one fades in. False until all
+// have settled.
+const lines = new Map(); // hours -> { el, op }
+let lineStep = 0;
+const niceStep = (h) => {
+  const p = 10 ** Math.floor(Math.log10(h)), m = h / p;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+};
+const lineText = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h.toLocaleString()} h`);
+function paintLines(dt) {
+  const h = scale / 3_600_000;
+  if (h > 0 && (!lineStep || h / lineStep < 2 || h / lineStep > 8)) lineStep = niceStep(h / 4);
+  const want = new Set();
+  if (h > 0) for (let k = 1; k * lineStep <= h; k++) want.add(Number((k * lineStep).toPrecision(6)));
+  for (const v of want) {
+    if (lines.has(v)) continue;
+    const el = document.createElement("span");
+    el.dataset.label = lineText(v);
+    el.style.opacity = 0;
+    $("race-scale").append(el);
+    lines.set(v, { el, op: 0 });
+  }
+  const tau = dur(FADE_MS / 3);
+  const a = tau ? 1 - Math.exp(-dt / tau) : 1;
+  let settled = true;
+  for (const [v, l] of lines) {
+    const to = want.has(v) ? 1 : 0;
+    l.op += (to - l.op) * a;
+    if (Math.abs(to - l.op) > SETTLED) settled = false;
+    else l.op = to;
+    if (!l.op && !to) {
+      l.el.remove();
+      lines.delete(v);
+      continue;
+    }
+    l.el.style.opacity = l.op;
+    l.el.style.setProperty("--f", (v * 3_600_000) / scale);
+  }
+  return settled;
+}
+
 function kick() {
   if (!raf) raf = requestAnimationFrame(frame);
+}
+
+// ---------- When the plays bunch up ----------
+
+// A strip over the time slider, like a video's most-replayed graph: the hours played in the "Days" window up to each
+// day, at about one point per DENSITY_PX (each the average over the days it stands for), scaled to the period's
+// busiest stretch. A change morphs it point by point from what's on screen: a new window over the time the window
+// takes (scaledMs), a period dragged on CHASE_MS, any other on MORPH_MS. The part before the playhead fills deeper.
+const DENSITY_PX = 2;
+let density = null; // { key, n, recent, shown, from, to, t0, ms, ease, raf }
+
+function densityTarget(lo, hi, n) {
+  const back = recent - 1;
+  const days = hi - lo + 1 + back;
+  const sums = new Float64Array(days + 1); // running total of each day's ms
+  const hidden = new Set(state.hidden);
+  for (const p of agg.filterRange(state.plays, lo - back, hi)) {
+    if (hidden.has(p.artist)) continue;
+    const d = agg.dayIndex(p.t) - lo + back;
+    if (d >= 0 && d < days) sums[d + 1] += p.ms;
+  }
+  for (let d = 0; d < days; d++) sums[d + 1] += sums[d];
+  // The window's hours up to each day of the period, then a running total of those to average a point's days
+  const span = hi - lo + 1;
+  const runs = new Float64Array(span + 1);
+  for (let d = 0; d < span; d++) runs[d + 1] = runs[d] + sums[d + back + 1] - sums[d + back + 1 - recent];
+  const out = new Float64Array(n);
+  let top = 0;
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor((i * span) / n), b = Math.max(a + 1, Math.floor(((i + 1) * span) / n));
+    out[i] = (runs[b] - runs[a]) / (b - a);
+    top = Math.max(top, out[i]);
+  }
+  if (top) for (let i = 0; i < n; i++) out[i] /= top;
+  return out;
+}
+
+// What's on screen, read at n points
+function resample(v, n) {
+  if (v.length === n) return Float64Array.from(v);
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / Math.max(1, n - 1)) * (v.length - 1), k = Math.floor(x);
+    out[i] = v[k] + ((v[Math.min(k + 1, v.length - 1)] - v[k]) * (x - k));
+  }
+  return out;
+}
+
+function drawDensity() {
+  const { shown, n } = density;
+  const svg = $("race-density");
+  const box = `0 0 ${n - 1} 1`;
+  if (svg.getAttribute("viewBox") !== box) svg.setAttribute("viewBox", box);
+  let line = "";
+  for (let i = 0; i < n; i++) line += `${i ? "L" : "M"}${i} ${(1 - shown[i] * 0.9).toFixed(4)}`;
+  const area = `${line}L${n - 1} 1L0 1Z`;
+  svg.querySelector(".race-density-line").setAttribute("d", line);
+  svg.querySelector(".race-density-fill").setAttribute("d", area);
+  svg.querySelector(".race-density-played").setAttribute("d", area);
+  paintPlayed();
+}
+
+function paintPlayed() {
+  if (density) $("race-played").firstElementChild.setAttribute("width", (span() ? (t - built.lo) / span() : 1) * (density.n - 1));
+}
+
+function paintDensity() {
+  const w = $("race-density").clientWidth;
+  if (!w || !state.plays) return;
+  const { lo, hi } = state.range;
+  const n = Math.max(2, Math.min(hi - lo + 1, Math.round(w / DENSITY_PX)));
+  const key = [state.plays.length, lo, hi, recent, n, ...state.hidden].join("\u0000");
+  if (density?.key === key) return;
+  const to = densityTarget(lo, hi, n);
+  const prev = density;
+  if (prev) cancelAnimationFrame(prev.raf);
+  const [ms, ease] = !prev ? [ENTER_MS, easeOut]
+    : prev.recent !== recent ? [scaledMs(prev.recent, recent), easeInOut]
+    : prev.raf ? [CHASE_MS, easeOut]
+    : [MORPH_MS, easeInOut];
+  const from = prev ? resample(prev.shown, n) : new Float64Array(n);
+  density = { key, n, recent, shown: Float64Array.from(from), from, to, t0: performance.now(), ms: dur(ms), ease, raf: 0 };
+  const d = density;
+  const step = (now) => {
+    const e = d.ms ? Math.min(1, (now - d.t0) / d.ms) : 1, k = d.ease(e);
+    for (let i = 0; i < n; i++) d.shown[i] = d.from[i] + (d.to[i] - d.from[i]) * k;
+    drawDensity();
+    d.raf = e < 1 ? requestAnimationFrame(step) : 0;
+  };
+  d.raf = requestAnimationFrame(step);
 }
 
 function paintTime() {
   const input = $("race-time");
   input.value = t;
   input.style.setProperty("--p", span() ? (t - built.lo) / span() : 1);
+  paintPlayed();
   const d = agg.dayToDate(Math.floor(t));
   const text = d.toLocaleDateString(undefined, span() > 400 ? { month: "short", year: "numeric" } : { day: "numeric", month: "short", year: "numeric" });
   if ($("race-date").textContent !== text) $("race-date").textContent = text;
@@ -356,6 +491,7 @@ export function paintRace() {
     if (!playing || t < lo || t > hi) t = hi;
     paintTicks();
     paintRate();
+    paintDensity();
   }
   kick();
 }
@@ -504,6 +640,7 @@ new IntersectionObserver((entries) => {
 let ticksWide = 0;
 new ResizeObserver(() => {
   const w = $("race-ticks").clientWidth;
+  if (built) paintDensity(); // (its own key keeps the same width from redrawing)
   if (Math.abs(w - ticksWide) < TICK_PX / 2) return;
   ticksWide = w;
   paintTicks();
