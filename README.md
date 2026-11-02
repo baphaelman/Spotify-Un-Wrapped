@@ -41,6 +41,10 @@ The same data as above, but not stacked nor normalized. More about seeing your l
 
 ![Hours per week](docs/images/hours.png)
 
+### Top Artists over time
+
+Your top artists day by day through the period, played like a video: bars race past each other as one artist overtakes another. Rank them by the **last few days** (the *Days* slider sets how far back) or by everything **so far** in the period. Press play, pick a speed, or drag the slider to scrub through time. Click a bar to pin.
+
 ### Hours per month
 
 A bar per month with each month's top artist on top.

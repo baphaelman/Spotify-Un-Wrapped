@@ -32,6 +32,13 @@ a stale cached stylesheet or script. The files in git stay unstamped.)
   is exactly as chosen. Don't keep anything that would need real work of its own (a separate code path, its own
   rendering), and say which options you kept.
 
+## The README
+
+`README.md` is the owner's tour of the page for visitors, one `###` section per graph under "The Page", in the
+page's order. **When you add a graph, add its section there in the same change** (and rename or remove sections when
+a graph is renamed or removed): a few sentences in the README's own plain, first-person voice on what it shows and
+what you can do with it, not how it's built. Screenshots in `docs/images/` are optional; ask the owner before adding one.
+
 ## Working alongside other agents
 
 The owner often runs several agents on this project at once. Each agent works on its own branch in its
