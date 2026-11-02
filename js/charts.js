@@ -2517,6 +2517,9 @@ const FOUND_GRID = { left: 56, right: 24, top: 12, bottom: 28 };
 const FOUND_KEY_W = 168; // the plot's right margin while the key shows (.found-key's width and a gap)
 const FOUND_LABEL = { size: 13, weight: 600, gap: 8, h: 18 };
 const FOUND_ROOMY = 400; // dots per 1000px of plot drawn at full size; more, and every dot shrinks (down to half)
+// The lit dots are a series per artist (their palette's size, always all of them, so ids stay put): a hover restyles
+// each series as a whole, not each of a genre's thousands of tracks
+const FOUND_LIT = 10;
 export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
   const t = tokens();
   dot *= Math.min(1, Math.max(0.5, Math.sqrt((FOUND_ROOMY * el.clientWidth) / 1000 / Math.max(1, items.length))));
@@ -2524,9 +2527,10 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   const prev = discoveryState.get(el);
   const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
   const st = {
-    c, t, names, slotOf, floor, top, pins, span, hover, dot, near: null,
+    c, t, names, slotOf, floor, top, pins, span, hover, dot, near: null, lighted: null,
     rest: items.filter((e) => !slotOf.has(groupOf(e))),
     lit: items.filter((e) => slotOf.has(groupOf(e))),
+    litBy: names.slice(0, FOUND_LIT).map((n) => items.filter((e) => groupOf(e) === n)), // (each artist's own series)
     grouped: items.some((e) => e.group != null),
     litSize: items.some((e) => e.group != null) ? dot * 1.4 : dot * 2, // (a genre's many tracks smaller)
     pinned: new Set(names.filter((n) => pins?.has(n))),
@@ -2539,6 +2543,14 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   const byName = new Map(items.map((e) => [e.name, e]));
   const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const fmtSpent = (h) => (h >= 1 ? fmtHours(h) : `${Math.max(1, Math.round(h * 60))} min`);
+  st.tip = (name) => {
+    const e = byName.get(name);
+    const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";
+    const genre = e.group != null ? `<div style="color:${t.muted}">Genre: <span style="color:${t.primary}">${esc(e.group)}</span></div>` : "";
+    return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` + genre +
+      (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
+      from + `${fmtSpent(e.hours)} all time`;
+  };
   const fresh = prev?.c !== c; // (a theme flip makes a new chart)
   setOptionFaded(
     c,
@@ -2552,15 +2564,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
       tooltip: {
         ...tooltipBase(t),
         trigger: "item",
-        triggerOn: "none", // shown for the dot nearest the pointer (pointAt)
-        formatter: ({ name }) => {
-          const e = byName.get(name);
-          const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";
-          const genre = e.group != null ? `<div style="color:${t.muted}">Genre: <span style="color:${t.primary}">${esc(e.group)}</span></div>` : "";
-          return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` + genre +
-            (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
-            from + `${fmtSpent(e.hours)} all time`;
-        },
+        triggerOn: "none", // shown for the dot nearest the pointer (pointAt), with st.tip's content
       },
       xAxis: { type: "time", min: span[0], max: span[1], ...baseAxis(t), splitLine: { show: false } },
       yAxis: {
@@ -2587,16 +2591,22 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           emphasis: { disabled: true },
           data: st.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, floor)] })),
         },
-        {
-          id: "lit",
+        ...st.litBy.concat(Array(FOUND_LIT - st.litBy.length).fill([])).map((list, k) => ({
+          ...discoveryLit(st, k),
           type: "scatter",
           zlevel: LIT_Z,
           symbolSize: st.litSize,
+          // a genre's tracks (never named) drawn as one path, so a restyle is one shape, not thousands
+          large: st.grouped,
+          largeThreshold: 1,
           silent: true,
           emphasis: { disabled: true },
-          label: { show: !st.grouped, position: "right", distance: FOUND_LABEL.gap, formatter: ({ name }) => name, fontSize: FOUND_LABEL.size, fontWeight: FOUND_LABEL.weight },
-          data: discoveryLit(st),
-        },
+          data: list.map((e) => ({
+            name: e.name,
+            value: [e.t, Math.max(e.hours, floor)],
+            ...(st.grouped ? {} : { label: { position: foundOnLeft(st, e) ? "left" : "right" } }),
+          })),
+        })),
       ],
     },
     { notMerge: fresh },
@@ -2605,8 +2615,9 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   dimRest(c, st, fresh ? 0 : dur(MORPH_MS));
   // The dots moved: the pointer's ring and readout wait for its next move
   st.ring = fresh ? null : prev.ring;
+  if (prev) clearTimeout(prev.unlight);
+  if (prev?.lighted != null) hover(null);
   if (prev?.near) {
-    if (prev.near.lit) hover(null);
     c.dispatchAction({ type: "hideTip" });
     st.ring?.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
   }
@@ -2705,30 +2716,44 @@ function nearestFound(st, x, y) {
   if (!st || !st.c.containPixel({ gridIndex: 0 }, [x, y])) return null;
   const rect = st.c.getModel().getComponent("grid").coordinateSystem.getRect();
   let best = null, bestD = Infinity;
-  for (const [list, lit] of [[st.rest, false], [st.lit, true]]) {
+  [st.rest, ...st.litBy].forEach((list, s) => {
     list.forEach((e, index) => {
       const [px, py] = foundPixel(st, rect, e);
       const d = (px - x) ** 2 + (py - y) ** 2;
-      if (d < bestD) [best, bestD] = [{ name: e.name, group: groupOf(e), lit, index, x: px, y: py }, d];
+      if (d < bestD) [best, bestD] = [{ name: e.name, group: groupOf(e), lit: s > 0, series: s, index, x: px, y: py }, d];
     });
-  }
+  });
   return best;
+}
+
+// Light an artist across the page from the pointer (null: none), only when that changes: lighting restyles every
+// graph. Passing over a gray dot (soft) clears it only once the pointer rests there, so a sweep through a genre's
+// tracks doesn't flicker the whole page between each of them.
+function lightFound(st, group, soft) {
+  clearTimeout(st.unlight);
+  if (group == null && soft && st.lighted != null) {
+    st.unlight = setTimeout(() => lightFound(st, null, false), FADE_MS);
+    return;
+  }
+  if (group === st.lighted) return;
+  st.lighted = group;
+  st.hover(group);
 }
 
 // Point at a dot (or nothing): its readout, a ring that glides to it, and its artist lit if it's one of the chart's
 function pointAt(st, near) {
   if (!st) return;
-  const was = st.near;
   st.near = near;
   const { c, t } = st;
-  if (was?.lit && !near?.lit) st.hover(null);
-  if (near?.lit) st.hover(near.group);
+  lightFound(st, near?.lit ? near.group : null, near != null);
   if (!near) {
     c.dispatchAction({ type: "hideTip" });
     st.ring?.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
     return;
   }
-  c.dispatchAction({ type: "showTip", seriesIndex: near.lit ? 1 : 0, dataIndex: near.index });
+  // (at the dot, with its content: a large series keeps no place per dot for ECharts to find)
+  const html = st.tip(near.name);
+  c.dispatchAction({ type: "showTip", x: near.x, y: near.y, tooltip: { formatter: () => html } });
   const r = (near.lit ? st.litSize : st.dot) / 2 + 4;
   const stroke = near.lit ? t.series[st.slotOf.get(near.group)] : t.primary;
   if (!st.ring) {
@@ -2744,20 +2769,27 @@ function pointAt(st, near) {
 
 // The lit dots by the hover/pin rule: a light shade of the color at rest, deeper hovered, the color in full with a
 // thicker edge pinned, and faded while another is lit
-function discoveryLit(st) {
-  const { t } = st;
-  return st.lit.map((e) => {
-    const col = t.series[st.slotOf.get(groupOf(e))];
-    const look = litLook(st.pinned, st.hovered, groupOf(e));
-    const fill = isLitLook(look) ? col : mix(t.surface, col, 0.8 * t.fade[look]);
-    return {
-      name: e.name,
-      value: [e.t, Math.max(e.hours, st.floor)],
-      // named in the ink, faded as the dot is, unless the key names them
-      label: { position: foundOnLeft(st, e) ? "left" : "right", color: mix(t.surface, t.primary, t.fade[look]), opacity: st.keyed ? 0 : 1 },
-      itemStyle: { color: fill, borderColor: mix(t.surface, col, t.fade[look]), borderWidth: isPinLook(look) ? 3 : 1 },
-    };
-  });
+// (series k, the k-th of the chart's artists: its look, set on the series as a whole)
+function discoveryLit(st, k) {
+  const { t } = st, name = st.names[k];
+  if (k >= st.litBy.length) return { id: `lit${k}` };
+  const col = t.series[st.slotOf.get(name)];
+  const look = litLook(st.pinned, st.hovered, name);
+  const fill = isLitLook(look) ? col : mix(t.surface, col, 0.8 * t.fade[look]);
+  return {
+    id: `lit${k}`,
+    // named in the ink, faded as the dot is, unless the key names them
+    label: {
+      show: !st.grouped,
+      distance: FOUND_LABEL.gap,
+      formatter: ({ name }) => name,
+      fontSize: FOUND_LABEL.size,
+      fontWeight: FOUND_LABEL.weight,
+      color: mix(t.surface, t.primary, t.fade[look]),
+      opacity: st.keyed ? 0 : 1,
+    },
+    itemStyle: { color: fill, borderColor: mix(t.surface, col, t.fade[look]), borderWidth: isPinLook(look) ? 3 : 1 },
+  };
 }
 
 // The neutral dots' layer fades as a whole: a little while one of the chart's artists is hovered, more while one is
@@ -2778,7 +2810,7 @@ export function focusDiscovery(el, name) {
   const next = name != null && st.names.includes(name) ? name : null;
   if (next === st.hovered) return;
   st.hovered = next;
-  setOptionFaded(c, { series: [{ id: "lit", data: discoveryLit(st) }] }, undefined, dur(FADE_MS));
+  setOptionFaded(c, { series: st.litBy.map((_, k) => discoveryLit(st, k)) }, undefined, dur(FADE_MS));
   dimRest(c, st, dur(FADE_MS));
   lightFoundKey(st, el.parentElement.querySelector(".found-key"));
 }

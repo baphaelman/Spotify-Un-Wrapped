@@ -87,7 +87,13 @@ export function drawnShapes(c) {
       }
     }
     // Dots: each symbol's path, by name (a few hundred at most; bigger layers fade as a whole, see dimRest)
-    if (m.subType === "scatter" && m.getData().count() <= 300) {
+    // A large scatter draws all its dots as a few paths, styled as one
+    if (m.subType === "scatter" && m.get("large") && m.getData().count() >= m.get("largeThreshold")) {
+      let k = 0;
+      v?.group?.traverse((el) => {
+        if (el.shape?.points instanceof Float32Array) shapes.set(`${m.id}:large${k++}`, el);
+      });
+    } else if (m.subType === "scatter" && m.getData().count() <= 300) {
       const data = m.getData();
       for (let i = 0; i < data.count(); i++) {
         const el = data.getItemGraphicEl(i)?.childAt?.(0);
