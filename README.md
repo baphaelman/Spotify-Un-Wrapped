@@ -33,7 +33,7 @@ How your listening time split between your top artists in the period, with pictu
 
 ### Inside your top artists
 
-The same artists opened up into rings: each artist, then their albums, then their songs, sized by hours and labeled with their share of the period where it fits. Click a slice to zoom into it, and click the middle circle to come back out. In the Albums view it's each album's songs, and in Genres each genre's artists and then their albums (it doesn't show in Tracks).
+The same artists opened up into rings: each artist, then their albums, then their songs, sized by hours and labeled with their share of the period where it fits. Click a slice to zoom into it, and click the middle circle to come back out. Switching tabs keeps you on the same thing where it's there: an album you opened under its artist stays open in Albums, and back in Artists you can step out to its artist again. In the Albums view it's each album's songs, and in Genres each genre's artists and then their albums (it doesn't show in Tracks).
 
 ### Top Artists View
 

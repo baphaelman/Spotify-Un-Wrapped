@@ -29,6 +29,13 @@ const LEVELS = {
   album: [[(p) => p.track, 12, "Other songs"]],
   genre: [[(p) => p.by, 8, "Other artists"], [(p) => p.album || "Unknown album", 5, "Other albums"]],
 };
+// What a node at each level stands for, whatever view it's in ({ genre, artist, album }), so a tab change can keep
+// the same thing in the middle: means(name, the parent's meaning) per level below the root
+const MEANS = {
+  artist: [(n) => ({ artist: n }), (n, up) => ({ ...up, album: n })],
+  album: [(n) => ({ artist: state.owner?.get(n), album: state.titles?.get(n) ?? n })],
+  genre: [(n) => ({ genre: n }), (n, up) => ({ ...up, artist: n }), (n, up) => ({ ...up, album: n })],
+};
 const NOTES = {
   artist: "Each artist's albums, then their songs",
   album: "Each album's songs",
@@ -42,6 +49,12 @@ let svg, layers, tip;
 const nodes = new Map(); // id -> node, as on screen (including those leaving)
 let root = null;
 let focusId = ""; // the node in the middle circle, by id ("" is the root)
+// What the reader last opened stands for (see MEANS). A tab change opens the same thing in the new view; until it's
+// there (genres still arriving, or it isn't among the view's top items), the middle waits at the root and each paint
+// looks again, until the reader opens something else
+let focusMeans = {};
+let lastDim = null;
+let seeking = false;
 let total = 0;
 let pins = null;
 let hoveredItem = null; // lit from anywhere on the page
@@ -99,7 +112,8 @@ function build(plays, items) {
   const sum = (x) => (typeof x === "number" ? x : [...x.values()].reduce((a, y) => a + sum(y), 0));
   const node = (parent, name, x, depth, item) => {
     const id = parent ? (parent.id ? parent.id + SEP : "") + name : "";
-    const n = { id, name, parent, depth, item, value: sum(x), kids: [] };
+    const means = depth === 0 ? {} : MEANS[state.dim][depth - 1]?.(name, parent.means) ?? parent.means;
+    const n = { id, name, parent, depth, item, means, value: sum(x), kids: [] };
     if (typeof x === "number" || !x.size) return n;
     const level = levels[depth - 1] ?? [null, Infinity];
     let kids = [...x].map(([k, y]) => [k, y, sum(y)]);
@@ -108,7 +122,7 @@ function build(plays, items) {
     const restH = kids.slice(cap).reduce((a, k) => a + k[2], 0);
     kids = kids.slice(0, cap);
     n.kids = kids.filter((k) => k[2] > 0).map(([k, y]) => node(n, k, y, depth + 1, item ?? k));
-    if (restH > 0) n.kids.push({ ...node(n, rest, restH, depth + 1, item), other: true });
+    if (restH > 0) n.kids.push({ ...node(n, rest, restH, depth + 1, item), means: n.means, other: true });
     return n;
   };
   const r = node(null, "", top, 0, null);
@@ -188,6 +202,22 @@ function retarget(first) {
     n.to = { a0: at, a1: at, r0: n.cur.r0, r1: n.cur.r1 };
   }
   return f;
+}
+
+// The node of another view's tree that stands for what was in the middle: the deepest one that names nothing it
+// didn't (but a genre, so an artist opened in Artists opens under their biggest genre in Genres), or none. An artist's
+// album in Artists opens as that album in Albums, and back in Artists or in Genres it sits under its artist again,
+// one more step from the outside.
+function carried(tree) {
+  let best = null, most = 0;
+  eachNode(tree, (n) => {
+    if (!n.kids.length || n.other || !n.depth) return;
+    const keys = Object.keys(n.means);
+    if (keys.some((k) => n.means[k] !== focusMeans[k] && !(k === "genre" && focusMeans[k] === undefined))) return;
+    const score = keys.filter((k) => focusMeans[k] !== undefined).length;
+    if (score > most || (score === most && score && n.value > best.value)) [best, most] = [n, score];
+  });
+  return best;
 }
 
 const find = (id) => {
@@ -437,6 +467,8 @@ function fillTip(n) {
 
 function zoomTo(id) {
   focusId = id;
+  focusMeans = id ? find(id).means : {};
+  seeking = false;
   retarget(false);
   hoverNode = null;
   tip.classList.remove("on");
@@ -471,6 +503,12 @@ export function paintSunburst(plays) {
   $("sunburst-sub").textContent = `${NOTES[state.dim]}, sized by hours. Click a slice to go in; click the middle to come back out.`;
   const first = nodes.size === 0;
   root = build(plays, items);
+  if (lastDim && (lastDim !== state.dim || seeking)) {
+    const n = carried(root);
+    focusId = n?.id ?? "";
+    seeking = !n && Object.keys(focusMeans).length > 0;
+  }
+  lastDim = state.dim;
   total = root.value;
   const titles = state.titles;
   eachNode(root, (n) => (n.shown = n.depth === 1 && titles ? titles.get(n.name) ?? n.name : n.name));
