@@ -58,6 +58,12 @@ function chart(el) {
     c.getZr().on("click", (e) => clickAt(e.offsetX, e.offsetY));
     c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
     c.getZr().on("globalout", () => scrub(null));
+    // A pinned column's card takes the pointer: its rows light and pin their artist like the lines
+    const tip = el.parentElement.querySelector(".rank-tip");
+    const rowOf = (e) => e.target.closest?.(".rank-tip-row");
+    tip.addEventListener("mouseover", (e) => { const li = rowOf(e); if (li && colPin != null) hover(li._key); });
+    tip.addEventListener("mouseleave", () => { if (colPin != null && !pointer) hover(null); });
+    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) mixArgs?.[3]?.toggle(li._key); });
   }
   return c;
 }
@@ -236,7 +242,7 @@ export function focusRankRace(name) {
   if (st.hovered === name) return;
   st.hovered = name;
   morphPoints(() => setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(FADE_MS)), dur(FADE_MS));
-  if (pointer) draw();
+  if (pointer || colPin != null) draw();
 }
 
 // ---------- hovering ----------
@@ -544,6 +550,7 @@ function draw() {
         li.className = "rank-tip-row";
         li.append(document.createElement("span"), document.createElement("span"), document.createElement("span"));
         li.children[1].textContent = shownName(a);
+        li._key = a;
         rowEls.set(a, li);
       }
       if (li.parentElement !== list) list.append(li);
@@ -571,6 +578,7 @@ function draw() {
   if (colPin != null) top = pinTop ??= pointer ? top : 0;
   tip.style.transform = `translate(${left}px, ${top}px)`;
   tip.classList.add("on");
+  tip.classList.toggle("held", colPin != null);
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
   const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
