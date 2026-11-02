@@ -8,6 +8,8 @@
 #   frames   median / p95 / max frame time and the frames over 50 ms; "blocked" is the long tasks' total
 #   jump     the biggest one-frame change as a share of the whole change, and when it came (ms after the action).
 #            Over ~30% with a frame time near the median is a cut; check that moment with shot.py CLICK_JS/CLICK_TIMES.
+#   --profile  also samples the CPU through each action and prints the functions with the most self time, and the
+#              share spent in native code ("(program)": mostly drawing the charts' canvases)
 # Headless Brave draws in software, so frame times run slower than a real browser: compare before against after.
 # Runs offline (no Supabase), so it costs no Spotify calls. Needs the server from CLAUDE.md running on <port>.
 import argparse, json, os, socket, statistics, subprocess, sys, time, urllib.request
@@ -60,6 +62,7 @@ ap.add_argument("--setup", default="")
 ap.add_argument("--action", default="")
 ap.add_argument("--seconds", type=float, default=3)
 ap.add_argument("--charts", default="chart-rolling,chart-rolling-hours")
+ap.add_argument("--profile", action="store_true")
 args = ap.parse_args()
 names = args.scenarios or list(SCENARIOS)
 if "custom" in names:
@@ -112,6 +115,10 @@ try:
         time.sleep(3)  # long enough for any setup morph (scaledMs tops out at 2.2 s) to settle
         js(f"window.__rec({charts})")
         time.sleep(0.3)
+        if args.profile:
+            call("Profiler.enable")
+            call("Profiler.setSamplingInterval", interval=200)
+            call("Profiler.start")
         start = js("performance.now()")
         if name == "drag":
             b = js("JSON.stringify(document.getElementById('brush-win').getBoundingClientRect())")
@@ -127,6 +134,7 @@ try:
             js(sc["action"])
         time.sleep(sc["seconds"])
         r = js("(() => { const r = window.__recNow; r.stop = true; return { t: r.t, diff: r.diff, long: r.long }; })()")
+        prof = call("Profiler.stop")["profile"] if args.profile else None
 
         t, diff = r["t"], r["diff"]
         keep = [i for i in range(1, len(t)) if t[i] >= start]
@@ -143,6 +151,16 @@ try:
         big = max(range(len(moves)), key=lambda i: moves[i])
         at = t[keep[big]] - start
         print(f"{name:11} {frames}  |  jump {moves[big] / total:4.0%} at {at:5.0f} ms (that frame took {dts[big]:.0f} ms)")
+        if prof:
+            nodes = {n["id"]: n["callFrame"] for n in prof["nodes"]}
+            self_ms = {}
+            for sid, dt in zip(prof["samples"], prof["timeDeltas"]):
+                f = nodes[sid]
+                k = f'{f["functionName"] or "(anon)"} {f["url"].rsplit("/", 1)[-1]}:{f["lineNumber"] + 1}'
+                self_ms[k] = self_ms.get(k, 0) + dt / 1000
+            for k, ms in sorted(self_ms.items(), key=lambda x: -x[1])[:12]:
+                if k.split()[0] != "(idle)":
+                    print(f"    {ms:7.0f} ms  {k}")
     for e in errors:
         print("EXC", e)
 finally:
