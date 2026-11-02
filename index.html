@@ -22,11 +22,10 @@
       <!-- How the page works: a row per feature, each with a small copy of its control (mirroring its state, filled by
            guide.js). Hovering a row rings the real control on the page: one ring per |-separated group, around
            everything the group matches -->
+      <!-- Until the summary is shared, a standing invitation to (main.js renderShareState) -->
+      <button id="share-cta" class="share-cta" type="button" hidden>Share with the community</button>
       <button id="feedback-open" class="ghost" type="button" hidden>Missing something?</button>
       <div class="help">
-        <button id="help-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-panel" aria-label="How the page works" title="How the page works" hidden>
-          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M5.2 5.6a2.8 2.8 0 1 1 4.2 2.4c-.9.5-1.4 1.05-1.4 2.05" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="13.1" r="1.05" fill="currentColor"/></svg>
-        </button>
         <div id="help-panel" class="help-panel" role="dialog" aria-label="How the page works" hidden>
           <p class="help-title">How the page works</p>
           <div id="guide" class="guide">
@@ -84,27 +83,6 @@
               </div>
               <p><b>Colors</b> Pick the artists' color scheme, or toggle between light and dark.</p>
             </div>
-          </div>
-        </div>
-      </div>
-      <!-- Controls: the settings for the loaded data, sharing it with the community and forgetting it (main.js) -->
-      <div class="controls">
-        <button id="controls-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="controls-panel" aria-label="Settings" title="Settings" hidden>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.6 1h2.8l.4 1.9c.4.2.8.4 1.2.7l1.8-.7 1.4 2.4-1.4 1.3a5 5 0 0 1 0 1.4l1.4 1.3-1.4 2.4-1.8-.7c-.4.3-.8.5-1.2.7L9.4 15H6.6l-.4-1.9c-.4-.2-.8-.4-1.2-.7l-1.8.7-1.4-2.4 1.4-1.3a5 5 0 0 1 0-1.4L1.8 6.7l1.4-2.4 1.8.7c.4-.3.8-.5 1.2-.7L6.6 1ZM8 10.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z"/></svg>
-        </button>
-        <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Settings" hidden>
-          <div class="controls-data">
-            <p id="share-state" class="controls-note"></p>
-            <button id="share-toggle" class="controls-item" type="button" hidden>Share with community</button>
-            <button id="share-preview" class="controls-item" type="button">Preview shared data</button>
-            <button id="reset" class="controls-item danger" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
-          </div>
-          <!-- The graphs' hidden variables, as sliders at the foot of each card (tune.js, main.js) -->
-          <div class="controls-extra">
-            <button id="see-everything" class="controls-item controls-switch" type="button" role="switch" aria-checked="false" aria-describedby="see-everything-warn">
-              <span>Visual tweaks</span><span class="switch" aria-hidden="true"></span>
-            </button>
-            <div id="see-everything-warn" class="controls-warn"><div><p class="controls-note">Shows every setting for every graph, even ones that weren't designed for it.</p></div></div>
           </div>
         </div>
       </div>
@@ -190,6 +168,28 @@
           </div>
           <button id="year-next" class="ghost step" type="button" aria-label="Next period">›</button>
         </div>
+            <!-- Controls: the settings for the loaded data, sharing it with the community and forgetting it (main.js) -->
+            <div class="controls">
+              <button id="controls-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="controls-panel" aria-label="Settings" title="Settings" hidden>
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M6.6 1h2.8l.4 1.9c.4.2.8.4 1.2.7l1.8-.7 1.4 2.4-1.4 1.3a5 5 0 0 1 0 1.4l1.4 1.3-1.4 2.4-1.8-.7c-.4.3-.8.5-1.2.7L9.4 15H6.6l-.4-1.9c-.4-.2-.8-.4-1.2-.7l-1.8.7-1.4-2.4 1.4-1.3a5 5 0 0 1 0-1.4L1.8 6.7l1.4-2.4 1.8.7c.4-.3.8-.5 1.2-.7L6.6 1ZM8 10.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z"/></svg>
+              </button>
+              <div id="controls-panel" class="controls-panel" role="dialog" aria-label="Settings" hidden>
+                <div class="controls-help"><button id="help-open" class="controls-item" type="button" aria-haspopup="dialog">How the page works</button></div>
+                <div class="controls-data">
+                  <p id="share-state" class="controls-note"></p>
+                  <button id="share-toggle" class="controls-item" type="button" hidden>Share with community</button>
+                  <button id="share-preview" class="controls-item" type="button">Preview shared data</button>
+                  <button id="reset" class="controls-item danger" type="button" title="Forget the data remembered on this device and load new files">Forget my data</button>
+                </div>
+                <!-- The graphs' hidden variables, as sliders at the foot of each card (tune.js, main.js) -->
+                <div class="controls-extra">
+                  <button id="see-everything" class="controls-item controls-switch" type="button" role="switch" aria-checked="false" aria-describedby="see-everything-warn">
+                    <span>Visual tweaks</span><span class="switch" aria-hidden="true"></span>
+                  </button>
+                  <div id="see-everything-warn" class="controls-warn"><div><p class="controls-note">Shows every setting for every graph, even ones that weren't designed for it.</p></div></div>
+                </div>
+              </div>
+            </div>
         <div class="brush">
           <div id="brush-track" class="brush-track">
             <svg id="brush-svg" aria-hidden="true"></svg>

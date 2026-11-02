@@ -911,15 +911,23 @@ dialog pre {
 :root[data-theme="light"] :is(#theme-toggle, .g-theme) .orb { transform: scale(0.68); }
 :root[data-theme="light"] :is(#theme-toggle, .g-theme) .moon-cut { transform: translate(9px, -9px); }
 :root[data-theme="light"] :is(#theme-toggle, .g-theme) .rays { transform: none; opacity: 1; }
-.controls, .help { position: relative; display: flex; }
-:is(#controls-button, #help-button) { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
-:is(#controls-button, #help-button)[hidden] { display: none; }
+.controls { position: relative; display: flex; }
+.help { display: contents; }
+:is(#controls-button) { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
+:is(#controls-button)[hidden] { display: none; }
+/* The standing invitation to share: big and green until the summary is in the pool */
+.share-cta { padding: 9px 18px; border: 0; border-radius: 8px; background: #1a9c4a; color: #fff; font-size: 14px; font-weight: 600; transition: background var(--motion-fade) var(--ease-out); }
+.share-cta[hidden] { display: none; }
+.share-cta:hover:not(:disabled) { background: #148a3f; }
+.share-cta:disabled { opacity: 0.6; cursor: default; }
+.controls-help { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.controls-help[hidden], #help-open[hidden] { display: none; }
 /* The GitHub link sits after the gear, shaped like the ghost buttons beside it */
 #github-link { display: grid; place-items: center; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); transition: color var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out); }
 #github-link:hover { color: var(--text-primary); background: var(--border); }
 #feedback-open { padding: 6px 10px; font-size: 13px; color: var(--text-secondary); }
 #feedback-open:hover { color: var(--text-primary); }
-:is(#controls-button, #help-button):is(:hover, [aria-expanded="true"]) { color: var(--text-primary); }
+:is(#controls-button):is(:hover, [aria-expanded="true"]) { color: var(--text-primary); }
 /* The gear turns while its panel is open */
 #controls-button svg { transition: transform var(--motion-grow) var(--ease-out); }
 #controls-button[aria-expanded="true"] svg { transform: rotate(60deg); }

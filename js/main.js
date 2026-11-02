@@ -137,7 +137,15 @@ function showView(view) {
   // The controls are about the loaded data, so there's nothing to show before an upload
   $("controls-button").hidden = !state.plays;
   // The guide points at the stats page's controls
-  $("help-button").hidden = $("dashboard").hidden;
+  $("help-open").hidden = $("dashboard").hidden;
+  // The cog rides in the sticky period bar on the stats page, and in the top bar elsewhere
+  const bar = document.querySelector(".period-bar");
+  const slot = $("dashboard").hidden ? $("github-link").parentElement : bar;
+  if ($("controls-button").closest(".controls").parentElement !== slot) {
+    const c = $("controls-button").closest(".controls");
+    if (slot === bar) bar.insertBefore(c, bar.querySelector(".brush"));
+    else slot.insertBefore(c, $("github-link"));
+  }
   $("feedback-open").hidden = $("dashboard").hidden;
   closeControls();
   closeHelp();
@@ -185,9 +193,12 @@ $("tab-community").addEventListener("click", () => showView("community"));
 function renderShareState(text) {
   if (state.sample) {
     $("share-state").textContent = "Sample data: the author's listening history. Nothing here is shared.";
-    $("share-toggle").hidden = $("community-leave").hidden = true;
+    $("share-toggle").hidden = $("community-leave").hidden = $("share-cta").hidden = true;
     return;
   }
+  $("share-cta").hidden = state.sample || state.shared !== false || !state.plays;
+  $("share-cta").disabled = text === "Sharing…";
+  $("share-cta").textContent = text?.startsWith("Couldn't") ? `${text}. Try again` : "Share with the community";
   $("share-state").textContent = text ?? (state.shared ? "Shared with the community ✓" : "Not shared with the community");
   // Sharing starts from the stats page; removing lives on the Community page
   $("share-toggle").hidden = state.shared !== false;
@@ -234,6 +245,7 @@ async function unshare() {
 }
 
 $("share-toggle").addEventListener("click", share);
+$("share-cta").addEventListener("click", share);
 $("share-remove").addEventListener("click", unshare);
 $("share-preview").addEventListener("click", () => {
   // One line per artist/track entry so it's easy to scan

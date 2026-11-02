@@ -1,4 +1,4 @@
-// The guide behind the ? in the top bar: a row per feature, each with a small copy of its control. The copies mirror
+// The guide behind "How the page works" in the cog menu: a row per feature, each with a small copy of its control. The copies mirror
 // the real controls (the view, the lengths and period, the artists in the key and their colors, the palette, the
 // theme) and are refreshed whenever the panel opens or a mirrored control changes while it's open. The view, length and
 // step copies pass a click on to the real control. Hovering a row rings the real control(s) on the page.
@@ -12,7 +12,7 @@ function placeHelp() {
   const panel = $("help-panel");
   if (panel.hidden) return;
   const bar = document.querySelector(".period-bar");
-  const button = $("help-button").getBoundingClientRect();
+  const button = $("controls-button").getBoundingClientRect();
   const top = (bar && !$("dashboard").hidden ? bar.getBoundingClientRect().bottom : button.bottom) + 8;
   panel.style.top = `${top}px`;
   panel.style.right = `${document.documentElement.clientWidth - button.right}px`;
@@ -161,7 +161,6 @@ addEventListener("scroll", ringOff, { passive: true });
 
 export function openHelp() {
   $("help-panel").hidden = false;
-  $("help-button").setAttribute("aria-expanded", "true");
   placeHelp();
   watchGuide(true);
 }
@@ -169,12 +168,11 @@ export function openHelp() {
 export function closeHelp(refocus = false) {
   if ($("help-panel").hidden) return;
   $("help-panel").hidden = true;
-  $("help-button").setAttribute("aria-expanded", "false");
   watchGuide(false);
-  if (refocus) $("help-button").focus();
+  if (refocus) $("controls-button").focus();
 }
 
-$("help-button").addEventListener("click", () => ($("help-panel").hidden ? openHelp() : closeHelp()));
+$("help-open").addEventListener("click", () => openHelp());
 document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest(".help")) closeHelp();
 });
