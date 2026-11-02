@@ -423,7 +423,7 @@ button.ghost:hover { background: var(--border); }
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .tav-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
 .tav-toggles [hidden] { display: none; }
-.tav-other { flex-basis: 100%; display: flex; justify-content: flex-end; }
+.tav-other { display: flex; justify-content: flex-end; }
 /* Back to the view a part was clicked in from: always there, faded while there's nowhere to go back to */
 .view-back { padding: 3px 10px; font-size: 16px; line-height: 20px; color: var(--text-secondary); transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
 .view-back:hover { color: var(--text-primary); }
