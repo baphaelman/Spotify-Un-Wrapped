@@ -2302,16 +2302,15 @@ export function focusClock(el, name) {
   setOptionFaded(c, { series: st.all.map((n, k) => ({ id: `c${k}`, ...clockLook(st, k) })) }, undefined, dur(FADE_MS));
 }
 
-// The items first heard in the period, over the whole history: each a dot at the day it was first played and as
-// high as its hours across everything (a log scale from `floor` hours up to `top`), with the period shaded. The
+// The items first heard in the period, across it: each a dot at the day it was first played and as high as its
+// hours across everything (a log scale from `floor` hours up to `top`). The
 // chart's artists among them (names, in their palette slots) take their colors, are named, and follow the hover/pin
 // rule; the rest are one neutral tone on a canvas layer of their own, which dims as a whole (a fade of the layer,
-// cheaper than restyling thousands of dots). items: [{name, t, hours}]; span: [first, last] times of the history;
-// period: [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the neutral dots' size.
+// cheaper than restyling thousands of dots). items: [{name, t, hours}]; span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the neutral dots' size.
 // A click on any dot pins it (into the chart) or unpins it.
 const discoveryState = new WeakMap();
-const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes and the shaded period
-export function renderDiscovery(el, items, span, period, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
+const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes
+export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
   const t = tokens();
   const c = chart(el);
   const prev = discoveryState.get(el);
@@ -2353,13 +2352,6 @@ export function renderDiscovery(el, items, span, period, floor, top, names = [],
         axisLabel: { color: t.muted, formatter: (h) => (h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`) },
       },
       series: [
-        {
-          id: "period",
-          type: "scatter",
-          data: [],
-          silent: true,
-          markArea: { silent: true, itemStyle: { color: mix(t.surface, t.accent, 0.08) }, data: [[{ xAxis: period[0] }, { xAxis: period[1] }]] },
-        },
         {
           id: "rest",
           type: "scatter",

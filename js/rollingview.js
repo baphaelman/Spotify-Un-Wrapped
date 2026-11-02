@@ -280,7 +280,7 @@ export function paintMonthly(plays) {
 }
 $("monthly-other").addEventListener("change", () => paintMonthly());
 
-// What the period found: the items first heard in it, over the whole history, each as high as its hours all time.
+// What the period found: the items first heard in it, across it, each as high as its hours all time.
 // The chart's artists among them take their colors (same pins and hover); deselected ones are left out. Those under
 // tune.discoveryFloor minutes all time aren't drawn, but count.
 let heardMemo = null;
@@ -296,13 +296,12 @@ export function paintDiscovery() {
   const { one, many } = noun();
   $("discovery-title").textContent = `${one[0].toUpperCase()}${one.slice(1)} Discovery`;
   $("discovery-note").textContent = `${found.length.toLocaleString()} new ${found.length === 1 ? one : many} found in this period`;
-  // The axis is the whole history and every item's hours, so it holds still as the period moves
-  const e = extent(), most = all.reduce((m, x) => Math.max(m, x.hours), floor);
-  const span = [agg.dayToDate(e.lo).getTime(), agg.dayToDate(e.hi + 1).getTime()];
+  // The hours axis reaches every item's hours, so it holds still as the period moves
+  const most = all.reduce((m, x) => Math.max(m, x.hours), floor);
   const top = 10 ** Math.ceil(Math.log10(most));
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.name));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderDiscovery($("chart-discovery"), shown, span, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
+  renderDiscovery($("chart-discovery"), shown, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
 }
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period

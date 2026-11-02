@@ -66,7 +66,7 @@ A calendar of the period, each day tinted by its top artist and darker the more 
 
 ### Artist Discovery
 
-Everyone you found in the period. Each dot is an artist (or album, or track, following the tab) you heard for the first time in the period, placed on your whole history at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names, and light up with the rest of the page; click any dot to pin it.
+Everyone you found in the period. Each dot is an artist (or album, or track, following the tab) you heard for the first time in the period, placed across the period at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names, and light up with the rest of the page; click any dot to pin it.
 
 ### All your artists
 
