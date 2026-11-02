@@ -4,11 +4,12 @@
 
 import { dayToDate } from "./aggregate.js";
 import { dur, easeInOut, easeOut, travel, FADE_MS, SHADE_TOKENS, isPinLook } from "./motion.js";
+import { fmtDay } from "./format.js";
+import { DAY } from "./aggregate.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
 const MIN_DAYS = 7; // the smallest window
-const DAY = 86400000;
 
 let model = null; // { first, last, min }: the timeline's first and last day (day indices), and the earliest day the window may reach (before `first` when the sparse start of the history is cut off)
 let bands = null; // see setBrushBands
@@ -28,7 +29,6 @@ const trackH = () => trackSize?.h ?? $("brush-track").clientHeight;
 // (pass the width when placing many points: each read of it after a DOM write forces a layout)
 const xOf = (day, W = trackW()) => ((day - model.first) / days()) * W;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 // cb(range) runs on every change the reader makes, as they make it; done() once they let go
 export function setupBrush(cb, done = () => {}) {

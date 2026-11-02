@@ -7,11 +7,11 @@ import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from
 import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks } from "./state.js";
 import { periodZoom, clampZoom, rollingSub, WINDOWS, rawMemo, renderRollingChart, paintBrush, mixArgs, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
+import { fmtDay } from "./format.js";
 
 const renderAll = (...a) => hooks.renderAll(...a); // main.js
 const renderDependents = () => hooks.renderDependents(); // main.js
 
-const fmtDay = (d, opts = { month: "short", day: "numeric", year: "numeric" }) => agg.dayToDate(d).toLocaleDateString(undefined, opts);
 const spanOf = (r) => r.hi - r.lo + 1;
 
 // The bar's text and buttons, and the brush's window, for the current range

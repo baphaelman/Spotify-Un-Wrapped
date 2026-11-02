@@ -8,11 +8,12 @@
 // Like the list below it, rows keep the chart's colors (the rest stay gray), hovering one lights its item everywhere,
 // and clicking it pins or unpins it. No pictures, so no lookups.
 import * as agg from "./aggregate.js";
-import { $, state, noun, putOff } from "./state.js";
+import { $, state, noun, putOff, chartColor } from "./state.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
 import { CHASE_MS, ENTER_MS, FADE_MS, MORPH_MS, dur, litLook, scaledMs, easeInOut, easeOut } from "./motion.js";
 import { tune } from "./tune.js";
+import { hoursText } from "./format.js";
 
 const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
 // The trailing window for "Last … days", one of the rolling chart's slice sizes (its slider, #race-window). A new
@@ -40,12 +41,6 @@ let raf = 0, last = 0;
 let scale = 0; // the hours the widest bar stands for, chased like the rows
 const rows = new Map(); // item -> { el, bar, val, rank, pos, op, v, shown }
 let hovered = null;
-
-const hoursText = (ms) => {
-  const h = ms / 3_600_000;
-  if (h < 1) return `${Math.max(0, Math.round(h * 60))} min`;
-  return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h).toLocaleString()} h`;
-};
 
 // ---------- Each day's top list ----------
 
@@ -117,11 +112,6 @@ function at(time) {
 
 // ---------- Rows ----------
 
-const colorOf = (key) => {
-  const slot = state.chartNames?.includes(key) ? state.colorSlots?.get(key) : undefined;
-  return slot === undefined ? null : `var(--series-${slot + 1})`;
-};
-
 function makeRow(key) {
   const li = document.createElement("li");
   li._key = key;
@@ -147,7 +137,7 @@ function makeRow(key) {
   val.className = "race-val";
   track.append(bar, val);
   li.append(rank, name, track);
-  const c = colorOf(key);
+  const c = chartColor(key);
   if (c) li.style.setProperty("--c", c);
   $("race-rows").append(li);
   return { el: li, bar, val, rankEl: rank, rank: -1, pos: n(), op: 0, v: 0, text: "", shown: false };
@@ -174,7 +164,7 @@ function markRows() {
 export function recolorRace() {
   if (onlyChart()) paintRace(); // the chart's artists may have changed; it rebuilds only if they did
   for (const [key, r] of rows) {
-    const c = colorOf(key);
+    const c = chartColor(key);
     if (c) r.el.style.setProperty("--c", c);
     else r.el.style.removeProperty("--c");
   }
@@ -256,7 +246,7 @@ function frame(now) {
     r.el.style.opacity = r.op;
     r.el.style.visibility = r.op < 0.01 ? "hidden" : "";
     r.el.style.setProperty("--f", scale > 0 ? Math.max(0, r.v / scale) : 0);
-    const text = hoursText(r.v);
+    const text = hoursText(r.v, 0);
     if (text !== r.text) r.val.textContent = r.text = text;
   }
   if (!paintLines(dt)) settled = false;

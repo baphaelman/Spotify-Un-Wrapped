@@ -12,11 +12,12 @@ import { $, state, noun, shownPlays, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs } from "./rollingview.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, easeOut, litLook } from "./motion.js";
+import { fmtHours } from "./format.js";
+import { HOUR } from "./aggregate.js";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 const TAU = Math.PI * 2;
 const SEP = "\u0000"; // between the names in a node's id, its path from the root
-const HOUR = 3600000;
 const MAX_SIZE = 560; // px, the circle's widest
 const HOLE = 0.22; // the middle circle's radius, as a share of the whole
 const GAP = 1; // px of surface on each side of a slice
@@ -42,7 +43,6 @@ const NOTES = {
   genre: "Each genre's artists, then their albums",
 };
 
-const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
 const fmtShare = (s) => (s >= 0.005 ? Math.round(s * 100) + "%" : "<1%");
 
 let svg, layers, tip;

@@ -7,6 +7,7 @@
 
 import { flip, tweenNumber } from "./motion.js";
 import { tune } from "./tune.js";
+import { fmtHours } from "./format.js";
 
 const OTHER = "Everyone else";
 
@@ -19,7 +20,6 @@ let under = null; // the artist whose row the pointer is on
 let focusName = null;
 
 const pct = (x) => (x < 0.1 ? (x * 100).toFixed(1) : Math.round(x * 100)) + "%";
-const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
 
 const span = (cls, text = "") => {
   const el = document.createElement("span");

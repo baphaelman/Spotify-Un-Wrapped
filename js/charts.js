@@ -1,40 +1,16 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur, litLook, isLitLook, isPinLook, SHADE_TOKENS } from "./motion.js";
+import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur, litLook, isLitLook, isPinLook } from "./motion.js";
 import { shownName, putOff, owes } from "./state.js";
 import { tune } from "./tune.js";
+import { tokens, mix } from "./colors.js";
+import { esc, fmtHoursRound } from "./format.js";
 
 // How many part slots each band needs, by band: as many as it has parts, or data.parts.slots[k] if more
 const slotsMax = (a, b) => Array.from({ length: Math.max(a.length, b.length) }, (_, k) => Math.max(a[k] ?? 0, b[k] ?? 0));
 const partSlots = (parts) => (parts ? slotsMax(parts.share.map((list) => list.length), parts.slots ?? []) : []);
 
 const instances = new Map();
-
-function tokens() {
-  // body, not the root: a chosen palette overrides the series colors there (see theme.js)
-  const css = getComputedStyle(document.body);
-  const v = (name) => css.getPropertyValue(name).trim();
-  return {
-    surface: v("--surface"),
-    primary: v("--text-primary"),
-    secondary: v("--text-secondary"),
-    muted: v("--text-muted"),
-    grid: v("--grid"),
-    axis: v("--axis"),
-    accent: v("--accent"),
-    other: v("--other"),
-    series: Array.from({ length: 10 }, (_, i) => i + 1).map((i) => v(`--series-${i}`)),
-    seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
-    // The hover/pin rule's steps (the --shade-* and --fade-* tokens), keyed by litLook's looks: the share of the
-    // artist's color mixed into the surface for a band in each look, the opacity of the fill under a lit hours
-    // line in each, and how strongly a dimmed line shows
-    shade: Object.fromEntries(
-      Object.entries(SHADE_TOKENS).map(([look, name]) => [look, +v(`--shade-${name}`)])
-    ),
-    line: { hover: +v("--shade-line"), pin: +v("--shade-line-pin"), pinHover: +v("--shade-line-pin-hover") },
-    fade: { rest: 1, hover: 1, pin: 1, pinHover: 1, dim: +v("--fade-dim"), dimHover: +v("--fade-dim-hover") },
-  };
-}
 
 function chart(el) {
   let c = instances.get(el);
@@ -61,18 +37,6 @@ export function currentZoom(el) {
   // chart had
   return rollingState.get(el)?.zoom;
 }
-
-// Artist and track names come from user files: escape before they enter tooltip HTML.
-const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-
-// Blend two hex colors; w is the share of b
-function mix(a, b, w) {
-  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-  const [x, y] = [p(a), p(b)];
-  return "#" + x.map((v, i) => Math.round(v * (1 - w) + y[i] * w).toString(16).padStart(2, "0")).join("");
-}
-
-const fmtHours = (h) => (h >= 100 ? Math.round(h).toLocaleString() : h.toFixed(1)) + " h";
 
 function baseAxis(t) {
   return {
@@ -1232,13 +1196,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
       .map((r) => ({
         k: sIdx(r.p),
-        head: row(r.p.color, pct(r.share), `${shownName(r.p.seriesName)} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
+        head: row(r.p.color, pct(r.share), `${shownName(r.p.seriesName)} · ${fmtHoursRound(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
         // A part's percent is of everyone's listening, or of its artist's while the artist is pinned or hovered
         parts: partTips(sIdx(r.p), i, (j, ofArtist) => parts.share[sIdx(r.p)][j][i] * (ofArtist ? 1 / data.share[sIdx(r.p)][i] : scale[i]),
           pct,
-          (j) => ` · ${fmtHours(parts.hours[sIdx(r.p)][j][i])}`),
+          (j) => ` · ${fmtHoursRound(parts.hours[sIdx(r.p)][j][i])}`),
       }));
-    const rows = fitTip(groups, moreParts(pct, (g, gone) => ` · ${fmtHours(gone.reduce((s, p) => s + parts.hours[g.k][p.j][i], 0))}`));
+    const rows = fitTip(groups, moreParts(pct, (g, gone) => ` · ${fmtHoursRound(gone.reduce((s, p) => s + parts.hours[g.k][p.j][i], 0))}`));
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
   const hoursTooltip = (params) => {
@@ -1775,7 +1739,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         formatter: (ps) => {
           const r = rows[ps[0].dataIndex];
           const { hours, top } = barView(st, r);
-          const head = `<div style="margin-bottom:4px"><b>${label(r.month)}</b> <span style="opacity:.75">${fmtHours(hours)}</span></div>`;
+          const head = `<div style="margin-bottom:4px"><b>${label(r.month)}</b> <span style="opacity:.75">${fmtHoursRound(hours)}</span></div>`;
           if (!hours) return head;
           const lit = litSet(st);
           const pct = (h) => `${Math.round((h / hours) * 100)}%`;
@@ -2542,7 +2506,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
 
   const byName = new Map(items.map((e) => [e.name, e]));
   const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  const fmtSpent = (h) => (h >= 1 ? fmtHours(h) : `${Math.max(1, Math.round(h * 60))} min`);
+  const fmtSpent = (h) => (h >= 1 ? fmtHoursRound(h) : `${Math.max(1, Math.round(h * 60))} min`);
   st.tip = (name) => {
     const e = byName.get(name);
     const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";

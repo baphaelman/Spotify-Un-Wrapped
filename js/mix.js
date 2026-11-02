@@ -3,11 +3,12 @@
 // Hovering an artist anywhere (chart, the period bar's key, lists, this bar) lights their segment; clicking pins them.
 // Segments are kept per artist, so changing the period slides and resizes the ones that stay (colors and identity preserved), grows newcomers from nothing and collapses whoever leaves.
 
-import { dayToDate, rangeHours } from "./aggregate.js";
+import { rangeHours } from "./aggregate.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, flip, tweenNumber } from "./motion.js";
 import { coverFor, knownCover } from "./covers.js";
 import { shownName } from "./state.js";
 import { tune } from "./tune.js";
+import { fmtDay, fmtHours } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,9 +20,6 @@ let hover = () => {};
 const entries = new Map();
 let raf = 0;
 let under = null; // the artist whose segment or tile the pointer is on
-
-const fmtDay = (d) => dayToDate(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
 
 const span = (cls) => {
   const el = document.createElement("span");

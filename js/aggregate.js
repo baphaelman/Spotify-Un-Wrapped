@@ -1,7 +1,7 @@
 // Pure aggregations over the normalized plays list. All dates are in the viewer's local time.
 
-const DAY = 86400000;
-const HOUR = 3600000;
+export const DAY = 86400000;
+export const HOUR = 3600000;
 
 // Days since epoch for the local calendar date of t.
 export function dayIndex(t) {

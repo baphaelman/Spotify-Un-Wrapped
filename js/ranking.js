@@ -3,10 +3,11 @@
 // the next whenever the reader scrolls near its end (or presses "See more"). A repaint keeps as many rows as were
 // shown, so the list morphs in place rather than collapsing under the reader. No pictures, so no lookups.
 // Like the key's chips, hovering a row lights its item everywhere, and clicking it pins or unpins it.
-import { $, state, noun, putOff, rangeTotals } from "./state.js";
+import { $, state, noun, putOff, rangeTotals, chartColor } from "./state.js";
 import { renderList, appendList } from "./lists.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS } from "./rollingview.js";
+import { hoursText } from "./format.js";
 
 const CHUNK = 60;
 const NEAR_PX = 600; // how far below the screen the next chunk starts loading
@@ -14,23 +15,11 @@ let ranked = []; // [item, ms, plays], most hours first
 let shown = CHUNK;
 let shownRaw = null, shownDim = null; // the data and view the shown count belongs to
 
-const hoursText = (ms) => {
-  const h = ms / 3_600_000;
-  if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`;
-  return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h).toLocaleString()} h`;
-};
-
-// The chart's artists keep their colors here, so the list reads with the bands above; the rest stay gray
-const colorOf = (key) => {
-  const slot = state.chartNames?.includes(key) ? state.colorSlots?.get(key) : undefined;
-  return slot === undefined ? null : `var(--series-${slot + 1})`;
-};
-
 // The chart picks its artists after the list is drawn, so the key's repaint recolors the rows already shown,
 // and marks the pinned ones (the rows stay, so their outline fades in or out)
 export function recolorRanking() {
   for (const li of $("ranking-list").children) {
-    const c = colorOf(li._key);
+    const c = chartColor(li._key);
     if (c) li.style.setProperty("--c", c);
     else li.style.removeProperty("--c");
   }
@@ -65,7 +54,7 @@ const rowOf = ([key, ms, plays]) => {
   const count = `${n.toLocaleString()} play${n === 1 ? "" : "s"}`;
   const by = state.owner?.get(key);
   return {
-    color: colorOf(key),
+    color: chartColor(key),
     key,
     name: state.titles?.get(key) ?? key,
     detail: by ? `${by} · ${count}` : count,

@@ -16,9 +16,10 @@ import { $, state, putOff, rangePlays, shownName } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs } from "./rollingview.js";
+import { tokens, alpha } from "./colors.js";
+import { esc, fmtH, MON } from "./format.js";
+import { HOUR } from "./aggregate.js";
 
-const HOUR = 3_600_000;
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // Per span (months): what a slice is called, and how the note says the chart steps
 const SPANS = {
   1: ["month", "month by month"],
@@ -27,23 +28,10 @@ const SPANS = {
   12: ["year", "year by year"],
   24: ["two years", "two years at a time"],
 };
-const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-const fmtH = (h) => (h >= 10 ? Math.round(h) + " h" : h >= 1 ? h.toFixed(1) + " h" : Math.max(1, Math.round(h * 60)) + " min");
-
-function alpha(hex, a) {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return `rgba(${r},${g},${b},${a})`;
-}
 
 let c = null;
 let st = null; // what the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered }
 let dropTimer = 0; // drops the lines that faded out
-
-function tokens() {
-  const css = getComputedStyle(document.body);
-  const v = (n) => css.getPropertyValue(n).trim();
-  return { surface: v("--surface"), primary: v("--text-primary"), secondary: v("--text-secondary"), muted: v("--text-muted"), grid: v("--grid"), axis: v("--axis") || v("--grid"), other: v("--other"), series: (slot) => v(`--series-${slot + 1}`) };
-}
 
 function chart(el) {
   if (!c || c.isDisposed() || c.getDom() !== el) {
@@ -121,7 +109,7 @@ export function paintRankRace() {
   const MAX = tune.rankMax;
   const hidden = new Set(state.hidden);
   const colors = new Map();
-  for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series(slot));
+  for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
   const names = new Set();
   for (const m of rows) for (const [a, e] of m) if (e.r <= MAX && !hidden.has(a)) names.add(a);
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)

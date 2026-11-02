@@ -8,35 +8,10 @@ import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isPinLook } from "./motion.js";
 import { shownName, OTHER } from "./state.js";
 import { tune } from "./tune.js";
+import { tokens, mix } from "./colors.js";
+import { esc, fmtH, MON } from "./format.js";
+import { HOUR } from "./aggregate.js";
 
-const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-
-// Blend two hex colors; w is the share of b
-function mix(a, b, w) {
-  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-  const [x, y] = [p(a), p(b)];
-  return "#" + x.map((v, i) => Math.round(v * (1 - w) + y[i] * w).toString(16).padStart(2, "0")).join("");
-}
-
-function tokens() {
-  // body, not the root: a chosen palette overrides the series colors there (see theme.js)
-  const css = getComputedStyle(document.body);
-  const v = (name) => css.getPropertyValue(name).trim();
-  return {
-    surface: v("--surface"),
-    primary: v("--text-primary"),
-    secondary: v("--text-secondary"),
-    muted: v("--text-muted"),
-    grid: v("--grid"),
-    other: v("--other"),
-    series: Array.from({ length: 10 }, (_, i) => v(`--series-${i + 1}`)),
-    font: getComputedStyle(document.body).fontFamily,
-  };
-}
-
-const fmtH = (h) => (h >= 10 ? Math.round(h) + " h" : h >= 1 ? h.toFixed(1) + " h" : Math.max(1, Math.round(h * 60)) + " min");
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const HOUR = 3600e3;
 const weekday = (k) => (k + 3) % 7; // a day index's weekday, Monday 0
 // The same plays come as a new array from each paint, so they're compared by what they hold
 const playsKey = (plays) => `${plays.length}:${plays[0]?.t}:${plays.at(-1)?.t}`;

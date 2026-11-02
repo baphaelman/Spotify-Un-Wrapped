@@ -45,6 +45,12 @@ export const OTHER = "Everyone else";
 export const otherLabel = () => OTHER;
 export const shownName = (n) => (n === OTHER ? otherLabel() : n);
 
+// An item's color while it's one of the rolling chart's artists, as a CSS value; null for the rest, which stay gray
+export const chartColor = (key) => {
+  const slot = state.chartNames?.includes(key) ? state.colorSlots?.get(key) : undefined;
+  return slot === undefined ? null : `var(--series-${slot + 1})`;
+};
+
 // The "Days per slice" slider's first step (see WINDOWS). Switching views keeps both it and the period as they
 // are, and every view offers the same period buttons, so the bar never changes between tabs. Tracks come and go
 // faster than artists, so their graphs get finer slices and are smoothed sooner (RESIZE_LOOK).
