@@ -313,7 +313,7 @@
               <button type="button" data-measure="total" aria-pressed="false">So far</button>
             </div>
             <!-- Off, only the rolling chart's artists race (race.js) -->
-            <label class="other-toggle"><input id="race-other" type="checkbox" checked><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
+            <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
           </div>
         </div>
         <div id="race-stage" class="race-stage">
@@ -358,8 +358,14 @@
       </article>
 
       <article class="card" id="clock-card">
-        <h2>When you listened</h2>
-        <p class="muted" id="clock-note">Who you listen to through the day, as a share of that time, in your local time zone</p>
+        <div class="monthly-head">
+          <div>
+            <h2>When you listened</h2>
+            <p class="muted" id="clock-note">Who you listen to through the day, as a share of that time, in your local time zone</p>
+          </div>
+          <!-- This graph's own, apart from the others' (off by default) -->
+          <label class="other-toggle"><input id="clock-other" type="checkbox"><span class="swatch"></span><span id="clock-other-label">Everyone else</span></label>
+        </div>
         <div id="chart-clock" class="chart"></div>
       </article>
 

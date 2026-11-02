@@ -49,12 +49,12 @@ const hoursText = (ms) => {
 
 // ---------- Each day's top list ----------
 
-// The top KEEP of `keys` by vals, most first
-function pickTop(keys, vals) {
+// The top KEEP of `keys` by vals, most first; with `zero`, items not played yet count, at 0
+function pickTop(keys, vals, zero = false) {
   const top = [];
   for (const k of keys) {
-    const v = vals.get(k);
-    if (!(v > 0) || (top.length === KEEP && v <= top[KEEP - 1][1])) continue;
+    const v = vals.get(k) ?? (zero ? 0 : undefined);
+    if (!(v > 0 || (zero && v === 0)) || (top.length === KEEP && v <= top[KEEP - 1][1])) continue;
     if (top.length === KEEP) top.pop();
     let i = top.length;
     while (i > 0 && top[i - 1][1] < v) i--;
@@ -69,6 +69,8 @@ const onlyChart = () => !$("race-other").checked;
 function build(lo, hi) {
   const hidden = new Set(state.hidden);
   const only = onlyChart() ? new Set(state.chartNames) : null;
+  // Only the chart's artists: they all race from the start, at 0 until first played
+  const names = only && [...only].filter((a) => !hidden.has(a));
   const back = measure === "recent" ? recent - 1 : 0;
   const days = hi - lo + 1 + back;
   const buckets = Array.from({ length: days }, () => new Map()); // item -> ms that day
@@ -90,10 +92,10 @@ function build(lo, hi) {
         else vals.set(k, v);
       }
       if (d < back) continue;
-      top = pickTop(vals.keys(), vals);
+      top = names ? pickTop(names, vals, true) : pickTop(vals.keys(), vals);
     } else {
       // Totals only grow, so today's top is among yesterday's and today's players
-      top = pickTop(new Set([...top.map(([k]) => k), ...buckets[d].keys()]), vals);
+      top = names ? pickTop(names, vals, true) : pickTop(new Set([...top.map(([k]) => k), ...buckets[d].keys()]), vals);
     }
     frames.push({ list: top, map: new Map(top), floor: top.length === KEEP ? top[KEEP - 1][1] : 0 });
   }

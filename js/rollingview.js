@@ -217,7 +217,8 @@ export function paintBrush(_raw, morph = brushMorph) {
 export function paintClock(plays) {
   if (!mixArgs || putOff($("chart-clock").closest(".card"), () => paintClock())) return;
   plays ??= shownPlays();
-  const [artists, , includeOther, pins] = mixArgs;
+  const [artists, , , pins] = mixArgs;
+  const includeOther = $("clock-other").checked; // its own toggle
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
@@ -228,6 +229,7 @@ export function paintClock(plays) {
   const hours = Math.max(tune.clockMinBlur, sigma >= 0.5 ? (sigma / state.shownWindow) * tune.clockReach : 0);
   renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(tune.clockCurve, curve));
 }
+$("clock-other").addEventListener("change", () => paintClock());
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
 // out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle
