@@ -1,6 +1,6 @@
 // "Rank race": where each item stood over the period, as a bump chart. The period is cut into months, or into
 // 3 months, 6 months, a year or 2 years as Top [Tab] Every [Month] does (agg.monthSpan), at most one slice more than its bars.
-// Every item that reached the top `tune.rankMax` in the period gets a line; the chart's artists keep their colors
+// Every item that reached the top `positions` (the slider at its top right) in the period gets a line; the chart's artists keep their colors
 // and the rest are gray, behind them. By the month, a rank is taken over the months around each one, so a phase
 // reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them
 // a line dives below the floor, the deeper the further down the item really was, and comes back. Every line is
@@ -29,6 +29,16 @@ const SPANS = {
 };
 
 let c = null;
+// How many positions the chart shows: the slider at its top right
+const maxInput = $("rank-max");
+const positions = () => Math.round(+maxInput.value);
+const paintMax = () => {
+  maxInput.style.setProperty("--p", (maxInput.value - maxInput.min) / (maxInput.max - maxInput.min));
+  $("rank-max-out").textContent = positions();
+};
+paintMax();
+// (a drag is a moving input: each morph is cut short by the next)
+maxInput.addEventListener("input", () => { paintMax(); paintRankRace(CHASE_MS); });
 let st = null; // what the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered }
 let dropTimer = 0; // drops the lines that faded out
 
@@ -93,7 +103,8 @@ function ranksOf(plays, span) {
   return { rows, labels: keys.map(label) };
 }
 
-export function paintRankRace() {
+// ms: how long the lines take to morph (CHASE_MS while the slider is dragged)
+export function paintRankRace(ms = MORPH_MS) {
   const el = $("chart-rank");
   if (!state.plays || !state.range || putOff($("rank-card"), () => paintRankRace())) return;
   const t = tokens();
@@ -101,11 +112,11 @@ export function paintRankRace() {
   const span = agg.monthSpan(plays, tune.maxBars + 1);
   const { rows, labels } = ranksOf(plays, span);
   const [unit, steps] = SPANS[span];
-  $("rank-note").textContent = `Where everything that reached the top ${tune.rankMax} stood, ${steps}` +
+  $("rank-note").textContent = `Where everything that reached the top ${positions()} stood, ${steps}` +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
   if (rows.length < 2) { scrub(null); dropRiders(); paintTimeline(true); c?.clear(); st = null; return; }
 
-  const MAX = tune.rankMax;
+  const MAX = positions();
   const hidden = new Set(state.hidden);
   const colors = new Map();
   for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
@@ -122,7 +133,7 @@ export function paintRankRace() {
   el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
-  else morphPoints(() => setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS)), dur(MORPH_MS));
+  else morphPoints(() => setOptionFaded(cc, option(ms), { replaceMerge: ["series"] }, dur(ms), (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts), dur(ms));
   paintTimeline();
   // The card and circles follow at once (a pin's color, new ranks)
   if (pointer) draw();
@@ -204,12 +215,12 @@ function seriesOf(ms = MORPH_MS) {
   });
 }
 
-function option() {
+function option(ms = MORPH_MS) {
   const { labels, MAX, t } = st;
   const axis = { axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.muted } };
   return {
     // (lines appear by drawing in left to right, on the same tier as lines leaving)
-    animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(MORPH_MS), animationEasingUpdate: EASE_IN_OUT.echarts,
+    animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(ms), animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
     grid: { top: plotTop(MAX), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
@@ -219,7 +230,7 @@ function option() {
       style: { text: "Timeline", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
-    series: seriesOf(),
+    series: seriesOf(ms),
   };
 }
 

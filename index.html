@@ -309,8 +309,18 @@
 
       <!-- Where every top item stood, month by month (rankrace.js) -->
       <article class="card" id="rank-card">
-        <h2>Rank race</h2>
-        <p class="muted" id="rank-note"></p>
+        <div class="monthly-head">
+          <div>
+            <h2>Rank race</h2>
+            <p class="muted" id="rank-note"></p>
+          </div>
+          <!-- How many positions it shows (rankrace.js) -->
+          <div class="slider rank-max">
+            <label class="slider-label" for="rank-max">Positions</label>
+            <input id="rank-max" type="range" min="4" max="40" step="1" value="16">
+            <output id="rank-max-out" for="rank-max">16</output>
+          </div>
+        </div>
         <!-- The readout and the pointer's marker are drawn over the chart, scrubbing with the pointer (rankrace.js) -->
         <div class="rank-frame">
           <div id="chart-rank" class="chart rank-chart"></div>
