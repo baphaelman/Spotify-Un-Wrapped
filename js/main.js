@@ -13,7 +13,7 @@ import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { askGenres } from "./genres.js";
-import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS } from "./state.js";
+import { $, state, startPan, onPan, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, renderMix, setBrushMorph, setBrushFocus, syncSplit } from "./rollingview.js";
@@ -481,11 +481,13 @@ function showDashboard() {
 }
 
 function renderAll(keepZoom, from = false) {
-  renderDependents(false); // the rolling chart's render paints the monthly chart and the clock, with its artists
   const ms = panMs(from);
-  const frame = brushRange(), to = state.range;
-  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true, onFrame: (e) => glideBrushRange(frame, to, e) });
+  // Every graph that slides follows the pan's clock (state.js), the bar's window frame among them
+  if (from && ms > 0) startPan(brushRange(), state.range, ms);
+  renderDependents(false); // the rolling chart's render paints the monthly chart and the clock, with its artists
+  renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true });
 }
+onPan((p) => glideBrushRange(p.from, p.to, p.e));
 
 // Everything that follows the legend's selection: monthly hours, the clock and the sunburst
 // (the mix bar does too, in renderMix, since it's drawn from the chart's artists)

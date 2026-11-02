@@ -4,7 +4,7 @@ import * as agg from "./aggregate.js";
 import { currentZoom, setZoom } from "./charts.js";
 import { setupBrush, setBrushRange } from "./brush.js";
 import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from "./motion.js";
-import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS } from "./state.js";
+import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS, endPan } from "./state.js";
 import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
 import { fmtDay } from "./format.js";
@@ -176,6 +176,7 @@ setupBrush((range) => {
   }
   // A window that started on 3m, 6m, 1y... stays that length (in calendar months) as it moves, as a step does
   if (dragLen) range = resized({ lo: 0, hi: range.hi }, dragLen);
+  endPan(); // the window is the pointer's now
   state.range = range;
   syncPeriod();
   cancelAnimationFrame(livePending);

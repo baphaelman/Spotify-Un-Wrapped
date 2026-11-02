@@ -279,8 +279,10 @@ function layoutRaster(v) {
   const { plays, lo, hi, names } = v;
   size(v, tune.rasterHeight);
   const w = v.width, h = v.cssH;
-  const plotW = Math.max(1, w - GRID.left - GRID.right), plotH = h - GRID.top - GRID.bottom;
-  const days = hi - lo + 1, dw = plotW / days, pph = plotH / 24;
+  // (sliding, it's laid out at the width a day had before, over both periods: see panRaster)
+  const days = hi - lo + 1, plotH = h - GRID.top - GRID.bottom;
+  const plotW = v.panning ? v.panning.dw * days : Math.max(1, w - GRID.left - GRID.right);
+  const dw = plotW / days, pph = plotH / 24;
   const dpr = devicePixelRatio || 1;
   const known = new Set(names);
   // Per layer, per device-pixel column, the marks' [y0, y1] runs; and per day, the plays for the pointer
@@ -333,6 +335,37 @@ function layoutRaster(v) {
   if (v.looks.size) v.draw(v);
 }
 
+// A pan (state.js) sliding Every play to another period: it's laid out once over `lo`…`hi` (both periods), still
+// with the artists it has and each day as wide as it was, and each frame (panRasterTo) shows the days `at` covers by
+// moving and stretching that picture, so a step of the same length is a pure scroll. endPanRaster hands back to the
+// usual render, which lands on what's already on screen.
+export function panRaster(el, plays, lo, hi) {
+  const v = views.get(el);
+  if (!v?.paths) return false;
+  if (v.waiting) {
+    clearTimeout(v.waitTimer);
+    v.waiting = false;
+    fadeCanvas(v, 1, dur(FADE_MS), EASE_OUT.css);
+  }
+  hideTip();
+  v.panning = { dw: v.panning?.dw ?? v.dw };
+  Object.assign(v, { plays, lo, hi });
+  layoutRaster(v);
+  return true;
+}
+export function panRasterTo(el, at) {
+  const v = views.get(el);
+  if (!v?.panning) return;
+  v.panning.at = at;
+  drawRaster(v);
+}
+export function endPanRaster(el, { lo, hi }) {
+  const v = views.get(el);
+  if (!v?.panning) return;
+  v.panning = null;
+  Object.assign(v, { lo, hi });
+}
+
 // Labels along the bottom: years, quarters, months or weeks, whichever leaves them room
 function timeTicks(lo, hi, plotW) {
   const days = hi - lo + 1, px = plotW / days;
@@ -378,7 +411,24 @@ function drawRaster(v) {
   });
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  for (const [k, label] of v.xTicks) ctx.fillText(label, GRID.left + k * v.dw, h - GRID.bottom + 10);
+  // Sliding: day k of the layout is at x(k), the marks are moved and stretched there, inside the plot
+  const at = v.panning?.at, plotW = w - GRID.left - GRID.right;
+  const dwAt = at ? plotW / (at.hi + 1 - at.lo) : v.dw;
+  const x = (k) => GRID.left + (k + (at ? v.lo - at.lo : 0)) * dwAt;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(GRID.left - 32, 0, plotW + 32 + GRID.right, h); // (room for the end labels' halves)
+  ctx.clip();
+  for (const [k, label] of v.xTicks) ctx.fillText(label, x(k), h - GRID.bottom + 10);
+  ctx.restore();
+  ctx.save();
+  if (at) {
+    ctx.beginPath();
+    ctx.rect(GRID.left, 0, plotW, h);
+    ctx.clip();
+    const s = dwAt / v.dw;
+    ctx.transform(s, 0, 0, 1, x(0) - GRID.left * s, 0);
+  }
   // The gray first, then the artists from the last in rank up, the pinned on top
   const order = [OTHER, ...[...v.names].reverse().filter((n) => !v.pinned.has(n)), ...v.names.filter((n) => v.pinned.has(n))];
   for (const n of order) {
@@ -388,10 +438,11 @@ function drawRaster(v) {
     ctx.fillStyle = mix(t.surface, v.colorOf.get(n), look.s);
     ctx.fill(path);
   }
+  ctx.restore();
 }
 
 function pickRaster(v, x, y) {
-  if (!v.byDay || v.waiting || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
+  if (!v.byDay || v.waiting || v.panning || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
   const day = Math.floor((x - GRID.left) / v.dw);
   // Under a pixel wide, a day's marks share their column with their neighbours': look a pixel or two either way
   const reach = Math.ceil(2 / v.dw);

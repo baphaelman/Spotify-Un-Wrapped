@@ -2,7 +2,7 @@
 // hooks the rest of the page follows them by. Read docs/rolling-chart.md before changing this file.
 
 import { FADE_MS, MORPH_MS, EASE_IN_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur, litLook, isLitLook } from "../motion.js";
-import { shownName, putOff, owes } from "../state.js";
+import { shownName, putOff, owes, pan, onPan, endPan } from "../state.js";
 import { tune } from "../tune.js";
 import { tokens, mix } from "../colors.js";
 import { fmtHoursRound } from "../format.js";
@@ -534,39 +534,38 @@ function paintLive(c, st) {
   }
 }
 
-// Moves the zoom range from `from` to `to` ([start, end] dates), a frame at a time like dragging the slider:
-// a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
+// Moves the zoom range from `from` to `to` ([start, end] dates) on the page's pan clock (state.js), a frame at a time
+// like dragging the slider: a real scroll, or zoom if the span changes, of whatever is drawn. Calls `done` when it lands.
 // yMax: optional { from, to } for the y-axis top (Hours mode), which tweens along with the range; otherwise
 // it would step from one whole number to the next each time the window's tallest line changes.
 // strip: optional { el, yMax } for the hours strip, which travels on the same clock
-function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
+function panTo(el, from, to, done, yMax, strip) {
   const c = chart(el);
   const st = rollingState.get(el);
   stillChart(c, st); // each frame is a plain redraw, not a tween
   const sc = strip && instances.get(strip.el);
   if (sc) stillChart(sc, rollingState.get(strip.el));
-  st.panEnd = () => onFrame?.(1);
-  const t0 = performance.now();
-  const tick = (now) => {
-    const t = Math.min(1, (now - t0) / ms);
-    const e = easeInOut(t);
-    onFrame?.(e);
+  const step = (e) => {
     const [startValue, endValue] = travel(from, to, e);
-    const step = (c, yMax) => {
+    const at = (c, yMax) => {
       if (yMax) {
         const max = yMax.from + (yMax.to - yMax.from) * e;
         c.setOption({ yAxis: { max: () => max }, dataZoom: [{ startValue, endValue }] });
       } else c.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, startValue, endValue });
     };
-    step(c, yMax);
-    if (sc) step(sc, strip.yMax);
-    if (t < 1) st.panRaf = requestAnimationFrame(tick);
-    else {
-      st.panRaf = 0;
-      done();
-    }
+    at(c, yMax);
+    if (sc) at(sc, strip.yMax);
   };
-  st.panRaf = requestAnimationFrame(tick);
+  const p = pan;
+  if (!p) return step(1), done(); // (no pan running to follow: it lands)
+  st.panOff = onPan((q) => {
+    if (q !== p) return st.panOff?.(); // a newer pan: the render that started it takes over
+    step(q.e);
+    if (!q.done) return;
+    st.panOff();
+    st.panOff = null;
+    if (!q.cut) done();
+  });
 }
 
 // Long periods are drawn at about one point per pixel. A short window over years zigzags at a few points a pixel,
@@ -675,10 +674,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   data = thin(data, strides.get(el) ?? 1);
   // Any render ends a pan or a live morph in progress
   const prev = rollingState.get(el);
-  if (prev?.panRaf) {
-    cancelAnimationFrame(prev.panRaf);
-    prev.panRaf = 0;
-    if (!morph?.pan) prev.panEnd?.(); // whatever rides the pan lands with it (a newer pan carries on from where it was)
+  if (prev?.panOff) {
+    prev.panOff();
+    prev.panOff = null;
+    if (!morph?.pan) endPan(); // whatever rides the pan lands with it (a newer pan carries on from where it was)
   }
   // New artists (a pin, the artist count, a new period's): they grow in and the leavers shrink away
   if (withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth)) return;
@@ -722,11 +721,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         return Number.isFinite(now) && shown ? { from: now, to: hoursTop(shown[0], prev.names, shown[2], prev.hasOther, prev.selected, zoom) } : null;
       };
       const strip = stripOf.get(el);
-      panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
+      panTo(el, from, zoom, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
         mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && !owes(strip.closest(".card")) && { el: strip, yMax: ridged.has(strip) ? null : travelMax(strip) });
       return;
     }
-    else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
     morph = same;
   }
   const { ms, easing = EASE_IN_OUT.echarts } = morph && typeof morph === "object" ? morph : { ms: morph === true ? MORPH_MS : morph || 0 };

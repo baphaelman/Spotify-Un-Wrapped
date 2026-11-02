@@ -2,15 +2,15 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, renderDiscovery, panDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { renderRaster, renderCalendar } from "./every.js";
+import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster } from "./every.js";
 import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
-import { $, state, noun, NOUN, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals, MAX_PINS, WINDOWS } from "./state.js";
+import { $, state, noun, NOUN, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals, MAX_PINS, WINDOWS, pan, onPan } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -243,6 +243,16 @@ export function paintClock(plays) {
 $("clock-other").addEventListener("change", () => paintClock());
 
 // Every play and Every day, in the chart's artists' colors (pins and hover as everywhere), the rest gray
+// During a pan (state.js) Every play slides: drawn once over both periods with the artists it had, then moved to
+// the clock's range each frame. The pan's end draws it as usual, with the new artists, where it already is.
+let rasterPan = null; // the pan it's sliding with
+onPan((p) => {
+  if (rasterPan !== p) return;
+  if (!p.done) return panRasterTo($("chart-raster"), p.at);
+  rasterPan = null;
+  endPanRaster($("chart-raster"), p.to);
+  paintEvery();
+});
 export function paintEvery(plays) {
   if (!state.mixArgs) return;
   const [artists, , , pins] = state.mixArgs;
@@ -257,6 +267,17 @@ export function paintEvery(plays) {
   };
   for (const [id, render] of [["chart-raster", renderRaster], ["chart-calendar", renderCalendar]]) {
     if (putOff($(id).closest(".card"), () => paintEvery())) continue;
+    if (id === "chart-raster" && pan && !pan.done) {
+      if (rasterPan === pan) continue; // (sliding: the pan's end draws it)
+      const a = Math.floor(Math.min(pan.from.lo, lo)), b = Math.ceil(Math.max(pan.from.hi, hi));
+      const hidden = new Set(state.hidden);
+      const both = agg.filterRange(state.plays, a, b).filter((p) => !hidden.has(p.artist));
+      if (panRaster($(id), both, a, b)) {
+        rasterPan = pan;
+        panRasterTo($(id), pan.at);
+        continue;
+      }
+    }
     render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover, unit);
   }
 }
@@ -364,6 +385,20 @@ function paintFloor() {
   glideFloor(at, input.matches(":active") ? CHASE_MS : MORPH_MS); // a drag's thumb chases the pointer rather than lagging it
 }
 let heardMemo = null;
+// During a pan (state.js) First listen slides: it's drawn once with the finds of both periods, still with the
+// artists it had, and each frame moves its axes (the times on the clock's range, the hours' top along with them).
+// The pan's end draws it as usual, with the new artists.
+let discoveryPan = null; // { pan, top: [from, to] } while one slides
+onPan((p) => {
+  if (discoveryPan?.pan !== p) return;
+  if (p.done) {
+    discoveryPan = null;
+    return paintDiscovery();
+  }
+  const [a, b] = discoveryPan.top;
+  panDiscovery($("chart-discovery"), [agg.dayToDate(0).getTime() + p.at.lo * DAY, agg.dayToDate(0).getTime() + (p.at.hi + 1) * DAY], a + (b - a) * p.e);
+});
+const DAY = 864e5;
 export function paintDiscovery() {
   if (!state.mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
   // (the genres view finds tracks, each in its genre's color)
@@ -373,19 +408,36 @@ export function paintDiscovery() {
   const all = heardMemo.items;
   const [artists, , , pins] = state.mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
-  const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
-  const found = all.filter((e) => e.t >= start && e.t < end);
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
+  const finds = ({ lo, hi }) => {
+    const start = agg.dayToDate(lo).getTime(), end = agg.dayToDate(hi + 1).getTime();
+    return all.filter((e) => e.t >= start && e.t < end && e.hours >= floor && !hidden.has(e.group ?? e.name));
+  };
+  // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
+  const topOf = (shown) => Math.max(1, shown.reduce((m, x) => Math.max(m, x.hours), floor) * 1.6);
   paintFloor();
   const { one, many } = genre ? NOUN.track : noun();
-  const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.group ?? x.name));
+  const shown = finds(state.range);
   tweenNumber($("discovery-note"), shown.length, { format: (n) => `You discovered ${Math.round(n).toLocaleString()} ${Math.round(n) === 1 ? one : many} over this period` });
-  // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
-  const most = shown.reduce((m, x) => Math.max(m, x.hours), floor);
-  const top = Math.max(1, most * 1.6);
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  renderDiscovery($("chart-discovery"), shown, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
+  const el = $("chart-discovery");
+  const span = ({ lo, hi }) => [agg.dayToDate(lo).getTime(), agg.dayToDate(hi + 1).getTime()];
+  if (pan && !pan.done && discoveryLast && discoveryPan?.pan !== pan) {
+    // A pan starting: both periods' finds, with the artists already drawn
+    const { from, to } = pan;
+    const both = finds({ lo: Math.floor(Math.min(from.lo, to.lo)), hi: Math.ceil(Math.max(from.hi, to.hi)) });
+    discoveryPan = { pan, top: [discoveryLast.top, topOf(shown)] };
+    const [k, slots, p] = discoveryLast.args;
+    renderDiscovery(el, both, span(from), floor, discoveryLast.top, k, slots, p, hover, tune.discoveryDot, true);
+    return;
+  }
+  if (discoveryPan) return; // (sliding: the pan's end draws it)
+  const top = topOf(shown);
+  const slots = keyed.map((n) => state.colorSlots.get(n));
+  discoveryLast = { top, args: [keyed, slots, pins] };
+  renderDiscovery(el, shown, span(state.range), floor, top, keyed, slots, pins, hover, tune.discoveryDot);
 }
+let discoveryLast = null; // the last draw's hours top and artists, which a pan slides with
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period; and the
 // skips and picks of the same artists (skips.js)

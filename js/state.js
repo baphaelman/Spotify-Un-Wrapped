@@ -2,6 +2,7 @@
 // presets, and the words for the current view (genres, artists, albums or tracks).
 // hooks: functions main.js registers at startup, so the modules under it can call back up without importing it.
 import * as agg from "./aggregate.js";
+import { easeInOut, travel } from "./motion.js";
 
 export const $ = (id) => document.getElementById(id);
 
@@ -115,6 +116,44 @@ export function shownPlays() {
   if (!state.hidden.length) return plays;
   const hidden = new Set(state.hidden);
   return plays.filter((p) => !hidden.has(p.artist));
+}
+
+// The pan: a preset or a step slides every graph to the new period together, on one clock (main.js starts it with
+// the rolling chart's). onPan(fn) follows it: fn(p) at its start (p.e 0), each frame, and its end (p.done; p.cut when
+// something else cut it short), where p is { from, to, e, at, done }: from and to the ranges, e the eased progress,
+// and at the range on screen (fractional days), travelling as the rolling chart's zoom does. A pan started while one
+// is in flight takes over from the range on screen. onPan returns a function that stops following.
+export let pan = null;
+const panners = new Set();
+export function onPan(fn) {
+  panners.add(fn);
+  return () => panners.delete(fn);
+}
+export function startPan(from, to, ms) {
+  if (pan) cancelAnimationFrame(pan.raf);
+  const p = (pan = { from, to, ms, e: 0, at: { ...from }, done: false, raf: 0 });
+  const t0 = performance.now();
+  const tell = () => [...panners].forEach((fn) => fn(p));
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    p.e = easeInOut(t);
+    const [lo, edge] = travel([from.lo, from.hi + 1], [to.lo, to.hi + 1], p.e);
+    p.at = { lo, hi: edge - 1 };
+    if (t >= 1) [p.done, pan] = [true, null];
+    tell();
+    if (!p.done) p.raf = requestAnimationFrame(tick);
+  };
+  tell();
+  p.raf = requestAnimationFrame(tick);
+}
+// Lands the pan in flight at once (something else moved the view: a drag, a redraw)
+export function endPan() {
+  const p = pan;
+  if (!p) return;
+  cancelAnimationFrame(p.raf);
+  Object.assign(p, { e: 1, at: { ...p.to }, done: true, cut: true });
+  pan = null;
+  [...panners].forEach((fn) => fn(p));
 }
 
 // Set by main.js at startup (renderAll, renderDependents, paintArtistKey, openPart, paintSunburst, paintRankRace)

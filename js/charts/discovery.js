@@ -17,6 +17,8 @@ import { baseAxis, chart, instances, tooltipBase } from "./core.js";
 // dots, and the key always shows);
 // span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the
 // neutral dots' size in a roomy period (a crowded one shrinks them all). The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
+// The neutral dots are named too, in gray, from the top down wherever a name fits clear of the others (nameRest).
+// panning: drawn for a pan (state.js) about to slide the plot (panDiscovery): at once, keeping the names and key.
 const discoveryState = new WeakMap();
 const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes
 const FOUND_GRID = { left: 56, right: 24, top: 12, bottom: 28 };
@@ -26,7 +28,7 @@ const FOUND_ROOMY = 400; // dots per 1000px of plot drawn at full size; more, an
 // The lit dots are a series per artist (their palette's size, always all of them, so ids stay put): a hover restyles
 // each series as a whole, not each of a genre's thousands of tracks
 const FOUND_LIT = 10;
-export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
+export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5, panning = false) {
   const t = tokens();
   dot *= Math.min(1, Math.max(0.5, Math.sqrt((FOUND_ROOMY * el.clientWidth) / 1000 / Math.max(1, items.length))));
   const c = chart(el);
@@ -42,7 +44,8 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
     pinned: new Set(names.filter((n) => pins?.has(n))),
     hovered: names.includes(prev?.hovered) ? prev.hovered : null,
   };
-  st.keyed = st.grouped ? st.lit.length > 0 : st.lit.length > 1 && labelsOverlap(el, st);
+  st.keyed = panning && prev ? prev.keyed : st.grouped ? st.lit.length > 0 : st.lit.length > 1 && labelsOverlap(el, st);
+  st.named = panning && prev ? prev.named : nameRest(el, st);
   discoveryState.set(el, st);
   paintFoundKey(el, st);
 
@@ -58,10 +61,11 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
       from + `${fmtSpent(e.hours)} all time`;
   };
   const fresh = prev?.c !== c; // (a theme flip makes a new chart)
+  const ms = fresh || panning ? 0 : dur(MORPH_MS);
   setOptionFaded(
     c,
     {
-      animation: true,
+      animation: !panning, // (each frame of a pan is a plain redraw)
       animationDuration: ENTER_MS,
       animationEasing: EASE_OUT.echarts,
       animationDurationUpdate: MORPH_MS,
@@ -82,7 +86,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
         // (the top fits the period, so it's rarely round: it goes unlabeled unless it's a power of ten)
         axisLabel: {
           color: t.muted,
-          formatter: (h) => (Math.abs(h / top - 1) < 1e-6 && Math.abs(Math.log10(h) % 1) > 1e-6 ? "" : h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`),
+          formatter: (h) => (Math.abs(h / st.top - 1) < 1e-6 && Math.abs(Math.log10(h) % 1) > 1e-6 ? "" : h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`),
         },
       },
       series: [
@@ -94,8 +98,13 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           symbolSize: dot,
           silent: true, // read by nearestFound
           itemStyle: { color: mix(t.surface, t.other, 0.8) },
+          label: { show: false, distance: FOUND_LABEL.gap, formatter: ({ name }) => name, fontSize: REST_LABEL.size, color: t.muted },
           emphasis: { disabled: true },
-          data: st.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, floor)] })),
+          data: st.rest.map((e) => ({
+            name: e.name,
+            value: [e.t, Math.max(e.hours, floor)],
+            ...(st.named.has(e.name) && { label: { show: true, position: foundOnLeft(st, e) ? "left" : "right" } }),
+          })),
         },
         ...st.litBy.concat(Array(FOUND_LIT - st.litBy.length).fill([])).map((list, k) => ({
           ...discoveryLit(st, k),
@@ -116,9 +125,9 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
       ],
     },
     { notMerge: fresh },
-    fresh ? 0 : dur(MORPH_MS)
+    ms
   );
-  dimRest(c, st, fresh ? 0 : dur(MORPH_MS));
+  dimRest(c, st, ms);
   // The dots moved: the pointer's ring and readout wait for its next move
   st.ring = fresh ? null : prev.ring;
   if (prev) clearTimeout(prev.unlight);
@@ -147,20 +156,72 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   });
 }
 
-// Whether any two of the lit dots' names would overlap, drawn beside their dots on the full-width plot
+// Where each item's name would sit beside its dot, as [x0, x1, y0, y1], on the plot as `rect` lays it out
 let measureCtx = null;
-function labelsOverlap(el, st) {
-  const { left, right, top, bottom } = FOUND_GRID;
-  const rect = { x: left, y: top, width: el.clientWidth - left - right, height: el.clientHeight - top - bottom };
+function nameBoxes(st, rect, list, { size, weight, h }, dot) {
   measureCtx ??= document.createElement("canvas").getContext("2d");
-  measureCtx.font = `${FOUND_LABEL.weight} ${FOUND_LABEL.size}px sans-serif`; // (ECharts' default family)
-  const boxes = st.lit.map((e) => {
+  measureCtx.font = `${weight} ${size}px sans-serif`; // (ECharts' default family)
+  return list.map((e) => {
     const [x, y] = foundPixel(st, rect, e);
-    const w = measureCtx.measureText(e.name).width, off = st.litSize / 2 + FOUND_LABEL.gap;
+    const w = measureCtx.measureText(e.name).width, off = dot / 2 + FOUND_LABEL.gap;
     const x0 = foundOnLeft(st, e) ? x - off - w : x + off;
-    return [x0, x0 + w, y - FOUND_LABEL.h / 2, y + FOUND_LABEL.h / 2];
+    return [x0, x0 + w, y - h / 2, y + h / 2];
   });
-  return boxes.some((a, i) => boxes.some((b, j) => j > i && a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3]));
+}
+const plotRect = (el, keyed) => {
+  const { left, right, top, bottom } = FOUND_GRID;
+  return { x: left, y: top, width: el.clientWidth - left - (keyed ? FOUND_KEY_W : right), height: el.clientHeight - top - bottom };
+};
+const overlap = (a, b) => a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
+
+// Whether any two of the lit dots' names would overlap, drawn beside their dots on the full-width plot
+function labelsOverlap(el, st) {
+  const boxes = nameBoxes(st, plotRect(el, false), st.lit, FOUND_LABEL, st.litSize);
+  return boxes.some((a, i) => boxes.some((b, j) => j > i && overlap(a, b)));
+}
+
+// The neutral dots that get their names, in gray: from the most heard down (the top of the plot first), each where
+// its name stays on the plot and clear of every dot, every name already placed and the chart's artists' names (when
+// beside their dots). What's taken is kept in cells of the plot, so a name is checked only against what's near it.
+const REST_LABEL = { size: 11, weight: 400, h: 14 };
+const CELL = 48;
+function nameRest(el, st) {
+  const rect = plotRect(el, st.keyed);
+  const cells = new Map();
+  const near = (b, fn) => {
+    for (let i = Math.floor(b[0] / CELL); i <= Math.floor(b[1] / CELL); i++)
+      for (let j = Math.floor(b[2] / CELL); j <= Math.floor(b[3] / CELL); j++) if (fn(i * 4096 + j)) return true;
+    return false;
+  };
+  const take = (b) => near(b, (k) => void (cells.get(k) ?? cells.set(k, []).get(k)).push(b));
+  const clear = (b) => !near(b, (k) => cells.get(k)?.some((a) => overlap(a, b)));
+  const dotBox = (e, size) => {
+    const [x, y] = foundPixel(st, rect, e), r = size / 2;
+    return [x - r, x + r, y - r, y + r];
+  };
+  st.lit.forEach((e) => take(dotBox(e, st.litSize)));
+  st.rest.forEach((e) => take(dotBox(e, st.dot)));
+  if (!st.keyed && !st.grouped) nameBoxes(st, rect, st.lit, FOUND_LABEL, st.litSize).forEach(take);
+  const order = [...st.rest].sort((a, b) => b.hours - a.hours);
+  const boxes = nameBoxes(st, rect, order, REST_LABEL, st.dot);
+  const named = new Set();
+  order.forEach((e, i) => {
+    const b = boxes[i];
+    if (b[0] < rect.x || b[1] > rect.x + rect.width || b[2] < rect.y || b[3] > rect.y + rect.height || !clear(b)) return;
+    take(b);
+    named.add(e.name);
+  });
+  return named;
+}
+
+// A frame of a pan: the plot shows the times `span` and the hours up to `top`, its dots (drawn for the pan) sliding
+// under it
+export function panDiscovery(el, span, top) {
+  const st = discoveryState.get(el);
+  if (!st || st.c !== instances.get(el)) return;
+  st.span = span;
+  st.top = top;
+  st.c.setOption({ xAxis: { min: span[0], max: span[1] }, yAxis: { max: top } }, { lazyUpdate: false });
 }
 const groupOf = (e) => e.group ?? e.name;
 // (named on the left near the right end, where there's no room after it)
