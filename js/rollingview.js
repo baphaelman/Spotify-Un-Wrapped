@@ -295,36 +295,78 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 // view the finds are tracks, each in its genre's color when that's one of the chart's. Those under
 // tune.discoveryFloor minutes all time aren't drawn, but count.
 export const FLOORS = [1, 3, 5, 10, 30, 60]; // minutes all time, the slider's stops
-// The thumb sits where the threshold falls among the stops (the Visual tweaks slider can land between them); only a stop shows its number
+// The Listening Threshold slider, as the window slider behaves: the thumb (step 1, so a click snaps straight to its
+// stop) glides from where it was to where it's going on the morph tier, its number travelling with it; a drag
+// follows the pointer. The Visual tweaks slider can land between stops, where the thumb rests between them.
+let floorAt = 0; // where the thumb is, in stops (fractional mid-glide)
 let floorGlide = 0;
-// The thumb glides to its stop on the graph's own tier, as the bars do; a drag has it follow the pointer
+const floorText = (v) => (v >= 60 ? "1h" : `${Math.round(v)}m`);
+const floorValue = (x) => {
+  const i = Math.min(FLOORS.length - 2, Math.floor(x));
+  return FLOORS[i] + (x - i) * (FLOORS[i + 1] - FLOORS[i]);
+};
+function placeFloor(x, label) {
+  const input = $("discovery-floor"), p = x / (FLOORS.length - 1);
+  floorAt = x;
+  input.value = x;
+  input.style.setProperty("--p", p);
+  if (label) {
+    label.style.setProperty("--p", p);
+    label.textContent = floorText(floorValue(x));
+  }
+}
+// Notches at their places; the one the thumb rests on shows its number (none, between stops)
+function restFloor(to) {
+  const input = $("discovery-floor"), ticks = input.closest(".slider").querySelector(".ticks");
+  ticks.classList.add("settle");
+  ticks.querySelector(".glide")?.remove();
+  ticks.querySelector(".target")?.classList.remove("target");
+  for (const tick of ticks.querySelectorAll("[data-v]")) {
+    tick.style.setProperty("--p", tick.dataset.v / (FLOORS.length - 1));
+    tick.classList.toggle("on", +tick.dataset.v === to);
+  }
+  input.step = Number.isInteger(to) ? "1" : "any";
+  placeFloor(to);
+  getComputedStyle(ticks).color; // apply the change with transitions off
+  ticks.classList.remove("settle");
+}
 function glideFloor(to) {
-  const input = $("discovery-floor"), from = +input.value, top = FLOORS.length - 1;
-  const put = (x) => {
-    input.value = x;
-    input.style.setProperty("--p", x / top);
-  };
+  const input = $("discovery-floor"), ticks = input.closest(".slider").querySelector(".ticks");
   cancelAnimationFrame(floorGlide);
-  const ms = dur(MORPH_MS);
-  if (!ms || from === to) return put(to);
+  const from = floorAt, ms = dur(MORPH_MS);
+  if (!ms || from === to) return restFloor(to);
+  input.step = "any";
+  let label = ticks.querySelector(".glide");
+  if (!label) {
+    label = document.createElement("span");
+    label.className = "on glide";
+    ticks.classList.add("settle");
+    ticks.querySelector("[data-v].on")?.classList.remove("on");
+    ticks.append(label);
+    getComputedStyle(label).color;
+    ticks.classList.remove("settle");
+  }
+  ticks.querySelector(".target")?.classList.remove("target");
+  ticks.querySelector(`[data-v="${to}"]`)?.classList.add("target");
   const t0 = performance.now();
   const step = (now) => {
     const e = Math.min(1, (now - t0) / ms);
-    put(from + (to - from) * easeInOut(e));
+    placeFloor(from + (to - from) * easeInOut(e), label);
     if (e < 1) floorGlide = requestAnimationFrame(step);
+    else restFloor(to);
   };
-  floorGlide = requestAnimationFrame(step);
+  step(t0);
 }
 function paintFloor() {
-  const input = $("discovery-floor"), v = tune.discoveryFloor;
+  const v = tune.discoveryFloor;
   const i = Math.max(0, FLOORS.findLastIndex((f) => f <= v));
   const at = i >= FLOORS.length - 1 ? i : i + (v - FLOORS[i]) / (FLOORS[i + 1] - FLOORS[i]);
-  if (!input.matches(":active")) glideFloor(at);
-  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
-    tick.style.setProperty("--p", tick.dataset.v / (FLOORS.length - 1));
-    tick.classList.toggle("on", FLOORS[tick.dataset.v] === v);
-  }
+  const input = $("discovery-floor");
   input.setAttribute("aria-valuetext", v >= 60 ? "1 hour" : `${v} min`);
+  if (input.matches(":active")) {
+    cancelAnimationFrame(floorGlide);
+    restFloor(at);
+  } else glideFloor(at);
 }
 let heardMemo = null;
 export function paintDiscovery() {
