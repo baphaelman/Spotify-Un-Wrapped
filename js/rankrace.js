@@ -265,7 +265,6 @@ function scrub(x, y) {
     // the names coming in show); the card and column fade in where they are
     st.col = at = k;
     setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
-    timelineDots(0);
     glide(k, 1, true);
   } else if (k !== st.col) {
     st.col = k;
@@ -284,7 +283,6 @@ function leave() {
   if (!st || !c || c.isDisposed()) return;
   st.col = null;
   setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
-  timelineDots(TL_R);
   glide(at, 0);
 }
 
@@ -347,10 +345,10 @@ function dropRiders() {
 }
 
 // ---------- the timeline ----------
-// The lane above #1: a line with a dot at each slice. Hovering, the dots shrink into it and one rides it with the
-// column (the riders' "timeline"). Drawn again only when its slices or place change, the old fading out as the new
-// fades in.
-const TL_R = 3.5;
+// The lane above #1: a line with a dot at each slice, bigger at its two ends. Hovering, a bright one rides it with the
+// column, over the dots, swelling to cover an end's as it gets there (see draw). Drawn again only when its slices or
+// place change, the old fading out as the new fades in.
+const TL_R = 3.5, TL_END_R = 6, TL_RIDER_R = 4.5;
 let tl = null; // { key, line, dots }
 function paintTimeline(drop = false) {
   if (!c || c.isDisposed()) return;
@@ -367,15 +365,9 @@ function paintTimeline(drop = false) {
   if (old?.key === key) return;
   if (old) for (const e of [old.line, ...old.dots]) fade(e, 0, () => zr.remove(e));
   const line = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: st.t.axis, lineWidth: 1.5, opacity: 0 } });
-  const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: pointer ? 0 : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
+  const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: i === 0 || i === n - 1 ? TL_END_R : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
   for (const e of [line, ...dots]) { zr.add(e); fade(e, 1); }
   tl = { key, line, dots };
-}
-function timelineDots(r) {
-  for (const d of tl?.dots ?? []) {
-    d.stopAnimation("shape");
-    d.animateTo({ shape: { r } }, { duration: dur(CHASE_MS), easing: EASE_OUT.echarts, scope: "shape" });
-  }
 }
 
 // Draws the hover at `at` and `shown`
@@ -423,7 +415,9 @@ function draw() {
     tlRider = new echarts.graphic.Circle({ silent: true, z: 3 });
     zr.add(tlRider);
   }
-  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_R * 1.4 }, style: { fill: st.t.primary, opacity: pointer ? 1 : shown } });
+  // (within a slice of either end it swells to cover the end's bigger dot, so the two merge)
+  const toEnd = Math.max(0, 1 - Math.min(at, n - 1 - at));
+  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_RIDER_R + (TL_END_R + 0.5 - TL_RIDER_R) * toEnd }, style: { fill: st.t.primary, opacity: pointer ? 1 : shown } });
 
   // The card: each row between its ranks in the slices either side of `at`, so as the column glides the rows
   // overtake each other; rows leaving the top ranks slide out at the bottom and fade
