@@ -33,7 +33,7 @@ How your listening time split between your top artists in the period, with pictu
 
 ### Top Artists View
 
-Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in.
+Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in. Toggle **Everyone else** to add the rest of your listening as a gray band on top.
 
 ### Hours per week
 
@@ -43,16 +43,16 @@ The same data as above, but not stacked nor normalized. More about seeing your l
 
 ### Top Artists over time
 
-Your top artists day by day through the period, played like a video: bars race past each other as one artist overtakes another. Rank them by the **last few days** (the *Days* slider sets how far back) or by everything **so far** in the period. Press play, pick a speed, or drag the slider to scrub through time. Click a bar to pin.
+Your top artists day by day through the period, played like a video: bars race past each other as one artist overtakes another. Rank them by the **last few days** (the *Days* slider sets how far back) or by everything **so far** in the period. Press play, pick a speed, or drag the slider to scrub through time. Click a bar to pin. With **Everyone else** off, only your selected artists race, all starting from zero.
 
 ### Hours per month
 
-A bar per month with each month's top artist on top.
+A bar per month with each month's top artist on top, and everyone else in gray unless you toggle it off.
 
 ![Hours per month](docs/images/monthly.png)
 
 ### When you listened
-Similar data as the stack graph, but compressed by day. Maybe you have a sleep playlist, or you can see when you go to the gym.
+Similar data as the stack graph, but compressed by day. Maybe you have a sleep playlist, or you can see when you go to the gym. Toggle **Everyone else** to see the rest of your listening too.
 
 ![When you listened](docs/images/clock.png)
 
