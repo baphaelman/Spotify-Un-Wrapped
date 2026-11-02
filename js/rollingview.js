@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, ho
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { renderRaster, renderCalendar, DAY_MODE_MAX } from "./every.js";
+import { renderRaster, renderCalendar } from "./every.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
@@ -241,11 +241,14 @@ export function paintEvery(plays) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const { lo, hi } = state.range;
-  const unit = hi - lo + 1 > DAY_MODE_MAX ? "week" : "day";
-  $("calendar-note").textContent = `Each ${unit} is tinted by its top ${noun().one}, darker the more you listened`;
+  // "Every day" or "Every week", named as the calendar draws it (after the period settles)
+  const unit = (u) => {
+    $("calendar-title").textContent = `Every ${u}`;
+    $("calendar-note").textContent = `Each ${u} is tinted by its top ${noun().one}, darker the more you listened`;
+  };
   for (const [id, render] of [["chart-raster", renderRaster], ["chart-calendar", renderCalendar]]) {
     if (putOff($(id).closest(".card"), () => paintEvery())) continue;
-    render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover);
+    render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover, unit);
   }
 }
 

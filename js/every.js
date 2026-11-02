@@ -1,8 +1,8 @@
 // Every play and Every day: two graphs drawn on their own canvas rather than by ECharts. Every play has a mark per
 // play (a hundred thousand over all time), and ECharts can neither fade that many marks on a hover nor draw them
 // fast, so each artist's marks are one Path2D, built once per layout, and a frame is a dozen fills. Both follow the
-// rolling chart's artists, colors, pins and hover (litLook, eased per artist), crossfade to a new period
-// (MORPH_MS), and show their own hover card.
+// rolling chart's artists, colors, pins and hover (litLook, eased per artist), fade out while the period moves and
+// back in once it settles (refresh), and show their own hover card.
 
 import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isPinLook } from "./motion.js";
@@ -25,6 +25,7 @@ function tokens() {
   return {
     surface: v("--surface"),
     primary: v("--text-primary"),
+    secondary: v("--text-secondary"),
     muted: v("--text-muted"),
     grid: v("--grid"),
     other: v("--other"),
@@ -38,7 +39,7 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 const HOUR = 3600e3;
 const weekday = (k) => (k + 3) % 7; // a day index's weekday, Monday 0
 
-// ---------- Shared: canvas, looks, hover card, crossfade ----------
+// ---------- Shared: canvas, looks, hover card, fades ----------
 
 const views = new WeakMap(); // el -> the graph's state
 
@@ -77,27 +78,12 @@ function size(v, h) {
   v.el.style.height = h + "px";
 }
 
-// Lay a copy of the frame on screen over the canvas and fade it out, so what's drawn next crossfades in. A copy
-// still fading is folded into the new one at the opacity it has reached (as charts.js fadeOutFrame).
-function crossfade(v, ms) {
-  if (!ms || !v.canvas.width) return;
-  const copy = document.createElement("canvas");
-  copy.width = v.canvas.width;
-  copy.height = v.canvas.height;
-  const ctx = copy.getContext("2d");
-  ctx.drawImage(v.canvas, 0, 0);
-  for (const old of v.el.querySelectorAll(".chart-fade")) {
-    ctx.globalAlpha = +getComputedStyle(old).opacity;
-    ctx.drawImage(old, 0, 0);
-    old.remove();
-  }
-  copy.className = "chart-fade";
-  Object.assign(copy.style, { position: "absolute", left: 0, top: 0, width: v.canvas.style.width, height: v.canvas.style.height, pointerEvents: "none" });
-  v.el.append(copy);
-  copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: EASE_IN_OUT.css, fill: "forwards" }).finished.then(
-    () => copy.remove(),
-    () => {}
-  );
+// Fades the canvas to an opacity from wherever it is
+function fadeCanvas(v, to, ms, easing) {
+  const from = +getComputedStyle(v.canvas).opacity;
+  v.canvas.getAnimations().forEach((a) => a.cancel());
+  v.canvas.style.opacity = to;
+  if (ms) v.canvas.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing });
 }
 
 // Each artist's look eases from what's on screen to its target: { from, to, at, ms } per name, numbers in [0, 1]
@@ -225,17 +211,10 @@ export function focusEvery(el, name) {
   retarget(v, targetsOf(v, v.table), dur(FADE_MS), EASE_OUT.js);
 }
 
-// A new frame: the first fades in (ENTER_MS), a later one crossfades from the old (MORPH_MS) when fade is set
-function arrive(v, fade) {
-  if (!v.key) v.canvas.animate([{ opacity: 0 }, { opacity: 1 }], { duration: dur(ENTER_MS), easing: EASE_OUT.css });
-  else if (fade) crossfade(v, dur(MORPH_MS));
-}
-
-// The look's targets after a render: what changed with the data morphs with it, a crossfade or not
+// The look's targets after a render: a new frame starts in them, a restyle eases to them with the data's morph
 function settle(v, changed) {
   const targets = targetsOf(v, v.table);
   if (changed) {
-    // The new frame comes in under the old one's fading copy, already in its looks
     v.looks = new Map([...targets].map(([n, to]) => [n, { from: to, to, at: 0, ms: 0, ease: EASE_IN_OUT.js }]));
     animate(v);
   } else retarget(v, targets, dur(MORPH_MS), EASE_IN_OUT.js);
@@ -255,19 +234,24 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
+  refresh(v, data, key, { plays, lo, hi }, () => layoutRaster(v), relaid);
+}
+
+// After a render's artists are adopted: new data (a period window dragged or travelling) fades the graph out, and
+// it waits there until the changes stop coming, then the new frame fades in, rather than redrawing under the moving
+// window. Anything else in the key (a new height) only lays it out again; the first draw fades in.
+function refresh(v, data, key, fields, layout, relaid) {
   const first = !v.key, moved = !first && data.some((x, i) => x !== v.key[i]);
-  Object.assign(v, { key, plays, lo, hi });
-  v.relayout = () => layoutRaster(v);
+  Object.assign(v, { key, ...fields });
+  v.relayout = layout;
   if (moved) {
-    // New plays (a period window dragged or travelling): the marks fade out and wait there until the changes stop
-    // coming, then the new ones fade in, rather than redrawing under the moving window
     if (!v.waiting) fadeCanvas(v, 0, dur(FADE_MS), EASE_OUT.css);
     v.waiting = true;
     hideTip();
     clearTimeout(v.waitTimer);
     v.waitTimer = setTimeout(() => {
       v.waiting = false;
-      layoutRaster(v);
+      layout();
       settle(v, true);
       fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css);
     }, dur(CHASE_MS));
@@ -275,18 +259,10 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   }
   if (v.waiting) return; // (the wait's end draws with what's current)
   if (relaid) {
-    if (first) fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css); // a new height only lays the marks out again
-    layoutRaster(v);
+    if (first) fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css);
+    layout();
   }
   settle(v, relaid);
-}
-
-// Fades the canvas to an opacity from wherever it is
-function fadeCanvas(v, to, ms, easing) {
-  const from = +getComputedStyle(v.canvas).opacity;
-  v.canvas.getAnimations().forEach((a) => a.cancel());
-  v.canvas.style.opacity = to;
-  if (ms) v.canvas.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing });
 }
 
 function layoutRaster(v) {
@@ -431,22 +407,21 @@ function pickRaster(v, x, y) {
 // 95th percentile). Up to two years it has a box per day (a rolling year in one strip, longer in a strip per
 // calendar year); beyond, a box per week, a row per year, the boxes about twice as tall as wide so all time isn't a
 // thin strip. Days whose top isn't one of the chart's artists are gray.
-export const DAY_MODE_MAX = 731;
+const DAY_MODE_MAX = 731;
 
-export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}) {
+// onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note)
+export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, onUnit = null) {
   const v = setup(el, drawCalendar, pickCalendar);
   const key = [plays, lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, DAY_FACTOR);
   v.table = DAY_FACTOR;
-  if (relaid) {
-    arrive(v, true);
-    Object.assign(v, { key, plays, lo, hi });
-    v.cells = calendarCells(plays, lo, hi);
-    v.relayout = () => layoutCalendar(v);
+  v.onUnit = onUnit;
+  refresh(v, key, key, { plays, lo, hi }, () => {
+    if (v.cells?.plays !== v.plays || v.cells.lo !== v.lo || v.cells.hi !== v.hi) v.cells = calendarCells(v.plays, v.lo, v.hi);
+    v.onUnit?.(v.cells.weeks ? "week" : "day");
     layoutCalendar(v);
-  }
-  settle(v, relaid);
+  }, relaid);
 }
 
 // Each day's (or week's) hours and top artist, and the scale for the tint
@@ -476,10 +451,10 @@ function calendarCells(plays, lo, hi) {
     cells.set(key, { h, best, bh });
   }
   const sorted = [...cells.values()].map((c) => c.h).sort((a, b) => a - b);
-  return { weeks, jan1, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
+  return { plays, lo, hi, weeks, jan1, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
 }
 
-const CAL = { top: 22, left: 44, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
+const CAL = { top: 22, left: 52, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
 
 function layoutCalendar(v) {
   const { lo, hi } = v;
@@ -487,14 +462,14 @@ function layoutCalendar(v) {
   const w = v.el.clientWidth || 1000;
   const y0 = agg.dayToDate(lo).getFullYear(), y1 = agg.dayToDate(hi).getFullYear();
   const boxes = []; // { x, y, w, h, key, from } for each box in the period
-  const labels = []; // [x, y, text, align]
+  const labels = []; // [x, y, text, align, a year?]
   let height;
   if (weeks) {
     const cw = Math.max(5, Math.min(24, Math.floor((w - CAL.left - CAL.right) / 53)));
     const ch = cw * 2;
     for (let y = y0; y <= y1; y++) {
       const top = CAL.top + (y - y0) * (ch + CAL.gap);
-      labels.push([CAL.left - 10, top + ch / 2, String(y), "right"]);
+      labels.push([CAL.left - 10, top + ch / 2, String(y), "right", true]);
       for (let wk = 0; wk < 53; wk++) {
         const from = jan1(y) + 7 * wk, to = wk === 52 ? jan1(y + 1) - 1 : from + 6;
         if (to < lo || from > hi) continue;
@@ -509,7 +484,7 @@ function layoutCalendar(v) {
     const segs = [];
     if (hi - lo + 1 <= 371) segs.push([lo, hi]);
     else for (let y = y0; y <= y1; y++) segs.push([Math.max(lo, jan1(y)), Math.min(hi, jan1(y + 1) - 1)]);
-    const left = segs.length > 1 ? 64 : 28; // room for the years, then the weekdays
+    const left = segs.length > 1 ? 72 : 28; // room for the years, then the weekdays
     const colsOf = ([a, b]) => Math.floor((b - a + weekday(a)) / 7) + 1;
     const most = Math.max(...segs.map(colsOf));
     const cell = Math.max(6, Math.min(24, Math.floor((w - left - CAL.right) / most)));
@@ -517,7 +492,7 @@ function layoutCalendar(v) {
     segs.forEach(([a, b], i) => {
       const top = CAL.top + i * segH;
       const start = a - weekday(a); // the Monday of the first column
-      if (segs.length > 1) labels.push([left - 24, top + (cell * 7) / 2, String(agg.dayToDate(a).getFullYear()), "right"]);
+      if (segs.length > 1) labels.push([left - 26, top + (cell * 7) / 2, String(agg.dayToDate(a).getFullYear()), "right", true]);
       ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, top + r * cell + cell / 2, d, "right"]));
       for (let k = a; k <= b; k++) {
         const col = Math.floor((k - start) / 7), row = weekday(k);
@@ -544,13 +519,14 @@ function layoutCalendar(v) {
 
 function drawCalendar(v) {
   const { ctx, t, width: w, cssH: h } = v;
-  if (!v.boxes) return;
+  if (!v.boxes || v.waiting) return;
   const { cells, top } = v.cells;
   ctx.clearRect(0, 0, w, h);
-  ctx.font = `11px ${t.font}`;
-  ctx.fillStyle = t.muted;
   ctx.textBaseline = "middle";
-  for (const [x, y, text, align] of v.labels) {
+  // The years read first: larger and brighter than the months and weekdays
+  for (const [x, y, text, align, year] of v.labels) {
+    ctx.font = year ? `600 13px ${t.font}` : `11px ${t.font}`;
+    ctx.fillStyle = year ? t.secondary : t.muted;
     ctx.textAlign = align;
     ctx.fillText(text, x, y);
   }
@@ -590,7 +566,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function pickCalendar(v, x, y) {
-  const b = v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
+  const b = !v.waiting && v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
   if (!b) return null;
   const c = v.cells.cells.get(b.key);
   const d = agg.dayToDate(b.from);
