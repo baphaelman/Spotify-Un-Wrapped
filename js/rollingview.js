@@ -263,15 +263,15 @@ export function paintEvery(plays) {
   }
 }
 
-// Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
+// "Top [Artists] Every [Month]": total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
 // out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle
 // (#monthly-other) shows or hides the gray, apart from the rolling chart's.
 const SPAN_WORDS = {
-  1: ["per month", "month's"],
-  3: ["every 3 months", "quarter's"],
-  6: ["every 6 months", "half-year's"],
-  12: ["per year", "year's"],
-  24: ["every 2 years", "two years'"],
+  1: ["Month", "month's"],
+  3: ["3 Months", "quarter's"],
+  6: ["6 Months", "half-year's"],
+  12: ["Year", "year's"],
+  24: ["2 Years", "two years'"],
 };
 export function paintMonthly(plays) {
   if (!mixArgs || putOff($("chart-monthly").closest(".card"), () => paintMonthly())) return;
@@ -283,7 +283,7 @@ export function paintMonthly(plays) {
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const span = agg.monthSpan(plays, tune.maxBars);
-  $("monthly-title").textContent = `Hours ${SPAN_WORDS[span][0]}`;
+  $("monthly-title").textContent = `Top ${noun().Many} Every ${SPAN_WORDS[span][0]}`;
   $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top ${noun().one} on top`;
   const other = $("monthly-other").checked;
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span, other);

@@ -1,5 +1,5 @@
 // "Rank race": where each item stood over the period, as a bump chart. The period is cut into months, or into
-// 3 months, 6 months, a year or 2 years as Hours per month does (agg.monthSpan), at most one slice more than its bars.
+// 3 months, 6 months, a year or 2 years as Top [Tab] Every [Month] does (agg.monthSpan), at most one slice more than its bars.
 // Every item that reached the top `tune.rankMax` in the period gets a line; the chart's artists keep their colors
 // and the rest are gray, behind them. By the month, a rank is taken over the months around each one, so a phase
 // reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them

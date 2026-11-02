@@ -423,6 +423,7 @@ button.ghost:hover { background: var(--border); }
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .tav-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
 .tav-toggles [hidden] { display: none; }
+.tav-other { display: flex; margin-top: 10px; }
 /* Back to the view a part was clicked in from: always there, faded while there's nowhere to go back to */
 .view-back { padding: 3px 10px; font-size: 16px; line-height: 20px; color: var(--text-secondary); transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
 .view-back:hover { color: var(--text-primary); }
@@ -654,7 +655,7 @@ button.ghost:hover { background: var(--border); }
 #chart-clock { height: 230px; }
 /* Every play and Every day (every.js): canvases, their box gliding to a new layout's height */
 .grid-chart { position: relative; overflow: hidden; height: auto; min-height: 120px; transition: height var(--motion-morph) var(--ease-in-out); }
-#chart-raster { height: 460px; }
+#chart-raster { height: 400px; }
 .canvas-tip {
   position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: 320px;
   background: var(--surface); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 8px;

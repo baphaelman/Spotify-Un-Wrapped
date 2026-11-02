@@ -49,7 +49,7 @@ const views = new WeakMap(); // el -> the graph's state
 // mark is small, so it starts deep and lighting it has little room: the others dimming does most of the work.
 const MARK_SHADE = { rest: 0.72, hover: 0.86, pin: 0.94, pinHover: 1, dim: 0.2, dimHover: 0.42 };
 const OTHER_SHADE = { rest: 0.42, hover: 0.42, pin: 0.42, pinHover: 0.42, dim: 0.16, dimHover: 0.28 };
-const DAY_FACTOR = { rest: 1, hover: 1.18, pin: 1.3, pinHover: 1.42, dim: 0.32, dimHover: 0.58 };
+const DAY_FACTOR = { rest: 1, hover: 1.12, pin: 1.2, pinHover: 1.28, dim: 0.5, dimHover: 0.7 };
 
 function setup(el, draw, pick) {
   let v = views.get(el);

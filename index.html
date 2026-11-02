@@ -290,8 +290,6 @@
                 <button type="button" data-split="album" aria-pressed="false">Albums</button>
                 <button type="button" data-split="track" aria-pressed="false">Songs</button>
               </div>
-              <!-- Whether this chart shows everyone else in gray (off by default); the other graphs have their own -->
-              <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
             </div>
             <div class="tav-smooth">
               <span class="toggle-label" id="smoothify-label">Smoothing</span>
@@ -305,6 +303,10 @@
               </select>
             </div>
           </div>
+        </div>
+        <!-- Whether this chart shows everyone else in gray (off by default); the other graphs have their own -->
+        <div class="tav-other">
+          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
         </div>
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
@@ -398,7 +400,7 @@
       <article class="card" id="monthly-card">
         <div class="monthly-head">
           <div>
-            <h2 id="monthly-title">Hours per month</h2>
+            <h2 id="monthly-title">Top Artists Every Month</h2>
             <p id="monthly-note" class="muted">Each month's top artist on top</p>
           </div>
           <!-- This graph's own, apart from the rolling chart's -->
