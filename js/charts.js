@@ -2356,7 +2356,11 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
         max: top,
         ...baseAxis(t),
         axisLine: { show: false },
-        axisLabel: { color: t.muted, formatter: (h) => (h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`) },
+        // (the top fits the period, so it's rarely round: it goes unlabeled unless it's a power of ten)
+        axisLabel: {
+          color: t.muted,
+          formatter: (h) => (Math.abs(h / top - 1) < 1e-6 && Math.abs(Math.log10(h) % 1) > 1e-6 ? "" : h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`),
+        },
       },
       series: [
         {

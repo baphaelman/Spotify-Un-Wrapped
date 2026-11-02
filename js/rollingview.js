@@ -296,10 +296,10 @@ export function paintDiscovery() {
   const { one, many } = noun();
   $("discovery-title").textContent = `${one[0].toUpperCase()}${one.slice(1)} Discovery`;
   $("discovery-note").textContent = `${found.length.toLocaleString()} new ${found.length === 1 ? one : many} found in this period`;
-  // The hours axis reaches every item's hours, so it holds still as the period moves
-  const most = all.reduce((m, x) => Math.max(m, x.hours), floor);
-  const top = 10 ** Math.ceil(Math.log10(most));
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.name));
+  // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
+  const most = shown.reduce((m, x) => Math.max(m, x.hours), floor);
+  const top = Math.max(1, most * 1.6);
   const hover = (name) => focusArtist($("chart-rolling"), name);
   renderDiscovery($("chart-discovery"), shown, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
 }
