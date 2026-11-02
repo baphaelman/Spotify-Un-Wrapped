@@ -633,7 +633,7 @@ button.ghost:hover { background: var(--border); }
 .rank-frame[data-look="3"] .rank-cursor::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--text-primary); opacity: 0.8; }
 .rank-frame[data-look="3"] .rank-cursor.on { opacity: 1; }
 .rank-frame[data-look="4"] .rank-cursor { width: 2px; box-shadow: 0 0 8px 2px color-mix(in srgb, var(--text-primary) 45%, transparent); }
-@media (prefers-reduced-motion: reduce) { .rank-tip, .rank-cursor { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .rank-tip, .rank-frame .rank-cursor { transition: none !important; } }
 .found-key {
   position: absolute; top: 20px; right: 0; width: 152px; max-height: calc(100% - 48px); overflow: hidden;
   display: flex; flex-direction: column; gap: 2px; opacity: 0; pointer-events: none;
