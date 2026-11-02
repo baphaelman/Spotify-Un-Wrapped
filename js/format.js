@@ -14,7 +14,7 @@ export const fmtDay = (d, opts = { month: "short", day: "numeric", year: "numeri
 // Hours, four ways; each graph keeps the one it was drawn with.
 // One decimal, "1,234.5 h": the mix bar, skips and picks, the rings
 export const fmtHours = (h) => h.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h";
-// Whole hours from 100, "1,234 h" or "12.3 h": the ECharts readouts (charts.js)
+// Whole hours from 100, "1,234 h" or "12.3 h": the ECharts readouts (charts/)
 export const fmtHoursRound = (h) => (h >= 100 ? Math.round(h).toLocaleString() : h.toFixed(1)) + " h";
 // Minutes under an hour, whole hours from 10, "45 min", "3.2 h" or "12 h": Every play and Every day, Rank race
 export const fmtH = (h) => (h >= 10 ? Math.round(h) + " h" : h >= 1 ? h.toFixed(1) + " h" : Math.max(1, Math.round(h * 60)) + " min");

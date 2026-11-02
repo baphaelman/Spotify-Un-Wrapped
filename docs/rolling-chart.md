@@ -1,4 +1,4 @@
-# The rolling chart (`renderRolling` in `js/charts.js`)
+# The rolling chart (`renderRolling` in `js/charts/rolling.js`)
 
 Read this before touching `renderRolling`. These rules were learned the hard way; most of them guard
 against an ECharts behaviour that breaks the hand-made stacking or the morphs.

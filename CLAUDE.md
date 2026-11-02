@@ -16,7 +16,7 @@ https://baphaelman.github.io/Spotify-Un-Wrapped/, deployed from `main` by `.gith
   (`dev/motion_check.py`); if a bug won't reproduce in 2–3 tries, stop and ask instead of hunting.
 - **Artist and track names come from user files:** `textContent` in the DOM, `esc` in tooltip HTML.
 - **Colors are CSS tokens in `css/style.css`** (`--series-1..10`, `--seq-*`, surfaces, inks), light and dark.
-  `charts.js` reads them via `tokens()`; a palette from `PALETTES` (`theme.js`) overrides `--series-*` on `<body>`.
+  `tokens()` (`colors.js`) reads them; a palette from `PALETTES` (`theme.js`) overrides `--series-*` on `<body>`.
 - **Chart palette:** at most 10 categorical colors; color follows the artist, never the rank; "Everyone else" is
   always the gray `--other`.
 - **Big jobs near the limit:** when proposing work that looks too big for what's left of the session's context or
@@ -55,10 +55,16 @@ All in `js/` unless noted; each file's own comments have the details.
 
 - `parse.js`: zip, folder or JSON → `{t, ms, artist, track, album, skipped, id, rs, re}` (rs, re: why a play began and ended).
 - `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()`.
-- `charts.js`: every ECharts renderer; most complexity is in `renderRolling`.
+- `charts.js`: re-exports the ECharts renderers in `charts/`: `core.js` (instances, axes, hover cards), `rolling.js`
+  (`renderRolling`, where most of the complexity is, and Hours per week), `monthly.js`, `clock.js`, `discovery.js`
+  (First listen), `community.js`. Import them from `charts.js`.
+- `colors.js`: `tokens()`, `mix`, `alpha`. `format.js`: `esc`, `fmtDay`, the hours formats, `MON`. Use these rather than
+  a local copy.
 - `motion.js`: timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, `tweenNumber`, `flip`, `dur`, `litLook`.
-- `state.js`: `state`, small readers (`rangePlays`, `shownPlays`, `presetRange`…), `hooks`. **The period is
-  `state.range`, `{lo, hi}` inclusive day indices, not a year;** presets set it, a brush pick shows as "Custom".
+- `state.js`: `state`, small readers (`rangePlays`, `shownPlays`, `presetRange`, `chartColor`…), `hooks`, `WINDOWS`,
+  `MAX_PINS`. **The period is `state.range`, `{lo, hi}` inclusive day indices, not a year;** presets set it, a brush
+  pick shows as "Custom". `state.mixArgs` is the rolling chart's artists, slots and pins as its followers last drew
+  them: graphs read it there, not from `rollingview.js`.
 - `main.js`: entry point: loading, tabs, controls, sharing, the view switch, `renderAll` / `renderDependents`.
 - `period.js`: the sticky bar's period controls and live dragging (`liveRender`). `brush.js`: its timeline and window.
 - `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`, pins,
@@ -67,12 +73,17 @@ All in `js/` unless noted; each file's own comments have the details.
 - `theme.js`: palettes and light/dark. `tune.js`: the Visual tweaks sliders (`TUNES`) and `.tweak-only`; imports nothing.
 - `views.js`: plays as each view sees them (`keyedPlays`). `genres.js`, `families.js`: the Genres view's data.
 - `every.js`: "Every play" and "Every day", drawn on their own canvas (per-artist `Path2D`s, eased looks, crossfades).
-- `race.js`: "Top … over time". `mix.js`: the mix bar. `skips.js`: skips and picks. `sunburst.js`: "Inside your top …", the rings under it. `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB.
+- `race.js`: "Top … over time". `rankrace.js`: "Rank race", a bump chart. `mix.js`: the mix bar. `skips.js`: skips and
+  picks. `sunburst.js`: "Inside your top …", the rings under it. `ranking.js`: "All your …", every item by hours.
+  `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB. `sample.js`: "Try it with sample data".
 - `covers.js`: pictures (see below). `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the
   community pool. `feedback.js`: "Missing something?" and the owner's inbox (`#inbox`).
 
 **Imports are one-way:** `tune.js` → `state.js` → `views.js`, `theme.js`, `rollingview.js` → `key.js` → `period.js` →
-`main.js`. A call the other way goes through `hooks`, filled by `main.js` at startup.
+`main.js`. A call the other way goes through `hooks`, filled by `main.js` at startup. `format.js` and `colors.js`
+import only `aggregate.js` and `motion.js`; `charts/` imports `state.js` and `tune.js`, never a page module. The graphs
+(`race.js`, `rankrace.js`, `ranking.js`, `sunburst.js`…) take what they need from `state.js` and `charts.js`, not
+from `rollingview.js`.
 
 ## Read the doc before touching its area
 

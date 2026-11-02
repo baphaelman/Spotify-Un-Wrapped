@@ -35,7 +35,7 @@ matches what is moving.
   - **the others** dim a little while something is only hovered (`dimHover`), and more while something is pinned (`dim`).
 
   The steps are tokens, so every graph agrees: `--shade-*` for graph fills (band, hover, pin, pin-hover, dim,
-  dim-hover; `charts.js` reads them into `t.shade[look]`, `brush.js` uses them as CSS), `--shade-line*` for the fill
+  dim-hover; `colors.js` reads them into `t.shade[look]`, `brush.js` uses them as CSS), `--shade-line*` for the fill
   under an Hours line (faint enough that overlapping pins just blend), `--fade-dim*` for how dimmed lines show, and
   for HTML each kind sets its own hover wash `--tint`, times `--lit-pin` when pinned and `--lit-pin-hover` when
   pinned and hovered, with `--dim-item*` for the dimmed ones. A graph with its own scale (the monthly bars,

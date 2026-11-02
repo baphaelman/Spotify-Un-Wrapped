@@ -41,7 +41,7 @@
   --seq-5: #f2f4f4;
   /* The hover/pin rule (docs/motion.md, motion.js litLook): a hover shades, a pin shades deeper and outlines, a
      hovered pin is deeper still; the others dim a little while something is only hovered, more while something
-     is pinned. Graph fills (charts.js, brush.js): the share of the artist's color mixed into the surface for a
+     is pinned. Graph fills (charts/, brush.js): the share of the artist's color mixed into the surface for a
      band at rest, hovered, pinned, pinned and hovered, and the others while a pin (dim) or only a hover
      (dim-hover) lights something; then the opacity of the fill under a hovered, pinned, and hovered pinned hours
      line (faint enough that overlapping pins just blend) */
@@ -572,7 +572,7 @@ button.ghost:hover { background: var(--border); }
 .chart.tall { height: 480px; }
 /* The rolling chart's hours, tucked under its axis labels */
 .chart.strip { height: 400px; margin-top: 0; }
-/* Its frame: the page's side of the strip's height, which glides as the ridges come and go (charts.js sizeStrip) */
+/* Its frame: the page's side of the strip's height, which glides as the ridges come and go (charts/rolling.js sizeStrip) */
 .strip-frame { position: relative; margin-top: 16px; }
 .hours-controls { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; column-gap: 24px; row-gap: 8px; }
 .hours-controls .slider.tav-window { margin-top: 12px; }
@@ -584,7 +584,7 @@ button.ghost:hover { background: var(--border); }
 }
 .ridge-switch:hover, .ridge-switch[aria-checked="true"] { color: var(--text-primary); }
 .ridge-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-/* The strip's names, left of the plot (charts.js paintRidgeNames), each before a dash of its color, level with its line's left end.
+/* The strip's names, left of the plot (charts/rolling.js paintRidgeNames), each before a dash of its color, level with its line's left end.
    138px is its RIDGE_LEFT (150) less a gap. */
 .ridge-names { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ridge-name {
@@ -600,7 +600,7 @@ button.ghost:hover { background: var(--border); }
 .ridge-name.pinned { color: var(--text-primary); font-weight: 600; }
 .ridge-name.focus { color: var(--text-primary); }
 @media (prefers-reduced-motion: reduce) { .ridge-name { transition: none; } }
-/* First listen's key, right of the plot while its names would overlap beside their dots (charts.js paintFoundKey):
+/* First listen's key, right of the plot while its names would overlap beside their dots (charts/discovery.js paintFoundKey):
    each after a dash of its color, in the period bar's order. 152px is FOUND_KEY_W (168) less a gap; its top is the
    chart's margin and its grid's top. */
 .found-frame { position: relative; }
@@ -665,10 +665,10 @@ button.ghost:hover { background: var(--border); }
 .canvas-tip.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .grid-chart, .canvas-tip { transition: none; } }
 #chart-discovery { height: 400px; }
-/* The lines under Hours per month's captions (charts.js paintUnderlines): their lengths morph with the bars,
+/* The lines under Hours per month's captions (charts/monthly.js paintUnderlines): their lengths morph with the bars,
    their thickness and color answer a hover */
 #chart-monthly { position: relative; }
-/* Above the fading frame of a crossfade (charts.js fadeOutFrame), so the lines morph through it */
+/* Above the fading frame of a crossfade (charts/monthly.js fadeOutFrame), so the lines morph through it */
 .month-lines { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .month-lines > div {
   position: absolute;
@@ -1384,7 +1384,7 @@ dialog pre {
   content: "No listening in this span"; position: absolute; inset: 0; display: grid; place-items: center;
   font-size: 12px; color: var(--text-muted); pointer-events: none;
 }
-/* The readout beside the pointer, as the graphs' (charts.js tooltipBase): the slice's path, its hours and share */
+/* The readout beside the pointer, as the graphs' (charts/core.js tooltipBase): the slice's path, its hours and share */
 .sun-tip {
   position: absolute; left: 0; top: 0; z-index: 2; max-width: 260px; pointer-events: none;
   padding: 8px 12px; border: 1px solid var(--grid); border-radius: 8px; background: var(--surface);

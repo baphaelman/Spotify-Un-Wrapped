@@ -1,4 +1,4 @@
-// The page's side of the rolling chart (renderRolling in charts.js draws it): its artists and colors, the
+// The page's side of the rolling chart (renderRolling in charts/rolling.js draws it): its artists and colors, the
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
