@@ -241,32 +241,6 @@
         <div id="sunburst" class="sunburst"></div>
       </article>
 
-      <!-- Each shown artist's plays over the period: picked / played through / skipped (skips.js) -->
-      <article class="card" id="skips-card" hidden>
-        <div class="mix-head">
-          <div>
-            <h2>Skips and picks</h2>
-            <p class="muted" id="skips-sub"></p>
-          </div>
-          <!-- This graph's own, apart from the rolling chart's -->
-          <label class="other-toggle"><input id="skips-other" type="checkbox"><span class="swatch"></span><span id="skips-other-label">Everyone else</span></label>
-        </div>
-        <!-- Lined up with the rows: the key over the top bar's parts, then the rates' columns -->
-        <div id="skips-head" class="skips-head muted">
-          <span></span>
-          <span class="skips-key">
-            <span title="You clicked the song in a list"><i class="picked"></i>picked</span>
-            <span title="It came up next"><i class="on"></i>played through</span>
-            <span title="Marked skipped or ended with the next button (a picked song you skipped counts here)"><i class="skipped"></i>skipped</span>
-          </span>
-          <span class="num">picked</span>
-          <span class="num">skipped</span>
-        </div>
-        <ol id="skips-list" class="skips-list"></ol>
-        <p id="skips-note" class="muted" hidden>Skips and picks show once your files are read again
-          (what this device remembered from before doesn't have them). <button type="button" id="skips-reread">Choose files</button></p>
-      </article>
-
       <article class="card" id="rolling-card">
         <div class="tav-head">
           <div>
@@ -325,11 +299,23 @@
             </div>
           </div>
           <!-- Each one's line as a ridge of its own (charts.js setRidges) -->
-          <button id="ridges" class="ridge-switch" type="button" role="switch" aria-checked="false"><span id="ridges-label">Separate artists</span><span class="switch" aria-hidden="true"></span></button>
+          <button id="ridges" class="ridge-switch" type="button" role="switch" aria-checked="true"><span id="ridges-label">Separate artists</span><span class="switch" aria-hidden="true"></span></button>
         </div>
         <div class="strip-frame">
           <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
           <div class="ridge-names" aria-hidden="true"></div>
+        </div>
+      </article>
+
+      <!-- Where every top item stood, month by month (rankrace.js) -->
+      <article class="card" id="rank-card">
+        <h2>Rank race</h2>
+        <p class="muted" id="rank-note"></p>
+        <!-- The readout and the pointer's marker are drawn over the chart, scrubbing with the pointer (rankrace.js) -->
+        <div class="rank-frame">
+          <div id="chart-rank" class="chart rank-chart"></div>
+          <div class="rank-cursor" aria-hidden="true"></div>
+          <div class="rank-tip" aria-hidden="true"><div class="rank-tip-head"></div><div class="rank-tip-rows"></div></div>
         </div>
       </article>
 
@@ -456,16 +442,30 @@
         </div>
       </article>
 
-      <!-- Where every top item stood, month by month (rankrace.js) -->
-      <article class="card" id="rank-card">
-        <h2>Rank race</h2>
-        <p class="muted" id="rank-note"></p>
-        <!-- The readout and the pointer's marker are drawn over the chart, scrubbing with the pointer (rankrace.js) -->
-        <div class="rank-frame">
-          <div id="chart-rank" class="chart rank-chart"></div>
-          <div class="rank-cursor" aria-hidden="true"></div>
-          <div class="rank-tip" aria-hidden="true"><div class="rank-tip-head"></div><div class="rank-tip-rows"></div></div>
+      <!-- Each shown artist's plays over the period: picked / played through / skipped (skips.js) -->
+      <article class="card" id="skips-card" hidden>
+        <div class="mix-head">
+          <div>
+            <h2>Skips and picks</h2>
+            <p class="muted" id="skips-sub"></p>
+          </div>
+          <!-- This graph's own, apart from the rolling chart's -->
+          <label class="other-toggle"><input id="skips-other" type="checkbox"><span class="swatch"></span><span id="skips-other-label">Everyone else</span></label>
         </div>
+        <!-- Lined up with the rows: the key over the top bar's parts, then the rates' columns -->
+        <div id="skips-head" class="skips-head muted">
+          <span></span>
+          <span class="skips-key">
+            <span title="You clicked the song in a list"><i class="picked"></i>picked</span>
+            <span title="It came up next"><i class="on"></i>played through</span>
+            <span title="Marked skipped or ended with the next button (a picked song you skipped counts here)"><i class="skipped"></i>skipped</span>
+          </span>
+          <span class="num">picked</span>
+          <span class="num">skipped</span>
+        </div>
+        <ol id="skips-list" class="skips-list"></ol>
+        <p id="skips-note" class="muted" hidden>Skips and picks show once your files are read again
+          (what this device remembered from before doesn't have them). <button type="button" id="skips-reread">Choose files</button></p>
       </article>
 
       <article class="card" id="ranking-card">

@@ -35,12 +35,6 @@ How your listening time split between your top artists in the period, with pictu
 
 The same artists opened up into rings: each artist, then their albums, then their songs, sized by hours and labeled with their share of the period where it fits. Click a slice to zoom into it, and click the middle circle to come back out. Switching tabs keeps you on the same thing where it's there: an album you opened under its artist stays open in Albums, and back in Artists you can step out to its artist again. In the Albums view it's each album's songs, and in Genres each genre's artists and then their albums (it doesn't show in Tracks).
 
-### Skips and picks
-
-For each of those artists, a bar of their plays in the period: the songs you picked yourself (clicked in a list), the
-ones that just came up next, and the ones you skipped, in shades of their color, with how often you picked and skipped
-them beside it. Hover for their hours and plays; click to pin. A switch adds everyone else, for comparison.
-
 ### Top Artists View
 
 Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in. Toggle **Everyone else** to add the rest of your listening as a gray band on top.
@@ -49,9 +43,13 @@ Each selected artist's share of your listening as stacked bands. Each point aver
 
 The same data as above, but not stacked nor normalized. More about seeing your listening time than an artist breakdown.
 
-The names are listed at the left, each level with where its line starts at the left edge (nudged apart where those meet), before a dash of its color: hover one to light its line, click to pin it. Flip the **Separate artists** switch (or albums, tracks, genres) and the lines spread into ridgelines beside their names: each one's hours on its own baseline, all on one shared scale, so you can see when each one came and went without the lines piling up. Hovering anywhere lists everyone's hours that week, biggest first.
+The names are listed at the left, each level with where its line starts at the left edge (nudged apart where those meet), before a dash of its color: hover one to light its line, click to pin it. By default the lines are spread into ridgelines beside their names: each one's hours on its own baseline, all on one shared scale, so you can see when each one came and went without the lines piling up; flip the **Separate artists** switch (or albums, tracks, genres) off to put them back on one scale as plain lines. Hovering anywhere lists everyone's hours that week, biggest first.
 
 ![Hours per week](docs/images/hours.png)
+
+### Rank race
+
+Where everything that ever reached your top 16 stood, month by month. Each item's rank is taken over the months around each month, so a phase reads as a line. The circles are the data: where an item really was on the chart. Between them a line dives below the bottom and comes back, deeper the further down it was. Your chart's artists keep their colors; the rest are gray, behind them, and your artists are named at their best point. Hover anywhere to read the whole month: every rank in a card beside a soft column that marks the month you're on. There the circles ride their lines and the rest shrink away; move to another month and the column, the circles (along their lines, diving through the floor and back) and the card's rows glide there together, the rows overtaking each other like the bars of a race. Gray artists stay unnamed unless you hover one in the column. Sweep along the **Timeline** above #1 to watch the race without lighting anyone; dip below it and the pointer is always on someone, whoever in the column is nearest, lit there and across the page. Click on the timeline to pin the column there (it, its names and the card stay put until you click it again, and meanwhile you can move onto the card to light its artists and pin or unpin them from their rows); below, clicking pins whoever is lit (one that isn't in your chart joins it). Over long periods the chart steps by 3 months, 6 months or a year, as Top [Tab] Every [Month] does. The *Visual tweaks* switch gives sliders for circle sizes, line widths, opacities, dimming, how many lines show, and the look of the line that marks where you are.
 
 ### Top Artists over time
 
@@ -80,9 +78,11 @@ A calendar of the period, each day tinted by its top artist and darker the more 
 
 Everyone you found in the period. Each dot is an artist (or album, or track, following the tab; on the Genres tab, a track in its genre's color) you heard for the first time in the period, placed across the period at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names beside them, or, when two names would collide, in a key at the right, which lights and pins them just like their dots. They light up with the rest of the page. Hover anywhere to read the nearest find: when you first heard it, the song you heard it through and its album (a track's album, on the tracks tab), its genre on the Genres tab, and its hours. On the Genres tab the key always shows, listing the genres. Click to pin it. The *Listening Threshold* at the top right (1, 3, 5, 10, 30 minutes or 1 hour) hides finds you've listened to less than that all time; they still count in the total above.
 
-### Rank race
+### Skips and picks
 
-Where everything that ever reached your top 16 stood, month by month. Each item's rank is taken over the months around each month, so a phase reads as a line. The circles are the data: where an item really was on the chart. Between them a line dives below the bottom and comes back, deeper the further down it was. Your chart's artists keep their colors; the rest are gray, behind them, and your artists are named at their best point. Hover anywhere to read the whole month: every rank in a card beside a soft column that marks the month you're on. There the circles ride their lines and the rest shrink away; move to another month and the column, the circles (along their lines, diving through the floor and back) and the card's rows glide there together, the rows overtaking each other like the bars of a race. Gray artists stay unnamed unless you hover one in the column. Sweep along the **Timeline** above #1 to watch the race without lighting anyone; dip below it and the pointer is always on someone, whoever in the column is nearest, lit there and across the page. Click on the timeline to pin the column there (it, its names and the card stay put until you click it again, and meanwhile you can move onto the card to light its artists and pin or unpin them from their rows); below, clicking pins whoever is lit (one that isn't in your chart joins it). Over long periods the chart steps by 3 months, 6 months or a year, as Top [Tab] Every [Month] does. The *Visual tweaks* switch gives sliders for circle sizes, line widths, opacities, dimming, how many lines show, and the look of the line that marks where you are.
+For each of those artists, a bar of their plays in the period: the songs you picked yourself (clicked in a list), the
+ones that just came up next, and the ones you skipped, in shades of their color, with how often you picked and skipped
+them beside it. Hover for their hours and plays; click to pin. A switch adds everyone else, for comparison.
 
 ### All your artists
 

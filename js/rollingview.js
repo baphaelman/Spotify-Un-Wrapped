@@ -66,7 +66,8 @@ linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 // Days per slice has a slider in each card, kept in step. #window is the one the page reads; the other passes
 // its moves on to it, and both glide together
 const windowSliders = [$("window"), $("hours-window")];
-// "Separate artists": the strip's lines as ridgelines, morphing between the two
+// "Separate artists": the strip's lines as ridgelines (on to begin with), morphing between the two
+setRidges($("chart-rolling-hours"), true);
 $("ridges").addEventListener("click", (e) => {
   const on = e.currentTarget.getAttribute("aria-checked") !== "true";
   e.currentTarget.setAttribute("aria-checked", on);
