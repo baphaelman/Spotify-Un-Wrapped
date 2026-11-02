@@ -607,7 +607,7 @@ button.ghost:hover { background: var(--border); }
 /* Rank race's readout (rankrace.js scrub): a row per item, placed by its rank between the two slices either side of
    the pointer (--y, in rows), so the rows overtake each other as the pointer moves */
 .rank-frame { position: relative; }
-.rank-tip { --row: 18px; position: absolute; top: 0; left: 0; width: 240px; padding: 8px 8px 6px; background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 12px; pointer-events: none; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out), transform var(--motion-chase) var(--ease-out); z-index: 2; }
+.rank-tip { --row: 18px; position: absolute; top: 0; left: 0; width: 240px; padding: 8px 8px 6px; background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 12px; pointer-events: none; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); z-index: 2; }
 .rank-tip.on { opacity: 1; }
 .rank-tip-head { margin: 0 4px 4px; font-weight: 600; }
 .rank-tip-head small { color: var(--text-muted); font-weight: 400; margin-left: 4px; }
@@ -624,8 +624,6 @@ button.ghost:hover { background: var(--border); }
 .rank-frame[data-look="1"] .rank-cursor { width: 1px; background: var(--text-muted); }
 .rank-frame[data-look="2"] .rank-cursor { width: var(--slice); background: color-mix(in srgb, var(--text-primary) 8%, transparent); border-radius: 0; }
 .rank-frame[data-look="2"] .rank-cursor.on { opacity: 1; }
-/* The columns center on the slice nearest the pointer, gliding from one to the next */
-.rank-frame:is([data-look="2"], [data-look="3"]) .rank-cursor { transition: opacity var(--motion-fade) var(--ease-out), transform var(--motion-chase) var(--ease-out); }
 .rank-frame[data-look="3"] .rank-cursor { width: var(--slice); background: color-mix(in srgb, var(--text-primary) 8%, transparent); border-radius: 0; }
 .rank-frame[data-look="3"] .rank-cursor::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--text-primary); opacity: 0.8; }
 .rank-frame[data-look="3"] .rank-cursor.on { opacity: 1; }
