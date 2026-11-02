@@ -194,7 +194,6 @@ const ridged = new WeakSet();
 const STRIP_H = 400; // the strip's height as lines (.chart.strip in css/style.css)
 const STRIP_TOP = 14, STRIP_BOTTOM = 28, RIDGE_PEAK = 90, RIDGE_LEFT = 150;
 const NAME_H = 16, NAME_PITCH = 18; // the strip's names (.ridge-name), and their spacing as lines (or the ridges', if closer)
-const TAPER_PX = 56; // how far in from the plot's left edge the strip's lines rise from their names to their values
 export function setRidges(strip, on) {
   if (on === ridged.has(strip)) return;
   if (on) ridged.add(strip);
@@ -915,10 +914,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // lies flat on the next row down's baseline, faded out; one leaving sinks onto its own. The scale is held through
   // an artist change's first step, which redraws what's on screen.
   // As lines, the strip lists the same names in the same order, packed up from the plot's floor, NAME_PITCH apart or
-  // the ridges' gap if that's closer: switching only spreads them up from the bottom one, if at all, and the lines
-  // rise to meet them. A hidden artist has no row or name, as if it weren't there.
-  // Each line starts at its name (lineY): from the left edge of the range it tapers up from its row to its values, over
-  // TAPER_PX. As lines the rows are in hours, so the strip sets its own axis top (the tallest shown line in range).
+  // the ridges' gap if that's closer: switching only spreads them up from the bottom one, if at all. A hidden artist has no row or name, as if it weren't there.
+  // As lines the strip sets its own axis top (the tallest shown line in range).
   let ridgeBase = null, ridgeK = 0, plotH = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
   const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
   const nameRows = isStrip && !share ? order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n))) : [];
@@ -940,22 +937,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const namePitch = Math.min(NAME_PITCH, tune.ridgeGap);
   const range = [Number.isFinite(zoom?.[0]) ? zoom[0] : data.dates[0], Number.isFinite(zoom?.[1]) ? zoom[1] : data.dates[data.dates.length - 1]];
   const stripMax = isStrip && !share && !ridge ? (artistCtx?.yMax ?? hoursTop(data, names, window, hasOther, st.selected, range)) : null;
-  // Each line's row as lines: its name's height, in hours
-  const nameBase = stripMax == null ? null : names.map((n) => {
-    const r = nameRows.indexOf(n);
-    return r < 0 ? 0 : ((nameRows.length - 1 - r) * namePitch * stripMax) / plotH;
-  });
-  const taperMs = ((range[1] - range[0]) * TAPER_PX) / Math.max(1, c.getWidth() - RIDGE_LEFT - 48);
-  const taper = !isStrip || share ? null : data.dates.map((d) => {
-    const x = Math.min(1, Math.max(0, (d - range[0]) / taperMs));
-    return x * x * (3 - 2 * x);
-  });
-  // An hours line's height on the plot: its hours, or as a ridge, its baseline plus its hours to scale; in the strip,
-  // risen from its name's row near the left edge
+  // An hours line's height on the plot: its hours, or as a ridge, its baseline plus its hours to scale. The strip's
+  // names stand apart at the left; no line runs to them
   const lineY = (s, i) => {
     const v = hoursAt(s, i);
-    if (v == null || !isStrip) return v;
-    return ridge ? ridgeBase[s] + v * ridgeK * taper[i] : nameBase[s] + (v - nameBase[s]) * taper[i];
+    return v == null || !ridge ? v : ridgeBase[s] + v * ridgeK;
   };
 
   // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in nSlots[k] slots for band k. In
