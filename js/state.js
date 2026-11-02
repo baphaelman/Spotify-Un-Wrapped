@@ -107,7 +107,7 @@ export function shownPlays() {
   return plays.filter((p) => !hidden.has(p.artist));
 }
 
-// Set by main.js at startup (renderAll, renderDependents, paintArtistKey, openPart, paintSunburst)
+// Set by main.js at startup (renderAll, renderDependents, paintArtistKey, openPart, paintSunburst, paintRankRace)
 export const hooks = {};
 
 // Cards well off screen aren't redrawn on every change (each step of a drag of the period window, a sweep), only as

@@ -146,6 +146,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     paintClock();
     paintEvery();
     paintDiscovery();
+    hooks.paintRankRace(); // rankrace.js, through main.js
     hooks.paintSunburst(); // sunburst.js, through main.js
     paintBrush();
   }

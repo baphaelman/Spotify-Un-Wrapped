@@ -602,6 +602,7 @@ button.ghost:hover { background: var(--border); }
    each after a dash of its color, in the period bar's order. 152px is FOUND_KEY_W (168) less a gap; its top is the
    chart's margin and its grid's top. */
 .found-frame { position: relative; }
+.rank-chart { height: 520px; }
 .found-key {
   position: absolute; top: 20px; right: 0; width: 152px; max-height: calc(100% - 48px); overflow: hidden;
   display: flex; flex-direction: column; gap: 2px; opacity: 0; pointer-events: none;

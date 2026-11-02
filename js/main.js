@@ -21,12 +21,13 @@ import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
 import { paintRanking } from "./ranking.js";
+import { paintRankRace, focusRankRace } from "./rankrace.js";
 import { paintRace, paintRate } from "./race.js";
 import { loadSample } from "./sample.js";
 import { paintSunburst, focusSunburst } from "./sunburst.js";
 
 // The modules under this one call these back through hooks (state.js)
-Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintSunburst: () => paintSunburst() });
+Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintSunburst: () => paintSunburst(), paintRankRace: () => paintRankRace() });
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];
@@ -279,6 +280,7 @@ function retune(card) {
   else if (card === "clock-card") paintClock();
   else if (card === "raster-card") paintEvery();
   else if (card === "discovery-card") paintDiscovery();
+  else if (card === "rank-card") paintRankRace();
   else if (card === "mix-card") placeMix();
   else if (card === "skips-card" && mixArgs) renderMix(...mixArgs);
   else if (card === "race-card") paintRate();
@@ -489,6 +491,7 @@ function renderDependents(charts = true) {
     paintClock(plays);
     paintEvery(plays);
     paintDiscovery();
+    paintRankRace();
     paintSunburst(plays);
   }
   paintRanking();
@@ -518,6 +521,7 @@ onFocusChange($("chart-rolling"), (name) => {
   focusEvery($("chart-raster"), name);
   focusEvery($("chart-calendar"), name);
   focusDiscovery($("chart-discovery"), name);
+  focusRankRace(name);
   focusSunburst(name);
   setBrushFocus(name);
   paintBrush(undefined, brushMorph ?? { ms: FADE_MS });

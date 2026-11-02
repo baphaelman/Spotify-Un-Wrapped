@@ -80,6 +80,10 @@ A calendar of the period, each day tinted by its top artist and darker the more 
 
 Everyone you found in the period. Each dot is an artist (or album, or track, following the tab; on the Genres tab, a track in its genre's color) you heard for the first time in the period, placed across the period at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names beside them, or, when two names would collide, in a key at the right, which lights and pins them just like their dots. They light up with the rest of the page. Hover anywhere to read the nearest find: when you first heard it, the song you heard it through and its album (a track's album, on the tracks tab), its genre on the Genres tab, and its hours. On the Genres tab the key always shows, listing the genres. Click to pin it.
 
+### Rank race
+
+Where everything that ever reached your top 20 stood, month by month (quarter by quarter over long periods). Each item's rank is taken over the months around each month, so a phase reads as a line. The circles are the data: where an item really was on the chart. Between them a line dives below the bottom and comes back, deeper the further down it was. Your chart's artists keep their colors; the rest are gray, behind them, and every line is named at its best point (grays are written over whatever is there). Hover to light one; click one of yours to pin it. The *Visual tweaks* switch gives sliders for circle sizes, line widths, opacities, dimming and how many lines show.
+
 ### All your artists
 
 The full ranking for the period, with hours and plays. Scroll to see literally all of it.
