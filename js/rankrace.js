@@ -578,9 +578,11 @@ function draw() {
   const ox = el.offsetLeft, oy = el.offsetTop, w = tip.offsetWidth, ht = tip.offsetHeight, W = frame.clientWidth;
   const cx = ox + x;
   const left = cx - slice / 2 - w - 8 >= 0 ? cx - slice / 2 - w - 8 : Math.min(cx + slice / 2 + 8, W - w);
-  // (beside the pointer, or where it was when the column was pinned)
-  let top = Math.max(0, Math.min(frame.clientHeight - ht, oy + (pointer?.[1] ?? 0) - ht / 2));
-  if (colPin != null) top = pinTop ??= pointer ? top : 0;
+  // (beside the pointer, or where it was when the column was pinned; always under the timeline, so its stops and
+  // dates stay in sight on either side of the column)
+  const under = oy + laneY(MAX) + TL_END_R + 6;
+  let top = Math.max(under, Math.min(frame.clientHeight - ht, oy + (pointer?.[1] ?? 0) - ht / 2));
+  if (colPin != null) top = pinTop ??= pointer ? top : under;
   tip.style.transform = `translate(${left}px, ${top}px)`;
   tip.classList.add("on");
   tip.classList.toggle("held", colPin != null);
