@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, dur, litLook } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { renderRaster, renderCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
@@ -330,10 +330,10 @@ function restFloor(to) {
   getComputedStyle(ticks).color; // apply the change with transitions off
   ticks.classList.remove("settle");
 }
-function glideFloor(to) {
+function glideFloor(to, tier) {
   const input = $("discovery-floor"), ticks = input.closest(".slider").querySelector(".ticks");
   cancelAnimationFrame(floorGlide);
-  const from = floorAt, ms = dur(MORPH_MS);
+  const from = floorAt, ms = dur(tier);
   if (!ms || from === to) return restFloor(to);
   input.step = "any";
   let label = ticks.querySelector(".glide");
@@ -363,10 +363,7 @@ function paintFloor() {
   const at = i >= FLOORS.length - 1 ? i : i + (v - FLOORS[i]) / (FLOORS[i + 1] - FLOORS[i]);
   const input = $("discovery-floor");
   input.setAttribute("aria-valuetext", v >= 60 ? "1 hour" : `${v} min`);
-  if (input.matches(":active")) {
-    cancelAnimationFrame(floorGlide);
-    restFloor(at);
-  } else glideFloor(at);
+  glideFloor(at, input.matches(":active") ? CHASE_MS : MORPH_MS); // a drag's thumb chases the pointer rather than lagging it
 }
 let heardMemo = null;
 export function paintDiscovery() {
@@ -383,8 +380,8 @@ export function paintDiscovery() {
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
   paintFloor();
   const { one, many } = genre ? NOUN.track : noun();
-  $("discovery-note").textContent = `You discovered ${found.length.toLocaleString()} ${found.length === 1 ? one : many} over this period`;
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.group ?? x.name));
+  tweenNumber($("discovery-note"), shown.length, { format: (n) => `You discovered ${Math.round(n).toLocaleString()} ${Math.round(n) === 1 ? one : many} over this period` });
   // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
   const most = shown.reduce((m, x) => Math.max(m, x.hours), floor);
   const top = Math.max(1, most * 1.6);
