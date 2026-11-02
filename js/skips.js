@@ -1,5 +1,5 @@
 // Skips and picks: one bar per shown artist (or track, album, genre), its plays over the period split into picked
-// (you clicked the song in a list), played on (it came up next) and skipped (marked skipped, or ended with the next
+// (you clicked the song in a list), played through (it came up next) and skipped (marked skipped, or ended with the next
 // button), in shades of its color. A picked song you skipped counts as skipped. See aggregate.isPick, isSkip.
 // Drawn from the same artists, colors and period as the listening mix (rollingview.renderMix); hovering a row lights
 // the artist everywhere, clicking pins them. Rows are kept per artist: their parts glide to new sizes, rows move to
@@ -81,7 +81,7 @@ export function updateSkips(next) {
     const i = ctx.names.indexOf(name);
     r.row.style.setProperty("--c", name === OTHER ? "var(--other)" : `var(--series-${(ctx.slots?.[i] ?? i) + 1})`);
     const { plays: n, skip, pick, both, hours } = totals.get(name);
-    // picked (and not skipped) / played on / skipped
+    // picked (and not skipped) / played through / skipped
     [pick - both, n - skip - pick + both, skip].forEach((v, k) => (r.parts[k].style.flexGrow = v / n));
     tweenNumber(r.pickEl, (pick / n) * 100, { format: (v) => pct(v / 100) });
     tweenNumber(r.skipEl, (skip / n) * 100, { format: (v) => pct(v / 100) });
