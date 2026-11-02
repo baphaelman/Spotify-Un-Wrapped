@@ -228,9 +228,10 @@ function sizeStrip(el, c, h, ms) {
   el._settle = setTimeout(settle, ms);
 }
 
-// The ridges' names, left of each baseline: HTML over the chart, so a long one ellipsizes. at: name -> its
-// baseline's y in the frame, for the artists with a ridge; the rest fade out. They glide with the morph.
-function paintRidgeNames(el, at, ms, pinned) {
+// The strip's names at its left, each beside a dash of its color: HTML over the chart, so a long one ellipsizes. at:
+// [name, y of its foot in the frame] (a ridge's baseline, or its place in the list), for the artists drawn; the rest
+// fade out. They glide with the morph.
+function paintRidgeNames(el, at, ms, pinned, colors) {
   const box = el.parentElement.querySelector(".ridge-names");
   if (!box) return;
   box.style.setProperty("--ridge-ms", `${ms}ms`);
@@ -248,6 +249,7 @@ function paintRidgeNames(el, at, ms, pinned) {
       n.getBoundingClientRect(); // (so it fades in where it is)
     }
     n.style.transform = place;
+    n.style.setProperty("--c", colors.get(name));
     n.classList.add("on");
     n.classList.toggle("pin", pinned.has(name));
     have.delete(name);
@@ -903,10 +905,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // the artists it's coming from, then going to (withArtistMorph). An artist without a row (hidden, or not arrived)
   // lies flat on the next row down's baseline, faded out; one leaving sinks onto its own. The scale is held through
   // an artist change's first step, which redraws what's on screen.
+  // As lines, the strip lists the same names in the same order, packed at the top of its left margin, so switching
+  // only spaces them out (and the lines with them)
   let ridgeBase = null, ridgeK = 0, plotH = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
+  const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
+  const nameRows = isStrip && !share ? order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n))) : [];
   if (ridge) {
-    const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
-    const rows = order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n)));
+    const rows = nameRows;
     const at = new Map(rows.map((n, r) => [n, (rows.length - 1 - r) * tune.ridgeGap]));
     const nextRow = (list, n) => list.slice(list.indexOf(n) + 1).find((m) => at.has(m));
     ridgeBase = names.map((n, s) =>
@@ -1303,8 +1308,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.still = !st.tweens; // (see stillChart)
   if (isStrip) {
     sizeStrip(el, c, STRIP_TOP + plotH + STRIP_BOTTOM, dur(ms));
-    const at = ridge ? [...st.ridgeRows].map(([n, b]) => [n, STRIP_TOP + plotH - b]) : [];
-    paintRidgeNames(el, at, dur(ms), new Set([...base].map((k) => names[k])));
+    const at = ridge
+      ? [...st.ridgeRows].map(([n, b]) => [n, STRIP_TOP + plotH - b])
+      : nameRows.map((n, r) => [n, STRIP_TOP + (r + 1) * RIDGE_NAME_H]);
+    paintRidgeNames(el, at, dur(ms), new Set([...base].map((k) => names[k])), new Map(names.map((n, k) => [n, colors[k]])));
   }
 
   // An open tooltip still points at the series it was drawn from, and throws once one of them is removed (by a
@@ -1326,7 +1333,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
       // The strip's plot is placed from the top, so its canvas can grow or shrink under it (sizeStrip)
       grid: isStrip
-        ? { left: ridge ? RIDGE_LEFT : 48, right: 16, top: STRIP_TOP, height: plotH, bottom: null }
+        // (the same left and right as lines or ridges: the names stay at the left, the hours axis at the right)
+        ? { left: RIDGE_LEFT, right: 48, top: STRIP_TOP, height: plotH, bottom: null }
         : { left: 48, right: 16, top: 12, bottom: 28 },
       // The key is HTML in the period bar (key.js paintArtistKey), and which artists are shown is st.selected. ECharts'
       // legend is hidden and shows every series: a hidden artist's is drawn with no thickness (share) or on 0 and faded
@@ -1355,6 +1363,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         interval: share ? 0.25 : null,
         splitNumber: isStrip ? 2 : 4,
         ...baseAxis(t),
+        position: isStrip ? "right" : "left",
         axisLine: { show: false },
         // Ridges have no hours axis: the readout gives each one's hours
         axisLabel: { show: !ridge, color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },

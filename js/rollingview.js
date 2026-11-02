@@ -66,7 +66,11 @@ linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 // its moves on to it, and both glide together
 const windowSliders = [$("window"), $("hours-window")];
 // "Separate artists": the strip's lines as ridgelines, morphing between the two
-$("ridges").addEventListener("change", (e) => setRidges($("chart-rolling-hours"), e.target.checked));
+$("ridges").addEventListener("click", (e) => {
+  const on = e.currentTarget.getAttribute("aria-checked") !== "true";
+  e.currentTarget.setAttribute("aria-checked", on);
+  setRidges($("chart-rolling-hours"), on);
+});
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding; { stretch }
