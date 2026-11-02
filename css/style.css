@@ -621,6 +621,9 @@ button.ghost:hover { background: var(--border); }
 /* Where the pointer is, by the "Where you are" tweak (data-look on .rank-frame) */
 .rank-cursor { position: absolute; top: 0; left: 0; width: 3px; height: 0; pointer-events: none; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); background: var(--text-primary); border-radius: 2px; transform: translateX(calc(var(--x, 0px) - 50%)); z-index: 1; }
 .rank-cursor.on { opacity: 0.8; }
+/* A pinned column (a click on the timeline) is outlined */
+.rank-cursor { transition: opacity var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out); }
+.rank-cursor.pinned { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-primary) 55%, transparent); }
 .rank-frame[data-look="1"] .rank-cursor { width: 1px; background: var(--text-muted); }
 .rank-frame[data-look="2"] .rank-cursor { width: var(--slice); background: color-mix(in srgb, var(--text-primary) 8%, transparent); border-radius: 0; }
 .rank-frame[data-look="2"] .rank-cursor.on { opacity: 1; }

@@ -55,7 +55,7 @@ function chart(el) {
       paintTimeline();
     }).observe(el);
     // The lines don't take the pointer: scrub picks who it's on. A click pins them (one that isn't the chart's joins it)
-    c.getZr().on("click", () => st?.hovered != null && pointer && mixArgs?.[3]?.toggle(st.hovered));
+    c.getZr().on("click", (e) => clickAt(e.offsetX, e.offsetY));
     c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
     c.getZr().on("globalout", () => scrub(null));
   }
@@ -123,12 +123,13 @@ export function paintRankRace() {
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
   st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null };
   // (the column the pointer is over, set before drawing, so a redraw under the pointer doesn't cut its own morph short)
-  if (pointer && c && !c.isDisposed()) st.col = at = colAt(pointer[0]);
+  if (colPin != null && colPin >= rows.length) colPin = null;
+  if ((pointer || colPin != null) && c && !c.isDisposed()) st.col = at = colPin ?? colAt(pointer[0]);
   const cc = chart(el);
   el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
-  else setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS));
+  else morphPoints(() => setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS)), dur(MORPH_MS));
   paintTimeline();
   // The card and circles follow at once (a pin's color, new ranks)
   if (pointer) draw();
@@ -234,7 +235,7 @@ export function focusRankRace(name) {
   if (!st || !c || c.isDisposed()) return;
   if (st.hovered === name) return;
   st.hovered = name;
-  setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(FADE_MS));
+  morphPoints(() => setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(FADE_MS)), dur(FADE_MS));
   if (pointer) draw();
 }
 
@@ -245,45 +246,117 @@ export function focusRankRace(name) {
 // it; `shown` is how far the hover's look is in, 0 to 1 (the riders' names; as it leaves, the riders too).
 let pointer = null;
 let at = 0, shown = 0;
-let anim = 0; // the glide's frame
+let anim = 0, gliding = false; // the glide's frame
+let lastDraw = 0, settle = 0; // the riders' names ease toward being shown or not (see draw)
 let riders = null; // item -> { dot, text }: a circle per line, riding it at `at`
 let tlRider = null; // the timeline's
 const rowEls = new Map(); // item -> its row in the card
 
+const inLane = (y, rect) => y < rect.y - headroom() / 2; // (#1's names count as below)
 function scrub(x, y) {
   const rect = x != null && st && c && !c.isDisposed() ? gridRect() : null;
   if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < LANE_TOP || y > rect.y + rect.height) {
+    if (c && !c.isDisposed()) c.getZr().setCursorStyle("default");
     if (pointer) leave();
     return;
   }
+  c.getZr().setCursorStyle("pointer"); // (everywhere here a click pins: the column on the timeline, an artist below)
   const entering = !pointer;
   pointer = [x, y];
-  const k = colAt(x);
-  const who = y < rect.y - headroom() / 2 ? null : nearestAt(k, y, rect); // (#1's names count as below)
-  if (entering) {
+  // A pinned column stays where it is; the pointer still lights whoever in it is nearest
+  const k = colPin ?? colAt(x);
+  const who = inLane(y, rect) ? null : nearestAt(k, y, rect);
+  if (entering && colPin == null) {
     // The circles shrink into the lines while riders take their place in the column (the same size there, so only
     // the names coming in show); the card and column fade in where they are
     st.col = at = k;
-    setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
+    restyle(CHASE_MS);
     glide(k, 1, true);
   } else if (k !== st.col) {
     st.col = k;
-    setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
+    restyle(CHASE_MS);
     glide(k, 1);
   } else draw();
   hover(who);
 }
 
+// The series restyled for the hover (circles growing or shrinking over ms)
+const restyle = (ms) => morphPoints(() => setOptionFaded(c, { series: seriesOf(ms) }, undefined, dur(ms)), dur(ms));
+
 function leave() {
   pointer = null;
   hover(null);
+  if (colPin != null) return draw(); // (a pinned column, its names and card stay)
   const frame = $("chart-rank").parentElement;
   frame.querySelector(".rank-tip").classList.remove("on");
   frame.querySelector(".rank-cursor").classList.remove("on");
   if (!st || !c || c.isDisposed()) return;
   st.col = null;
-  setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
+  restyle(CHASE_MS);
   glide(at, 0);
+}
+
+// A click on the timeline pins the column there (a ring marks it on the timeline, a border on the column): it, its
+// names and the card stay put, even once the pointer leaves, until the same click unpins it. Below, a click pins the
+// lit artist.
+let colPin = null, pinTop = null;
+function clickAt(x, y) {
+  if (!st || !pointer) return;
+  const rect = gridRect();
+  if (!inLane(y, rect)) {
+    if (st.hovered != null) mixArgs?.[3]?.toggle(st.hovered);
+    return;
+  }
+  const k = colAt(x);
+  if (colPin === k) {
+    colPin = null;
+    return scrub(x, y); // (and it follows the pointer again)
+  }
+  colPin = k;
+  pinTop = null;
+  if (k !== st.col) {
+    st.col = k;
+    restyle(CHASE_MS);
+    glide(k, 1);
+  } else draw();
+}
+
+// ECharts swaps a line's circles' sizes and names at once: grow and shrink the circles over ms instead, from their
+// size on screen, and fade in the names that appear
+function morphPoints(apply, ms) {
+  const points = () => {
+    const out = new Map();
+    for (const m of c.getModel()?.getSeries() ?? []) {
+      const data = m.getData();
+      for (let i = 0; i < data.count(); i++) {
+        const el = data.getItemGraphicEl(i)?.childAt?.(0);
+        if (el) out.set(`${m.id}:${i}`, el);
+      }
+    }
+    return out;
+  };
+  const shownText = (el) => { const t = el.getTextContent?.(); return !!t && !t.ignore && !t.invisible; };
+  const before = new Map();
+  for (const [k, el] of points()) {
+    el.stopAnimation("size");
+    before.set(k, { sx: el.scaleX, sy: el.scaleY, named: shownText(el) });
+  }
+  apply();
+  if (!ms) return;
+  for (const [k, el] of points()) {
+    const b = before.get(k);
+    if (!b) continue;
+    const sx = el.scaleX, sy = el.scaleY;
+    if (sx !== b.sx || sy !== b.sy) {
+      el.attr({ scaleX: b.sx, scaleY: b.sy });
+      el.animateTo({ scaleX: sx, scaleY: sy }, { duration: ms, easing: EASE_OUT.echarts, scope: "size" });
+    }
+    if (shownText(el) && !b.named) {
+      const t = el.getTextContent(), o = t.style.opacity ?? 1;
+      t.setStyle({ opacity: 0 });
+      t.animateTo({ style: { opacity: o } }, { duration: ms, easing: EASE_OUT.echarts });
+    }
+  }
 }
 
 // One tick moves everything the hover moves: the column, the riders along their lines, the card and its rows. An
@@ -291,6 +364,7 @@ function leave() {
 function glide(to, toShown, jump = false) {
   cancelAnimationFrame(anim);
   const from = jump ? to : at, fromShown = shown, ms = dur(CHASE_MS), start = performance.now();
+  gliding = true;
   const tick = (now) => {
     // (a frame's time can be a little before the glide began: never ease outside 0..1, which would put `at` off the chart)
     const e = ms ? easeOut(Math.max(0, Math.min(1, (now - start) / ms))) : 1;
@@ -298,7 +372,10 @@ function glide(to, toShown, jump = false) {
     shown = fromShown + (toShown - fromShown) * e;
     draw();
     if (e < 1) anim = requestAnimationFrame(tick);
-    else if (!shown) dropRiders();
+    else {
+      gliding = false;
+      if (!shown) dropRiders();
+    }
   };
   anim = requestAnimationFrame(tick);
 }
@@ -336,6 +413,23 @@ function lineY(a, x, rect) {
   for (let k = 0; k < 18; k++) { const m = (lo + hi) / 2; if (bx(m) < x) lo = m; else hi = m; }
   const t = (lo + hi) / 2;
   return (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y0 + 3 * (1 - t) * t * t * y3 + t ** 3 * y3;
+}
+
+// The ring over the pinned column's dot on the timeline (x null for none), fading in and out
+let ring = null;
+function ringAt(x, y) {
+  const zr = c.getZr();
+  if (x == null) {
+    if (ring) { const r = ring; r.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts, done: () => zr.remove(r) }); }
+    ring = null;
+    return;
+  }
+  if (!ring) {
+    ring = new echarts.graphic.Circle({ silent: true, z: 4, style: { fill: "none", stroke: st.t.primary, lineWidth: 1.5, opacity: 0 } });
+    zr.add(ring);
+    ring.animateTo({ style: { opacity: 1 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
+  }
+  ring.attr({ shape: { cx: x, cy: y, r: TL_END_R + 3.5 } });
 }
 
 function dropRiders() {
@@ -378,6 +472,10 @@ function draw() {
   const n = rows.length, slice = rect.width / (n - 1), x = rect.x + at * slice;
   const pinned = pinnedSet();
   const floor = rect.y + rect.height;
+  const now = performance.now(), fade = dur(FADE_MS);
+  const ease = fade ? 1 - Math.exp(-Math.min(now - lastDraw, 34) / (fade / 3)) : 1;
+  lastDraw = now;
+  let unsettled = false;
 
   // The riders: a circle on each line at the column, hidden below the floor (clipped, as the lines are). The chart's
   // and pinned artists are named over theirs, and so is a gray one while it's lit; a name fades as it nears the floor
@@ -396,17 +494,21 @@ function draw() {
       riders.set(a, r);
     }
     const L = lookOf(a, pinned), y = lineY(a, x, rect);
-    const out = pointer ? 1 : shown; // (leaving, they fade with the rest)
+    const out = pointer || colPin != null ? 1 : shown; // (leaving, they fade with the rest)
     r.dot.attr({ shape: { cx: x, cy: y, r: L.size / 2 }, style: { fill: L.base, stroke: st.t.surface, lineWidth: L.col ? 1.5 : 1, opacity: Math.min(1, L.lineOp + 0.3) * out }, z: L.col ? (L.lit ? 13 : 12) : L.lit ? 12 : 10 });
     const named = L.col || pinned.has(a) || a === hovered;
+    // (a name eases in or out over FADE_MS rather than switching, e.g. a gray one as it's lit)
+    r.nm = r.nm == null ? +named : r.nm + (+named - r.nm) * ease;
+    if (Math.abs(+named - r.nm) < 0.01) r.nm = +named;
+    else unsettled = true;
     const depth = Math.max(0, Math.min(1, (floor + 4 - y) / 16));
     const ns = nameStyle(L);
     r.text.attr({
-      style: { text: shownName(a), x, y: y - L.size / 2 - (L.col ? 8 : 6), align: "center", verticalAlign: "bottom", font: `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`, fill: ns.color, stroke: ns.textBorderColor, lineWidth: ns.textBorderWidth, opacity: named ? shown * depth : 0 },
+      style: { text: shownName(a), x, y: y - L.size / 2 - (L.col ? 8 : 6), align: "center", verticalAlign: "bottom", font: `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`, fill: ns.color, stroke: ns.textBorderColor, lineWidth: ns.textBorderWidth, opacity: r.nm * shown * depth },
       z: L.col ? 15 : 14,
     });
     // (a name at either end stays whole on the canvas)
-    if (named) {
+    if (r.nm) {
       const half = r.text.getBoundingRect().width / 2, W = c.getWidth();
       r.text.attr({ style: { x: Math.max(half + 2, Math.min(W - half - 2, x)) } });
     }
@@ -417,7 +519,9 @@ function draw() {
   }
   // (within a slice of either end it swells to cover the end's bigger dot, so the two merge)
   const toEnd = Math.max(0, 1 - Math.min(at, n - 1 - at));
-  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_RIDER_R + (TL_END_R + 0.5 - TL_RIDER_R) * toEnd }, style: { fill: st.t.primary, opacity: pointer ? 1 : shown } });
+  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_RIDER_R + (TL_END_R + 0.5 - TL_RIDER_R) * toEnd }, style: { fill: st.t.primary, opacity: pointer || colPin != null ? 1 : shown } });
+  ringAt(colPin == null ? null : rect.x + colPin * slice, laneY(MAX));
+  if (unsettled && !gliding && !settle) settle = requestAnimationFrame(() => { settle = 0; draw(); });
 
   // The card: each row between its ranks in the slices either side of `at`, so as the column glides the rows
   // overtake each other; rows leaving the top ranks slide out at the bottom and fade
@@ -456,19 +560,22 @@ function draw() {
   for (const [a, li] of rowEls) if (!seen.has(a)) { li.remove(); rowEls.delete(a); }
   const head = tip.querySelector(".rank-tip-head");
   head.replaceChildren(labels[Math.round(at)], Object.assign(document.createElement("small"), { textContent: `hours ${unit === "month" ? "over the 3 months around it" : `that ${unit}`}` }));
-  if (!pointer) return; // (leaving: the card and column fade where they are)
+  if (!pointer && colPin == null) return; // (leaving: the card and column fade where they are)
 
   // The card beside the column, clear of its names, to its left where there's room
   const ox = el.offsetLeft, oy = el.offsetTop, w = tip.offsetWidth, ht = tip.offsetHeight, W = frame.clientWidth;
   const cx = ox + x;
   const left = cx - slice / 2 - w - 8 >= 0 ? cx - slice / 2 - w - 8 : Math.min(cx + slice / 2 + 8, W - w);
-  const top = Math.max(0, Math.min(frame.clientHeight - ht, oy + pointer[1] - ht / 2));
+  // (beside the pointer, or where it was when the column was pinned)
+  let top = Math.max(0, Math.min(frame.clientHeight - ht, oy + (pointer?.[1] ?? 0) - ht / 2));
+  if (colPin != null) top = pinTop ??= pointer ? top : 0;
   tip.style.transform = `translate(${left}px, ${top}px)`;
   tip.classList.add("on");
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
   const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
-  cursor.style.setProperty("--x", `${column ? cx : ox + pointer[0]}px`);
+  cursor.style.setProperty("--x", `${column || !pointer || colPin != null ? cx : ox + pointer[0]}px`);
+  cursor.classList.toggle("pinned", colPin != null);
   cursor.style.setProperty("--slice", `${slice}px`);
   cursor.style.top = `${oy + rect.y - room}px`;
   cursor.style.height = `${rect.height + room}px`;
