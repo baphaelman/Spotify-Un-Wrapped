@@ -1,6 +1,7 @@
 import { parseFiles, filesFromDataTransfer } from "./parse.js";
 import * as agg from "./aggregate.js";
 import { focusArtist, focusMonthly, focusClock, onFocusChange, onSelectionChange, hiddenIn, setHidden, currentZoom } from "./charts.js";
+import { focusEvery } from "./every.js";
 import { setBrushData, brushRange, glideBrushRange } from "./brush.js";
 import { FADE_MS, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { setupMix, highlightMix, placeMix } from "./mix.js";
@@ -14,7 +15,7 @@ import { askGenres } from "./genres.js";
 import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
-import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
+import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
@@ -271,6 +272,7 @@ function retune(card) {
   if (card === "rolling-card" || card === "hours-card") renderRollingChart(currentZoom($("chart-rolling")), true);
   else if (card === "monthly-card") paintMonthly();
   else if (card === "clock-card") paintClock();
+  else if (card === "raster-card") paintEvery();
   else if (card === "mix-card") placeMix();
   else if (card === "race-card") paintRate();
 }
@@ -478,6 +480,7 @@ function renderDependents(charts = true) {
   if (charts) {
     paintMonthly(plays);
     paintClock(plays);
+    paintEvery(plays);
   }
   paintRanking();
   paintRace();
@@ -501,6 +504,8 @@ onFocusChange($("chart-rolling"), (name) => {
   paintFocus(name);
   focusMonthly($("chart-monthly"), name);
   focusClock($("chart-clock"), name);
+  focusEvery($("chart-raster"), name);
+  focusEvery($("chart-calendar"), name);
   setBrushFocus(name);
   paintBrush(undefined, brushMorph ?? { ms: FADE_MS });
 });

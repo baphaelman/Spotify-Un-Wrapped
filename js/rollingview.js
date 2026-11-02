@@ -1,11 +1,12 @@
 // The page's side of the rolling chart (renderRolling in charts.js draws it): its artists and colors, the
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
-// the mix bar, monthly hours and the clock).
+// the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
+import { renderRaster, renderCalendar, DAY_MODE_MAX } from "./every.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
@@ -135,6 +136,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     paintArtistKey();
     paintMonthly();
     paintClock();
+    paintEvery();
     paintBrush();
   }
 }
@@ -230,6 +232,22 @@ export function paintClock(plays) {
   renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(tune.clockCurve, curve));
 }
 $("clock-other").addEventListener("change", () => paintClock());
+
+// Every play and Every day, in the chart's artists' colors (pins and hover as everywhere), the rest gray
+export function paintEvery(plays) {
+  if (!mixArgs) return;
+  const [artists, , , pins] = mixArgs;
+  const keyed = artists.filter((a) => state.colorSlots.has(a) && !state.hidden.includes(a));
+  const slots = keyed.map((n) => state.colorSlots.get(n));
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  const { lo, hi } = state.range;
+  const unit = hi - lo + 1 > DAY_MODE_MAX ? "week" : "day";
+  $("calendar-note").textContent = `Each ${unit} is tinted by its top ${noun().one}, darker the more you listened`;
+  for (const [id, render] of [["chart-raster", renderRaster], ["chart-calendar", renderCalendar]]) {
+    if (putOff($(id).closest(".card"), () => paintEvery())) continue;
+    render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover);
+  }
+}
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
 // out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle

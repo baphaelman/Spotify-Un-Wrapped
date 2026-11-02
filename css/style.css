@@ -571,6 +571,17 @@ button.ghost:hover { background: var(--border); }
 /* The rolling chart's hours, tucked under its axis labels */
 .chart.strip { height: 400px; margin-top: 16px; }
 #chart-clock { height: 230px; }
+/* Every play and Every day (every.js): canvases, their box gliding to a new layout's height */
+.grid-chart { position: relative; overflow: hidden; height: auto; min-height: 120px; transition: height var(--motion-morph) var(--ease-in-out); }
+#chart-raster { height: 590px; }
+.canvas-tip {
+  position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: 320px;
+  background: var(--surface); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; line-height: 1.5; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  opacity: 0; transition: opacity var(--motion-fade) var(--ease-out);
+}
+.canvas-tip.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .grid-chart, .canvas-tip { transition: none; } }
 /* The lines under Hours per month's captions (charts.js paintUnderlines): their lengths morph with the bars,
    their thickness and color answer a hover */
 #chart-monthly { position: relative; }

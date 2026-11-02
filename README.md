@@ -56,6 +56,14 @@ Similar data as the stack graph, but compressed by day. Maybe you have a sleep p
 
 ![When you listened](docs/images/clock.png)
 
+### Every play
+
+Every single play in the period as a little mark: across is the day, down is the time of day (midnight at the top), and each mark is as tall as the song lasted. Your selected artists are in their colors, everyone else in gray, so you can spot the late-night binges and the weeks one artist took over. Hover a mark for the song and when you played it; click to pin.
+
+### Every day
+
+A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to two years it's a box per day; longer than that it switches to a box per week, a row per year. Hover a day for its hours and who topped it; click to pin.
+
 ### All your artists
 
 The full ranking for the period, with hours and plays. Scroll to see literally all of it.
