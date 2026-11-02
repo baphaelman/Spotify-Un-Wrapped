@@ -38,6 +38,8 @@ const fmtH = (h) => (h >= 10 ? Math.round(h) + " h" : h >= 1 ? h.toFixed(1) + " 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HOUR = 3600e3;
 const weekday = (k) => (k + 3) % 7; // a day index's weekday, Monday 0
+// The same plays come as a new array from each paint, so they're compared by what they hold
+const playsKey = (plays) => `${plays.length}:${plays[0]?.t}:${plays.at(-1)?.t}`;
 
 // ---------- Shared: canvas, looks, hover card, fades ----------
 
@@ -84,6 +86,30 @@ function fadeCanvas(v, to, ms, easing) {
   v.canvas.getAnimations().forEach((a) => a.cancel());
   v.canvas.style.opacity = to;
   if (ms) v.canvas.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing });
+}
+
+// Lay a copy of the frame on screen over the canvas and fade it out, so what's drawn next crossfades in. Only for
+// a frame laid out the same (artists selected or deselected): every box and mark stays put, so only colors blend.
+// A copy still fading is folded into the new one at the opacity it has reached.
+function crossfade(v, ms) {
+  if (!ms || !v.canvas.width) return;
+  const copy = document.createElement("canvas");
+  copy.width = v.canvas.width;
+  copy.height = v.canvas.height;
+  const ctx = copy.getContext("2d");
+  ctx.drawImage(v.canvas, 0, 0);
+  for (const old of v.el.querySelectorAll(".chart-fade")) {
+    ctx.globalAlpha = +getComputedStyle(old).opacity;
+    ctx.drawImage(old, 0, 0);
+    old.remove();
+  }
+  copy.className = "chart-fade";
+  Object.assign(copy.style, { position: "absolute", left: 0, top: 0, width: v.canvas.style.width, height: v.canvas.style.height, pointerEvents: "none" });
+  v.el.append(copy);
+  copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: EASE_IN_OUT.css, fill: "forwards" }).finished.then(
+    () => copy.remove(),
+    () => {}
+  );
 }
 
 // Each artist's look eases from what's on screen to its target: { from, to, at, ms } per name, numbers in [0, 1]
@@ -229,7 +255,7 @@ const GRID = { top: 10, bottom: 30, left: 52, right: 12 };
 
 export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}) {
   const v = setup(el, drawRaster, pickRaster);
-  const data = [plays, lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
+  const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
   const key = [...data, tune.rasterHeight];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
@@ -243,8 +269,16 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
 // overlapping). Anything else in the key (a new height) only lays it out again; the first draw fades in.
 function refresh(v, data, key, fields, layout, relaid) {
   const first = !v.key, moved = !first && data.some((x, i) => x !== v.key[i]);
+  // The same period (artists selected or deselected, a theme): the boxes stay put, so the colors just crossfade
+  const still = moved && !v.waiting && v.lo === fields.lo && v.hi === fields.hi && v.key.every((x, i) => i < data.length || x === key[i]);
   Object.assign(v, { key, ...fields });
   v.relayout = layout;
+  if (still) {
+    crossfade(v, dur(MORPH_MS));
+    layout();
+    settle(v, true);
+    return;
+  }
   if (moved) {
     if (!v.waiting) fadeCanvas(v, tune.waitFade, dur(FADE_MS), EASE_OUT.css);
     v.waiting = true;
@@ -413,7 +447,7 @@ const DAY_MODE_MAX = 731;
 // onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note)
 export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, onUnit = null) {
   const v = setup(el, drawCalendar, pickCalendar);
-  const key = [plays, lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
+  const key = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, DAY_FACTOR);
   v.table = DAY_FACTOR;
@@ -524,10 +558,10 @@ function drawCalendar(v) {
   const { cells, top } = v.cells;
   ctx.clearRect(0, 0, w, h);
   ctx.textBaseline = "middle";
-  // The years read first: larger and brighter than the months and weekdays
+  // The years read first, larger and brightest; the months along the top next; the weekdays quietest
   for (const [x, y, text, align, year] of v.labels) {
     ctx.font = year ? `600 13px ${t.font}` : `11px ${t.font}`;
-    ctx.fillStyle = year ? t.secondary : t.muted;
+    ctx.fillStyle = year ? t.primary : align === "left" ? t.secondary : t.muted;
     ctx.textAlign = align;
     ctx.fillText(text, x, y);
   }
