@@ -43,7 +43,7 @@ export function paintArtistKey() {
   const boxOf = (unit) => unit.querySelector(".swatch") ?? unit;
   const marked = new Map(boxes(key).map(([n, el]) => [n, { parts: markLooks(el), hover: boxOf(el).matches(":hover, .hover") }]));
   // The chip under the pointer is rebuilt as well, and it misses :hover the same way, so .hover stands in for it too
-  const under = key.querySelector("[data-artist]:hover")?.dataset.artist;
+  const under = key.querySelector("[data-artist]:hover, [data-artist].hover")?.dataset.artist;
   // Rebuilding drops keyboard focus, so it goes back to the same control in the new chip
   const focused = key.contains(document.activeElement) ? document.activeElement : null;
   const refocus = focused && [focused.closest("[data-artist]")?.dataset.artist, focused.className];

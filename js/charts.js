@@ -246,6 +246,7 @@ function stillChart(c, st) {
 // and an interrupted change starts from where its bands had got to (flightData), so a dragged artist count keeps up.
 // Returns true if it handled this render.
 let artistCtx = null; // set while those steps draw: { report, strip, fade, yMax } (see renderRolling)
+let redrawing = false; // set while a morph first redraws what's on screen (its selection isn't news, and the strip has no parts)
 const SEP = "\u0000";
 function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth) {
   const st = rollingState.get(el);
@@ -592,7 +593,17 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const [d, n, w, , m, o, p, sl, sm] = prev.args;
     // (an open tooltip re-shows itself a tick after each render, by then against a chart redrawn again, and throws)
     chart(el).dispatchAction({ type: "hideTip" });
-    renderRolling(el, { ...d, parts: { ...d.parts, slots: slotsMax(needSlots, hadSlots) } }, n, w, currentZoom(el), m, o, false, p, sl, sm);
+    // Drawn with the selection it was drawn with: an artist just shown or hidden would otherwise snap open or shut
+    // here, and the morph would only grow their parts up from the floor
+    const sel = prev.selected;
+    prev.selected = prev.drawnSel ?? sel;
+    redrawing = true;
+    try {
+      renderRolling(el, { ...d, parts: { ...d.parts, slots: slotsMax(needSlots, hadSlots) } }, n, w, currentZoom(el), m, o, false, p, sl, sm);
+    } finally {
+      redrawing = false;
+      prev.selected = sel;
+    }
     return renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
   }
   const nSlots = data.parts && ms ? slotsMax(needSlots, hadSlots) : needSlots;
@@ -636,6 +647,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.window = window;
   st.partSlots = nSlots;
   st.args = [data, names, window, zoom, mode, hasOther, pins, slots, smooth];
+  st.drawnSel = { ...st.selected };
   if (Number.isFinite(zoom?.[0])) st.zoom = zoom; // for currentZoom, if hiding every artist loses the range
   const visible = (s) => st.selected[names[s]] !== false;
   // Hours: a line leaving in an artist change (withArtistMorph) sinks to 0 and fades out as it goes
@@ -1294,6 +1306,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     restack();
   };
 
+  if (redrawing) return;
   const hidden = hiddenNames.get(el) ?? new Set();
   for (const n of names) st.selected[n] === false ? hidden.add(n) : hidden.delete(n);
   hiddenNames.set(el, hidden);
