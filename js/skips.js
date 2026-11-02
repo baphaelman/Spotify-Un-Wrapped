@@ -5,7 +5,7 @@
 // the artist everywhere, clicking pins them. Rows are kept per artist: their parts glide to new sizes, rows move to
 // their new place and newcomers rise in.
 
-import { flip, tweenNumber } from "./motion.js";
+import { flip, tweenNumber, dur, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { tune } from "./tune.js";
 import { fmtHours } from "./format.js";
 
@@ -74,7 +74,8 @@ export function updateSkips(next) {
   if (ctx.reasons && ctx.other) totals.set(OTHER, othersOf(ctx.reasons, new Set(ctx.names)));
   const names = ctx.reasons ? [...ctx.names, ...(ctx.other ? [OTHER] : [])].filter((n) => !ctx.hidden.has(n) && totals.get(n)?.plays) : [];
   const before = new Map([...rows].map(([n, r]) => [n, r.row.getBoundingClientRect()]));
-  for (const [n, r] of rows) if (!names.includes(n)) { r.row.remove(); rows.delete(n); }
+  const leaving = [];
+  for (const [n, r] of rows) if (!names.includes(n)) { rows.delete(n); n === OTHER ? leaving.push(r.row) : r.row.remove(); }
   names.forEach((name) => {
     let r = rows.get(name);
     if (!r) rows.set(name, (r = makeRow(name)));
@@ -92,6 +93,9 @@ export function updateSkips(next) {
     r.row.title = `${name === OTHER ? "" : pinned ? "Click to unpin · " : "Click to pin · "}${r.who.textContent} · ${fmtHours(hours)} · ${Math.round(n).toLocaleString()} plays · skipped ${pct(skip / n)} · picked ${pct(pick / n)}`;
   });
   list.replaceChildren(...names.map((n) => rows.get(n).row));
+  // Everyone else is last, so it can grow and shrink in place without moving the other rows
+  leaving.forEach((el) => { list.append(el); resize(el, true).then(() => el.remove()); });
+  if (rows.has(OTHER) && !before.has(OTHER)) resize(rows.get(OTHER).row, false);
   // The key's words sit over the middle of the top bar's parts, and glide with them
   const top = names.length ? totals.get(names[0]) : null;
   const keyParts = [...$("skips-head").querySelectorAll(".skips-key > span")];
@@ -100,6 +104,17 @@ export function updateSkips(next) {
   dim();
   // Clicking to pin re-renders the chart, which drops its hover; while the pointer is still here, light them again
   if (under && rows.has(under) && focusName !== under) hover(under);
+}
+
+// A row growing from nothing to its height (or shrinking to nothing), fading with it
+function resize(el, away) {
+  const h = `${el.offsetHeight}px`;
+  const shut = { height: "0px", paddingTop: "0px", paddingBottom: "0px", opacity: 0 };
+  const open = { height: h, opacity: 1 };
+  el.style.overflow = "hidden";
+  const a = el.animate(away ? [open, shut] : [shut, open], { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css });
+  const done = () => (el.style.overflow = "");
+  return a.finished.then(done, done);
 }
 
 // Every artist not shown, summed (reasons holds every item in the period)
