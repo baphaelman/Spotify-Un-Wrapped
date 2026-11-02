@@ -96,13 +96,17 @@ function tooltipBase(t) {
 
 // A hover card beside the pointer (right and below it, or left where there's no room), kept inside the window and
 // under the sticky period bar: a long readout (a split chart lists many parts) would otherwise run off the screen.
-// Taller than the room, it starts at the top of it
+// Taller than the room, it starts at the top of it (fitTip keeps the rolling chart's readout from getting there)
+const TIP_EDGE = 8;
+const tipRoom = () => {
+  const bar = document.querySelector(".filters.sticky")?.getBoundingClientRect().bottom ?? 0;
+  return { top: Math.max(0, bar) + TIP_EDGE, bottom: innerHeight - TIP_EDGE };
+};
 function tipBeside(point, _params, dom, _rect, size) {
-  const GAP = 16, EDGE = 8;
+  const GAP = 16, EDGE = TIP_EDGE;
   const [w, h] = size.contentSize;
   const box = dom.parentElement.getBoundingClientRect();
-  const bar = document.querySelector(".filters.sticky")?.getBoundingClientRect().bottom ?? 0;
-  const top = Math.max(0, bar) + EDGE, bottom = innerHeight - EDGE;
+  const { top, bottom } = tipRoom();
   let x = box.left + point[0] + GAP;
   if (x + w > innerWidth - EDGE) x = box.left + point[0] - GAP - w;
   x = Math.max(EDGE, Math.min(x, innerWidth - EDGE - w));
@@ -122,6 +126,32 @@ const subRow = (color, value, label, strong = false) =>
   `<div style="display:flex;align-items:center;gap:8px;line-height:1.5;padding-left:20px;font-size:12px;${strong ? `background:${color}66;margin:0 -6px;padding-right:6px;padding-left:26px;border-radius:4px` : ""}">` +
   `<span style="width:8px;height:8px;background:${color};border-radius:2px"></span>` +
   `<b style="min-width:3.5em;font-weight:500">${value}</b><span style="${strong ? "font-weight:600" : "opacity:.75"}">${esc(label)}</span></div>`;
+
+// The rows of a readout listing each artist with its parts under it, cut to fit the window: while it's taller than
+// the room under the period bar, the smallest part (by `size`, the same measure for every artist) gives way, and each
+// artist that lost some ends with one row counting them, `more(group, gone)` its [value, label]. Artists always stay.
+// groups: [{ head: row html, parts: [{ html, size, ... }] }]. Heights are the rows' own (row, subRow), estimated
+const TIP_ROW_H = 13 * 1.6, TIP_SUB_H = 12 * 1.5, TIP_FRAME_H = 2 * 8 + 2 + 24; // padding, border, the date line
+function fitTip(groups, more) {
+  const { top, bottom } = tipRoom();
+  const room = bottom - top - TIP_FRAME_H;
+  const cut = groups.map(() => new Set());
+  const height = () =>
+    groups.reduce((h, g, k) => h + TIP_ROW_H + (g.parts.length - cut[k].size + (cut[k].size ? 1 : 0)) * TIP_SUB_H, 0);
+  const left = groups.flatMap((g, k) => g.parts.map((p, j) => ({ k, j, size: p.size }))).sort((a, b) => a.size - b.size);
+  for (const p of left) {
+    if (height() <= room) break;
+    cut[p.k].add(p.j);
+  }
+  // One part counted in its own row saves nothing, so it's shown after all
+  for (const c of cut) if (c.size === 1) c.clear();
+  return groups.flatMap((g, k) => {
+    const kept = g.parts.filter((_, j) => !cut[k].has(j)).map((p) => p.html);
+    if (!cut[k].size) return [g.head, ...kept];
+    const gone = g.parts.filter((_, j) => cut[k].has(j));
+    return [g.head, ...kept, subRow("transparent", ...more(g, gone))];
+  });
+}
 
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
@@ -914,7 +944,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const bands = (params) => params.filter((p) => p.seriesId[0] === "s");
   // An artist's parts in the readout, under its row: every one drawn now that's at least PART_TIP_MIN of the
   // listening at that date (as the bands are scaled, in either mode). valueOf(j, ofArtist) gives the number
-  // shown; ofArtist is true while the artist is pinned or hovered
+  // shown; ofArtist is true while the artist is pinned or hovered. Each comes with its size (its share of all the
+  // listening there), by which fitTip drops the smallest when the readout outgrows the window
   const PART_TIP_MIN = 0.01;
   const partTips = (k, i, valueOf, fmt, extra) => {
     if (!parts || k === otherIdx) return [];
@@ -925,38 +956,53 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       // In the order they're drawn: share mode stacks them up from the band's floor, so the top one comes first;
       // in hours mode the highest line does
       .sort((a, b) => (share ? b - a : valueOf(b) - valueOf(a)))
-      .map((j) => subRow(partShade(k, j, t.shade.pin), fmt(valueOf(j, ofArtist)), parts.names[k][j] + extra(j), isHot(k, j)));
+      .map((j) => ({
+        j,
+        size: parts.share[k][j][i] * scale[i],
+        value: valueOf(j, ofArtist),
+        html: subRow(partShade(k, j, t.shade.pin), fmt(valueOf(j, ofArtist)), parts.names[k][j] + extra(j), isHot(k, j)),
+      }));
   };
+  // The row counting an artist's parts left out of a crowded readout: their total, and how many
+  const partNoun = { album: "albums", track: "songs", artist: "artists" };
+  const moreParts = (fmt, extra) => (g, gone) =>
+    [fmt(gone.reduce((s, p) => s + p.value, 0)), `${gone.length} more ${partNoun[parts.kind] ?? "parts"}${extra(g, gone)}`];
   const shareTooltip = (params) => {
     params = bands(params);
     if (!params.length || !Number.isFinite(params[0].value[1])) return "";
     const i = params[0].dataIndex;
-    const rows = params
+    const pct = (v) => (v * 100).toFixed(0) + "%";
+    const groups = params
       .filter((p) => visible(sIdx(p)))
       .map((p) => ({ p, share: data.share[sIdx(p)][i] * scale[i], hours: data.hours[sIdx(p)][i] }))
       // Drop anyone who would read as 0%
       .filter((r) => r.share >= 0.005)
       // Top band first, so the rows read in the same order as the bands under the pointer
       .sort((a, b) => sIdx(b.p) - sIdx(a.p))
-      .flatMap((r) => [
-        row(r.p.color, (r.share * 100).toFixed(0) + "%", `${shownName(r.p.seriesName)} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
+      .map((r) => ({
+        k: sIdx(r.p),
+        head: row(r.p.color, pct(r.share), `${shownName(r.p.seriesName)} · ${fmtHours(r.hours)}`, sIdx(r.p) === focused || base.has(sIdx(r.p))),
         // A part's percent is of everyone's listening, or of its artist's while the artist is pinned or hovered
-        ...partTips(sIdx(r.p), i, (j, ofArtist) => parts.share[sIdx(r.p)][j][i] * (ofArtist ? 1 / data.share[sIdx(r.p)][i] : scale[i]),
-          (v) => (v * 100).toFixed(0) + "%",
+        parts: partTips(sIdx(r.p), i, (j, ofArtist) => parts.share[sIdx(r.p)][j][i] * (ofArtist ? 1 / data.share[sIdx(r.p)][i] : scale[i]),
+          pct,
           (j) => ` · ${fmtHours(parts.hours[sIdx(r.p)][j][i])}`),
-      ]);
+      }));
+    const rows = fitTip(groups, moreParts(pct, (g, gone) => ` · ${fmtHours(gone.reduce((s, p) => s + parts.hours[g.k][p.j][i], 0))}`));
     return `<div style="color:${t.muted};margin-bottom:4px">${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
   const hoursTooltip = (params) => {
     params = bands(params);
     if (!params.length) return "";
-    const rows = params
+    const i = params[0].dataIndex;
+    const h = (v) => `${v.toFixed(1)} h`;
+    const groups = params
       .filter((p) => sIdx(p) !== otherIdx && p.value[1] >= 0.05)
       .sort((a, b) => b.value[1] - a.value[1])
-      .flatMap((p) => [
-        row(p.color, `${p.value[1].toFixed(1)} h`, p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
-        ...partTips(sIdx(p), params[0].dataIndex, (j) => perWeek(parts.hours[sIdx(p)][j][params[0].dataIndex]), (v) => `${v.toFixed(1)} h`, () => ""),
-      ]);
+      .map((p) => ({
+        head: row(p.color, h(p.value[1]), p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
+        parts: partTips(sIdx(p), i, (j) => perWeek(parts.hours[sIdx(p)][j][i]), h, () => ""),
+      }));
+    const rows = fitTip(groups, moreParts(h, () => ""));
     return `<div style="color:${t.muted};margin-bottom:4px">Hours per week, ${window} days around ${fmtDate(params[0].value[0])}</div>${rows.join("")}`;
   };
 
