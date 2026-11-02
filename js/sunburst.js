@@ -32,8 +32,8 @@ const LEVELS = {
 // What a node at each level stands for, whatever view it's in ({ genre, artist, album }), so a tab change can keep
 // the same thing in the middle: means(name, the parent's meaning) per level below the root
 const MEANS = {
-  artist: [(n) => ({ artist: n }), (n, up) => ({ ...up, album: n })],
-  album: [(n) => ({ artist: state.owner?.get(n), album: state.titles?.get(n) ?? n })],
+  artist: [(n) => ({ artist: n }), (n, up) => ({ ...up, album: n }), (n, up) => ({ ...up, track: n })],
+  album: [(n) => ({ artist: state.owner?.get(n), album: state.titles?.get(n) ?? n }), (n, up) => ({ ...up, track: n })],
   genre: [(n) => ({ genre: n }), (n, up) => ({ ...up, artist: n }), (n, up) => ({ ...up, album: n })],
 };
 const NOTES = {
@@ -165,7 +165,22 @@ function layout(n, f, rings) {
 
 // Every node's place now, and where it's going: nodes new to the tree grow from nothing where they'll sit, and
 // those leaving it close up into the place of the next one that stays (or their parent's end)
-function retarget(first) {
+// What a slice stands for in any view but Genres, which adds a genre to the same artists and albums: the key a slice
+// keeps through a tab change. None for a genre itself, or an "Other …" slice
+const meaningOf = (n) => {
+  const m = n.means;
+  return !n.other && m?.artist != null ? [m.artist, m.album ?? "", m.track ?? ""].join(SEP) : null;
+};
+
+// swap: the view changed, so the slices of the old view's tree that stand for the same thing as one of the new
+// view's (an artist's album and that album in Albums, the same song in both) become that slice: it moves to its new
+// place and takes its new color on the same morph, rather than one shrinking away while the other grows
+function retarget(first, swap = false) {
+  const was = new Map();
+  if (swap) for (const n of nodes.values()) {
+    const k = !n.leaving && meaningOf(n);
+    if (k && !was.has(k)) was.set(k, n);
+  }
   // The node in the middle, or the nearest of its parents still in the tree
   let f = null;
   for (let id = focusId; !f; id = id.includes(SEP) ? id.slice(0, id.lastIndexOf(SEP)) : "") f = id ? find(id) : root;
@@ -177,10 +192,17 @@ function retarget(first) {
   eachNode(root, (n) => {
     seen.add(n.id);
     const to = layout(n, f, rings);
-    const was = nodes.get(n.id);
-    if (was) {
-      Object.assign(was, { ...n, kids: n.kids, from: { ...was.cur }, to, leaving: false });
-      was.kids = n.kids.map((k) => k.id);
+    let kept = nodes.get(n.id);
+    const k = swap && !kept && meaningOf(n);
+    if (k && was.has(k)) {
+      kept = was.get(k);
+      was.delete(k);
+      nodes.delete(kept.id);
+      nodes.set(n.id, kept);
+    }
+    if (kept) {
+      Object.assign(kept, { ...n, kids: n.kids, from: { ...kept.cur }, to, leaving: false });
+      kept.kids = n.kids.map((k) => k.id);
     } else {
       const grow = first ? { ...to, r1: to.r0 } : { ...to, a1: to.a0 };
       nodes.set(n.id, { ...n, kids: n.kids.map((k) => k.id), from: grow, cur: { ...grow }, to, leaving: false });
@@ -294,19 +316,26 @@ function fitName(name, g, R, pctW) {
   return lo >= 4 ? cut(lo) : null;
 }
 
+// A node's slice, label and (for the items, the first ring) outline; a slice carried to another ring by a tab change
+// takes that ring's shade and gains or loses its outline
 function els(n) {
-  if (n.path) return;
-  n.path = make("path", "sun-slice d" + Math.min(n.depth, 3));
-  n.path.__node = n;
-  n.label = make("g", "sun-label");
-  n.pctEl = make("text", "sun-pct");
-  n.nameEl = make("text", "sun-name");
-  n.label.append(n.nameEl, n.pctEl);
-  layers.slices.append(n.path);
-  layers.labels.append(n.label);
-  if (n.depth === 1) {
+  if (!n.path) {
+    n.path = make("path", "sun-slice");
+    n.path.__node = n;
+    n.label = make("g", "sun-label");
+    n.pctEl = make("text", "sun-pct");
+    n.nameEl = make("text", "sun-name");
+    n.label.append(n.nameEl, n.pctEl);
+    layers.slices.append(n.path);
+    layers.labels.append(n.label);
+  }
+  for (let d = 0; d <= 3; d++) n.path.classList.toggle("d" + d, d === Math.min(n.depth, 3));
+  if (n.depth === 1 && !n.outline) {
     n.outline = make("path", "sun-outline");
     layers.outlines.append(n.outline);
+  } else if (n.depth !== 1 && n.outline) {
+    n.outline.remove();
+    n.outline = null;
   }
   if (!fonts) {
     const css = (el) => getComputedStyle(el);
@@ -382,6 +411,7 @@ function glide(ms, ease = easeInOut) {
   const done = () => {
     raf = 0;
     frame(1);
+    svg.classList.remove("swapping");
     for (const [id, n] of nodes) {
       if (!n.leaving) continue;
       drop(n);
@@ -503,7 +533,8 @@ export function paintSunburst(plays) {
   $("sunburst-sub").textContent = `${NOTES[state.dim]}, sized by hours. Click a slice to go in; click the middle to come back out.`;
   const first = nodes.size === 0;
   root = build(plays, items);
-  if (lastDim && (lastDim !== state.dim || seeking)) {
+  const swap = !!lastDim && lastDim !== state.dim;
+  if (lastDim && (swap || seeking)) {
     const n = carried(root);
     focusId = n?.id ?? "";
     seeking = !n && Object.keys(focusMeans).length > 0;
@@ -512,7 +543,9 @@ export function paintSunburst(plays) {
   total = root.value;
   const titles = state.titles;
   eachNode(root, (n) => (n.shown = n.depth === 1 && titles ? titles.get(n.name) ?? n.name : n.name));
-  retarget(first);
+  retarget(first, swap);
+  // Colors cross-fade with the morph that carries slices into the new view (the class goes when it ends)
+  if (swap) svg.classList.add("swapping");
   for (const n of nodes.values()) {
     els(n);
     const slot = n.item != null ? state.colorSlots.get(n.item) : undefined;

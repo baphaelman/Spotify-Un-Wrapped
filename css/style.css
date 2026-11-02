@@ -1227,6 +1227,8 @@ dialog pre {
 :is(.sun-slice, .sun-label)[data-look="dimHover"] { opacity: var(--dim-item-hover); }
 .sun-outline { fill: none; stroke: var(--c); stroke-width: 1.5; opacity: 0; pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
 .sun-outline.on { opacity: 1; }
+/* A tab change carries slices into the new view: their colors and shades change on the morph's time and curve */
+.sun-svg.swapping :is(.sun-slice, .sun-outline, .sun-label, .sun-label text) { transition-duration: var(--motion-morph); transition-timing-function: var(--ease-in-out); }
 .sun-label { pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
 .sun-label text { text-anchor: middle; dominant-baseline: central; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .sun-label text.fits { opacity: 1; }
