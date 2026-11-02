@@ -3,8 +3,8 @@
 // every frame ranks the items by their value at the playhead, interpolated between the days around it. The rows
 // chase their place, width and number on one clock with the time slider and the date, so a swap of ranks glides and
 // a drag of the slider (a scrub) moves everything together.
-// Two measures: the hours played so far in the period, or in the 30 days up to each day (reaching back before the
-// period's start, so its first days aren't empty).
+// Two measures: the hours played in the days up to each day (a window that grows with the period, reaching back
+// before its start, so its first days aren't empty), or so far in the period.
 // Like the list below it, rows keep the chart's colors (the rest stay gray), hovering one lights its item everywhere,
 // and clicking it pins or unpins it. No pictures, so no lookups.
 import * as agg from "./aggregate.js";
@@ -12,21 +12,24 @@ import { $, state, noun, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
 import { CHASE_MS, dur, litLook } from "./motion.js";
+import { tune } from "./tune.js";
 
 const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
 // The trailing window for "Last … days": about a twelfth of the period (a month of a year), as the nearest of the
-// rolling chart's slice sizes, so a short period looks at days and all time at months
-const recentDays = (span) => WINDOWS.reduce((a, b) => (Math.abs(b - span / 12) < Math.abs(a - span / 12) ? b : a));
+// rolling chart's slice sizes, so a short period looks at days and all time at months. Visual tweaks can set it
+// by hand (tune.raceWindow, 0 for this)
+const recentDays = (span) =>
+  tune.raceWindow || WINDOWS.reduce((a, b) => (Math.abs(b - span / 12) < Math.abs(a - span / 12) ? b : a));
 let recent = 30;
 // How fast the period plays at 1×: the same days a second whatever its length, so all time plays as slowly as a
 // year does (a year in YEAR_MS), never in under MIN_MS
-const YEAR_MS = 12_000, MIN_MS = 5_000;
+const YEAR_MS = 48_000, MIN_MS = 20_000;
 // The rows chase their targets with this time constant, so a move is all but done within CHASE_MS
 const TAU = CHASE_MS / 3;
 const SETTLED = 1e-3;
 
-let measure = "total";
-const SPEED = 0.25; // the default; the buttons go from half as fast to twice as fast (more under "Visual tweaks")
+let measure = "recent";
+const SPEED = 1; // the default; the buttons go from a quarter as fast to four times as fast (more under "Visual tweaks")
 let speed = SPEED;
 let built = null; // { key, lo, hi, frames: [{ map, list, floor }] }
 let t = 0; // the playhead, a fractional day index in [lo, hi]
@@ -266,6 +269,13 @@ function paintTime() {
   if ($("race-date").textContent !== text) $("race-date").textContent = text;
 }
 
+// The speed as days of the period a second, under its buttons
+function paintRate() {
+  if (!built) return;
+  const rate = span() ? (span() / playMs()) * 1000 * speed : 0;
+  $("race-rate").textContent = `${rate < 10 ? rate.toFixed(1) : Math.round(rate)} days/s`;
+}
+
 function setPlaying(on) {
   playing = on;
   $("race-card").classList.toggle("playing", on);
@@ -331,6 +341,7 @@ export function paintRace() {
     // A period changed while playing plays on from the same day, if it's in the new one; otherwise it shows the end
     if (!playing || t < lo || t > hi) t = hi;
     paintTicks();
+    paintRate();
   }
   kick();
 }
@@ -371,6 +382,7 @@ for (const [group, set] of [["race-measure", (b) => (measure = b.dataset.measure
     for (const o of $(group).children) o.setAttribute("aria-pressed", o === b);
     set(b);
     if (group === "race-measure") paintRace();
+    else paintRate();
   });
 }
 

@@ -301,8 +301,8 @@
             <p class="muted" id="race-sub"></p>
           </div>
           <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
-            <button type="button" data-measure="total" aria-pressed="true">So far</button>
-            <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
+            <button type="button" data-measure="recent" aria-pressed="true">Last 30 days</button>
+            <button type="button" data-measure="total" aria-pressed="false">So far</button>
           </div>
         </div>
         <div id="race-stage" class="race-stage">
@@ -317,14 +317,19 @@
             <input id="race-time" type="range" min="0" max="1" step="any" value="1" aria-label="Day shown">
             <div id="race-ticks" class="race-ticks" aria-hidden="true"></div>
           </div>
-          <div id="race-speed" class="segmented solid race-speed" role="group" aria-label="Speed">
-            <button type="button" data-speed="0.125" aria-pressed="false">0.125×</button>
-            <button type="button" data-speed="0.25" aria-pressed="true">0.25×</button>
-            <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
-            <!-- The earlier speeds, kept under "Visual tweaks" (tune.js) -->
-            <button type="button" class="tweak-only" data-speed="1" aria-pressed="false" hidden>1×</button>
-            <button type="button" class="tweak-only" data-speed="2" aria-pressed="false" hidden>2×</button>
-            <button type="button" class="tweak-only" data-speed="4" aria-pressed="false" hidden>4×</button>
+          <div class="race-speed-box">
+            <div id="race-speed" class="segmented solid race-speed" role="group" aria-label="Speed">
+              <button type="button" data-speed="0.25" aria-pressed="false">0.25×</button>
+              <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+              <button type="button" data-speed="1" aria-pressed="true">1×</button>
+              <button type="button" data-speed="2" aria-pressed="false">2×</button>
+              <button type="button" data-speed="4" aria-pressed="false">4×</button>
+              <!-- The earlier, faster speeds, kept under "Visual tweaks" (tune.js) -->
+              <button type="button" class="tweak-only" data-speed="8" aria-pressed="false" hidden>8×</button>
+              <button type="button" class="tweak-only" data-speed="16" aria-pressed="false" hidden>16×</button>
+            </div>
+            <!-- How fast that is, in days of the period a second (race.js) -->
+            <div id="race-rate" class="race-rate"></div>
           </div>
         </div>
       </article>

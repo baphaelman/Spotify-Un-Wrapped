@@ -260,6 +260,7 @@ function retune(card) {
   else if (card === "monthly-card") paintMonthly();
   else if (card === "clock-card") paintClock();
   else if (card === "mix-card") placeMix();
+  else if (card === "race-card") paintRace();
 }
 function syncEverything() {
   $("see-everything").setAttribute("aria-checked", everything);
@@ -276,6 +277,7 @@ $("see-everything").addEventListener("click", () => {
   if (tunesChanged() && state.plays) {
     renderRollingChart(currentZoom($("chart-rolling")), true);
     placeMix();
+    paintRace();
   }
 });
 

@@ -1324,7 +1324,9 @@ button:not(:disabled):active { transform: scale(0.96); }
 .slider.race-time { flex: 1; width: auto; min-width: 0; }
 .race-ticks { position: relative; height: 16px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
 .race-ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); white-space: nowrap; }
-.race-speed { flex: none; margin-top: -7px; }
+.race-speed-box { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: -7px; }
+.race-speed { flex: none; }
+.race-rate { font-family: var(--mono); font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .race-speed button { padding: 3px 9px; font-size: 12px; }
 @media (max-width: 600px) {
   .race-rows li { grid-template-columns: 2ch minmax(0, 110px) 1fr; gap: 6px; }
@@ -1335,5 +1337,5 @@ button:not(:disabled):active { transform: scale(0.96); }
 @media (max-width: 600px) {
   .race-controls { flex-wrap: wrap; }
   .slider.race-time { flex-basis: calc(100% - 46px); }
-  .race-speed { margin: 0 auto; }
+  .race-speed-box { margin: 0 auto; }
 }
