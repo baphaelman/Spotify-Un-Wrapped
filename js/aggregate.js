@@ -85,6 +85,19 @@ export function firstHeard(plays, songs = true, albums = true) {
   return [...m.values()];
 }
 
+// The genres view's finds: every track (as the tracks view calls it) with the time it was first played, its album and
+// hours, and `group`, the genre it counts most toward (its artist's biggest family)
+export function firstHeardTracks(plays) {
+  const m = new Map();
+  for (const p of plays) {
+    let e = m.get(p.trackKey);
+    if (!e) m.set(p.trackKey, (e = { name: p.trackKey, t: p.t, first: null, album: p.album || null, hours: 0, by: new Map() }));
+    e.hours += p.ms / HOUR;
+    e.by.set(p.artist, (e.by.get(p.artist) ?? 0) + p.ms);
+  }
+  return [...m.values()].map(({ by, ...e }) => ({ ...e, group: [...by].reduce((a, b) => (b[1] > a[1] ? b : a))[0] }));
+}
+
 export function topArtists(plays, n) {
   return [...sumBy(plays, (p) => p.artist)]
     .map(([name, v]) => ({ name, ...v }))

@@ -10,7 +10,7 @@ import { renderRaster, renderCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
-import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
+import { $, state, noun, NOUN, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -290,21 +290,25 @@ export function paintMonthly(plays) {
 $("monthly-other").addEventListener("change", () => paintMonthly());
 
 // What the period found: the items first heard in it, across it, each as high as its hours all time.
-// The chart's artists among them take their colors (same pins and hover); deselected ones are left out. Those under
+// The chart's artists among them take their colors (same pins and hover); deselected ones are left out. In the genres
+// view the finds are tracks, each in its genre's color when that's one of the chart's. Those under
 // tune.discoveryFloor minutes all time aren't drawn, but count.
 let heardMemo = null;
 export function paintDiscovery() {
   if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
-  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album") };
+  // (the genres view finds tracks, each in its genre's color)
+  const genre = state.dim === "genre";
+  if (heardMemo?.plays !== state.plays)
+    heardMemo = { plays: state.plays, items: genre ? agg.firstHeardTracks(state.plays) : agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album") };
   const all = heardMemo.items;
   const [artists, , , pins] = mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
   const found = all.filter((e) => e.t >= start && e.t < end);
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
-  const { one, many } = noun();
+  const { one, many } = genre ? NOUN.track : noun();
   $("discovery-note").textContent = `You discovered ${found.length.toLocaleString()} ${found.length === 1 ? one : many} over this period`;
-  const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.name));
+  const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.group ?? x.name));
   // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
   const most = shown.reduce((m, x) => Math.max(m, x.hours), floor);
   const top = Math.max(1, most * 1.6);

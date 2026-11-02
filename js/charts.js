@@ -2497,7 +2497,9 @@ export function focusClock(el, name) {
 // named beside their dots, or, when two names would overlap, in a key right of the plot (.found-key, beside the
 // chart), which hovers and pins as the dots do. The rest are one neutral tone on a canvas layer of their own, which
 // dims as a whole (a fade of the layer, cheaper than restyling thousands of dots). items: [{name, t, hours, first,
-// album}] (first: the song it was first heard through, or null; album: that song's album, or the track's);
+// album, group}] (first: the song it was first heard through, or null; album: that song's album, or the track's;
+// group: what it's colored, lit and pinned as, if not itself, so a genre's tracks: they're never named beside their
+// dots, and the key always shows);
 // span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the
 // neutral dots' size. The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
 const discoveryState = new WeakMap();
@@ -2512,12 +2514,14 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
   const st = {
     c, t, names, slotOf, floor, top, pins, span, hover, dot, near: null,
-    rest: items.filter((e) => !slotOf.has(e.name)),
-    lit: items.filter((e) => slotOf.has(e.name)),
+    rest: items.filter((e) => !slotOf.has(groupOf(e))),
+    lit: items.filter((e) => slotOf.has(groupOf(e))),
+    grouped: items.some((e) => e.group != null),
+    litSize: items.some((e) => e.group != null) ? dot * 1.4 : dot * 2, // (a genre's many tracks smaller)
     pinned: new Set(names.filter((n) => pins?.has(n))),
     hovered: names.includes(prev?.hovered) ? prev.hovered : null,
   };
-  st.keyed = st.lit.length > 1 && labelsOverlap(el, st);
+  st.keyed = st.grouped ? st.lit.length > 0 : st.lit.length > 1 && labelsOverlap(el, st);
   discoveryState.set(el, st);
   paintFoundKey(el, st);
 
@@ -2541,7 +2545,8 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
         formatter: ({ name }) => {
           const e = byName.get(name);
           const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";
-          return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` +
+          const genre = e.group != null ? `<div style="color:${t.muted}">Genre: <span style="color:${t.primary}">${esc(e.group)}</span></div>` : "";
+          return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` + genre +
             (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
             from + `${fmtSpent(e.hours)} all time`;
         },
@@ -2575,10 +2580,10 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           id: "lit",
           type: "scatter",
           zlevel: LIT_Z,
-          symbolSize: dot * 2,
+          symbolSize: st.litSize,
           silent: true,
           emphasis: { disabled: true },
-          label: { show: true, position: "right", distance: FOUND_LABEL.gap, formatter: ({ name }) => name, fontSize: FOUND_LABEL.size, fontWeight: FOUND_LABEL.weight },
+          label: { show: !st.grouped, position: "right", distance: FOUND_LABEL.gap, formatter: ({ name }) => name, fontSize: FOUND_LABEL.size, fontWeight: FOUND_LABEL.weight },
           data: discoveryLit(st),
         },
       ],
@@ -2610,7 +2615,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   zr.on("click", (e) => {
     const s = discoveryState.get(el);
     const near = nearestFound(s, e.offsetX, e.offsetY);
-    if (near) s.pins?.toggle(near.name);
+    if (near) s.pins?.toggle(near.group);
   });
 }
 
@@ -2623,12 +2628,13 @@ function labelsOverlap(el, st) {
   measureCtx.font = `${FOUND_LABEL.weight} ${FOUND_LABEL.size}px sans-serif`; // (ECharts' default family)
   const boxes = st.lit.map((e) => {
     const [x, y] = foundPixel(st, rect, e);
-    const w = measureCtx.measureText(e.name).width, off = st.dot + FOUND_LABEL.gap;
+    const w = measureCtx.measureText(e.name).width, off = st.litSize / 2 + FOUND_LABEL.gap;
     const x0 = foundOnLeft(st, e) ? x - off - w : x + off;
     return [x0, x0 + w, y - FOUND_LABEL.h / 2, y + FOUND_LABEL.h / 2];
   });
   return boxes.some((a, i) => boxes.some((b, j) => j > i && a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3]));
 }
+const groupOf = (e) => e.group ?? e.name;
 // (named on the left near the right end, where there's no room after it)
 const foundOnLeft = (st, e) => (e.t - st.span[0]) / (st.span[1] - st.span[0]) > 0.8;
 
@@ -2649,7 +2655,7 @@ function paintFoundKey(el, st) {
     });
   }
   box.classList.toggle("on", st.keyed);
-  const order = [...st.lit].sort((a, b) => a.t - b.t).map((e) => e.name);
+  const order = [...new Set([...st.lit].sort((a, b) => a.t - b.t).map(groupOf))];
   const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
   box.replaceChildren(
     ...order.map((name) => {
@@ -2691,7 +2697,7 @@ function nearestFound(st, x, y) {
     list.forEach((e, index) => {
       const [px, py] = foundPixel(st, rect, e);
       const d = (px - x) ** 2 + (py - y) ** 2;
-      if (d < bestD) [best, bestD] = [{ name: e.name, lit, index, x: px, y: py }, d];
+      if (d < bestD) [best, bestD] = [{ name: e.name, group: groupOf(e), lit, index, x: px, y: py }, d];
     });
   }
   return best;
@@ -2704,15 +2710,15 @@ function pointAt(st, near) {
   st.near = near;
   const { c, t } = st;
   if (was?.lit && !near?.lit) st.hover(null);
-  if (near?.lit) st.hover(near.name);
+  if (near?.lit) st.hover(near.group);
   if (!near) {
     c.dispatchAction({ type: "hideTip" });
     st.ring?.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
     return;
   }
   c.dispatchAction({ type: "showTip", seriesIndex: near.lit ? 1 : 0, dataIndex: near.index });
-  const r = (near.lit ? st.dot : st.dot / 2) + 4;
-  const stroke = near.lit ? t.series[st.slotOf.get(near.name)] : t.primary;
+  const r = (near.lit ? st.litSize : st.dot) / 2 + 4;
+  const stroke = near.lit ? t.series[st.slotOf.get(near.group)] : t.primary;
   if (!st.ring) {
     st.ring = new echarts.graphic.Circle({ shape: { cx: near.x, cy: near.y, r }, style: { fill: null, stroke, lineWidth: 1.5, opacity: 0 }, zlevel: LIT_Z + 1, silent: true });
     c.getZr().add(st.ring);
@@ -2729,8 +2735,8 @@ function pointAt(st, near) {
 function discoveryLit(st) {
   const { t } = st;
   return st.lit.map((e) => {
-    const col = t.series[st.slotOf.get(e.name)];
-    const look = litLook(st.pinned, st.hovered, e.name);
+    const col = t.series[st.slotOf.get(groupOf(e))];
+    const look = litLook(st.pinned, st.hovered, groupOf(e));
     const fill = isLitLook(look) ? col : mix(t.surface, col, 0.8 * t.fade[look]);
     return {
       name: e.name,
