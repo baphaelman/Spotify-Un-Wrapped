@@ -423,7 +423,6 @@ button.ghost:hover { background: var(--border); }
 .tav-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .tav-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
 .tav-toggles [hidden] { display: none; }
-.tav-other { display: flex; margin-top: 10px; }
 /* Back to the view a part was clicked in from: always there, faded while there's nowhere to go back to */
 .view-back { padding: 3px 10px; font-size: 16px; line-height: 20px; color: var(--text-secondary); transition: background var(--motion-fade) var(--ease-out), color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
 .view-back:hover { color: var(--text-primary); }
@@ -1483,6 +1482,7 @@ button:not(:disabled):active { transform: scale(0.96); }
 .race-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 /* The window's slider beside the measure it sets, faded while "So far" leaves it unused */
 .race-opts { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.race-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 6px; transition: opacity var(--motion-fade) var(--ease-out); }
 .race-window.off { opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .race-window { transition: none; } }

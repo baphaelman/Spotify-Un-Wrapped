@@ -290,6 +290,8 @@
                 <button type="button" data-split="album" aria-pressed="false">Albums</button>
                 <button type="button" data-split="track" aria-pressed="false">Songs</button>
               </div>
+              <!-- Whether this chart shows everyone else in gray (off by default); the other graphs have their own -->
+              <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
             </div>
             <div class="tav-smooth">
               <span class="toggle-label" id="smoothify-label">Smoothing</span>
@@ -303,10 +305,6 @@
               </select>
             </div>
           </div>
-        </div>
-        <!-- Whether this chart shows everyone else in gray (off by default); the other graphs have their own -->
-        <div class="tav-other">
-          <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
         </div>
         <div class="chart-wrap">
           <div id="chart-rolling" class="chart tall"></div>
@@ -351,12 +349,14 @@
                 <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
               </div>
             </div>
-            <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
-              <button type="button" data-measure="recent" aria-pressed="true">Last 30 days</button>
-              <button type="button" data-measure="total" aria-pressed="false">So far</button>
+            <div class="race-pick">
+              <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
+                <button type="button" data-measure="recent" aria-pressed="true">Last 30 days</button>
+                <button type="button" data-measure="total" aria-pressed="false">So far</button>
+              </div>
+              <!-- Off, only the rolling chart's artists race (race.js) -->
+              <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
             </div>
-            <!-- Off, only the rolling chart's artists race (race.js) -->
-            <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
           </div>
         </div>
         <div id="race-stage" class="race-stage">
