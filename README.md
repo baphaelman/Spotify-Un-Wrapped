@@ -64,7 +64,7 @@ The full ranking for the period, with hours and plays. Scroll to see literally a
 
 ### Community
 
-If you opt in, which you should, the page shares an **anonymous summary** of your listening: your totals, your top 500 artists and tracks with hours, and a weekday × hour grid (which is compressed to make the 'When you listened' view). No timestamps, IP addresses, devices or locations. You can preview exactly what's sent before sharing and remove it any time, both under settings cog in the top right bar. Eventually, the **Community** tab will show how much people listen, the most shared artists and tracks, what time of day everyone listens, etc. But it needs 5 people so I can't really work on it yet---opt in please!!
+If you opt in, which you should, the page shares an **anonymous summary** of your listening: your totals, your top 500 artists and tracks with hours, and a weekday × hour grid (which is compressed to make the 'When you listened' view). No timestamps, IP addresses, devices or locations. You can preview exactly what's sent before sharing and remove it any time, both under the settings cog at the right end of the sticky period bar (until you share, a big green share button sits up top too). Eventually, the **Community** tab will show how much people listen, the most shared artists and tracks, what time of day everyone listens, etc. But it needs 5 people so I can't really work on it yet---opt in please!!
 
 ### PS
 
