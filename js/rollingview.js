@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { renderRaster, renderCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
@@ -296,12 +296,30 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 // tune.discoveryFloor minutes all time aren't drawn, but count.
 export const FLOORS = [1, 3, 5, 10, 30, 60]; // minutes all time, the slider's stops
 // The thumb sits where the threshold falls among the stops (the Visual tweaks slider can land between them); only a stop shows its number
+let floorGlide = 0;
+// The thumb glides to its stop on the graph's own tier, as the bars do; a drag has it follow the pointer
+function glideFloor(to) {
+  const input = $("discovery-floor"), from = +input.value, top = FLOORS.length - 1;
+  const put = (x) => {
+    input.value = x;
+    input.style.setProperty("--p", x / top);
+  };
+  cancelAnimationFrame(floorGlide);
+  const ms = dur(MORPH_MS);
+  if (!ms || from === to) return put(to);
+  const t0 = performance.now();
+  const step = (now) => {
+    const e = Math.min(1, (now - t0) / ms);
+    put(from + (to - from) * easeInOut(e));
+    if (e < 1) floorGlide = requestAnimationFrame(step);
+  };
+  floorGlide = requestAnimationFrame(step);
+}
 function paintFloor() {
   const input = $("discovery-floor"), v = tune.discoveryFloor;
   const i = Math.max(0, FLOORS.findLastIndex((f) => f <= v));
   const at = i >= FLOORS.length - 1 ? i : i + (v - FLOORS[i]) / (FLOORS[i + 1] - FLOORS[i]);
-  input.value = at;
-  input.style.setProperty("--p", at / (FLOORS.length - 1));
+  if (!input.matches(":active")) glideFloor(at);
   for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
     tick.style.setProperty("--p", tick.dataset.v / (FLOORS.length - 1));
     tick.classList.toggle("on", FLOORS[tick.dataset.v] === v);

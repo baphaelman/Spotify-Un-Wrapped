@@ -6,7 +6,7 @@ import { setBrushData, brushRange, glideBrushRange } from "./brush.js";
 import { FADE_MS, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { setupMix, highlightMix, placeMix } from "./mix.js";
 import { setupSkips, highlightSkips } from "./skips.js";
-import { buildTunes, useTunes, tunesChanged, setTune } from "./tune.js";
+import { buildTunes, useTunes, tunesChanged, setTune, tune } from "./tune.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
@@ -292,6 +292,7 @@ function syncEverything() {
 }
 buildTunes(retune);
 $("discovery-floor").addEventListener("input", (e) => setTune("discoveryFloor", FLOORS[Math.round(+e.target.value)]));
+$("discovery-floor").addEventListener("change", () => setTune("discoveryFloor", tune.discoveryFloor)); // (a drag ends: the thumb settles on its stop)
 for (const tick of $("discovery-floor").closest(".slider").querySelectorAll(".ticks [data-v]")) {
   tick.addEventListener("click", () => setTune("discoveryFloor", FLOORS[tick.dataset.v]));
 }
