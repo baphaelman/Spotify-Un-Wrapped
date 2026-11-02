@@ -63,13 +63,17 @@ function pickTop(keys, vals) {
   return top;
 }
 
+// With "Everyone else" off (#race-other), only the rolling chart's artists race
+const onlyChart = () => !$("race-other").checked;
+
 function build(lo, hi) {
   const hidden = new Set(state.hidden);
+  const only = onlyChart() ? new Set(state.chartNames) : null;
   const back = measure === "recent" ? recent - 1 : 0;
   const days = hi - lo + 1 + back;
   const buckets = Array.from({ length: days }, () => new Map()); // item -> ms that day
   for (const p of agg.filterRange(state.plays, lo - back, hi)) {
-    if (hidden.has(p.artist)) continue;
+    if (hidden.has(p.artist) || (only && !only.has(p.artist))) continue;
     const m = buckets[agg.dayIndex(p.t) - lo + back];
     if (m) m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms);
   }
@@ -166,6 +170,7 @@ function markRows() {
 
 // The key's repaint (key.js) recolors the rows and marks the pins, as for the list
 export function recolorRace() {
+  if (onlyChart()) paintRace(); // the chart's artists may have changed; it rebuilds only if they did
   for (const [key, r] of rows) {
     const c = colorOf(key);
     if (c) r.el.style.setProperty("--c", c);
@@ -332,7 +337,7 @@ export function paintRace() {
   $("race-sub").textContent = measure === "total"
     ? `${words.who} was on top through the period, by hours played since its start`
     : `${words.who} was on top through the period, by hours played in the ${recent} days up to each day`;
-  const key = [state.plays.length, state.dim, lo, hi, measure, recent, ...state.hidden].join("\u0000");
+  const key = [state.plays.length, state.dim, lo, hi, measure, recent, ...state.hidden, "\u0001", ...(onlyChart() ? state.chartNames ?? [] : ["*"])].join("\u0000");
   clearTimeout(rebuildTimer);
   const wait = lastBuild + REBUILD_MS - performance.now();
   if (built && built.key !== key && wait > 0) rebuildTimer = setTimeout(paintRace, wait);
@@ -456,6 +461,7 @@ paintWindow();
 
 // The slider's count changes how many rows show
 $("n-artists").addEventListener("input", kick);
+$("race-other").addEventListener("change", () => paintRace());
 
 // Pinning goes through the chart's own pins, which repaint the key and so these rows (recolorRace)
 function toggle(li) {
