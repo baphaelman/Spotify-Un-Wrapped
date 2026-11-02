@@ -73,10 +73,9 @@
                 <span class="all-box g-all"><span class="all-glyph"></span></span>
                 <span class="legend-item g-chip g-short" data-n="0"><span class="swatch"></span><span class="name"></span></span>
                 <span class="legend-item g-chip g-short off" data-n="1"><span class="swatch"></span><span class="name"></span></span>
-                <span class="legend-item g-chip g-other"><span class="swatch"></span><span class="name">Everyone else</span></span>
                 <span class="g-tile" data-n="0"><span class="g-tab"></span><span class="g-card"></span></span>
               </div>
-              <p><b>Show and hide</b> Clicking a chip's color tab hides that artist everywhere. Toggling <em>Everyone else</em> behaves the same way.</p>
+              <p><b>Show and hide</b> Clicking a chip's color tab hides that artist everywhere.</p>
             </div>
             <div class="guide-row" data-target="#palette-button | #theme-toggle">
               <div class="guide-pic g-colors">
@@ -217,8 +216,6 @@
             <ul id="artist-results" class="artist-results" role="listbox" aria-label="Artists" hidden></ul>
           </div>
           <div id="artist-key" class="chart-legend artist-key"></div>
-          <!-- Whether the graphs show everyone else in gray; the key's "Everyone else" chip flips it -->
-          <input id="include-other" type="checkbox" hidden>
         </div>
       </div>
 
@@ -251,6 +248,8 @@
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
+              <!-- Whether every graph shows everyone else in gray (off by default) -->
+              <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
               <!-- Back to the view a part was clicked in from (main.js openPart); faded while there's none -->
               <button type="button" id="view-back" class="ghost view-back" aria-label="Back" disabled>‹</button>
               <div id="rolling-split" class="segmented solid" role="group" aria-label="Split each band into">
@@ -350,8 +349,6 @@
             <h2 id="monthly-title">Hours per month</h2>
             <p id="monthly-note" class="muted">Each month's top artist on top</p>
           </div>
-          <!-- This graph's own, apart from the period bar's "Everyone else" chip -->
-          <label class="other-toggle"><input id="monthly-other" type="checkbox" checked><span class="swatch"></span><span id="monthly-other-label">Everyone else</span></label>
         </div>
         <div id="chart-monthly" class="chart"></div>
       </article>

@@ -474,7 +474,6 @@ button.ghost:hover { background: var(--border); }
 .bar-artists .artist-key .legend-item.pinned { padding-right: 10px; }
 .bar-artists .artist-key .legend-item.pinned, .bar-artists .artist-key .legend-item.focus { font-weight: 400; }
 /* Everyone else is the key's last chip and always reads in full */
-.artist-key .other-chip { flex: none; }
 /* The artist count, on the bar's first row beside the window lengths. The track is centered on the row, with
    the value hanging beneath the thumb (a zero-height row, so it doesn't push the track up). */
 .bar-opts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
@@ -495,7 +494,6 @@ button.ghost:hover { background: var(--border); }
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   padding: 4px 12px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--text-primary) 5%, transparent);
@@ -969,7 +967,6 @@ dialog pre {
 .g-chip.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) calc(12% * var(--lit-pin)), transparent); }
 .g-chip.off { opacity: 0.4; }
 .g-chip.off .swatch { background: transparent; }
-.g-other { --c: var(--other); }
 .g-all { width: 12px; height: 12px; color: var(--text-muted); }
 .g-all .all-glyph::before { left: 3px; top: 5px; width: 6px; }
 .g-tile { display: inline-grid; grid-template-columns: 6px auto; align-items: center; gap: 4px; font-size: 11px; }

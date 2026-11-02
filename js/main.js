@@ -316,7 +316,7 @@ function applyDim() {
   $("artist-search").placeholder = `Pin ${w.a}…`;
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
-  $("monthly-other-label").textContent = otherLabel();
+  $("other-label").textContent = otherLabel();
   $("clock-note").textContent = `${w.who} you listen to through the day, as a share of that time, in your local time zone`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);

@@ -1,7 +1,7 @@
 // The period bar's artist key (a chip per artist in the rolling chart) and the search that pins artists.
 import { focusArtist, showArtists } from "./charts.js";
 import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
-import { $, state, noun, otherLabel } from "./state.js";
+import { $, state, noun } from "./state.js";
 import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
 import { recolorRanking, focusRanking } from "./ranking.js";
 import { recolorRace, focusRace } from "./race.js";
@@ -82,34 +82,6 @@ export function paintArtistKey() {
     item.addEventListener("click", () => (off ? pins.hide(n) : pins.toggle(n)));
     return item;
   });
-  // Everyone else comes last, in gray, like its band on top of the stack. It isn't an artist, so it can't be
-  // pinned: a click anywhere on it shows or hides it, and it's dimmed while hidden, like a hidden artist
-  const otherOn = $("include-other").checked;
-  const rest = document.createElement("span");
-  rest.className = "legend-item mix-legend-item pinnable other-chip" + (otherOn ? "" : " hidden-artist");
-  rest.style.setProperty("--c", "var(--other)");
-  rest.dataset.artist = "Everyone else";
-  const restSw = document.createElement("button");
-  restSw.type = "button";
-  restSw.className = "swatch";
-  restSw.setAttribute("aria-pressed", otherOn);
-  restSw.tabIndex = -1; // the name is the one control, so it's a single tab stop
-  const restName = document.createElement("button");
-  restName.type = "button";
-  restName.className = "name";
-  restName.textContent = restName.dataset.text = otherLabel();
-  restName.setAttribute("aria-pressed", otherOn);
-  rest.title = otherOn ? `Hide ${otherLabel().toLowerCase()}` : `Show ${otherLabel().toLowerCase()}, in gray`;
-  restName.setAttribute("aria-label", rest.title);
-  rest.append(restSw, restName);
-  rest.addEventListener("pointerenter", () => otherOn && hover("Everyone else"));
-  rest.addEventListener("pointerleave", () => hover(null));
-  rest.addEventListener("click", () => {
-    hover(null);
-    $("include-other").checked = !otherOn;
-    $("include-other").dispatchEvent(new Event("input"));
-  });
-  items.push(rest);
   // As in the rolling chart, the box leaves shown pinned artists alone (a hidden one it brings back like the
   // rest). Checked when they're all shown, a plus when some can come back; a click shows them all, or hides
   // them all once they're all shown
