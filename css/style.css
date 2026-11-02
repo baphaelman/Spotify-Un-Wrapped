@@ -913,9 +913,8 @@ dialog pre {
 :root[data-theme="light"] :is(#theme-toggle, .g-theme) .rays { transform: none; opacity: 1; }
 .controls { position: relative; display: flex; }
 .help { display: contents; }
-/* In the period bar the cog hangs in the window gutter, just left of the view tabs, overhanging the column */
-.period-bar > .controls { margin: 0 -2px 0 -42px; }
-.period-bar > .controls .controls-panel { right: auto; left: 0; transform-origin: top left; }
+/* In the period bar the cog hangs in the window gutter, a few pixels right of the period's › arrow, out of the row */
+.period-bar > .controls { margin: 0 -42px 0 -2px; }
 :is(#controls-button) { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
 :is(#controls-button)[hidden] { display: none; }
 /* The standing invitation to share: big and green until the summary is in the pool */
