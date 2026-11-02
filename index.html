@@ -314,12 +314,12 @@
             <h2>Rank race</h2>
             <p class="muted" id="rank-note"></p>
           </div>
-          <!-- How many positions it shows; with Everyone else on (off by default), the key's artists and everyone else (rankrace.js) -->
+          <!-- How many positions it shows; with Everyone else off, only the key's artists (rankrace.js) -->
           <div class="rank-tools">
-            <label class="other-toggle"><input id="rank-other" type="checkbox"><span class="swatch"></span><span id="rank-other-label">Everyone else</span></label>
+            <label class="other-toggle"><input id="rank-other" type="checkbox" checked><span class="swatch"></span><span id="rank-other-label">Everyone else</span></label>
             <div class="slider rank-max">
               <label class="slider-label" for="rank-max">Positions</label>
-              <input id="rank-max" type="range" min="4" max="40" step="1" value="16">
+              <input id="rank-max" type="range" min="4" max="20" step="1" value="16">
               <output id="rank-max-out" for="rank-max">16</output>
             </div>
           </div>

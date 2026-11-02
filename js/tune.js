@@ -41,6 +41,8 @@ export const TUNES = [
   { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
+  // (also set by the card's Positions slider, which goes to 20)
+  { key: "rankMax", card: "rank-card", label: "Positions", def: 16, min: 4, max: 40, step: 1, live: true, fmt: (v) => `${v}` },
   { key: "rankDot", card: "rank-card", label: "Circle size (your artists)", def: 9, min: 2, max: 20, step: 0.5, fmt: px },
   { key: "rankGrayDot", card: "rank-card", label: "Circle size (others)", def: 6, min: 0, max: 16, step: 0.5, fmt: px },
   { key: "rankWidth", card: "rank-card", label: "Line width (your artists)", def: 3, min: 0.5, max: 8, step: 0.25, fmt: px },

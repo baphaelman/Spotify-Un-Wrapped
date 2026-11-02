@@ -12,8 +12,8 @@
 // Lit looks follow the page: hover (anywhere) and pins.
 import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
-import { $, state, putOff, rangePlays, shownName, OTHER } from "./state.js";
-import { tune } from "./tune.js";
+import { $, state, putOff, rangePlays, shownName } from "./state.js";
+import { tune, setTune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { tokens, alpha } from "./colors.js";
 import { esc, fmtH, MON } from "./format.js";
@@ -29,15 +29,16 @@ const SPANS = {
 };
 
 let c = null;
-// How many positions the chart shows: the slider at its top right. With "Everyone else" on, the chart is the key's
-// artists and everyone else, so the positions are locked to them (the slider, disabled, glides to that number and
-// back to the reader's own when it's off)
+// How many positions the chart shows: the slider at its top right (to 20; Visual tweaks' tune.rankMax goes to 40,
+// the thumb resting at the end). With "Everyone else" off, the chart is only the key's artists, so the positions are
+// locked to them (the slider, disabled, glides to that number and back to the reader's own when it's on)
 const maxInput = $("rank-max"), otherInput = $("rank-other");
-let ownMax = +maxInput.value, maxTo = ownMax, maxGlide = 0;
+let maxTo = tune.rankMax, maxShown = maxTo, maxGlide = 0, dragAt = -Infinity;
 const positions = () => maxTo;
 const paintMax = () => {
-  maxInput.style.setProperty("--p", (maxInput.value - maxInput.min) / (maxInput.max - maxInput.min));
-  $("rank-max-out").textContent = Math.round(+maxInput.value);
+  maxInput.value = maxShown;
+  maxInput.style.setProperty("--p", (+maxInput.value - maxInput.min) / (maxInput.max - maxInput.min));
+  $("rank-max-out").textContent = Math.round(maxShown);
 };
 paintMax();
 // The thumb and its number walk to `to` on the graph's tier, a fractional value with the step lifted
@@ -45,21 +46,27 @@ function glideMax(to, ms = MORPH_MS) {
   if (to === maxTo) return;
   maxTo = to;
   cancelAnimationFrame(maxGlide);
-  const from = +maxInput.value, total = dur(ms), start = performance.now();
+  const from = maxShown, total = dur(ms), start = performance.now();
   maxInput.step = "any";
   const tick = (now) => {
     const e = total ? easeInOut(Math.max(0, Math.min(1, (now - start) / total))) : 1;
-    maxInput.value = from + (to - from) * e;
+    maxShown = from + (to - from) * e;
+    if (e === 1) maxInput.step = 1;
     paintMax();
     if (e < 1) maxGlide = requestAnimationFrame(tick);
-    else { maxInput.step = 1; maxInput.value = to; paintMax(); }
   };
   maxGlide = requestAnimationFrame(tick);
 }
-// (a drag is a moving input: each morph is cut short by the next)
-maxInput.addEventListener("input", () => { ownMax = maxTo = Math.round(+maxInput.value); paintMax(); paintRankRace(CHASE_MS); });
+// (the redraw comes through the card's tune, a frame later; a drag is a moving input, each morph cut short by the next)
+maxInput.addEventListener("input", () => {
+  cancelAnimationFrame(maxGlide);
+  maxShown = maxTo = Math.round(+maxInput.value);
+  dragAt = performance.now();
+  paintMax();
+  setTune("rankMax", maxTo);
+});
 otherInput.addEventListener("change", () => {
-  maxInput.disabled = otherInput.checked;
+  maxInput.disabled = !otherInput.checked;
   paintRankRace();
 });
 let st = null; // what the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered }
@@ -83,20 +90,17 @@ function chart(el) {
     const rowOf = (e) => e.target.closest?.(".rank-tip-row");
     tip.addEventListener("mouseover", (e) => { const li = rowOf(e); if (li && colPin != null) hover(li._key); });
     tip.addEventListener("mouseleave", () => { if (colPin != null && !pointer) hover(null); });
-    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) pin(li._key); });
+    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) state.mixArgs?.[3]?.toggle(li._key); });
   }
   return c;
 }
 
-// Hovering a line lights it here and, when it's one of the chart's artists, everywhere (Everyone else is this chart's own)
+// Hovering a line lights it here and, when it's one of the chart's artists, everywhere
 function hover(name) {
   if (!st || st.hovered === name || st.leaving.has(name)) return;
-  if (name == null || (st.colors.has(name) && name !== OTHER)) focusArtist($("chart-rolling"), name);
+  if (name == null || st.colors.has(name)) focusArtist($("chart-rolling"), name);
   focusRankRace(name);
 }
-
-// A click pins an item (one that isn't the chart's joins it); Everyone else can't be
-const pin = (name) => { if (name !== OTHER) state.mixArgs?.[3]?.toggle(name); };
 
 // The period's ranks: for each slice of `span` months (empty ones too), a Map item -> { r: rank, h: the hours it's
 // ranked by (by the month, the month and those either side). who: the item a play counts for (null for none)
@@ -131,28 +135,27 @@ function ranksOf(plays, span, who = (p) => p.artist) {
 }
 
 // ms: how long the lines take to morph (CHASE_MS while the slider is dragged)
-export function paintRankRace(ms = MORPH_MS) {
+export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS : MORPH_MS) {
   const el = $("chart-rank");
   if (!state.plays || !state.range || putOff($("rank-card"), () => paintRankRace())) return;
   const t = tokens();
   const plays = rangePlays();
   const span = agg.monthSpan(plays, tune.maxBars + 1);
-  // With Everyone else on: the key's shown artists, and everyone else as one
+  // With Everyone else off: only the key's shown artists, ranked among themselves
   const hidden = new Set(state.hidden);
   const other = otherInput.checked;
   const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
   const inKey = new Set(keyed);
-  glideMax(other ? keyed.length + 1 : ownMax);
-  const { rows, labels } = other ? ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : hidden.has(p.artist) ? null : OTHER)) : ranksOf(plays, span);
+  glideMax(other ? tune.rankMax : Math.max(1, keyed.length));
+  const { rows, labels } = other ? ranksOf(plays, span) : ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : null));
   const [unit, steps] = SPANS[span];
-  $("rank-note").textContent = (other ? `Where the key's ${keyed.length} and everyone else stood, ${steps}` : `Where everything that reached the top ${positions()} stood, ${steps}`) +
+  $("rank-note").textContent = (other ? `Where everything that reached the top ${positions()} stood, ${steps}` : `Where the key's ${keyed.length} stood among themselves, ${steps}`) +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
   if (rows.length < 2) { scrub(null); dropRiders(); paintTimeline(true); c?.clear(); st = null; return; }
 
   const MAX = positions();
   const colors = new Map();
   for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
-  if (other) colors.set(OTHER, t.other);
   const names = new Set();
   for (const m of rows) for (const [a, e] of m) if (e.r <= MAX && !hidden.has(a)) names.add(a);
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)
@@ -184,17 +187,18 @@ const yOf = (m, a, MAX) => {
 
 // Room above #1 for a name over its circle
 const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
-// The plot keeps the spacing it has with REF_RANKS ranks in the chart's height; fewer, and what's left goes to the lane
-// above #1 ("Timeline"), from LANE_TOP down (at least the room for #1's names and the word)
-const REF_RANKS = 20, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
-function plotTop(MAX) {
+// The lane above #1 ("Timeline"), from LANE_TOP down, is as tall whatever the positions: the height it has when
+// LANE_RANKS ranks keep REF_RANKS' spacing (at least the room for #1's names and the word). The ranks spread or
+// close up to fill the rest.
+const REF_RANKS = 20, LANE_RANKS = 16, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
+function plotTop() {
   const H = $("chart-rank").clientHeight || 520;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
-  const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (MAX + 0.4 - 1);
+  const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (LANE_RANKS + 0.4 - 1);
   return PLOT_TOP + Math.max(lane, headroom() + 20 + TL_LABEL - PLOT_TOP);
 }
 const TL_LABEL = 14; // room over the timeline for its stops' dates
-const laneY = (MAX) => (LANE_TOP + TL_LABEL + plotTop(MAX) - headroom()) / 2; // (the timeline's height)
+const laneY = () => (LANE_TOP + TL_LABEL + plotTop() - headroom()) / 2; // (the timeline's height)
 
 // The chart's pinned items that are drawn
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
@@ -270,10 +274,10 @@ function option(ms = MORPH_MS) {
     animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(ms), animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
-    grid: { top: plotTop(MAX), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
+    grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
     // The lane above #1, named like a rank (its line and dots are paintTimeline's); between it and #1 is the room
     // for #1's names
-    graphic: [{ type: "text", id: "lane", silent: true, x: PLOT_LEFT - 8, y: laneY(MAX),
+    graphic: [{ type: "text", id: "lane", silent: true, x: PLOT_LEFT - 8, y: laneY(),
       style: { text: "Timeline", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
@@ -355,7 +359,7 @@ function clickAt(x, y) {
   if (!st || !pointer) return;
   const rect = gridRect();
   if (!inLane(y, rect)) {
-    if (st.hovered != null) pin(st.hovered);
+    if (st.hovered != null) state.mixArgs?.[3]?.toggle(st.hovered);
     return;
   }
   const k = colAt(x);
@@ -505,7 +509,7 @@ function paintTimeline(drop = false) {
     tl = null;
     return;
   }
-  const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY(st.MAX);
+  const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY();
   // (the x-axis's own pick of labels, so the two agree as they thin out)
   const shownLabels = c.getModel().getComponent("xAxis").axis.getViewLabels().map((l) => l.tickValue);
   const key = [n, rect.x, rect.width, y, ...shownLabels, st.labels[0]].join();
@@ -576,8 +580,8 @@ function draw() {
   }
   // (within a slice of either end it swells to cover the end's bigger dot, so the two merge)
   const toEnd = Math.max(0, 1 - Math.min(at, n - 1 - at));
-  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_RIDER_R + (TL_END_R + 0.5 - TL_RIDER_R) * toEnd }, style: { fill: st.t.primary, opacity: pointer || colPin != null ? 1 : shown } });
-  ringAt(colPin == null ? null : rect.x + colPin * slice, laneY(MAX));
+  tlRider.attr({ shape: { cx: x, cy: laneY(), r: TL_RIDER_R + (TL_END_R + 0.5 - TL_RIDER_R) * toEnd }, style: { fill: st.t.primary, opacity: pointer || colPin != null ? 1 : shown } });
+  ringAt(colPin == null ? null : rect.x + colPin * slice, laneY());
   if (unsettled && !gliding && !settle) settle = requestAnimationFrame(() => { settle = 0; draw(); });
 
   // The card: each row between its ranks in the slices either side of `at`, so as the column glides the rows
@@ -626,7 +630,7 @@ function draw() {
   const left = cx - slice / 2 - w - 8 >= 0 ? cx - slice / 2 - w - 8 : Math.min(cx + slice / 2 + 8, W - w);
   // (beside the pointer, or where it was when the column was pinned; always under the timeline, so its stops and
   // dates stay in sight on either side of the column)
-  const under = oy + laneY(MAX) + TL_END_R + 6;
+  const under = oy + laneY() + TL_END_R + 6;
   let top = Math.max(under, Math.min(frame.clientHeight - ht, oy + (pointer?.[1] ?? 0) - ht / 2));
   if (colPin != null) top = pinTop ??= pointer ? top : under;
   tip.style.transform = `translate(${left}px, ${top}px)`;
