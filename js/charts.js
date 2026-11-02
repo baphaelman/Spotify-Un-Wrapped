@@ -698,10 +698,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // All time has no zoom range of its own; give it the whole timeline so there's a range to travel to
     if (same && !Number.isFinite(zoom?.[0]) && data.dates.length) zoom = [data.dates[0], data.dates[data.dates.length - 1]];
     if (Number.isFinite(from?.[0]) && Number.isFinite(zoom?.[0]) && (from[0] !== zoom[0] || from[1] !== zoom[1])) {
-      // Hours: the axis top the final chart will have, to travel to alongside the range
+      // Hours: the axis top the lines on screen need over the new range, to travel to alongside it. (The new
+      // artists' top comes with their morph; going there now would shrink the old lines while they pan.)
       const travelMax = (el) => {
         const now = instances.get(el)?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
-        return Number.isFinite(now) ? { from: now, to: hoursTop(data, names, window, hasOther, prev.selected, zoom) } : null;
+        const shown = prev.args;
+        return Number.isFinite(now) && shown ? { from: now, to: hoursTop(shown[0], prev.names, shown[2], prev.hasOther, prev.selected, zoom) } : null;
       };
       const strip = stripOf.get(el);
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
