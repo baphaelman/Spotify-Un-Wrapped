@@ -141,9 +141,9 @@ function showView(view) {
   // The cog rides in the sticky period bar on the stats page, and in the top bar elsewhere
   const bar = document.querySelector(".period-bar");
   const slot = $("dashboard").hidden ? $("github-link").parentElement : bar;
-  if ($("controls-button").closest(".controls").parentElement !== slot) {
-    const c = $("controls-button").closest(".controls");
-    if (slot === bar) bar.insertBefore(c, bar.querySelector(".brush"));
+  const c = $("controls-button").closest(".controls");
+  if (c.parentElement !== slot || (slot === bar && bar.firstElementChild !== c)) {
+    if (slot === bar) bar.insertBefore(c, bar.firstChild);
     else slot.insertBefore(c, $("github-link"));
   }
   $("feedback-open").hidden = $("dashboard").hidden;
