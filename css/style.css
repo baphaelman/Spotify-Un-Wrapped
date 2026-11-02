@@ -1332,3 +1332,8 @@ button:not(:disabled):active { transform: scale(0.96); }
   .race-date { bottom: auto; top: -30px; font-size: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .race-stage, .race-rows li, .race-bar { transition: none; } }
+@media (max-width: 600px) {
+  .race-controls { flex-wrap: wrap; }
+  .slider.race-time { flex-basis: calc(100% - 46px); }
+  .race-speed { margin: 0 auto; }
+}

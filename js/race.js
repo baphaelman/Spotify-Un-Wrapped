@@ -10,13 +10,16 @@
 import * as agg from "./aggregate.js";
 import { $, state, noun, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
-import { mixArgs, MAX_PINS } from "./rollingview.js";
+import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
 import { CHASE_MS, dur, litLook } from "./motion.js";
 
 const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
-const RECENT_DAYS = 30;
-// How long the period plays at 1×: a year in YEAR_MS, longer periods taking longer but less than in proportion
-// (by the square root), and never under MIN_MS
+// The trailing window for "Last … days": about a twelfth of the period (a month of a year), as the nearest of the
+// rolling chart's slice sizes, so a short period looks at days and all time at months
+const recentDays = (span) => WINDOWS.reduce((a, b) => (Math.abs(b - span / 12) < Math.abs(a - span / 12) ? b : a));
+let recent = 30;
+// How fast the period plays at 1×: the same days a second whatever its length, so all time plays as slowly as a
+// year does (a year in YEAR_MS), never in under MIN_MS
 const YEAR_MS = 12_000, MIN_MS = 5_000;
 // The rows chase their targets with this time constant, so a move is all but done within CHASE_MS
 const TAU = CHASE_MS / 3;
@@ -56,7 +59,7 @@ function pickTop(keys, vals) {
 
 function build(lo, hi) {
   const hidden = new Set(state.hidden);
-  const back = measure === "recent" ? RECENT_DAYS - 1 : 0;
+  const back = measure === "recent" ? recent - 1 : 0;
   const days = hi - lo + 1 + back;
   const buckets = Array.from({ length: days }, () => new Map()); // item -> ms that day
   for (const p of agg.filterRange(state.plays, lo - back, hi)) {
@@ -71,7 +74,7 @@ function build(lo, hi) {
     for (const [k, ms] of buckets[d]) vals.set(k, (vals.get(k) ?? 0) + ms);
     if (measure === "recent") {
       // The day leaving the window takes its hours with it
-      for (const [k, ms] of buckets[d - RECENT_DAYS] ?? []) {
+      for (const [k, ms] of buckets[d - recent] ?? []) {
         const v = vals.get(k) - ms;
         if (v < 1) vals.delete(k);
         else vals.set(k, v);
@@ -174,7 +177,7 @@ export function focusRace(name) {
 // ---------- The clock ----------
 
 const span = () => (built ? built.hi - built.lo : 0);
-const playMs = () => Math.max(MIN_MS, YEAR_MS * Math.sqrt(span() / 365));
+const playMs = () => Math.max(MIN_MS, (YEAR_MS * span()) / 365);
 
 // One frame: the playhead moves on (while playing), and the rows, the slider and the date follow it
 function frame(now) {
@@ -304,12 +307,14 @@ export function paintRace() {
   const card = $("race-card");
   if (!state.plays || putOff(card, () => paintRace())) return;
   const { lo, hi } = state.range;
+  recent = recentDays(hi - lo + 1);
+  $("race-measure").querySelector('[data-measure="recent"]').textContent = `Last ${recent} days`;
   const words = noun();
   $("race-title").textContent = `Top ${words.Many} over time`;
   $("race-sub").textContent = measure === "total"
     ? `${words.who} was on top through the period, by hours played since its start`
-    : `${words.who} was on top through the period, by hours played in the ${RECENT_DAYS} days up to each day`;
-  const key = [state.plays.length, state.dim, lo, hi, measure, ...state.hidden].join("\u0000");
+    : `${words.who} was on top through the period, by hours played in the ${recent} days up to each day`;
+  const key = [state.plays.length, state.dim, lo, hi, measure, recent, ...state.hidden].join("\u0000");
   clearTimeout(rebuildTimer);
   const wait = lastBuild + REBUILD_MS - performance.now();
   if (built && built.key !== key && wait > 0) rebuildTimer = setTimeout(paintRace, wait);
