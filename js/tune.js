@@ -10,7 +10,7 @@ const x = (v) => `×${(+v).toFixed(2).replace(/\.?0+$/, "")}`;
 const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
-const DENSITY_LOOKS = ["Played bright", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
+const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
   { key: "hoverTint", card: "rolling-card", label: "Lit band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },

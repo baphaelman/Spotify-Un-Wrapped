@@ -1006,7 +1006,11 @@ dialog pre {
 .tune-val { grid-area: val; font-family: var(--mono); color: var(--text-primary); transition: color var(--motion-fade) var(--ease-out); }
 .tune-val.changed { color: var(--accent); }
 .tune .slider { grid-area: input; width: 100%; margin: 3px 0 1px; }
-.tune select { grid-area: input; width: 100%; margin: 3px 0 1px; }
+.tune select {
+  grid-area: input; width: 100%; margin: 3px 0 1px; appearance: none; font-size: 11px; background-color: var(--surface-2); border-radius: 8px; padding: 4px 22px 4px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%239a9fa4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
 .tune-def { grid-area: def; font-size: 10px; color: var(--text-muted); }
 .tune-reset { justify-self: start; align-self: center; padding: 4px 10px; font-size: 12px; }
 .tune-reset:disabled { opacity: 0.4; cursor: default; }
