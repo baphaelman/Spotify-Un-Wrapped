@@ -2306,8 +2306,9 @@ export function focusClock(el, name) {
 // hours across everything (a log scale from `floor` hours up to `top`). The
 // chart's artists among them (names, in their palette slots) take their colors, are named, and follow the hover/pin
 // rule; the rest are one neutral tone on a canvas layer of their own, which dims as a whole (a fade of the layer,
-// cheaper than restyling thousands of dots). items: [{name, t, hours}]; span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the neutral dots' size.
-// A click on any dot pins it (into the chart) or unpins it.
+// cheaper than restyling thousands of dots). items: [{name, t, hours, first}] (first: the song it was first heard
+// through, or null); span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the
+// pointer; dot: the neutral dots' size. The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
 const discoveryState = new WeakMap();
 const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes
 export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
@@ -2316,14 +2317,15 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
   const prev = discoveryState.get(el);
   const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
   const st = {
-    c, t, names, slotOf, floor, pins, span,
+    c, t, names, slotOf, floor, top, pins, span, hover, dot, near: null,
+    rest: items.filter((e) => !slotOf.has(e.name)),
     lit: items.filter((e) => slotOf.has(e.name)),
     pinned: new Set(names.filter((n) => pins?.has(n))),
     hovered: names.includes(prev?.hovered) ? prev.hovered : null,
   };
   discoveryState.set(el, st);
 
-  const hoursOf = new Map(items.map((e) => [e.name, e.hours]));
+  const byName = new Map(items.map((e) => [e.name, e]));
   const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const fmtSpent = (h) => (h >= 1 ? fmtHours(h) : `${Math.max(1, Math.round(h * 60))} min`);
   const fresh = prev?.c !== c; // (a theme flip makes a new chart)
@@ -2339,8 +2341,13 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
       tooltip: {
         ...tooltipBase(t),
         trigger: "item",
-        formatter: ({ name, value }) =>
-          `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(value[0])}</div>${fmtSpent(hoursOf.get(name))} all time`,
+        triggerOn: "none", // shown for the dot nearest the pointer (pointAt)
+        formatter: ({ name }) => {
+          const e = byName.get(name);
+          return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` +
+            (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
+            `${fmtSpent(e.hours)} all time`;
+        },
       },
       xAxis: { type: "time", min: span[0], max: span[1], ...baseAxis(t), splitLine: { show: false } },
       yAxis: {
@@ -2358,17 +2365,17 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           zlevel: NEUTRAL_Z,
           progressive: 0,
           symbolSize: dot,
-          cursor: pins ? "pointer" : "default",
+          silent: true, // read by nearestFound
           itemStyle: { color: mix(t.surface, t.other, 0.8) },
           emphasis: { disabled: true },
-          data: items.filter((e) => !slotOf.has(e.name)).map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, floor)] })),
+          data: st.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, floor)] })),
         },
         {
           id: "lit",
           type: "scatter",
           zlevel: LIT_Z,
           symbolSize: dot * 2,
-          cursor: pins ? "pointer" : "default",
+          silent: true,
           emphasis: { disabled: true },
           label: { show: true, position: "right", distance: 6, formatter: ({ name }) => name, color: t.secondary, fontSize: 11, fontWeight: 500 },
           labelLayout: { hideOverlap: true },
@@ -2380,12 +2387,79 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
     fresh ? 0 : dur(MORPH_MS)
   );
   dimRest(c, st, fresh ? 0 : dur(MORPH_MS));
-
+  // The dots moved: the pointer's ring and readout wait for its next move
+  st.ring = fresh ? null : prev.ring;
+  if (prev?.near) {
+    if (prev.near.lit) hover(null);
+    c.dispatchAction({ type: "hideTip" });
+    st.ring?.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
+  }
   if (!fresh) return;
-  // A lit dot lights its artist everywhere
-  c.on("mouseover", ({ seriesId, name }) => seriesId === "lit" && hover(name));
-  c.on("mouseout", ({ seriesId }) => seriesId === "lit" && hover(null));
-  c.on("click", ({ seriesId, name }) => (seriesId === "lit" || seriesId === "rest") && discoveryState.get(el).pins?.toggle(name));
+
+  // The pointer reads the dot nearest it, anywhere over the plot: a ring marks it, a lit one lights its artist
+  // everywhere, and a click pins it into the chart (or unpins it)
+  const zr = c.getZr();
+  zr.on("mousemove", (e) => {
+    const s = discoveryState.get(el);
+    const near = nearestFound(s, e.offsetX, e.offsetY);
+    zr.setCursorStyle(near && s.pins ? "pointer" : "default");
+    if (near?.name === s.near?.name) return;
+    pointAt(s, near);
+  });
+  zr.on("globalout", () => pointAt(discoveryState.get(el), null));
+  zr.on("click", (e) => {
+    const s = discoveryState.get(el);
+    const near = nearestFound(s, e.offsetX, e.offsetY);
+    if (near) s.pins?.toggle(near.name);
+  });
+}
+
+// Where an item's dot sits in pixels, worked out from the axes as they're set (cheaper than asking ECharts for each)
+function foundPixel(st, rect, e) {
+  const [lo, hi] = st.span, ly = Math.log(st.floor), ry = Math.log(st.top) - ly;
+  return [rect.x + ((e.t - lo) / (hi - lo)) * rect.width, rect.y + rect.height - ((Math.log(Math.max(e.hours, st.floor)) - ly) / ry) * rect.height];
+}
+
+// The dot nearest a pixel over the plot, as { name, lit, index, x, y }, or null off the plot
+function nearestFound(st, x, y) {
+  if (!st || !st.c.containPixel({ gridIndex: 0 }, [x, y])) return null;
+  const rect = st.c.getModel().getComponent("grid").coordinateSystem.getRect();
+  let best = null, bestD = Infinity;
+  for (const [list, lit] of [[st.rest, false], [st.lit, true]]) {
+    list.forEach((e, index) => {
+      const [px, py] = foundPixel(st, rect, e);
+      const d = (px - x) ** 2 + (py - y) ** 2;
+      if (d < bestD) [best, bestD] = [{ name: e.name, lit, index, x: px, y: py }, d];
+    });
+  }
+  return best;
+}
+
+// Point at a dot (or nothing): its readout, a ring that glides to it, and its artist lit if it's one of the chart's
+function pointAt(st, near) {
+  if (!st) return;
+  const was = st.near;
+  st.near = near;
+  const { c, t } = st;
+  if (was?.lit && !near?.lit) st.hover(null);
+  if (near?.lit) st.hover(near.name);
+  if (!near) {
+    c.dispatchAction({ type: "hideTip" });
+    st.ring?.animateTo({ style: { opacity: 0 } }, { duration: dur(FADE_MS), easing: EASE_OUT.echarts });
+    return;
+  }
+  c.dispatchAction({ type: "showTip", seriesIndex: near.lit ? 1 : 0, dataIndex: near.index });
+  const r = (near.lit ? st.dot : st.dot / 2) + 4;
+  const stroke = near.lit ? t.series[st.slotOf.get(near.name)] : t.primary;
+  if (!st.ring) {
+    st.ring = new echarts.graphic.Circle({ shape: { cx: near.x, cy: near.y, r }, style: { fill: null, stroke, lineWidth: 1.5, opacity: 0 }, zlevel: LIT_Z + 1, silent: true });
+    c.getZr().add(st.ring);
+  }
+  const ms = dur(FADE_MS), easing = EASE_OUT.echarts;
+  // From nothing it appears where it points; from another dot it glides over
+  if ((st.ring.style.opacity ?? 1) < 0.05) st.ring.attr({ shape: { cx: near.x, cy: near.y, r } });
+  st.ring.stopAnimation();
+  st.ring.animateTo({ shape: { cx: near.x, cy: near.y, r }, style: { stroke, opacity: 1 } }, { duration: ms, easing });
 }
 
 // The lit dots by the hover/pin rule: a light shade of the color at rest, deeper hovered, the color in full with a

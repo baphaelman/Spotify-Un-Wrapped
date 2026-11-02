@@ -286,7 +286,7 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 let heardMemo = null;
 export function paintDiscovery() {
   if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
-  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays) };
+  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays, state.dim !== "track") };
   const all = heardMemo.items;
   const [artists, , , pins] = mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
