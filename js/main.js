@@ -6,7 +6,7 @@ import { setBrushData, brushRange, glideBrushRange } from "./brush.js";
 import { FADE_MS, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { setupMix, highlightMix, placeMix } from "./mix.js";
 import { setupSkips, highlightSkips } from "./skips.js";
-import { buildTunes, useTunes, tunesChanged } from "./tune.js";
+import { buildTunes, useTunes, tunesChanged, setTune } from "./tune.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
 import * as api from "./api.js";
@@ -291,6 +291,10 @@ function syncEverything() {
   useTunes(everything);
 }
 buildTunes(retune);
+$("discovery-floor").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setTune("discoveryFloor", +b.dataset.min);
+});
 syncEverything();
 $("see-everything").addEventListener("click", () => {
   everything = !everything;

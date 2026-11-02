@@ -9,6 +9,7 @@
 const x = (v) => `×${(+v).toFixed(2).replace(/\.?0+$/, "")}`;
 const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
+// A spec with `live` is also set from the graph itself, so its value applies with the switch off too.
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
 const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
@@ -32,7 +33,7 @@ export const TUNES = [
   { key: "rasterHeight", card: "raster-card", label: "Height", def: 460, min: 260, max: 1100, step: 10, fmt: px },
   // (Every day's too)
   { key: "waitFade", card: "raster-card", label: "Shown while the period moves", def: 0.6, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
-  { key: "discoveryFloor", card: "discovery-card", label: "Drawn from", def: 1, min: 0.25, max: 60, step: 0.25, fmt: (v) => `${v} min all time` },
+  { key: "discoveryFloor", card: "discovery-card", label: "Listening Threshold", def: 1, min: 0.25, max: 60, step: 0.25, live: true, fmt: (v) => (v >= 60 ? "1 hour" : `${v} min`) },
   { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
@@ -69,10 +70,14 @@ let on = false;
 // Whether the reader has changed any value
 export const tunesChanged = () => Object.keys(mine).length > 0;
 
+// Sets a value from the graph itself (a `live` spec), redrawing its card
+let setFromGraph = () => {};
+export const setTune = (key, v) => setFromGraph(key, v);
+
 // Everything on or off: the graphs read the reader's values, or the defaults
 export function useTunes(everything) {
   on = everything;
-  for (const s of TUNES) tune[s.key] = on && Number.isFinite(mine[s.key]) ? mine[s.key] : s.def;
+  for (const s of TUNES) tune[s.key] = (on || s.live) && Number.isFinite(mine[s.key]) ? mine[s.key] : s.def;
   for (const row of document.querySelectorAll(".tune-row")) {
     row.classList.toggle("on", on);
     row.inert = !on;
@@ -114,10 +119,11 @@ export function buildTunes(redraw) {
     if (v === spec.def) delete mine[spec.key];
     else mine[spec.key] = v;
     save();
-    if (on) tune[spec.key] = v;
+    if (on || spec.live) tune[spec.key] = v;
     syncInputs();
     later(spec.card);
   };
+  setFromGraph = (key, v) => set(TUNES.find((s) => s.key === key), v);
   for (const card of new Set(TUNES.map((s) => s.card))) {
     const host = document.getElementById(card);
     if (!host) continue;
@@ -169,7 +175,7 @@ export function buildTunes(redraw) {
     reset.addEventListener("click", () => {
       for (const spec of TUNES.filter((s) => s.card === card)) {
         delete mine[spec.key];
-        if (on) tune[spec.key] = spec.def;
+        if (on || spec.live) tune[spec.key] = spec.def;
       }
       save();
       syncInputs();

@@ -433,8 +433,24 @@
 
       <!-- What the period found: its new artists across it, the chart's in their colors (rollingview.js paintDiscovery) -->
       <article class="card" id="discovery-card">
-        <h2>First listen</h2>
-        <p class="muted" id="discovery-note"></p>
+        <div class="found-head">
+          <div>
+            <h2>First listen</h2>
+            <p class="muted" id="discovery-note"></p>
+          </div>
+          <!-- Listening threshold: only finds with this many minutes all time are drawn (paintDiscovery); in-between values are the Visual tweaks slider -->
+          <div class="found-floor">
+            <span class="muted">Listening Threshold</span>
+            <div id="discovery-floor" class="segmented solid" role="group" aria-label="Listening Threshold">
+              <button type="button" data-min="1" aria-pressed="true">1 min</button>
+              <button type="button" data-min="3" aria-pressed="false">3 min</button>
+              <button type="button" data-min="5" aria-pressed="false">5 min</button>
+              <button type="button" data-min="10" aria-pressed="false">10 min</button>
+              <button type="button" data-min="30" aria-pressed="false">30 min</button>
+              <button type="button" data-min="60" aria-pressed="false">1 hour</button>
+            </div>
+          </div>
+        </div>
         <div class="found-frame">
           <div id="chart-discovery" class="chart"></div>
           <!-- Names the lit dots when they'd overlap beside them (charts.js paintFoundKey) -->

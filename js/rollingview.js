@@ -307,6 +307,8 @@ export function paintDiscovery() {
   const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
   const found = all.filter((e) => e.t >= start && e.t < end);
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
+  // An in-between value from the Visual tweaks slider leaves every preset unpressed
+  for (const b of $("discovery-floor").children) b.setAttribute("aria-pressed", +b.dataset.min === tune.discoveryFloor);
   const { one, many } = genre ? NOUN.track : noun();
   $("discovery-note").textContent = `You discovered ${found.length.toLocaleString()} ${found.length === 1 ? one : many} over this period`;
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.group ?? x.name));
