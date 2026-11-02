@@ -237,15 +237,16 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   refresh(v, data, key, { plays, lo, hi }, () => layoutRaster(v), relaid);
 }
 
-// After a render's artists are adopted: new data (a period window dragged or travelling) fades the graph out, and
-// it waits there until the changes stop coming, then the new frame fades in, rather than redrawing under the moving
-// window. Anything else in the key (a new height) only lays it out again; the first draw fades in.
+// After a render's artists are adopted: new data (a period window dragged or travelling) dims the graph a little
+// (to tune.waitFade), and it waits there until the changes stop coming, then the new frame takes its place at that
+// dimness and brightens, rather than redrawing under the moving window or crossfading (two layouts of boxes
+// overlapping). Anything else in the key (a new height) only lays it out again; the first draw fades in.
 function refresh(v, data, key, fields, layout, relaid) {
   const first = !v.key, moved = !first && data.some((x, i) => x !== v.key[i]);
   Object.assign(v, { key, ...fields });
   v.relayout = layout;
   if (moved) {
-    if (!v.waiting) fadeCanvas(v, 0, dur(FADE_MS), EASE_OUT.css);
+    if (!v.waiting) fadeCanvas(v, tune.waitFade, dur(FADE_MS), EASE_OUT.css);
     v.waiting = true;
     hideTip();
     clearTimeout(v.waitTimer);
@@ -253,7 +254,7 @@ function refresh(v, data, key, fields, layout, relaid) {
       v.waiting = false;
       layout();
       settle(v, true);
-      fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css);
+      fadeCanvas(v, 1, dur(MORPH_MS), EASE_IN_OUT.css);
     }, dur(CHASE_MS));
     return;
   }
