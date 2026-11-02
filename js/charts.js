@@ -259,7 +259,7 @@ function paintRidgeNames(el, at, ms, pinned, colors, act) {
   const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
   for (const [name, y] of at) {
     let n = have.get(name);
-    const place = `translateY(${y - NAME_H / 2 + 2}px)`;
+    const place = `translateY(${y - NAME_H / 2}px)`;
     if (!n) {
       n = document.createElement("div");
       n.className = "ridge-name";
