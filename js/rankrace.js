@@ -11,7 +11,7 @@
 // Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
 import * as agg from "./aggregate.js";
-import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut } from "./motion.js";
+import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut } from "./motion.js";
 import { $, state, putOff, rangePlays, shownName } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
@@ -49,7 +49,11 @@ function chart(el) {
   if (!c || c.isDisposed() || c.getDom() !== el) {
     c?.dispose();
     c = echarts.init(el, null, { renderer: "canvas" });
-    new ResizeObserver(() => (el.clientWidth !== c.getWidth() || el.clientHeight !== c.getHeight()) && c.resize()).observe(el);
+    new ResizeObserver(() => {
+      if (el.clientWidth === c.getWidth() && el.clientHeight === c.getHeight()) return;
+      c.resize();
+      paintTimeline();
+    }).observe(el);
     // The lines don't take the pointer: scrub picks who it's on. A click pins them (one that isn't the chart's joins it)
     c.getZr().on("click", () => st?.hovered != null && pointer && mixArgs?.[3]?.toggle(st.hovered));
     c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
@@ -106,7 +110,7 @@ export function paintRankRace() {
   const [unit, steps] = SPANS[span];
   $("rank-note").textContent = `Where everything that reached the top ${tune.rankMax} stood, ${steps}` +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
-  if (rows.length < 2) { scrub(null); c?.clear(); st = null; return; }
+  if (rows.length < 2) { scrub(null); dropRiders(); paintTimeline(true); c?.clear(); st = null; return; }
 
   const MAX = tune.rankMax;
   const hidden = new Set(state.hidden);
@@ -125,6 +129,7 @@ export function paintRankRace() {
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
   else setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS));
+  paintTimeline();
   // The card and circles follow at once (a pin's color, new ranks)
   if (pointer) draw();
   if (leaving.size) dropTimer = setTimeout(() => {
@@ -142,14 +147,15 @@ const yOf = (m, a, MAX) => {
 // Room above #1 for a name over its circle
 const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
 // The plot keeps the spacing it has with REF_RANKS ranks in the chart's height; fewer, and what's left goes to the lane
-// above #1 ("List"), from LANE_TOP down (at least the room for #1's names and the word)
-const REF_RANKS = 20, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30;
+// above #1 ("Timeline"), from LANE_TOP down (at least the room for #1's names and the word)
+const REF_RANKS = 20, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
 function plotTop(MAX) {
   const H = $("chart-rank").clientHeight || 520;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
   const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (MAX + 0.4 - 1);
   return PLOT_TOP + Math.max(lane, headroom() + 20 - PLOT_TOP);
 }
+const laneY = (MAX) => (LANE_TOP + plotTop(MAX) - headroom()) / 2; // (the timeline's height)
 
 // The chart's pinned items that are drawn
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
@@ -212,10 +218,11 @@ function option() {
     animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(MORPH_MS), animationEasingUpdate: EASE_IN_OUT.echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
-    grid: { top: plotTop(MAX), bottom: PLOT_BOTTOM, left: 44, right: 28 },
-    // The lane above #1, named like a rank; between the word and #1 is the room for #1's names
-    graphic: [{ type: "text", id: "lane", silent: true, x: 44 - 8, y: (LANE_TOP + plotTop(MAX) - headroom()) / 2,
-      style: { text: "List", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
+    grid: { top: plotTop(MAX), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
+    // The lane above #1, named like a rank (its line and dots are paintTimeline's); between it and #1 is the room
+    // for #1's names
+    graphic: [{ type: "text", id: "lane", silent: true, x: PLOT_LEFT - 8, y: laneY(MAX),
+      style: { text: "Timeline", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
     series: seriesOf(),
@@ -232,7 +239,7 @@ export function focusRankRace(name) {
 }
 
 // ---------- hovering ----------
-// The pointer over the plot picks the nearest slice (st.col). In the lane above #1 ("List") it lights no one, so the
+// The pointer over the plot picks the nearest slice (st.col). In the lane above #1 (the timeline) it lights no one, so the
 // column can be swept to watch the race; below, it's always on someone: whoever in the column is nearest it up or
 // down. `at` is the slice shown, fractional while gliding to
 // it; `shown` is how far the hover's look is in, 0 to 1 (the riders' names; as it leaves, the riders too).
@@ -240,6 +247,7 @@ let pointer = null;
 let at = 0, shown = 0;
 let anim = 0; // the glide's frame
 let riders = null; // item -> { dot, text }: a circle per line, riding it at `at`
+let tlRider = null; // the timeline's
 const rowEls = new Map(); // item -> its row in the card
 
 function scrub(x, y) {
@@ -257,6 +265,7 @@ function scrub(x, y) {
     // the names coming in show); the card and column fade in where they are
     st.col = at = k;
     setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
+    timelineDots(0);
     glide(k, 1, true);
   } else if (k !== st.col) {
     st.col = k;
@@ -275,6 +284,7 @@ function leave() {
   if (!st || !c || c.isDisposed()) return;
   st.col = null;
   setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
+  timelineDots(TL_R);
   glide(at, 0);
 }
 
@@ -284,7 +294,8 @@ function glide(to, toShown, jump = false) {
   cancelAnimationFrame(anim);
   const from = jump ? to : at, fromShown = shown, ms = dur(CHASE_MS), start = performance.now();
   const tick = (now) => {
-    const e = ms ? easeOut(Math.min(1, (now - start) / ms)) : 1;
+    // (a frame's time can be a little before the glide began: never ease outside 0..1, which would put `at` off the chart)
+    const e = ms ? easeOut(Math.max(0, Math.min(1, (now - start) / ms))) : 1;
     at = from + (to - from) * e;
     shown = fromShown + (toShown - fromShown) * e;
     draw();
@@ -331,7 +342,40 @@ function lineY(a, x, rect) {
 
 function dropRiders() {
   if (riders && c && !c.isDisposed()) for (const { dot, text } of riders.values()) { c.getZr().remove(dot); c.getZr().remove(text); }
-  riders = null;
+  if (tlRider && c && !c.isDisposed()) c.getZr().remove(tlRider);
+  riders = tlRider = null;
+}
+
+// ---------- the timeline ----------
+// The lane above #1: a line with a dot at each slice. Hovering, the dots shrink into it and one rides it with the
+// column (the riders' "timeline"). Drawn again only when its slices or place change, the old fading out as the new
+// fades in.
+const TL_R = 3.5;
+let tl = null; // { key, line, dots }
+function paintTimeline(drop = false) {
+  if (!c || c.isDisposed()) return;
+  const zr = c.getZr();
+  const fade = (e, to, done) => e.animateTo({ style: { opacity: to } }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.echarts, done });
+  const old = tl;
+  if (drop || !st) {
+    if (old) for (const e of [old.line, ...old.dots]) fade(e, 0, () => zr.remove(e));
+    tl = null;
+    return;
+  }
+  const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY(st.MAX);
+  const key = [n, rect.x, rect.width, y].join();
+  if (old?.key === key) return;
+  if (old) for (const e of [old.line, ...old.dots]) fade(e, 0, () => zr.remove(e));
+  const line = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: st.t.axis, lineWidth: 1.5, opacity: 0 } });
+  const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: pointer ? 0 : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
+  for (const e of [line, ...dots]) { zr.add(e); fade(e, 1); }
+  tl = { key, line, dots };
+}
+function timelineDots(r) {
+  for (const d of tl?.dots ?? []) {
+    d.stopAnimation("shape");
+    d.animateTo({ shape: { r } }, { duration: dur(CHASE_MS), easing: EASE_OUT.echarts, scope: "shape" });
+  }
 }
 
 // Draws the hover at `at` and `shown`
@@ -369,11 +413,21 @@ function draw() {
       style: { text: shownName(a), x, y: y - L.size / 2 - (L.col ? 8 : 6), align: "center", verticalAlign: "bottom", font: `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`, fill: ns.color, stroke: ns.textBorderColor, lineWidth: ns.textBorderWidth, opacity: named ? shown * depth : 0 },
       z: L.col ? 15 : 14,
     });
+    // (a name at either end stays whole on the canvas)
+    if (named) {
+      const half = r.text.getBoundingRect().width / 2, W = c.getWidth();
+      r.text.attr({ style: { x: Math.max(half + 2, Math.min(W - half - 2, x)) } });
+    }
   }
+  if (!tlRider) {
+    tlRider = new echarts.graphic.Circle({ silent: true, z: 3 });
+    zr.add(tlRider);
+  }
+  tlRider.attr({ shape: { cx: x, cy: laneY(MAX), r: TL_R * 1.4 }, style: { fill: st.t.primary, opacity: pointer ? 1 : shown } });
 
   // The card: each row between its ranks in the slices either side of `at`, so as the column glides the rows
   // overtake each other; rows leaving the top ranks slide out at the bottom and fade
-  const i = Math.floor(at), j = Math.min(n - 1, i + 1), u = at - i;
+  const i = Math.max(0, Math.min(n - 1, Math.floor(at))), j = Math.min(n - 1, i + 1), u = Math.max(0, Math.min(1, at - i));
   const hidden = new Set(state.hidden), pins = new Set(state.pinned);
   const list = tip.querySelector(".rank-tip-rows");
   list.style.setProperty("--n", MAX);
