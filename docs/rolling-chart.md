@@ -35,6 +35,11 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   fades. Share needs the artists who stay to keep their order, so a re-ranked period still morphs band into band.
   An interrupted change starts from the rows on screen (`flightData`), so a dragged artist count keeps up.
   Pins and the count pass a morph (`dur(MORPH_MS)`), so a pin's outline and shade fade in with the period bar's.
+- **Long periods draw about one point per pixel (`strideFor`, `thin`).** Every stride-th day from the epoch is kept
+  (plus the ends), a power of two, so every series and every sweep step share the same points. The outermost render
+  picks the stride for everything inside it; a morph to another stride first redraws what's on screen at the new one
+  (`restride`), which only happens at a period's wide end, where it hardly shows. A pan takes the finer of its two
+  ends before it sets off. Code inside `renderRolling` sees thinned data; `sourceOf` gets back the full set.
 - **In a merge, set unwanted options to `null`, not `undefined`,** or the other mode's values stick
   (for example `yAxis.interval`).
 - **Colors follow the artist, not the stack position.** `assignSlots` in `rollingview.js` gives each artist a

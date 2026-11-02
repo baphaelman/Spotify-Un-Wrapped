@@ -553,6 +553,66 @@ function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
   st.panRaf = requestAnimationFrame(tick);
 }
 
+// Long periods are drawn at about one point per pixel. A short window over years zigzags at a few points a pixel,
+// and drawing every one (mostly the band borders) is what made those charts slow. The points kept are every
+// stride-th day counted from the epoch, plus the first and last, so every series and every step of a sweep keep the
+// same ones, and thinning twice changes nothing. Strides are powers of two, so a coarser one's points are among a
+// finer one's. A chart with fewer days on screen than pixels is drawn in full.
+const DAY_MS = 864e5;
+function strideFor(el, dates, zoom) {
+  const px = el.clientWidth;
+  const span = Number.isFinite(zoom?.[0]) ? zoom[1] - zoom[0] : dates[dates.length - 1] - dates[0];
+  if (!px || !(span > 0)) return 1;
+  return 2 ** Math.max(0, Math.ceil(Math.log2(span / DAY_MS / px)));
+}
+const thinMemo = new WeakMap(); // data → Map stride → thinned
+const sourceOf = new WeakMap(); // thinned → the data it was thinned from
+function thin(data, stride) {
+  const src = sourceOf.get(data) ?? data;
+  if (stride <= 1) return src;
+  const memo = thinMemo.get(src) ?? new Map();
+  thinMemo.set(src, memo);
+  if (memo.has(stride)) return memo.get(stride);
+  const last = src.dates.length - 1;
+  const keep = [];
+  src.dates.forEach((d, i) => (i === 0 || i === last || Math.round(d / DAY_MS) % stride === 0) && keep.push(i));
+  let out = src;
+  if (keep.length < src.dates.length) {
+    const pick = (row) => row && keep.map((i) => row[i]);
+    const parts = src.parts && { ...src.parts, hours: src.parts.hours?.map((l) => l.map(pick)), share: src.parts.share?.map((l) => l.map(pick)) };
+    out = { ...src, dates: pick(src.dates), hours: src.hours.map(pick), share: src.share.map(pick), parts };
+    sourceOf.set(out, src);
+  }
+  memo.set(stride, out);
+  return out;
+}
+const strides = new WeakMap(); // el → the stride drawn
+const striding = new Set(); // charts whose outermost render is running: every render within it keeps its stride
+// Redraws what's on screen at another stride, instantly, so a morph that follows has the same points on both ends.
+// Done only where the change hardly shows: a period's widest end. A stand-in drawn mid-change (withArtistMorph's
+// union, a zero band) can't be redrawn finer; the stride stays and the next render catches up.
+function restride(el, stride) {
+  const st = rollingState.get(el);
+  if (!st?.args || stride === (strides.get(el) ?? 1)) return false;
+  const [d, n, w, , m, o, p, sl, sm] = st.args;
+  if (stride < (strides.get(el) ?? 1) && !sourceOf.has(d)) return false;
+  strides.set(el, stride);
+  chart(el).dispatchAction({ type: "hideTip" });
+  // Drawn with the selection it was drawn with, as the parts' redraw does (see renderRolling)
+  const sel = st.selected, wasRedrawing = redrawing, outer = striding.has(el);
+  st.selected = st.drawnSel ?? sel;
+  redrawing = true;
+  striding.add(el);
+  try {
+    renderRolling(el, d, n, w, currentZoom(el), m, o, false, p, sl, sm);
+  } finally {
+    redrawing = wasRedrawing;
+    st.selected = sel;
+    if (!outer) striding.delete(el);
+  }
+  return true;
+}
+
 // mode "share": stacked bands of each artist's share of listening (the original rolling_window.py).
 // mode "hours": the same artists as overlaid lines of hours per week.
 //
@@ -578,6 +638,25 @@ function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
 // of zero thickness (see withOtherMorph). {ms, live: true} morphs while the zoom range keeps moving (see
 // paintLive); it needs the same mode, window and number of series, or it redraws.
 export function renderRolling(el, data, names, window, zoom, mode = "share", hasOther = false, morph = false, pins = null, slots = null, smooth = 0) {
+  // The outermost render picks the stride (see strideFor) for every render within it. A live morph keeps the one
+  // drawn; a pan takes the finer of its two ends before it sets off, and lands on the new one's after
+  if (!striding.has(el)) {
+    const drawn = strides.get(el) ?? 1;
+    let want = morph?.live ? drawn : strideFor(el, data.dates, zoom);
+    if (morph?.pan) want = Math.min(want, strideFor(el, data.dates, currentZoom(el)));
+    striding.add(el);
+    try {
+      if (!morph || !rollingState.get(el)?.args) strides.set(el, want);
+      else restride(el, want);
+      const strip = morph?.pan && stripOf.get(el);
+      if (strip && (strides.get(strip) ?? 1) > want) restride(strip, want);
+      renderRolling(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth);
+    } finally {
+      striding.delete(el);
+    }
+    return;
+  }
+  data = thin(data, strides.get(el) ?? 1);
   // Any render ends a pan or a live morph in progress
   const prev = rollingState.get(el);
   if (prev?.panRaf) {
@@ -1383,7 +1462,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     const keep = sst && sst.keepFocus == null && st.keepFocus != null;
     if (keep) sst.keepFocus = st.keepFocus;
     // without the albums or songs: in thin lines they'd only tangle
-    renderRolling(strip, { ...sa.data, parts: undefined }, sa.names, window, zoom, "hours", hasOther, morph, pins, sa.slots, smooth);
+    renderRolling(strip, { ...(sourceOf.get(sa.data) ?? sa.data), parts: undefined }, sa.names, window, zoom, "hours", hasOther, morph, pins, sa.slots, smooth);
     if (keep) {
       sst.keepFocus = null;
       // (a change of artists gave the strip a new state, which carried the artist over)
