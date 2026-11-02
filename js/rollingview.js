@@ -126,11 +126,12 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
       return true;
     },
   };
-  mixArgs = [artists, slots, includeOther, pins]; // fresh before renderRolling, which can report a new selection
+  // The chart's "Everyone else" is its own: the mix bar and the graphs below leave the rest out
+  mixArgs = [artists, slots, false, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
-    renderMix(artists, slots, includeOther, pins);
+    renderMix(artists, slots, false, pins);
     paintArtistKey();
     paintMonthly();
     paintClock();
@@ -229,8 +230,8 @@ export function paintClock(plays) {
 }
 
 // Total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
-// out (same colors, pins and hover), each bar's top artist on top. The "Everyone else" toggle
-// (#include-other) shows or hides the gray.
+// out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle
+// (#monthly-other) shows or hides the gray, apart from the rolling chart's.
 const SPAN_WORDS = {
   1: ["per month", "month's"],
   3: ["every 3 months", "quarter's"],
@@ -250,9 +251,10 @@ export function paintMonthly(plays) {
   const span = agg.monthSpan(plays, tune.maxBars);
   $("monthly-title").textContent = `Hours ${SPAN_WORDS[span][0]}`;
   $("monthly-note").textContent = `Each ${SPAN_WORDS[span][1]} top ${noun().one} on top`;
-  const other = $("include-other").checked;
+  const other = $("monthly-other").checked;
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span, other);
 }
+$("monthly-other").addEventListener("change", () => paintMonthly());
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
 let mixMemo = null;

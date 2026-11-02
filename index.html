@@ -248,7 +248,7 @@
           </div>
           <div class="tav-side">
             <div class="tav-toggles">
-              <!-- Whether every graph shows everyone else in gray (off by default) -->
+              <!-- Whether this chart shows everyone else in gray (off by default); the other graphs have their own -->
               <label class="other-toggle"><input id="include-other" type="checkbox"><span class="swatch"></span><span id="other-label">Everyone else</span></label>
               <!-- Back to the view a part was clicked in from (main.js openPart); faded while there's none -->
               <button type="button" id="view-back" class="ghost view-back" aria-label="Back" disabled>‹</button>
@@ -349,6 +349,8 @@
             <h2 id="monthly-title">Hours per month</h2>
             <p id="monthly-note" class="muted">Each month's top artist on top</p>
           </div>
+          <!-- This graph's own, apart from the rolling chart's -->
+          <label class="other-toggle"><input id="monthly-other" type="checkbox" checked><span class="swatch"></span><span id="monthly-other-label">Everyone else</span></label>
         </div>
         <div id="chart-monthly" class="chart"></div>
       </article>
