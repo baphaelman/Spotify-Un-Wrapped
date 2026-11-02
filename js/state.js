@@ -12,11 +12,13 @@ export const $ = (id) => document.getElementById(id);
 // raw: the plays as loaded. plays: the same plays as the current view (dim) sees them, where "artist" can be a
 // track, an album or a genre (see views.js); owner: each track's or album's artist in that view. dims: the pins,
 // hidden names and colors each view had when the reader left it. sample: the plays are the sample data (sample.js),
-// which is never remembered on this device nor shared with the community.
+// which is never remembered on this device nor shared with the community. mixArgs: the last renderMix arguments,
+// [artists, slots, includeOther, pins] (pins: { has, toggle }), so the graphs that follow the rolling chart redraw
+// with its artists and pin through it; rollingview.js sets it, null before the first draw and after a reset.
 export const state = {
   raw: null, plays: null, range: null, view: "you", key: null, shared: null, smoothify: "auto",
   pinned: [], hidden: [], artists: [], colorSlots: new Map(), dim: "artist", owner: null, dims: new Map(),
-  split: { artist: "track", album: "track", genre: "artist" }, sample: false,
+  split: { artist: "track", album: "track", genre: "artist" }, sample: false, mixArgs: null,
 };
 
 // split: what the rolling chart splits each band into, per view: "album", "track" (songs), "artist", or null for
@@ -55,6 +57,9 @@ export const chartColor = (key) => {
 // are, and every view offers the same period buttons, so the bar never changes between tabs. Tracks come and go
 // faster than artists, so their graphs get finer slices and are smoothed sooner (RESIZE_LOOK).
 export const START_WINDOW = 3;
+// Smoothing windows in days; the slider steps through these, evenly spaced
+export const WINDOWS = [7, 15, 30, 45, 75, 90, 180];
+export const MAX_PINS = 10; // one per series color
 export const RESIZES = ["30d", "3m", "6m", "1y", "2y"];
 // What each period button also sets on the graphs: the days per slice, and the smoothing where it names one
 // (Off 0 … Max 4); left out, the smoothing stays as it is. A shorter period gets a finer slice.

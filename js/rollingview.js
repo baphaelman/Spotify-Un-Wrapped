@@ -10,7 +10,7 @@ import { renderRaster, renderCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
-import { $, state, noun, NOUN, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
+import { $, state, noun, NOUN, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals, MAX_PINS, WINDOWS } from "./state.js";
 
 const paintArtistKey = () => hooks.paintArtistKey(); // key.js, through main.js
 
@@ -44,9 +44,6 @@ function paintSlider(input) {
     tick.classList.toggle("on", tick.dataset.v === input.value);
   }
 }
-
-// Smoothing windows in days; the slider steps through these, evenly spaced
-export const WINDOWS = [7, 15, 30, 45, 75, 90, 180];
 
 // The rolling data last computed, so a sweep through blur radii doesn't redo it for every step
 export let rawMemo = null;
@@ -137,7 +134,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     },
   };
   // The chart's "Everyone else" is its own: the mix bar and the graphs below leave the rest out
-  mixArgs = [artists, slots, false, pins]; // fresh before renderRolling, which can report a new selection
+  state.mixArgs = [artists, slots, false, pins]; // fresh before renderRolling, which can report a new selection
   renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
@@ -229,9 +226,9 @@ export function paintBrush(_raw, morph = brushMorph) {
 
 // When you listened, split into the chart's artists (same colors, pins and hover; keyed in the period bar)
 export function paintClock(plays) {
-  if (!mixArgs || putOff($("chart-clock").closest(".card"), () => paintClock())) return;
+  if (!state.mixArgs || putOff($("chart-clock").closest(".card"), () => paintClock())) return;
   plays ??= shownPlays();
-  const [artists, , , pins] = mixArgs;
+  const [artists, , , pins] = state.mixArgs;
   const includeOther = $("clock-other").checked; // its own toggle
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
@@ -247,8 +244,8 @@ $("clock-other").addEventListener("change", () => paintClock());
 
 // Every play and Every day, in the chart's artists' colors (pins and hover as everywhere), the rest gray
 export function paintEvery(plays) {
-  if (!mixArgs) return;
-  const [artists, , , pins] = mixArgs;
+  if (!state.mixArgs) return;
+  const [artists, , , pins] = state.mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a) && !state.hidden.includes(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
@@ -275,10 +272,10 @@ const SPAN_WORDS = {
   24: ["2 Years", "two years'"],
 };
 export function paintMonthly(plays) {
-  if (!mixArgs || putOff($("chart-monthly").closest(".card"), () => paintMonthly())) return;
+  if (!state.mixArgs || putOff($("chart-monthly").closest(".card"), () => paintMonthly())) return;
   plays ??= shownPlays();
-  const [artists, , , pins] = mixArgs;
-  // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
+  const [artists, , , pins] = state.mixArgs;
+  // state.mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   // Deselected artists keep their (empty) series, so unticking one shrinks its bars in place instead of redrawing the chart
   const slots = keyed.map((n) => state.colorSlots.get(n));
@@ -368,13 +365,13 @@ function paintFloor() {
 }
 let heardMemo = null;
 export function paintDiscovery() {
-  if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
+  if (!state.mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
   // (the genres view finds tracks, each in its genre's color)
   const genre = state.dim === "genre";
   if (heardMemo?.plays !== state.plays)
     heardMemo = { plays: state.plays, items: genre ? agg.firstHeardTracks(state.plays) : agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album") };
   const all = heardMemo.items;
-  const [artists, , , pins] = mixArgs;
+  const [artists, , , pins] = state.mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
   const found = all.filter((e) => e.t >= start && e.t < end);
@@ -394,9 +391,8 @@ export function paintDiscovery() {
 // skips and picks of the same artists (skips.js)
 let mixMemo = null;
 let reasonsMemo = null; // whether the loaded plays carry their reasons (aggregate.hasReasons), per loaded plays
-export let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
 export function renderMix(artists, slots, includeOther, pins) {
-  mixArgs = [artists, slots, includeOther, pins];
+  state.mixArgs = [artists, slots, includeOther, pins];
   const key = [state.dim, state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
   // Deselected artists stay in the key but drop out of the bar (see updateMix)
@@ -726,8 +722,6 @@ for (const tick of windowSliders.flatMap((input) => [...input.closest(".slider")
   });
 }
 
-export const MAX_PINS = 10; // one per series color
-
 export function pin(name) {
   if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
   state.pinned = [...state.pinned, name];
@@ -753,4 +747,3 @@ function unpin(name) {
 // Other modules read these live through their imports, but only this one can assign them
 export const setBrushMorph = (m) => (brushMorph = m);
 export const setBrushFocus = (name) => (brushFocus = name);
-export const clearMixArgs = () => (mixArgs = null);

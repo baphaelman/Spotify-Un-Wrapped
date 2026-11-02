@@ -15,7 +15,6 @@ import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLit
 import { $, state, putOff, rangePlays, shownName } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
-import { mixArgs } from "./rollingview.js";
 import { tokens, alpha } from "./colors.js";
 import { esc, fmtH, MON } from "./format.js";
 import { HOUR } from "./aggregate.js";
@@ -51,7 +50,7 @@ function chart(el) {
     const rowOf = (e) => e.target.closest?.(".rank-tip-row");
     tip.addEventListener("mouseover", (e) => { const li = rowOf(e); if (li && colPin != null) hover(li._key); });
     tip.addEventListener("mouseleave", () => { if (colPin != null && !pointer) hover(null); });
-    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) mixArgs?.[3]?.toggle(li._key); });
+    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) state.mixArgs?.[3]?.toggle(li._key); });
   }
   return c;
 }
@@ -298,7 +297,7 @@ function clickAt(x, y) {
   if (!st || !pointer) return;
   const rect = gridRect();
   if (!inLane(y, rect)) {
-    if (st.hovered != null) mixArgs?.[3]?.toggle(st.hovered);
+    if (st.hovered != null) state.mixArgs?.[3]?.toggle(st.hovered);
     return;
   }
   const k = colAt(x);

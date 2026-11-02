@@ -4,8 +4,8 @@ import * as agg from "./aggregate.js";
 import { currentZoom, setZoom } from "./charts.js";
 import { setupBrush, setBrushRange } from "./brush.js";
 import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from "./motion.js";
-import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks } from "./state.js";
-import { periodZoom, clampZoom, rollingSub, WINDOWS, rawMemo, renderRollingChart, paintBrush, mixArgs, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph } from "./rollingview.js";
+import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS } from "./state.js";
+import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
 import { fmtDay } from "./format.js";
 
@@ -291,7 +291,7 @@ function liveSettle() {
 function liveSettleChart() {
   const n = Number($("n-artists").value);
   const artists = chartArtists(null, n);
-  if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && mixArgs) {
+  if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && state.mixArgs) {
     $("rolling-sub").textContent = rollingSub(n, WINDOWS[$("window").value], $("include-other").checked);
     renderMix(...mixArgs);
   } else {
@@ -299,7 +299,7 @@ function liveSettleChart() {
     const ms = dur(CHASE_MS);
     renderRollingChart(periodZoom(), ms && { ms, live: true }, null, false);
     liveTail = () => {
-      if (mixArgs) renderMix(...mixArgs);
+      if (state.mixArgs) renderMix(...mixArgs);
       paintArtistKey();
       paintBrush(undefined, ms ? { ms, ease: EASE_OUT.js } : null);
     };

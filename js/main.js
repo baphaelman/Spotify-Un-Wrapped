@@ -13,10 +13,10 @@ import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { askGenres } from "./genres.js";
-import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel } from "./state.js";
+import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
-import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
+import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, renderMix, setBrushMorph, setBrushFocus, syncSplit } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
@@ -115,7 +115,7 @@ window.addEventListener("drop", (e) => e.preventDefault());
 $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 // Remembered plays from before the reasons were kept: reading the files again brings the skips and picks
 $("skips-reread").addEventListener("click", () => $("file-input").click());
-$("skips-other").addEventListener("change", () => mixArgs && renderMix(...mixArgs));
+$("skips-other").addEventListener("change", () => state.mixArgs && renderMix(...mixArgs));
 
 $("reset").addEventListener("click", () => {
   if (!state.sample) {
@@ -282,7 +282,7 @@ function retune(card) {
   else if (card === "discovery-card") paintDiscovery();
   else if (card === "rank-card") paintRankRace();
   else if (card === "mix-card") placeMix();
-  else if (card === "skips-card" && mixArgs) renderMix(...mixArgs);
+  else if (card === "skips-card" && state.mixArgs) renderMix(...mixArgs);
   else if (card === "race-card") paintRate();
 }
 function syncEverything() {
@@ -394,7 +394,7 @@ function setDim(dim, find = null, slot) {
   }
   // The other charts wait for the rolling chart's new names (its followers draw them), rather than drawing the
   // old view's names over the new plays first
-  clearMixArgs();
+  state.mixArgs = null;
   syncPeriod(); // the period buttons are the view's own
   if (dim === "genre") startGenres();
   renderDependents();
@@ -510,7 +510,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   state.hidden = hidden;
   if (!state.plays) return;
   renderDependents();
-  if (mixArgs) renderMix(...mixArgs);
+  if (state.mixArgs) renderMix(...mixArgs);
   paintArtistKey();
   paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });

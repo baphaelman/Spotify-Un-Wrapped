@@ -8,9 +8,8 @@
 // Like the list below it, rows keep the chart's colors (the rest stay gray), hovering one lights its item everywhere,
 // and clicking it pins or unpins it. No pictures, so no lookups.
 import * as agg from "./aggregate.js";
-import { $, state, noun, putOff, chartColor } from "./state.js";
+import { $, state, noun, putOff, chartColor, MAX_PINS, WINDOWS } from "./state.js";
 import { focusArtist } from "./charts.js";
-import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
 import { CHASE_MS, ENTER_MS, FADE_MS, MORPH_MS, dur, litLook, scaledMs, easeInOut, easeOut } from "./motion.js";
 import { tune } from "./tune.js";
 import { hoursText } from "./format.js";
@@ -594,7 +593,7 @@ $("race-other").addEventListener("change", () => paintRace());
 
 // Pinning goes through the chart's own pins, which repaint the key and so these rows (recolorRace)
 function toggle(li) {
-  const pins = mixArgs?.[3];
+  const pins = state.mixArgs?.[3];
   if (!pins || (!pins.has(li._key) && state.pinned.length >= MAX_PINS)) return;
   pins.toggle(li._key);
 }

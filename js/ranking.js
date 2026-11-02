@@ -3,10 +3,9 @@
 // the next whenever the reader scrolls near its end (or presses "See more"). A repaint keeps as many rows as were
 // shown, so the list morphs in place rather than collapsing under the reader. No pictures, so no lookups.
 // Like the key's chips, hovering a row lights its item everywhere, and clicking it pins or unpins it.
-import { $, state, noun, putOff, rangeTotals, chartColor } from "./state.js";
+import { $, state, noun, putOff, rangeTotals, chartColor, MAX_PINS } from "./state.js";
 import { renderList, appendList } from "./lists.js";
 import { focusArtist } from "./charts.js";
-import { mixArgs, MAX_PINS } from "./rollingview.js";
 import { hoursText } from "./format.js";
 
 const CHUNK = 60;
@@ -114,7 +113,7 @@ function syncMore() {
 
 // Pinning goes through the chart's own pins, which repaint the key and so these rows (recolorRanking)
 function toggle(li) {
-  const pins = mixArgs?.[3];
+  const pins = state.mixArgs?.[3];
   if (!pins || (!pins.has(li._key) && state.pinned.length >= MAX_PINS)) return;
   pins.toggle(li._key);
 }

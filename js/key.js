@@ -1,8 +1,8 @@
 // The period bar's artist key (a chip per artist in the rolling chart) and the search that pins artists.
 import { focusArtist, showArtists } from "./charts.js";
 import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
-import { $, state, noun } from "./state.js";
-import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
+import { $, state, noun, MAX_PINS } from "./state.js";
+import { pin } from "./rollingview.js";
 import { recolorRanking, focusRanking } from "./ranking.js";
 import { recolorRace, focusRace } from "./race.js";
 
@@ -25,9 +25,9 @@ export function paintFocus(name = listFocus) {
 export function paintArtistKey() {
   recolorRanking();
   recolorRace();
-  if (!mixArgs) return;
-  const [artists, , , pins] = mixArgs;
-  // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
+  if (!state.mixArgs) return;
+  const [artists, , , pins] = state.mixArgs;
+  // state.mixArgs can lag a render behind the colors, so leave out any artist without a slot yet
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const key = $("artist-key");

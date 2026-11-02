@@ -10,7 +10,6 @@
 
 import { $, state, noun, shownPlays, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
-import { mixArgs } from "./rollingview.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, easeOut, litLook } from "./motion.js";
 import { fmtHours } from "./format.js";
 import { HOUR } from "./aggregate.js";
@@ -522,10 +521,10 @@ export function focusSunburst(name) {
 export function paintSunburst(plays) {
   const card = $("sunburst-card");
   card.hidden = state.dim === "track" || !LEVELS[state.dim];
-  if (card.hidden || !mixArgs || putOff(card, () => paintSunburst())) return;
+  if (card.hidden || !state.mixArgs || putOff(card, () => paintSunburst())) return;
   if (!svg) setup();
   plays ??= shownPlays();
-  const [artists, , , p] = mixArgs;
+  const [artists, , , p] = state.mixArgs;
   pins = p;
   const off = new Set(state.hidden);
   const items = artists.filter((a) => !off.has(a));
