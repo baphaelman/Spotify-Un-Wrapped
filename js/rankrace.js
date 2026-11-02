@@ -217,6 +217,13 @@ const nameStyle = (L) => ({
 
 const SMOOTH = 0.5; // the lines' curve rounding (lineY follows it)
 
+// Whether nothing drawn sits a rank above rank r in slice i (above #1 is the room for its names)
+function roomAbove(i, r) {
+  if (r <= 1) return true;
+  for (const [a, e] of st.rows[i]) if (e.r === r - 1) return !st.names.includes(a) && !st.leaving.has(a);
+  return true;
+}
+
 // ms: how long the circles take to grow or shrink (into the lines, while hovering)
 function seriesOf(ms = MORPH_MS) {
   const { names, leaving, rows, MAX, col: at } = st;
@@ -233,8 +240,14 @@ function seriesOf(ms = MORPH_MS) {
     const data = ys.map((y, i) => {
       const d = { value: y, symbol: y <= MAX ? "circle" : "none" };
       if (at != null) d.symbolSize = 0;
-      if (i === named)
-        d.label = { show: true, formatter: shownName(a), position: i < n * 0.15 ? "right" : i > n * 0.85 ? "left" : "top", distance: L.col ? 8 : 6, ...nameStyle(L) };
+      // Over the circle when the rank above is free there (always for #1), toward the chart's middle near either
+      // end so it stays whole; otherwise beside it, off the edge's side
+      if (i === named) {
+        const end = i < n * 0.15 ? "right" : i > n * 0.85 ? "left" : null;
+        const free = !end || roomAbove(i, y);
+        d.label = { show: true, formatter: shownName(a), position: free ? "top" : end, distance: L.col ? 8 : 6, ...nameStyle(L) };
+        if (end && free) d.label.align = end === "right" ? "left" : "right";
+      }
       return d;
     });
     return {
