@@ -158,9 +158,10 @@ function plotTop(MAX) {
   const H = $("chart-rank").clientHeight || 520;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
   const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (MAX + 0.4 - 1);
-  return PLOT_TOP + Math.max(lane, headroom() + 20 - PLOT_TOP);
+  return PLOT_TOP + Math.max(lane, headroom() + 20 + TL_LABEL - PLOT_TOP);
 }
-const laneY = (MAX) => (LANE_TOP + plotTop(MAX) - headroom()) / 2; // (the timeline's height)
+const TL_LABEL = 14; // room over the timeline for its stops' dates
+const laneY = (MAX) => (LANE_TOP + TL_LABEL + plotTop(MAX) - headroom()) / 2; // (the timeline's height)
 
 // The chart's pinned items that are drawn
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
@@ -443,7 +444,7 @@ function dropRiders() {
 }
 
 // ---------- the timeline ----------
-// The lane above #1: a line with a dot at each slice, bigger at its two ends. Hovering, a bright one rides it with the
+// The lane above #1: a line with a dot at each slice, bigger at its two ends, dated over the dots the x-axis labels. Hovering, a bright one rides it with the
 // column, over the dots, swelling to cover an end's as it gets there (see draw). Drawn again only when its slices or
 // place change, the old fading out as the new fades in.
 const TL_R = 3.5, TL_END_R = 6, TL_RIDER_R = 4.5;
@@ -454,18 +455,24 @@ function paintTimeline(drop = false) {
   const fade = (e, to, done) => e.animateTo({ style: { opacity: to } }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.echarts, done });
   const old = tl;
   if (drop || !st) {
-    if (old) for (const e of [old.line, ...old.dots]) fade(e, 0, () => zr.remove(e));
+    if (old) for (const e of [old.line, ...old.dots, ...old.dates]) fade(e, 0, () => zr.remove(e));
     tl = null;
     return;
   }
   const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY(st.MAX);
-  const key = [n, rect.x, rect.width, y].join();
+  // (the x-axis's own pick of labels, so the two agree as they thin out)
+  const shownLabels = c.getModel().getComponent("xAxis").axis.getViewLabels().map((l) => l.tickValue);
+  const key = [n, rect.x, rect.width, y, ...shownLabels, st.labels[0]].join();
   if (old?.key === key) return;
-  if (old) for (const e of [old.line, ...old.dots]) fade(e, 0, () => zr.remove(e));
+  if (old) for (const e of [old.line, ...old.dots, ...old.dates]) fade(e, 0, () => zr.remove(e));
   const line = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: st.t.axis, lineWidth: 1.5, opacity: 0 } });
   const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: i === 0 || i === n - 1 ? TL_END_R : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
-  for (const e of [line, ...dots]) { zr.add(e); fade(e, 1); }
-  tl = { key, line, dots };
+  const dates = shownLabels.map((i) => new echarts.graphic.Text({ silent: true, z: 2, style: {
+    text: st.labels[i], x: rect.x + i * slice, y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom",
+    fill: st.t.muted, font: "500 11px Inter, sans-serif", opacity: 0,
+  } }));
+  for (const e of [line, ...dots, ...dates]) { zr.add(e); fade(e, 1); }
+  tl = { key, line, dots, dates };
 }
 
 // Draws the hover at `at` and `shown`
