@@ -289,15 +289,22 @@
       <article class="card" id="hours-card">
         <h2>Hours per week</h2>
         <p class="muted" id="hours-sub"></p>
-        <!-- The same slider as the chart above's, kept in step with it (rollingview.js windowSliders) -->
-        <div class="slider tav-window">
-          <label class="slider-label" for="hours-window">Days per slice</label>
-          <input id="hours-window" type="range" min="0" max="6" step="1" value="3" aria-valuetext="45 days">
-          <div class="ticks" aria-hidden="true">
-            <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
+        <div class="hours-controls">
+          <!-- The same slider as the chart above's, kept in step with it (rollingview.js windowSliders) -->
+          <div class="slider tav-window">
+            <label class="slider-label" for="hours-window">Days per slice</label>
+            <input id="hours-window" type="range" min="0" max="6" step="1" value="3" aria-valuetext="45 days">
+            <div class="ticks" aria-hidden="true">
+              <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
+            </div>
           </div>
+          <!-- Each one's line as a ridge of its own (charts.js setRidges) -->
+          <label class="other-toggle ridge-toggle"><input id="ridges" type="checkbox"><span class="swatch"></span><span id="ridges-label">Separate artists</span></label>
         </div>
-        <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
+        <div class="strip-frame">
+          <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
+          <div class="ridge-names" aria-hidden="true"></div>
+        </div>
       </article>
 
       <!-- Who was on top, played as a video over the period: the bars race, and the time slider runs with them (race.js) -->

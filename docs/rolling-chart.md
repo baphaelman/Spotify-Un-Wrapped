@@ -47,6 +47,14 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   Pinned artists are placed first, so they keep their color for as long as they're pinned. A newcomer avoids a
   slot an artist leaving the chart just gave up while another is free, so the two don't read as one band. Stack
   order is still rank, so don't use the series index as a color index.
+- **Ridgelines (the strip only, `setRidges`).** The Hours card's "Separate artists" puts each hours line on a
+  baseline of its own: the same series, values `base + hours × scale` and `areaStyle.origin` at the baseline (both
+  tween, so the switch is a plain merge morph), filled with the share bands' tints and z-ordered so each ridge covers
+  the ones above it. The y axis counts pixels (`plotH`); the tallest peak in range is `RIDGE_PEAK` px, and the top
+  baseline sits that far below the plot's top. Rows follow rank, or mid artist change `artistCtx.rows` (the old
+  artists, then the new). The strip's grid is placed from the top (`top` + `height`) so `sizeStrip` can grow its canvas
+  at once and shrink it after the morph while the card's frame glides; names are HTML (`paintRidgeNames`). A pan holds
+  the ridges' scale (no `yMax` travel); the artist morph after it rescales.
 - **Overlay series `t{k}`/`b{k}`** draw each band's top and bottom outline, thicker only while it's pinned (a hover only shades).
 - **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
   period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first

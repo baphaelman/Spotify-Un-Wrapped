@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -65,6 +65,8 @@ linkStrip($("chart-rolling"), $("chart-rolling-hours"));
 // Days per slice has a slider in each card, kept in step. #window is the one the page reads; the other passes
 // its moves on to it, and both glide together
 const windowSliders = [$("window"), $("hours-window")];
+// "Separate artists": the strip's lines as ridgelines, morphing between the two
+$("ridges").addEventListener("change", (e) => setRidges($("chart-rolling-hours"), e.target.checked));
 
 // look: optional overrides for the steps of a sweep. { window, grid } draws the chart of another window
 // size on the points of window `grid`; { sigma, smooth } sets the blur radius and curve rounding; { stretch }
@@ -112,6 +114,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
 
   $("rolling-sub").textContent = rollingSub(n, target, includeOther);
   $("hours-sub").textContent = `Each ${noun().one}'s hours per week, ${target}-day rolling average`;
+  $("ridges-label").textContent = `Separate ${noun().many}`;
   const slots = assignSlots(artists);
   const pins = {
     has: (name) => state.pinned.includes(name),

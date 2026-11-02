@@ -50,6 +50,7 @@ if (h.includes("n10")) { setArtists(10); await sleep(600); }
 if (h.includes("split-album")) { document.querySelector('#rolling-split [data-split="album"]').click(); await sleep(2000); }
 if (h.includes("split-artist")) { document.querySelector('#rolling-split [data-split="artist"]').click(); await sleep(2000); }
 if (h.includes("split-track")) { document.querySelector('#rolling-split [data-split="track"]').click(); await sleep(2000); }
+if (h.includes("ridges")) { q("ridges").click(); await sleep(1500); }
 if (h.includes("community")) { q("tab-community").click(); await sleep(2500); }
 if (h.includes("preview")) q("share-preview").click();
 document.title = "DONE";

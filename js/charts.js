@@ -41,7 +41,8 @@ function chart(el) {
   if (!c) {
     c = echarts.init(el, null, { renderer: "canvas" });
     instances.set(el, c);
-    new ResizeObserver(() => c.resize()).observe(el);
+    // (only when the size differs from the canvas's: the hours strip resizes its canvas itself, see sizeStrip)
+    new ResizeObserver(() => (el.clientWidth !== c.getWidth() || el.clientHeight !== c.getHeight()) && c.resize()).observe(el);
   }
   return c;
 }
@@ -183,6 +184,84 @@ export function linkStrip(el, strip) {
   stripOf.set(el, strip);
   mainOf.set(strip, el);
 }
+
+// The strip as ridgelines (the card's "Separate artists"): each artist's line on a baseline of its own, in rank order
+// from the top, tune.ridgeGap px apart, on one shared scale whose tallest peak in range stands RIDGE_PEAK px. The top
+// baseline sits that far below the plot's top, so no peak is cut off however close the ridges are. The y axis then
+// counts pixels up from the bottom baseline. Same series as the lines, so switching morphs point by point.
+const ridged = new WeakSet();
+const STRIP_H = 400; // the strip's height as lines (.chart.strip in css/style.css)
+const STRIP_TOP = 14, STRIP_BOTTOM = 28, RIDGE_PEAK = 90, RIDGE_LEFT = 150, RIDGE_NAME_H = 16;
+export function setRidges(strip, on) {
+  if (on === ridged.has(strip)) return;
+  if (on) ridged.add(strip);
+  else ridged.delete(strip);
+  const st = rollingState.get(strip);
+  if (!st?.args || owes(strip.closest(".card"))) return; // (well off screen, it catches up as it comes near)
+  const [d, n, w, , m, o, p, sl, sm] = st.args;
+  const [fd, fn, fsl] = st.final ?? [d, n, sl];
+  renderRolling(strip, fd, fn, w, currentZoom(strip), m, o, dur(MORPH_MS), p, fsl, sm);
+}
+
+// The strip's height follows its ridges. The page below moves on the morph's clock (the frame's height transitions),
+// while the canvas grows at once, with nothing on it moving (the plot is placed from the top), and shrinks once the
+// morph has landed.
+function sizeStrip(el, c, h, ms) {
+  const frame = el.parentElement;
+  clearTimeout(el._settle);
+  const settle = () => {
+    el.style.height = `${h}px`;
+    if (c.getHeight() !== h) c.resize();
+    frame.style.transition = frame.style.height = "";
+  };
+  const was = frame.getBoundingClientRect().height; // (mid-transition, where it is now)
+  if (!ms || !was || Math.abs(was - h) < 0.5) return settle();
+  if (c.getHeight() < h) {
+    el.style.height = `${h}px`;
+    c.resize();
+  }
+  frame.style.transition = "none";
+  frame.style.height = `${was}px`;
+  frame.getBoundingClientRect();
+  frame.style.transition = `height ${ms}ms ${EASE_IN_OUT.css}`;
+  frame.style.height = `${h}px`;
+  el._settle = setTimeout(settle, ms);
+}
+
+// The ridges' names, left of each baseline: HTML over the chart, so a long one ellipsizes. at: name -> its
+// baseline's y in the frame, for the artists with a ridge; the rest fade out. They glide with the morph.
+function paintRidgeNames(el, at, ms, pinned) {
+  const box = el.parentElement.querySelector(".ridge-names");
+  if (!box) return;
+  box.style.setProperty("--ridge-ms", `${ms}ms`);
+  const have = new Map([...box.children].map((n) => [n.dataset.name, n]));
+  for (const [name, y] of at) {
+    let n = have.get(name);
+    const place = `translateY(${y - RIDGE_NAME_H}px)`;
+    if (!n) {
+      n = document.createElement("div");
+      n.className = "ridge-name";
+      n.dataset.name = name;
+      n.textContent = shownName(name);
+      n.style.transform = place;
+      box.append(n);
+      n.getBoundingClientRect(); // (so it fades in where it is)
+    }
+    n.style.transform = place;
+    n.classList.add("on");
+    n.classList.toggle("pin", pinned.has(name));
+    have.delete(name);
+  }
+  for (const n of have.values()) {
+    n.classList.remove("on", "lit");
+    setTimeout(() => !n.classList.contains("on") && n.remove(), ms);
+  }
+}
+// The hovered artist's name lights with its ridge
+function litRidgeName(el, name) {
+  const box = el.parentElement.querySelector(".ridge-names");
+  for (const n of box?.children ?? []) n.classList.toggle("lit", n.dataset.name === name && n.classList.contains("on"));
+}
 let relaying = false; // a hover passed from one to the other isn't passed back
 // The hours axis top for a tallest line m: a little headroom, rounded up to a step that grows with m (0.5 h under 5,
 // then whole hours, then 5s), so a small peak isn't left with a third of the chart empty
@@ -193,6 +272,10 @@ const niceTop = (m) => {
 // The hours axis top for the zoom range: the tallest shown line in it. A line leaves the range between two points,
 // so the value where it crosses each edge counts, not the whole point just past it
 function hoursTop(data, names, window, hasOther, hide, zoom) {
+  return niceTop(hoursPeak(data, names, window, hasOther, hide, zoom));
+}
+// The tallest shown line in the zoom range, as it is
+function hoursPeak(data, names, window, hasOther, hide, zoom) {
   let m = 0;
   const n = data.dates.length;
   names.forEach((n_, s) => {
@@ -213,7 +296,7 @@ function hoursTop(data, names, window, hasOther, hide, zoom) {
       }
     }
   });
-  return niceTop(m);
+  return m;
 }
 
 // Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
@@ -363,10 +446,11 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
       const yMax = share ? null : c?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
       // Lines already leaving when this change interrupted the last one carry on gone
       const fade = new Set(st.flight?.fade ?? []);
-      artistCtx = { el, report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null };
+      // (ridges: the rows it's coming from, see renderRolling)
+      artistCtx = { el, report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null, rows: A };
       renderRolling(el, before, uNames, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, uSlots, st.args[8]);
     }
-    artistCtx = { el, report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers) };
+    artistCtx = { el, report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers), rows: B };
     renderRolling(el, after, uNames, window, zoom, mode, hasOther, { ms, easing }, pins, uSlots, smooth);
   } finally {
     artistCtx = outer;
@@ -708,7 +792,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       };
       const strip = stripOf.get(el);
       panTo(el, from, zoom, morph, () => renderRolling(el, data, names, window, zoom, mode, hasOther, true, pins, slots, smooth),
-        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && !owes(strip.closest(".card")) && { el: strip, yMax: travelMax(strip) });
+        mode === "hours" ? travelMax(el) : null, strip && rollingState.get(strip) && !owes(strip.closest(".card")) && { el: strip, yMax: ridged.has(strip) ? null : travelMax(strip) });
       return;
     }
     else morph?.onFrame?.(1); // no trip to make: whatever follows the pan lands at once
@@ -753,6 +837,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const colors = names.map((_, i) => (i === otherIdx ? t.other : t.series[slots?.[i] ?? i]));
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const isStrip = mainOf.has(el);
+  const ridge = isStrip && !share && ridged.has(el); // (see setRidges)
   const unfiltered = data.free && Number.isFinite(zoom?.[0]);
   const perWeek = (h) => (h / window) * 7;
 
@@ -814,6 +899,32 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // A hidden artist's line lies on 0 (and fades out, lineLook), so hiding it sinks it rather than snapping it away
   const hoursAt = (s, i) => (data.share[s][i] == null ? null : s === otherIdx || !visible(s) ? 0 : perWeek(data.hours[s][i]));
 
+  // Ridges (see setRidges): a row for each artist shown, in rank order from the top; mid artist change, the rows of
+  // the artists it's coming from, then going to (withArtistMorph). An artist without a row (hidden, or not arrived)
+  // lies flat on the next row down's baseline, faded out; one leaving sinks onto its own. The scale is held through
+  // an artist change's first step, which redraws what's on screen.
+  let ridgeBase = null, ridgeK = 0, plotH = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
+  if (ridge) {
+    const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
+    const rows = order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n)));
+    const at = new Map(rows.map((n, r) => [n, (rows.length - 1 - r) * tune.ridgeGap]));
+    const nextRow = (list, n) => list.slice(list.indexOf(n) + 1).find((m) => at.has(m));
+    ridgeBase = names.map((n, s) =>
+      at.get(n) ?? (fading(s) && prev?.ridgeAt?.get(n)) ?? at.get(nextRow(order.includes(n) ? order : names, n)) ?? 0);
+    const peak = (artistCtx?.el === el && artistCtx.yMax != null && prev?.ridgePeak) ||
+      hoursPeak(data, names, window, hasOther, st.selected, Number.isFinite(zoom?.[0]) ? zoom : [-Infinity, Infinity]);
+    st.ridgePeak = Math.max(peak, 0.1);
+    st.ridgeAt = new Map(names.map((n, s) => [n, ridgeBase[s]]));
+    ridgeK = RIDGE_PEAK / st.ridgePeak;
+    plotH = Math.max(0, rows.length - 1) * tune.ridgeGap + RIDGE_PEAK;
+    st.ridgeRows = at;
+  }
+  // An hours line's height on the plot: its hours, or as a ridge, its baseline plus its hours to scale
+  const lineY = (s, i) => {
+    const v = hoursAt(s, i);
+    return v == null || !ridge ? v : ridgeBase[s] + v * ridgeK;
+  };
+
   // Each artist's parts (data.parts: its albums or songs, see agg.rolling), in nSlots[k] slots for band k. In
   // share mode they stack up from the band's floor, biggest first, and the band's own fill above them is the
   // rest; a slot with no part (or a hidden artist's) has no thickness. In hours mode each is a thin line.
@@ -854,7 +965,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // modes: matching the band's gaps exactly keeps an edge locked to its band through a morph, which
   // ECharts tweens point by point, and a break never tweens into a value (a vertical stroke).
   const edgeData = (s, side) =>
-    points((i) => (bottom[s][i] == null ? null : !share ? hoursAt(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
+    points((i) => (bottom[s][i] == null ? null : !share ? lineY(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
   // Visible widths 1.5px, or 2.5px for pinned bands (tune.edgeWidth, and 1 more: only a pin outlines, a hover
   // only shades), doubled since half is clipped away; hours mode hides them
   const overlayStyle = (s) => ({ width: 2 * (base.has(s) ? tune.edgeWidth + 1 : tune.edgeWidth), color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
@@ -884,6 +995,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const lineFill = (lk) => Math.min(1, (t.line[lk] ?? 0) / t.shade.pin);
   // (a line leaving in an artist change, fading, has none)
   const hoursArea = (k, h) => (k === otherIdx || fading(k) ? 0 : lineFill(look(k, h)));
+  // Ridges are filled as share bands are (an opaque tint of its look), each one's fill covering the ridges above it
+  const hoursFillLook = (k, h) =>
+    ridge ? { color: bandFill(k, h), opacity: k === otherIdx || !visible(k) || fading(k) ? 0 : 1 } : { color: hoursFill[k], opacity: hoursArea(k, h) };
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
@@ -950,7 +1064,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // the artist count) would otherwise paint over everything below them
         // Hours mode gives every line one z, so every fill (z2 below the line's) paints under every line: a
         // pinned line's fill never covers the lines below it, nor their ends poking out past its edge
-        z: share ? 2 + (names.length - s) / 100 : 3,
+        // Ridges: each paints over the ones above it, line and all
+        z: share ? 2 + (names.length - s) / 100 : ridge ? 3 + (plotH - ridgeBase[s]) / (100 * plotH) : 3,
         // Share: hidden; the edge overlays draw each band's borders instead (see edgeData)
         lineStyle: {
           ...(share ? { width: 2, opacity: 0 } : lineLook(s, held)),
@@ -963,9 +1078,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Hours mode keeps an invisible fill, so the hovered line's shading and the morph back into
         // bands can fade it in rather than have it appear
         areaStyle: {
-          color: share ? bandFill(s, held) : hoursFill[s],
-          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, held) : 0,
-          origin: "start",
+          ...(share ? { color: bandFill(s, held), opacity: 1 } : hoursFillLook(s, held)),
+          ...(!share && (hide || holdFill) ? { opacity: 0 } : {}),
+          origin: ridge ? ridgeBase[s] : "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
         // hand instead (see focusBand below). Hours mode: the series are silent, so this never fires; it keeps
@@ -976,7 +1091,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         blur: share
           ? { areaStyle: null, lineStyle: null }
           : { areaStyle: null, lineStyle: { opacity: hide ? 0 : 0.2 } },
-        data: points((i) => (share ? top[s][i] : hoursAt(s, i))),
+        data: points((i) => (share ? top[s][i] : lineY(s, i))),
       };
     })
     // Top band first, matching the paint order above
@@ -1095,11 +1210,13 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     if (!params.length) return "";
     const i = params[0].dataIndex;
     const h = (v) => `${v.toFixed(1)} h`;
+    // (its hours, not its height: a ridge stands on its baseline)
     const groups = params
-      .filter((p) => sIdx(p) !== otherIdx && p.value[1] >= 0.05)
-      .sort((a, b) => b.value[1] - a.value[1])
-      .map((p) => ({
-        head: row(p.color, h(p.value[1]), p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
+      .map((p) => ({ p, v: hoursAt(sIdx(p), i) }))
+      .filter(({ p, v }) => sIdx(p) !== otherIdx && v >= 0.05)
+      .sort((a, b) => b.v - a.v)
+      .map(({ p, v }) => ({
+        head: row(p.color, h(v), p.seriesName, sIdx(p) === focused || base.has(sIdx(p))),
         parts: partTips(sIdx(p), i, (j) => perWeek(parts.hours[sIdx(p)][j][i]), h, () => ""),
       }));
     const rows = fitTip(groups, moreParts(h, () => ""));
@@ -1184,6 +1301,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   if (!ms && prev?.tweens) for (const e of drawnShapes(c).values()) e.stopAnimation("update", true);
   st.tweens = !liveFrom && ms > 0;
   st.still = !st.tweens; // (see stillChart)
+  if (isStrip) {
+    sizeStrip(el, c, STRIP_TOP + plotH + STRIP_BOTTOM, dur(ms));
+    const at = ridge ? [...st.ridgeRows].map(([n, b]) => [n, STRIP_TOP + plotH - b]) : [];
+    paintRidgeNames(el, at, dur(ms), new Set([...base].map((k) => names[k])));
+  }
 
   // An open tooltip still points at the series it was drawn from, and throws once one of them is removed (by a
   // morph, or by the part slots trimmed after one)
@@ -1202,7 +1324,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       animationDurationUpdate: liveFrom ? 0 : ms,
       animationEasingUpdate: easing,
       animationThreshold: 100000, // the default (2000 points) would silently disable the morph
-      grid: { left: 48, right: 16, top: isStrip ? 14 : 12, bottom: 28 },
+      // The strip's plot is placed from the top, so its canvas can grow or shrink under it (sizeStrip)
+      grid: isStrip
+        ? { left: ridge ? RIDGE_LEFT : 48, right: 16, top: STRIP_TOP, height: plotH, bottom: null }
+        : { left: 48, right: 16, top: 12, bottom: 28 },
       // The key is HTML in the period bar (key.js paintArtistKey), and which artists are shown is st.selected. ECharts'
       // legend is hidden and shows every series: a hidden artist's is drawn with no thickness (share) or on 0 and faded
       // out (hours), so showing or hiding one morphs, where a legend-hidden series would vanish or appear in one frame
@@ -1225,13 +1350,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Function form in both modes so a merge always replaces the previous mode's bound
         // (data.free: the top of what's in the range, as the filtering would have given it; held where it is while an
         // artist change redraws what's on screen, see withArtistMorph)
-        max: share ? () => 1 : artistCtx?.yMax != null ? () => artistCtx.yMax : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => niceTop(v.max),
+        max: share ? () => 1 : ridge ? () => plotH : artistCtx?.yMax != null ? () => artistCtx.yMax : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => niceTop(v.max),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
         splitNumber: isStrip ? 2 : 4,
         ...baseAxis(t),
         axisLine: { show: false },
-        axisLabel: { color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },
+        // Ridges have no hours axis: the readout gives each one's hours
+        axisLabel: { show: !ridge, color: t.muted, formatter: share ? (v) => `${Math.round(v * 100)}%` : (v) => `${v} h` },
+        splitLine: { ...baseAxis(t).splitLine, show: !ridge },
       },
       // The range is chosen in the page's period brush (period.js), which moves it with setZoom. A hidden
       // slider is still a dataZoom, so the plot shows exactly that range. Never an "inside" one: it
@@ -1296,9 +1423,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       series: names.map((_, j) => ({
         id: `s${j}`,
         lineStyle: lineLook(j, focused),
-        areaStyle: { opacity: hoursArea(j, focused) },
+        areaStyle: ridge ? { color: bandFill(j, focused) } : { opacity: hoursArea(j, focused) },
       })).concat(partStyles(focused)),
     }, undefined, FADE_MS);
+    if (isStrip) litRidgeName(el, focused == null ? null : names[focused]);
   };
 
   // Only the parts change (the pointer moved between parts of one band)
@@ -1366,6 +1494,18 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (d < reach) [reach, hit] = [d, { k, j }];
     }
     if (hit) return hit;
+    if (ridge) {
+      // The ridge whose fill is under the pointer (the lowest, painted last, where they overlap); over none, the one
+      // whose baseline is nearest below
+      let under = null;
+      names.forEach((_, k) => {
+        if (k === otherIdx || !visible(k) || fading(k) || ridgeBase[k] > y) return;
+        if (y <= lineY(k, i) && (best == null || ridgeBase[k] < ridgeBase[best])) best = k;
+        if (under == null || ridgeBase[k] > ridgeBase[under]) under = k;
+      });
+      best ??= under;
+      return best == null ? null : { k: best, j: null };
+    }
     let bestV = 0.05; // ignore near-silence, which would just pick an arbitrary flat line
     names.forEach((_, k) => {
       if (k === otherIdx || !visible(k)) return;
