@@ -50,15 +50,14 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
 - **Ridgelines (the strip only, `setRidges`).** The Hours card's "Separate artists" puts each hours line on a
   baseline of its own: the same series, values `base + hours × scale` and `areaStyle.origin` at the baseline (both
   tween, so the switch is a plain merge morph), filled with the share bands' tints and z-ordered so each ridge covers
-  the ones above it. The y axis counts pixels (`plotH`); the tallest peak in range is `RIDGE_PEAK` px, and the top
-  baseline sits that far below the plot's top. Rows follow rank, or mid artist change `artistCtx.rows` (the old
-  artists, then the new). The strip's grid is placed from the top (`top` + `height`) so `sizeStrip` can grow its canvas
-  at once and shrink it after the morph while the card's frame glides. Its names are chips like the key's (`paintRidgeNames`: box
-  hides, click pins, hover lights), in both modes and in the same order, each centered on its line's floor (packed up
-  from the plot's floor as lines). As lines the strip is at least as tall as its ridges would be, so switching only moves
-  the chips up (down on the way back); the plot's left and right don't change, and the hours axis is on the right. A
-  hidden artist keeps its row, flat and faded. A pan holds
-  the ridges' scale (no `yMax` travel); the artist morph after it rescales.
+  the ones above it. The y axis counts pixels (`plotH`). The plot is the same height as lines and ridges (taller only
+  if the ridges need it, for a peak of at least `RIDGE_PEAK`), and the tallest peak in range reaches its top from the
+  top baseline, so nothing is cut off. Rows follow rank, or mid artist change `artistCtx.rows` (the old artists, then
+  the new); a hidden artist has none. The names (`paintRidgeNames`, HTML) sit on each line's floor in both modes, in
+  the same order, packed a little closer as lines, so a switch spreads them up from the bottom one, which stays put.
+  The plot's left and right don't change, and the strip's hours axis is on the right. The grid is placed from the top
+  (`top` + `height`) so `sizeStrip` can grow the canvas at once and shrink it after a morph while the card's frame
+  glides. A pan holds the ridges' scale (no `yMax` travel); the artist morph after it rescales.
 - **Overlay series `t{k}`/`b{k}`** draw each band's top and bottom outline, thicker only while it's pinned (a hover only shades).
 - **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
   period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first

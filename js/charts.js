@@ -186,13 +186,14 @@ export function linkStrip(el, strip) {
 }
 
 // The strip as ridgelines (the card's "Separate artists"): each artist's line on a baseline of its own, in rank order
-// from the top, tune.ridgeGap px apart, on one shared scale whose tallest peak in range stands RIDGE_PEAK px. The top
-// baseline sits that far below the plot's top, so no peak is cut off however close the ridges are. The y axis then
-// counts pixels up from the bottom baseline. Same series as the lines, so switching morphs point by point.
+// from the top, tune.ridgeGap px apart, on one shared scale whose tallest peak in range reaches the plot's top from the
+// top baseline (at least RIDGE_PEAK px, the strip growing if it must), so no peak is cut off however close the ridges
+// are. The y axis then counts pixels up from the bottom baseline. Same series as the lines, so switching morphs point
+// by point; the plot keeps its height and the bottom baseline is the lines' floor, so the bottom line stays put.
 const ridged = new WeakSet();
 const STRIP_H = 400; // the strip's height as lines (.chart.strip in css/style.css)
 const STRIP_TOP = 14, STRIP_BOTTOM = 28, RIDGE_PEAK = 90, RIDGE_LEFT = 150;
-const NAME_H = 16, NAME_PITCH = 18; // the strip's name chips (.ridge-name), and their spacing as lines
+const NAME_H = 14, NAME_PITCH = 14; // the strip's names (.ridge-name), and their spacing as lines (or the ridges', if closer)
 export function setRidges(strip, on) {
   if (on === ridged.has(strip)) return;
   if (on) ridged.add(strip);
@@ -229,57 +230,30 @@ function sizeStrip(el, c, h, ms) {
   el._settle = setTimeout(settle, ms);
 }
 
-// The strip's names at its left: chips like the period bar's key (key.js), whose box shows or hides the artist, a
-// click pins or unpins, and a hover lights them everywhere. HTML over the chart, so a long name ellipsizes; each is
-// kept from render to render, so it glides with the morph. at: [name, y of its middle in the frame] (its ridge's
-// baseline, or its place in the list), for the artists drawn; the rest fade out. look(name): { pinned, hidden }.
-// act: { hover(name), hide(name), toggle(name) }, read at each event, so the latest render's.
-function paintRidgeNames(el, at, ms, look, colors, act) {
+// The strip's names at its left, each after a dash of its color: HTML over the chart, so a long one ellipsizes. Each
+// is kept from render to render, so it glides with the morph. at: [name, y of its middle in the frame] (its ridge's
+// baseline, or its place in the list), for the artists drawn; the rest fade out.
+function paintRidgeNames(el, at, ms, pinned, colors) {
   const box = el.parentElement.querySelector(".ridge-names");
   if (!box) return;
-  box._act = act;
   box.style.setProperty("--ridge-ms", `${ms}ms`);
   const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
   for (const [name, y] of at) {
     let n = have.get(name);
     const place = `translateY(${y - NAME_H / 2}px)`;
     if (!n) {
-      n = document.createElement("span");
-      n.className = "legend-item mix-legend-item pinnable ridge-name";
+      n = document.createElement("div");
+      n.className = "ridge-name";
       n.dataset.artist = name;
-      const sw = document.createElement("button");
-      sw.type = "button";
-      sw.className = "swatch";
-      sw.addEventListener("click", (e) => {
-        e.stopPropagation();
-        box._act.hover(null);
-        box._act.hide(name);
-      });
-      const label = document.createElement("button");
-      label.type = "button";
-      label.className = "name";
-      label.textContent = shownName(name); // artist names come from user files
-      label.dataset.text = shownName(name); // read by the CSS that reserves the bold width
-      n.append(sw, label);
-      n.addEventListener("pointerenter", () => box._act.hover(name));
-      n.addEventListener("pointerleave", () => box._act.hover(null));
-      n.addEventListener("click", () => (n.classList.contains("hidden-artist") ? box._act.hide(name) : box._act.toggle(name)));
+      n.textContent = shownName(name); // artist names come from user files
       n.style.transform = place;
       box.append(n);
       n.getBoundingClientRect(); // (so it fades in where it is)
     }
-    const { pinned, hidden } = look(name);
     n.style.transform = place;
     n.style.setProperty("--c", colors.get(name));
     n.classList.add("on");
-    n.classList.toggle("pinned", pinned);
-    n.classList.toggle("hidden-artist", hidden);
-    n.title = hidden ? `Show ${shownName(name)}` : pinned ? `Unpin ${shownName(name)}` : `Pin ${shownName(name)}`;
-    n.lastChild.setAttribute("aria-label", n.title);
-    const sw = n.firstChild;
-    sw.setAttribute("aria-pressed", !hidden);
-    sw.title = `${hidden ? "Show" : "Hide"} ${shownName(name)}`;
-    sw.setAttribute("aria-label", sw.title);
+    n.classList.toggle("pinned", pinned.has(name));
     have.delete(name);
   }
   for (const n of have.values()) {
@@ -287,7 +261,7 @@ function paintRidgeNames(el, at, ms, look, colors, act) {
     setTimeout(() => !n.classList.contains("on") && n.remove(), ms);
   }
 }
-// The hovered artist's chip lights with its line
+// The hovered artist's name lights with its line
 function litRidgeName(el, name) {
   const box = el.parentElement.querySelector(".ridge-names");
   for (const n of box?.children ?? []) n.classList.toggle("focus", n.dataset.artist === name && n.classList.contains("on"));
@@ -933,12 +907,12 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // the artists it's coming from, then going to (withArtistMorph). An artist without a row (hidden, or not arrived)
   // lies flat on the next row down's baseline, faded out; one leaving sinks onto its own. The scale is held through
   // an artist change's first step, which redraws what's on screen.
-  // As lines, the strip lists the same names in the same order, packed up from the plot's floor, and stands at least
-  // as tall as its ridges would, so switching to ridges only ever moves them up (and the lines with them). A hidden
-  // artist keeps its row (its chip shows it again), its line flat on its baseline and faded out
+  // As lines, the strip lists the same names in the same order, packed up from the plot's floor, a little closer than
+  // the ridges: switching only spreads them up from the bottom one (and the lines with them). A hidden artist has no
+  // row or name, as if it weren't there
   let ridgeBase = null, ridgeK = 0, plotH = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
   const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
-  const nameRows = isStrip && !share ? order.filter((n) => names.includes(n) && !fading(names.indexOf(n))) : [];
+  const nameRows = isStrip && !share ? order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n))) : [];
   const ridgeH = Math.max(0, nameRows.length - 1) * tune.ridgeGap + RIDGE_PEAK;
   if (isStrip) plotH = Math.max(plotH, ridgeH);
   if (ridge) {
@@ -951,8 +925,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       hoursPeak(data, names, window, hasOther, st.selected, Number.isFinite(zoom?.[0]) ? zoom : [-Infinity, Infinity]);
     st.ridgePeak = Math.max(peak, 0.1);
     st.ridgeAt = new Map(names.map((n, s) => [n, ridgeBase[s]]));
-    ridgeK = RIDGE_PEAK / st.ridgePeak;
-    plotH = ridgeH;
+    ridgeK = (plotH - Math.max(0, rows.length - 1) * tune.ridgeGap) / st.ridgePeak;
     st.ridgeRows = at;
   }
   // An hours line's height on the plot: its hours, or as a ridge, its baseline plus its hours to scale
@@ -1341,10 +1314,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     sizeStrip(el, c, STRIP_TOP + plotH + STRIP_BOTTOM, dur(ms));
     const at = ridge
       ? [...st.ridgeRows].map(([n, b]) => [n, STRIP_TOP + plotH - b])
-      : nameRows.map((n, r) => [n, STRIP_TOP + plotH - (nameRows.length - 1 - r) * NAME_PITCH]);
-    paintRidgeNames(el, at, dur(ms), (n) => ({ pinned: base.has(names.indexOf(n)), hidden: !visible(names.indexOf(n)) }),
-      new Map(names.map((n, k) => [n, colors[k]])),
-      { hover: (n) => rollingState.get(el)?.focusArtist?.(n), hide: (n) => pins?.hide?.(n), toggle: (n) => pins?.toggle?.(n) });
+      : nameRows.map((n, r) => [n, STRIP_TOP + plotH - (nameRows.length - 1 - r) * Math.min(NAME_PITCH, tune.ridgeGap)]);
+    paintRidgeNames(el, at, dur(ms), new Set([...base].map((k) => names[k])), new Map(names.map((n, k) => [n, colors[k]])));
   }
 
   // An open tooltip still points at the series it was drawn from, and throws once one of them is removed (by a

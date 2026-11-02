@@ -43,7 +43,7 @@ Each selected artist's share of your listening as stacked bands. Each point aver
 
 The same data as above, but not stacked nor normalized. More about seeing your listening time than an artist breakdown.
 
-The names are listed at the left as chips like the key's: hover to light one, click to pin, or use its box to hide it. Flip the **Separate artists** switch (or albums, tracks, genres) and the names and lines spread apart into ridgelines: each one's hours on its own baseline, all on one shared scale, so you can see when each one came and went without the lines piling up. Hovering anywhere lists everyone's hours that week, biggest first.
+The names are listed at the left, each beside a dash of its color. Flip the **Separate artists** switch (or albums, tracks, genres) and the names spread upward from the bottom one, the lines rising to meet them as ridgelines: each one's hours on its own baseline, all on one shared scale, so you can see when each one came and went without the lines piling up. Hovering anywhere lists everyone's hours that week, biggest first.
 
 ![Hours per week](docs/images/hours.png)
 
