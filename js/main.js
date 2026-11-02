@@ -22,9 +22,10 @@ import { closeHelp } from "./guide.js";
 import { paintRanking } from "./ranking.js";
 import { paintRace, paintRate } from "./race.js";
 import { loadSample } from "./sample.js";
+import { paintSunburst, focusSunburst } from "./sunburst.js";
 
 // The modules under this one call these back through hooks (state.js)
-Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart });
+Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintSunburst: () => paintSunburst() });
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];
@@ -474,7 +475,7 @@ function renderAll(keepZoom, from = false) {
   renderRollingChart(keepZoom ?? periodZoom(), from && ms > 0 && { ms, easing: EASE_IN_OUT.echarts, pan: true, onFrame: (e) => glideBrushRange(frame, to, e) });
 }
 
-// Everything that follows the legend's selection: monthly hours and the clock
+// Everything that follows the legend's selection: monthly hours, the clock and the sunburst
 // (the mix bar does too, in renderMix, since it's drawn from the chart's artists)
 function renderDependents(charts = true) {
   const plays = shownPlays();
@@ -483,6 +484,7 @@ function renderDependents(charts = true) {
     paintClock(plays);
     paintEvery(plays);
     paintDiscovery();
+    paintSunburst(plays);
   }
   paintRanking();
   paintRace();
@@ -509,6 +511,7 @@ onFocusChange($("chart-rolling"), (name) => {
   focusEvery($("chart-raster"), name);
   focusEvery($("chart-calendar"), name);
   focusDiscovery($("chart-discovery"), name);
+  focusSunburst(name);
   setBrushFocus(name);
   paintBrush(undefined, brushMorph ?? { ms: FADE_MS });
 });

@@ -31,6 +31,10 @@ All the stats generated throughout the page depend on the period you select in t
 
 How your listening time split between your top artists in the period, with pictures. Click to pin
 
+### Inside your top artists
+
+The same artists opened up into rings: each artist, then their albums, then their songs, sized by hours and labeled with their share of the period where it fits. Click a slice to zoom into it, and click the middle circle to come back out. In the Albums view it's each album's songs, and in Genres each genre's artists and then their albums (it doesn't show in Tracks).
+
 ### Top Artists View
 
 Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in. Toggle **Everyone else** to add the rest of your listening as a gray band on top.

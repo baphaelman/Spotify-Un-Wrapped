@@ -138,6 +138,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     paintClock();
     paintEvery();
     paintDiscovery();
+    hooks.paintSunburst(); // sunburst.js, through main.js
     paintBrush();
   }
 }

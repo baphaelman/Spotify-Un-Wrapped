@@ -1206,6 +1206,50 @@ dialog pre {
 .mix-legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c, var(--text-muted)) var(--tint), transparent); font-weight: 600; }
 .chart-legend .legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c) var(--tint), transparent); }
 
+/* Inside your top …: the mix bar's segments bent into rings (sunburst.js places every slice and label). A slice
+   is its item's color washed into the surface as the mix bar's are, lighter the deeper it lies, with its share in
+   the color. Lit by the hover/pin rule: a hover deepens the wash, a pin more and rings the item, the rest dim */
+.sunburst { position: relative; margin-top: 12px; }
+.sun-svg { display: block; margin: 0 auto; overflow: visible; user-select: none; }
+.sun-slice {
+  --rest: 18%; --tint: 26%; --t: var(--rest);
+  fill: color-mix(in srgb, var(--c) var(--t), var(--surface));
+  transition: fill var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+}
+.sun-slice.d2 { --rest: 13%; --tint: 20%; }
+.sun-slice.d3 { --rest: 9%; --tint: 15%; }
+.sun-slice.d0 { fill: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+.sun-slice.go { cursor: pointer; }
+.sun-slice[data-look="hover"] { --t: var(--tint); }
+.sun-slice[data-look="pin"] { --t: calc(var(--tint) * var(--lit-pin)); }
+.sun-slice[data-look="pinHover"] { --t: calc(var(--tint) * var(--lit-pin-hover)); }
+:is(.sun-slice, .sun-label)[data-look="dim"] { opacity: var(--dim-item); }
+:is(.sun-slice, .sun-label)[data-look="dimHover"] { opacity: var(--dim-item-hover); }
+.sun-outline { fill: none; stroke: var(--c); stroke-width: 1.5; opacity: 0; pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
+.sun-outline.on { opacity: 1; }
+.sun-label { pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
+.sun-label text { text-anchor: middle; dominant-baseline: central; opacity: 0; transition: opacity var(--motion-fade) var(--ease-out); }
+.sun-label text.fits { opacity: 1; }
+.sun-pct { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--c); }
+.sun-name { font-size: 11px; font-weight: 500; fill: color-mix(in srgb, var(--text-primary) 80%, var(--c)); }
+.sunburst.empty::after {
+  content: "No listening in this span"; position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 12px; color: var(--text-muted); pointer-events: none;
+}
+/* The readout beside the pointer, as the graphs' (charts.js tooltipBase): the slice's path, its hours and share */
+.sun-tip {
+  position: absolute; left: 0; top: 0; z-index: 2; max-width: 260px; pointer-events: none;
+  padding: 8px 12px; border: 1px solid var(--grid); border-radius: 8px; background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12); font-size: 13px; color: var(--text-primary); overflow-wrap: anywhere;
+  opacity: 0; transition: opacity var(--motion-fade) var(--ease-out);
+}
+.sun-tip.on { opacity: 1; }
+.sun-tip .up { color: var(--text-muted); }
+.sun-tip .here { font-weight: 600; }
+.sun-tip .num { margin-top: 2px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
+.sun-tip .hint { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .sun-slice, .sun-outline, .sun-label, .sun-label text, .sun-tip { transition: none; } }
+
 /* Feedback */
 #feedback-form { display: flex; flex-direction: column; gap: 10px; }
 dialog textarea, dialog input[type="text"], dialog input[type="password"] {
