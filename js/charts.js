@@ -1179,6 +1179,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     return [s.id, ys];
   }));
   st.values.dates = data.dates.length;
+  // A redraw lands any morph still in flight first: zrender would carry its tween onto the redrawn shapes and
+  // paint its old target over them (a leaver's line sinking to 0 onto the artist who takes its series next)
+  if (!ms && prev?.tweens) for (const e of drawnShapes(c).values()) e.stopAnimation("update", true);
   st.tweens = !liveFrom && ms > 0;
   st.still = !st.tweens; // (see stillChart)
 
