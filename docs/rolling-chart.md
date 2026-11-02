@@ -54,7 +54,8 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   if the ridges need it, for a peak of at least `RIDGE_PEAK`), and the tallest peak in range reaches its top from the
   top baseline, so nothing is cut off. Rows follow rank, or mid artist change `artistCtx.rows` (the old artists, then
   the new); a hidden artist has none. The names (`paintRidgeNames`, HTML) sit on each line's floor in both modes, in
-  the same order, packed a little closer as lines, so a switch spreads them up from the bottom one, which stays put.
+  the same order (never closer as ridges than as lines), so a switch only spreads them up from the bottom one, which
+  stays put. Hovering a name is hovering its line; clicking it pins.
   The plot's left and right don't change, and the strip's hours axis is on the right. The grid is placed from the top
   (`top` + `height`) so `sizeStrip` can grow the canvas at once and shrink it after a morph while the card's frame
   glides. A pan holds the ridges' scale (no `yMax` travel); the artist morph after it rescales.

@@ -582,19 +582,19 @@ button.ghost:hover { background: var(--border); }
 }
 .ridge-switch:hover, .ridge-switch[aria-checked="true"] { color: var(--text-primary); }
 .ridge-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-/* The strip's names, left of the plot (charts.js paintRidgeNames), each after a dash of its color and centered on its
-   line's floor. 140px is its RIDGE_LEFT (150) less a gap. */
+/* The strip's names, left of the plot (charts.js paintRidgeNames), each before a dash of its color and centered on its
+   line's floor. 144px is its RIDGE_LEFT (150) less a gap. */
 .ridge-names { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ridge-name {
-  position: absolute; top: 0; left: 0; max-width: 140px; height: 14px; line-height: 14px; box-sizing: border-box;
-  padding-left: 15px; font-size: 12px; color: var(--text-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: absolute; top: 0; left: 0; width: 144px; height: 16px; line-height: 16px; box-sizing: border-box;
+  padding-right: 16px; font-size: 12px; font-weight: 500; text-align: right; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   opacity: 0;
   transition: transform var(--ridge-ms, var(--motion-morph)) var(--ease-in-out), opacity var(--ridge-ms, var(--motion-morph)) var(--ease-in-out),
     color var(--motion-fade) var(--ease-out);
 }
-.ridge-name::before { content: ""; position: absolute; left: 0; top: 6px; width: 10px; height: 2px; border-radius: 1px; background: var(--c); }
-.ridge-name.on { opacity: 1; }
+.ridge-name::after { content: ""; position: absolute; right: 2px; top: 7px; width: 9px; height: 2px; border-radius: 1px; background: var(--c); }
+.ridge-name.on { opacity: 1; pointer-events: auto; }
 .ridge-name.pinned { color: var(--text-primary); font-weight: 600; }
 .ridge-name.focus { color: var(--text-primary); }
 @media (prefers-reduced-motion: reduce) { .ridge-name { transition: none; } }
@@ -1064,6 +1064,11 @@ dialog pre {
 .tune-def { grid-area: def; font-size: 10px; color: var(--text-muted); }
 .tune-reset { justify-self: start; align-self: center; padding: 4px 10px; font-size: 12px; }
 .tune-reset:disabled { opacity: 0.4; cursor: default; }
+/* "Separate artists" is the card's main choice, so its switch is bigger than the settings panel's */
+.ridge-switch { gap: 10px; font-size: 14px; font-weight: 500; }
+.ridge-switch .switch { width: 42px; height: 24px; border-radius: 12px; }
+.ridge-switch .switch::after { top: 3px; left: 3px; width: 18px; height: 18px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.ridge-switch[aria-checked="true"] .switch::after { transform: translateX(18px); }
 @media (prefers-reduced-motion: reduce) { :is(.controls-switch, .ridge-switch) .switch, :is(.controls-switch, .ridge-switch) .switch::after, .controls-warn, .tune-row, .tune-val { transition: none; } }
 @media (prefers-reduced-motion: reduce) { :is(.controls-panel, .help-panel):not([hidden]) { animation: none; } #controls-button svg, .guide-dim, .guide-row, .g-step, .guide-ring { transition: none; } }
 .bar-artists .palette-dot { width: 20px; height: 20px; background-size: 40px 100%; animation-name: palette-drift-lg; }
