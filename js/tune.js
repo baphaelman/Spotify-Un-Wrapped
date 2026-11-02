@@ -9,6 +9,8 @@
 const x = (v) => `×${(+v).toFixed(2).replace(/\.?0+$/, "")}`;
 const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
+// A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
+const DENSITY_LOOKS = ["Played bright", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
   { key: "hoverTint", card: "rolling-card", label: "Lit band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -24,6 +26,7 @@ export const TUNES = [
   { key: "clockReach", card: "clock-card", label: "Blur reach", def: 4, min: 0, max: 12, step: 0.5, fmt: h },
   { key: "clockMinBlur", card: "clock-card", label: "Least blur", def: 0.5, min: 0, max: 4, step: 0.25, fmt: h },
   { key: "clockCurve", card: "clock-card", label: "Least curve rounding", def: 0.3, min: 0, max: 1, step: 0.05, fmt: (v) => `${v}` },
+  { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },
@@ -63,7 +66,7 @@ function syncInputs() {
   for (const { input, val, spec } of inputs.values()) {
     const v = Number.isFinite(mine[spec.key]) ? mine[spec.key] : spec.def;
     input.value = v;
-    input.style.setProperty("--p", (v - spec.min) / (spec.max - spec.min)); // the fill, as the page's sliders (style.css)
+    if (!spec.options) input.style.setProperty("--p", (v - spec.min) / (spec.max - spec.min)); // the fill, as the page's sliders (style.css)
     val.textContent = spec.fmt(v);
     val.classList.toggle("changed", v !== spec.def);
   }
@@ -108,11 +111,15 @@ export function buildTunes(redraw) {
       const name = document.createElement("span");
       name.className = "tune-name";
       name.textContent = spec.label;
-      const input = document.createElement("input");
-      input.type = "range";
-      input.min = spec.min;
-      input.max = spec.max;
-      input.step = spec.step;
+      const input = document.createElement(spec.options ? "select" : "input");
+      if (spec.options) {
+        spec.options.forEach((o, i) => input.append(new Option(o, i)));
+      } else {
+        input.type = "range";
+        input.min = spec.min;
+        input.max = spec.max;
+        input.step = spec.step;
+      }
       input.value = spec.def;
       const val = document.createElement("span");
       val.className = "tune-val";
@@ -122,10 +129,13 @@ export function buildTunes(redraw) {
       input.addEventListener("input", () => set(spec, +input.value));
       // A double-click puts it back
       input.addEventListener("dblclick", () => set(spec, spec.def));
-      const slider = document.createElement("span");
-      slider.className = "slider";
-      slider.append(input);
-      label.append(name, val, slider, def);
+      let control = input;
+      if (!spec.options) {
+        control = document.createElement("span");
+        control.className = "slider";
+        control.append(input);
+      }
+      label.append(name, val, control, def);
       grid.append(label);
       inputs.set(spec.key, { input, val, spec });
     }

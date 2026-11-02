@@ -1006,6 +1006,7 @@ dialog pre {
 .tune-val { grid-area: val; font-family: var(--mono); color: var(--text-primary); transition: color var(--motion-fade) var(--ease-out); }
 .tune-val.changed { color: var(--accent); }
 .tune .slider { grid-area: input; width: 100%; margin: 3px 0 1px; }
+.tune select { grid-area: input; width: 100%; margin: 3px 0 1px; }
 .tune-def { grid-area: def; font-size: 10px; color: var(--text-muted); }
 .tune-reset { justify-self: start; align-self: center; padding: 4px 10px; font-size: 12px; }
 .tune-reset:disabled { opacity: 0.4; cursor: default; }
@@ -1332,9 +1333,20 @@ button:not(:disabled):active { transform: scale(0.96); }
 .slider.race-time { flex: 1; width: auto; min-width: 0; }
 /* The density strip spans the thumb's travel (5px in from each end), as the ticks do */
 .race-density { display: block; width: calc(100% - 10px); height: var(--race-density); margin: 0 5px; overflow: visible; }
-.race-density-fill { fill: color-mix(in srgb, var(--text-muted) 16%, transparent); }
-.race-density-played { fill: color-mix(in srgb, var(--accent) 34%, transparent); }
-.race-density-line { fill: none; stroke: var(--text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+/* The colors: "Strip color" under Visual tweaks sets data-look (0, the default, is "Played bright"; see DENSITY_LOOKS) */
+.race-density { --dl-line: var(--text-muted); --dl-fill: color-mix(in srgb, var(--text-muted) 8%, transparent); --dl-played: color-mix(in srgb, var(--accent) 55%, transparent); }
+.race-density[data-look="1"] { --dl-fill: color-mix(in srgb, var(--text-muted) 16%, transparent); --dl-played: color-mix(in srgb, var(--accent) 34%, transparent); }
+.race-density[data-look="2"] { --dl-line: var(--accent); --dl-fill: color-mix(in srgb, var(--accent) 14%, transparent); --dl-played: color-mix(in srgb, var(--accent) 38%, transparent); }
+.race-density[data-look="3"] { --dl-fill: color-mix(in srgb, var(--text-muted) 14%, transparent); --dl-played: color-mix(in srgb, var(--text-primary) 30%, transparent); }
+.race-density[data-look="4"] { --dl-line: var(--series-3); --dl-fill: color-mix(in srgb, var(--series-3) 14%, transparent); --dl-played: color-mix(in srgb, var(--series-3) 40%, transparent); }
+.race-density[data-look="5"] { --dl-line: var(--series-4); --dl-fill: color-mix(in srgb, var(--series-4) 14%, transparent); --dl-played: color-mix(in srgb, var(--series-4) 42%, transparent); }
+.race-density[data-look="6"] { --dl-line: var(--series-2); --dl-fill: color-mix(in srgb, var(--series-2) 14%, transparent); --dl-played: color-mix(in srgb, var(--series-2) 40%, transparent); }
+.race-density[data-look="7"] { --dl-line: var(--series-5); --dl-fill: color-mix(in srgb, var(--series-5) 14%, transparent); --dl-played: color-mix(in srgb, var(--series-5) 40%, transparent); }
+.race-density[data-look="8"] { --dl-line: var(--series-7); --dl-fill: color-mix(in srgb, var(--series-7) 14%, transparent); --dl-played: color-mix(in srgb, var(--series-7) 40%, transparent); }
+.race-density[data-look="9"] { --dl-line: var(--text-secondary); --dl-fill: transparent; --dl-played: color-mix(in srgb, var(--accent) 30%, transparent); }
+.race-density-fill { fill: var(--dl-fill); }
+.race-density-played { fill: var(--dl-played); }
+.race-density-line { fill: none; stroke: var(--dl-line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .race-ticks { position: relative; height: 16px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
 .race-ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); white-space: nowrap; }
 .race-speed-box { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: calc(var(--race-density) - 7px); }

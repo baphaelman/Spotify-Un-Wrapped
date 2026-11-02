@@ -415,6 +415,7 @@ function paintTime() {
 
 // The speed as days of the period a second, under its buttons
 export function paintRate() {
+  $("race-density").dataset.look = tune.densityLook; // (the colors are a visual tweak, so they're set where the tweaks land)
   const rate = tune.raceRate * speed;
   $("race-rate").textContent = `${rate < 10 ? rate.toFixed(1) : Math.round(rate)} days/s`;
 }
