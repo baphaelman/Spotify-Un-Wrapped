@@ -50,11 +50,8 @@ function chart(el) {
     c?.dispose();
     c = echarts.init(el, null, { renderer: "canvas" });
     new ResizeObserver(() => (el.clientWidth !== c.getWidth() || el.clientHeight !== c.getHeight()) && c.resize()).observe(el);
-    c.on("mouseover", { seriesType: "line" }, (e) => hover(e.seriesName));
-    c.on("mouseout", { seriesType: "line" }, () => hover(null));
-    c.on("globalout", () => hover(null));
-    // Any line pins (one that isn't the chart's joins it)
-    c.on("click", { seriesType: "line" }, (e) => mixArgs?.[3]?.toggle(e.seriesName));
+    // The lines don't take the pointer: scrub picks who it's on. A click pins them (one that isn't the chart's joins it)
+    c.getZr().on("click", () => st?.hovered != null && pointer && mixArgs?.[3]?.toggle(st.hovered));
     c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
     c.getZr().on("globalout", () => scrub(null));
   }
@@ -142,8 +139,17 @@ const yOf = (m, a, MAX) => {
   return MAX + tune.rankDive * Math.log2((e ? e.r : m.size + 50) - MAX + 1);
 };
 
-// Room above #1 for a name over its circle (the plot's top margin, and how far the column reaches above it)
+// Room above #1 for a name over its circle
 const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
+// The plot keeps the spacing it has with REF_RANKS ranks in the chart's height; fewer, and what's left goes to the lane
+// above #1 ("List"), from LANE_TOP down (at least the room for #1's names and the word)
+const REF_RANKS = 20, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30;
+function plotTop(MAX) {
+  const H = $("chart-rank").clientHeight || 520;
+  const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
+  const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (MAX + 0.4 - 1);
+  return PLOT_TOP + Math.max(lane, headroom() + 20 - PLOT_TOP);
+}
 
 // The chart's pinned items that are drawn
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
@@ -189,7 +195,7 @@ function seriesOf(ms = MORPH_MS) {
     return {
       id: a, name: a, type: "line", smooth: SMOOTH, smoothMonotone: "x", clip: true, z: L.col ? (L.lit ? 6 : 4) : L.lit ? 5 : 2,
       symbol: "circle", symbolSize: L.size, showSymbol: true,
-      triggerLineEvent: true, silent: L.gone,
+      silent: true,
       data, animationDurationUpdate: dur(ms),
       lineStyle: { width: (L.col ? tune.rankWidth : tune.rankGrayWidth) * (L.lit ? 1.4 : 1), color: L.base, opacity: L.lineOp },
       itemStyle: { color: L.base, opacity: Math.min(1, L.lineOp + (L.gone ? 0 : 0.3)), borderColor: st.t.surface, borderWidth: L.col ? 1.5 : 1 },
@@ -206,7 +212,10 @@ function option() {
     animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(MORPH_MS), animationEasingUpdate: EASE_IN_OUT.echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
-    grid: { top: Math.max(30, headroom() + 2), bottom: 30, left: 44, right: 28 },
+    grid: { top: plotTop(MAX), bottom: PLOT_BOTTOM, left: 44, right: 28 },
+    // The lane above #1, named like a rank; between the word and #1 is the room for #1's names
+    graphic: [{ type: "text", id: "lane", silent: true, x: 44 - 8, y: (LANE_TOP + plotTop(MAX) - headroom()) / 2,
+      style: { text: "List", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
     series: seriesOf(),
@@ -223,7 +232,9 @@ export function focusRankRace(name) {
 }
 
 // ---------- hovering ----------
-// The pointer over the plot picks the nearest slice (st.col). `at` is the slice shown, fractional while gliding to
+// The pointer over the plot picks the nearest slice (st.col). In the lane above #1 ("List") it lights no one, so the
+// column can be swept to watch the race; below, it's always on someone: whoever in the column is nearest it up or
+// down. `at` is the slice shown, fractional while gliding to
 // it; `shown` is how far the hover's look is in, 0 to 1 (the riders' names; as it leaves, the riders too).
 let pointer = null;
 let at = 0, shown = 0;
@@ -233,17 +244,18 @@ const rowEls = new Map(); // item -> its row in the card
 
 function scrub(x, y) {
   const rect = x != null && st && c && !c.isDisposed() ? gridRect() : null;
-  if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < rect.y - headroom() || y > rect.y + rect.height) {
+  if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < LANE_TOP || y > rect.y + rect.height) {
     if (pointer) leave();
     return;
   }
   const entering = !pointer;
   pointer = [x, y];
   const k = colAt(x);
+  const who = y < rect.y - headroom() / 2 ? null : nearestAt(k, y, rect); // (#1's names count as below)
   if (entering) {
     // The circles shrink into the lines while riders take their place in the column (the same size there, so only
     // the names coming in show); the card and column fade in where they are
-    st.col = k;
+    st.col = at = k;
     setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
     glide(k, 1, true);
   } else if (k !== st.col) {
@@ -251,10 +263,12 @@ function scrub(x, y) {
     setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(CHASE_MS));
     glide(k, 1);
   } else draw();
+  hover(who);
 }
 
 function leave() {
   pointer = null;
+  hover(null);
   const frame = $("chart-rank").parentElement;
   frame.querySelector(".rank-tip").classList.remove("on");
   frame.querySelector(".rank-cursor").classList.remove("on");
@@ -281,6 +295,19 @@ function glide(to, toShown, jump = false) {
 }
 
 const gridRect = () => c.getModel().getComponent("grid").coordinateSystem.getRect();
+const rankY = (v, rect) => rect.y + ((v - 1) / (st.MAX + 0.4 - 1)) * rect.height;
+
+// Whoever on the chart in slice k is nearest y (pixels)
+function nearestAt(k, y, rect) {
+  let best = null, gap = Infinity;
+  for (const [a, e] of st.rows[k]) {
+    if (e.r > st.MAX) break;
+    if (!st.names.includes(a)) continue;
+    const d = Math.abs(rankY(e.r, rect) - y);
+    if (d < gap) { gap = d; best = a; }
+  }
+  return best;
+}
 function colAt(x) {
   const rect = gridRect(), n = st.rows.length;
   return Math.max(0, Math.min(n - 1, Math.round(((x - rect.x) / rect.width) * (n - 1))));
@@ -290,7 +317,7 @@ function colAt(x) {
 // control points are level with its ends, SMOOTH of a slice in from them (none at the line's two ends)
 function lineY(a, x, rect) {
   const { rows, MAX } = st, n = rows.length, slice = rect.width / (n - 1);
-  const py = (v) => rect.y + ((v - 1) / (MAX + 0.4 - 1)) * rect.height;
+  const py = (v) => rankY(v, rect);
   const i = Math.max(0, Math.min(n - 2, Math.floor((x - rect.x) / slice)));
   const x0 = rect.x + i * slice, x3 = x0 + slice;
   const x1 = i === 0 ? x0 : x0 + SMOOTH * slice, x2 = i + 1 === n - 1 ? x3 : x3 - SMOOTH * slice;
@@ -391,7 +418,7 @@ function draw() {
   tip.style.transform = `translate(${left}px, ${top}px)`;
   tip.classList.add("on");
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
-  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? headroom() : 0;
+  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
   cursor.style.setProperty("--x", `${column ? cx : ox + pointer[0]}px`);
   cursor.style.setProperty("--slice", `${slice}px`);
