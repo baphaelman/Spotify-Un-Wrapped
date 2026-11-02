@@ -184,20 +184,36 @@ export function linkStrip(el, strip) {
   mainOf.set(strip, el);
 }
 let relaying = false; // a hover passed from one to the other isn't passed back
-// The hours axis top for the zoom range: the tallest shown line in it, in whole hours
+// The hours axis top for a tallest line m: a little headroom, rounded up to a step that grows with m (0.5 h under 5,
+// then whole hours, then 5s), so a small peak isn't left with a third of the chart empty
+const niceTop = (m) => {
+  const step = m < 5 ? 0.5 : m < 20 ? 1 : 5;
+  return Math.max(1, Math.ceil((m * 1.04) / step) * step);
+};
+// The hours axis top for the zoom range: the tallest shown line in it. A line leaves the range between two points,
+// so the value where it crosses each edge counts, not the whole point just past it
 function hoursTop(data, names, window, hasOther, hide, zoom) {
   let m = 0;
-  // The range's points and the one just past each end, which ECharts' filtering keeps (and scales to)
-  const a = Math.max(0, data.dates.findLastIndex((d) => d < zoom[0]));
-  const b = data.dates.findIndex((d) => d > zoom[1]);
-  names.forEach((n, s) => {
+  const n = data.dates.length;
+  names.forEach((n_, s) => {
     if (hasOther && s === names.length - 1) return;
-    if (hide?.[n] === false) return;
-    for (let i = a; i <= (b < 0 ? data.dates.length - 1 : b); i++) {
-      if (data.share[s][i] != null) m = Math.max(m, (data.hours[s][i] / window) * 7);
+    if (hide?.[n_] === false) return;
+    const at = (i) => (data.share[s][i] != null ? (data.hours[s][i] / window) * 7 : null);
+    for (let i = 0; i < n; i++) {
+      const d = data.dates[i];
+      const v = at(i);
+      if (v == null) continue;
+      if (d >= zoom[0] && d <= zoom[1]) m = Math.max(m, v);
+      else if (i + 1 < n && d < zoom[0] && data.dates[i + 1] > zoom[0]) {
+        const w = at(i + 1);
+        if (w != null) m = Math.max(m, v + ((w - v) * (zoom[0] - d)) / (data.dates[i + 1] - d));
+      } else if (i > 0 && d > zoom[1] && data.dates[i - 1] < zoom[1]) {
+        const w = at(i - 1);
+        if (w != null) m = Math.max(m, w + ((v - w) * (zoom[1] - data.dates[i - 1])) / (d - data.dates[i - 1]));
+      }
     }
   });
-  return Math.max(1, Math.ceil(m));
+  return niceTop(m);
 }
 
 // Series can't tween in or out of existence, so "Everyone else" arrives and leaves as a band that grows
@@ -1122,7 +1138,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Function form in both modes so a merge always replaces the previous mode's bound
         // (data.free: the top of what's in the range, as the filtering would have given it; held where it is while an
         // artist change redraws what's on screen, see withArtistMorph)
-        max: share ? () => 1 : artistCtx?.yMax != null ? () => artistCtx.yMax : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => Math.max(1, Math.ceil(v.max)),
+        max: share ? () => 1 : artistCtx?.yMax != null ? () => artistCtx.yMax : unfiltered ? () => hoursTop(data, names, window, hasOther, st.selected, zoom) : (v) => niceTop(v.max),
         // null (not undefined) so a merge clears share mode's fixed 25% step
         interval: share ? 0.25 : null,
         splitNumber: isStrip ? 2 : 4,
