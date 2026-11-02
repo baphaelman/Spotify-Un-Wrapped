@@ -86,6 +86,14 @@ export function drawnShapes(c) {
         if (el) shapes.set(`${m.id}:${i}`, el);
       }
     }
+    // Dots: each symbol's path, by name (a few hundred at most; bigger layers fade as a whole, see dimRest)
+    if (m.subType === "scatter" && m.getData().count() <= 300) {
+      const data = m.getData();
+      for (let i = 0; i < data.count(); i++) {
+        const el = data.getItemGraphicEl(i)?.childAt?.(0);
+        if (el) shapes.set(`${m.id}:${data.getName(i)}`, el);
+      }
+    }
   }
   return shapes;
 }

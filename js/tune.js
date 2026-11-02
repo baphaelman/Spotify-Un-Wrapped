@@ -29,6 +29,8 @@ export const TUNES = [
   { key: "rasterHeight", card: "raster-card", label: "Height", def: 460, min: 260, max: 1100, step: 10, fmt: px },
   // (Every day's too)
   { key: "waitFade", card: "raster-card", label: "Shown while the period moves", def: 0.6, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
+  { key: "discoveryFloor", card: "discovery-card", label: "Drawn from", def: 1, min: 0.25, max: 60, step: 0.25, fmt: (v) => `${v} min all time` },
+  { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },

@@ -61,6 +61,17 @@ export function itemTotals(plays) {
   return m;
 }
 
+// Every item with the time it was first played and its hours across all the plays, in order of first play
+export function firstHeard(plays) {
+  const m = new Map();
+  for (const p of plays) {
+    let e = m.get(p.artist);
+    if (!e) m.set(p.artist, (e = { name: p.artist, t: p.t, hours: 0 }));
+    e.hours += p.ms / HOUR;
+  }
+  return [...m.values()];
+}
+
 export function topArtists(plays, n) {
   return [...sumBy(plays, (p) => p.artist)]
     .map(([name, v]) => ({ name, ...v }))

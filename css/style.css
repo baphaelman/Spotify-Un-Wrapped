@@ -582,6 +582,7 @@ button.ghost:hover { background: var(--border); }
 }
 .canvas-tip.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .grid-chart, .canvas-tip { transition: none; } }
+#chart-discovery { height: 400px; }
 /* The lines under Hours per month's captions (charts.js paintUnderlines): their lengths morph with the bars,
    their thickness and color answer a hover */
 #chart-monthly { position: relative; }

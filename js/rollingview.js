@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, renderDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -137,6 +137,7 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     paintMonthly();
     paintClock();
     paintEvery();
+    paintDiscovery();
     paintBrush();
   }
 }
@@ -278,6 +279,31 @@ export function paintMonthly(plays) {
   renderMonthly($("chart-monthly"), agg.monthly(plays, keyed, 5, span), keyed, slots, pins, hover, new Set(state.hidden), span, other);
 }
 $("monthly-other").addEventListener("change", () => paintMonthly());
+
+// What the period found: the items first heard in it, over the whole history, each as high as its hours all time.
+// The chart's artists among them take their colors (same pins and hover); deselected ones are left out. Those under
+// tune.discoveryFloor minutes all time aren't drawn, but count.
+let heardMemo = null;
+export function paintDiscovery() {
+  if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
+  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays) };
+  const all = heardMemo.items;
+  const [artists, , , pins] = mixArgs;
+  const keyed = artists.filter((a) => state.colorSlots.has(a));
+  const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
+  const found = all.filter((e) => e.t >= start && e.t < end);
+  const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
+  const { one, many } = noun();
+  $("discovery-title").textContent = `${one[0].toUpperCase()}${one.slice(1)} Discovery`;
+  $("discovery-note").textContent = `${found.length.toLocaleString()} new ${found.length === 1 ? one : many} found in this period`;
+  // The axis is the whole history and every item's hours, so it holds still as the period moves
+  const e = extent(), most = all.reduce((m, x) => Math.max(m, x.hours), floor);
+  const span = [agg.dayToDate(e.lo).getTime(), agg.dayToDate(e.hi + 1).getTime()];
+  const top = 10 ** Math.ceil(Math.log10(most));
+  const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.name));
+  const hover = (name) => focusArtist($("chart-rolling"), name);
+  renderDiscovery($("chart-discovery"), shown, span, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
+}
 
 // The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
 let mixMemo = null;

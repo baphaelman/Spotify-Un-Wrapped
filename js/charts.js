@@ -2302,6 +2302,140 @@ export function focusClock(el, name) {
   setOptionFaded(c, { series: st.all.map((n, k) => ({ id: `c${k}`, ...clockLook(st, k) })) }, undefined, dur(FADE_MS));
 }
 
+// The items first heard in the period, over the whole history: each a dot at the day it was first played and as
+// high as its hours across everything (a log scale from `floor` hours up to `top`), with the period shaded. The
+// chart's artists among them (names, in their palette slots) take their colors, are named, and follow the hover/pin
+// rule; the rest are one neutral tone on a canvas layer of their own, which dims as a whole (a fade of the layer,
+// cheaper than restyling thousands of dots). items: [{name, t, hours}]; span: [first, last] times of the history;
+// period: [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the neutral dots' size.
+// A click on any dot pins it (into the chart) or unpins it.
+const discoveryState = new WeakMap();
+const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes and the shaded period
+export function renderDiscovery(el, items, span, period, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
+  const t = tokens();
+  const c = chart(el);
+  const prev = discoveryState.get(el);
+  const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
+  const st = {
+    c, t, names, slotOf, floor, pins, span,
+    lit: items.filter((e) => slotOf.has(e.name)),
+    pinned: new Set(names.filter((n) => pins?.has(n))),
+    hovered: names.includes(prev?.hovered) ? prev.hovered : null,
+  };
+  discoveryState.set(el, st);
+
+  const hoursOf = new Map(items.map((e) => [e.name, e.hours]));
+  const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const fmtSpent = (h) => (h >= 1 ? fmtHours(h) : `${Math.max(1, Math.round(h * 60))} min`);
+  const fresh = prev?.c !== c; // (a theme flip makes a new chart)
+  setOptionFaded(
+    c,
+    {
+      animation: true,
+      animationDuration: ENTER_MS,
+      animationEasing: EASE_OUT.echarts,
+      animationDurationUpdate: MORPH_MS,
+      animationEasingUpdate: EASE_IN_OUT.echarts,
+      grid: { left: 56, right: 24, top: 12, bottom: 28 },
+      tooltip: {
+        ...tooltipBase(t),
+        trigger: "item",
+        formatter: ({ name, value }) =>
+          `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(value[0])}</div>${fmtSpent(hoursOf.get(name))} all time`,
+      },
+      xAxis: { type: "time", min: span[0], max: span[1], ...baseAxis(t), splitLine: { show: false } },
+      yAxis: {
+        type: "log",
+        min: floor,
+        max: top,
+        ...baseAxis(t),
+        axisLine: { show: false },
+        axisLabel: { color: t.muted, formatter: (h) => (h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`) },
+      },
+      series: [
+        {
+          id: "period",
+          type: "scatter",
+          data: [],
+          silent: true,
+          markArea: { silent: true, itemStyle: { color: mix(t.surface, t.accent, 0.08) }, data: [[{ xAxis: period[0] }, { xAxis: period[1] }]] },
+        },
+        {
+          id: "rest",
+          type: "scatter",
+          zlevel: NEUTRAL_Z,
+          progressive: 0,
+          symbolSize: dot,
+          cursor: pins ? "pointer" : "default",
+          itemStyle: { color: mix(t.surface, t.other, 0.8) },
+          emphasis: { disabled: true },
+          data: items.filter((e) => !slotOf.has(e.name)).map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, floor)] })),
+        },
+        {
+          id: "lit",
+          type: "scatter",
+          zlevel: LIT_Z,
+          symbolSize: dot * 2,
+          cursor: pins ? "pointer" : "default",
+          emphasis: { disabled: true },
+          label: { show: true, position: "right", distance: 6, formatter: ({ name }) => name, color: t.secondary, fontSize: 11, fontWeight: 500 },
+          labelLayout: { hideOverlap: true },
+          data: discoveryLit(st),
+        },
+      ],
+    },
+    { notMerge: fresh },
+    fresh ? 0 : dur(MORPH_MS)
+  );
+  dimRest(c, st, fresh ? 0 : dur(MORPH_MS));
+
+  if (!fresh) return;
+  // A lit dot lights its artist everywhere
+  c.on("mouseover", ({ seriesId, name }) => seriesId === "lit" && hover(name));
+  c.on("mouseout", ({ seriesId }) => seriesId === "lit" && hover(null));
+  c.on("click", ({ seriesId, name }) => (seriesId === "lit" || seriesId === "rest") && discoveryState.get(el).pins?.toggle(name));
+}
+
+// The lit dots by the hover/pin rule: a light shade of the color at rest, deeper hovered, the color in full with a
+// thicker edge pinned, and faded while another is lit
+function discoveryLit(st) {
+  const { t } = st;
+  return st.lit.map((e) => {
+    const col = t.series[st.slotOf.get(e.name)];
+    const look = litLook(st.pinned, st.hovered, e.name);
+    const fill = isLitLook(look) ? col : mix(t.surface, col, 0.8 * t.fade[look]);
+    return {
+      name: e.name,
+      value: [e.t, Math.max(e.hours, st.floor)],
+      // named on the left near the right end, where there's no room after it
+      label: { position: (e.t - st.span[0]) / (st.span[1] - st.span[0]) > 0.8 ? "left" : "right" },
+      itemStyle: { color: fill, borderColor: mix(t.surface, col, t.fade[look]), borderWidth: isPinLook(look) ? 3 : 1 },
+    };
+  });
+}
+
+// The neutral dots' layer fades as a whole: a little while one of the chart's artists is hovered, more while one is
+// pinned
+function dimRest(c, st, ms) {
+  const layer = c.getZr().painter.getLayer?.(NEUTRAL_Z)?.dom;
+  if (!layer) return;
+  const look = st.pinned.size ? "dim" : st.hovered != null ? "dimHover" : "rest";
+  layer.style.transition = `opacity ${ms}ms ${EASE_OUT.css}`;
+  layer.style.opacity = st.t.fade[look];
+}
+
+// Light one artist (and dim the rest) from a hover elsewhere on the page; null clears
+export function focusDiscovery(el, name) {
+  const st = discoveryState.get(el);
+  const c = instances.get(el);
+  if (!st || !c) return;
+  const next = name != null && st.names.includes(name) ? name : null;
+  if (next === st.hovered) return;
+  st.hovered = next;
+  setOptionFaded(c, { series: [{ id: "lit", data: discoveryLit(st) }] }, undefined, dur(FADE_MS));
+  dimRest(c, st, dur(FADE_MS));
+}
+
 // Contributors by total hours, with the viewer's bin picked out in the accent.
 export function renderHistogram(el, hours, yours) {
   const t = tokens();
