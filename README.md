@@ -76,9 +76,9 @@ Every single play in the period as a little mark: across is the day, down is the
 
 A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to two years it's a box per day; longer than that it switches to a box per week, a row per year. Hover a day for its hours and who topped it; click to pin.
 
-### Artist Discovery
+### First listen
 
-Everyone you found in the period. Each dot is an artist (or album, or track, following the tab) you heard for the first time in the period, placed across the period at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names, and light up with the rest of the page. Hover anywhere to read the nearest find: when you first heard it, the song you heard it through, and its hours. Click to pin it.
+Everyone you found in the period. Each dot is an artist (or album, or track, following the tab) you heard for the first time in the period, placed across the period at the day you first played them and as high as all the hours you've given them since. A tall dot is a find that stuck. Ones that made it into your chart's artists come in their colors and with their names beside them, or, when two names would collide, in a key at the right, which lights and pins them just like their dots. They light up with the rest of the page. Hover anywhere to read the nearest find: when you first heard it, the song you heard it through and its album (a track's album, on the tracks tab), and its hours. Click to pin it.
 
 ### All your artists
 

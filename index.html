@@ -433,9 +433,13 @@
 
       <!-- What the period found: its new artists across it, the chart's in their colors (rollingview.js paintDiscovery) -->
       <article class="card" id="discovery-card">
-        <h2 id="discovery-title">Artist Discovery</h2>
+        <h2>First listen</h2>
         <p class="muted" id="discovery-note"></p>
-        <div id="chart-discovery" class="chart"></div>
+        <div class="found-frame">
+          <div id="chart-discovery" class="chart"></div>
+          <!-- Names the lit dots when they'd overlap beside them (charts.js paintFoundKey) -->
+          <div class="found-key" aria-hidden="true"></div>
+        </div>
       </article>
 
       <article class="card" id="ranking-card">

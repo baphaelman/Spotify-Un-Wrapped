@@ -2493,13 +2493,18 @@ export function focusClock(el, name) {
 
 // The items first heard in the period, across it: each a dot at the day it was first played and as high as its
 // hours across everything (a log scale from `floor` hours up to `top`). The
-// chart's artists among them (names, in their palette slots) take their colors, are named, and follow the hover/pin
-// rule; the rest are one neutral tone on a canvas layer of their own, which dims as a whole (a fade of the layer,
-// cheaper than restyling thousands of dots). items: [{name, t, hours, first}] (first: the song it was first heard
-// through, or null); span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the
-// pointer; dot: the neutral dots' size. The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
+// chart's artists among them (names, in their palette slots) take their colors and follow the hover/pin rule, and are
+// named beside their dots, or, when two names would overlap, in a key right of the plot (.found-key, beside the
+// chart), which hovers and pins as the dots do. The rest are one neutral tone on a canvas layer of their own, which
+// dims as a whole (a fade of the layer, cheaper than restyling thousands of dots). items: [{name, t, hours, first,
+// album}] (first: the song it was first heard through, or null; album: that song's album, or the track's);
+// span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the
+// neutral dots' size. The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
 const discoveryState = new WeakMap();
 const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes
+const FOUND_GRID = { left: 56, right: 24, top: 12, bottom: 28 };
+const FOUND_KEY_W = 168; // the plot's right margin while the key shows (.found-key's width and a gap)
+const FOUND_LABEL = { size: 13, weight: 600, gap: 8, h: 18 };
 export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
   const t = tokens();
   const c = chart(el);
@@ -2512,7 +2517,9 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
     pinned: new Set(names.filter((n) => pins?.has(n))),
     hovered: names.includes(prev?.hovered) ? prev.hovered : null,
   };
+  st.keyed = st.lit.length > 1 && labelsOverlap(el, st);
   discoveryState.set(el, st);
+  paintFoundKey(el, st);
 
   const byName = new Map(items.map((e) => [e.name, e]));
   const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -2526,16 +2533,17 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
       animationEasing: EASE_OUT.echarts,
       animationDurationUpdate: MORPH_MS,
       animationEasingUpdate: EASE_IN_OUT.echarts,
-      grid: { left: 56, right: 24, top: 12, bottom: 28 },
+      grid: { ...FOUND_GRID, right: st.keyed ? FOUND_KEY_W : FOUND_GRID.right },
       tooltip: {
         ...tooltipBase(t),
         trigger: "item",
         triggerOn: "none", // shown for the dot nearest the pointer (pointAt)
         formatter: ({ name }) => {
           const e = byName.get(name);
+          const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";
           return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` +
             (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
-            `${fmtSpent(e.hours)} all time`;
+            from + `${fmtSpent(e.hours)} all time`;
         },
       },
       xAxis: { type: "time", min: span[0], max: span[1], ...baseAxis(t), splitLine: { show: false } },
@@ -2570,8 +2578,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           symbolSize: dot * 2,
           silent: true,
           emphasis: { disabled: true },
-          label: { show: true, position: "right", distance: 6, formatter: ({ name }) => name, color: t.secondary, fontSize: 11, fontWeight: 500 },
-          labelLayout: { hideOverlap: true },
+          label: { show: true, position: "right", distance: FOUND_LABEL.gap, formatter: ({ name }) => name, fontSize: FOUND_LABEL.size, fontWeight: FOUND_LABEL.weight },
           data: discoveryLit(st),
         },
       ],
@@ -2605,6 +2612,68 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
     const near = nearestFound(s, e.offsetX, e.offsetY);
     if (near) s.pins?.toggle(near.name);
   });
+}
+
+// Whether any two of the lit dots' names would overlap, drawn beside their dots on the full-width plot
+let measureCtx = null;
+function labelsOverlap(el, st) {
+  const { left, right, top, bottom } = FOUND_GRID;
+  const rect = { x: left, y: top, width: el.clientWidth - left - right, height: el.clientHeight - top - bottom };
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  measureCtx.font = `${FOUND_LABEL.weight} ${FOUND_LABEL.size}px sans-serif`; // (ECharts' default family)
+  const boxes = st.lit.map((e) => {
+    const [x, y] = foundPixel(st, rect, e);
+    const w = measureCtx.measureText(e.name).width, off = st.dot + FOUND_LABEL.gap;
+    const x0 = foundOnLeft(st, e) ? x - off - w : x + off;
+    return [x0, x0 + w, y - FOUND_LABEL.h / 2, y + FOUND_LABEL.h / 2];
+  });
+  return boxes.some((a, i) => boxes.some((b, j) => j > i && a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3]));
+}
+// (named on the left near the right end, where there's no room after it)
+const foundOnLeft = (st, e) => (e.t - st.span[0]) / (st.span[1] - st.span[0]) > 0.8;
+
+// The key right of the plot, while the names would overlap: the lit artists in the order they were found, each
+// after a dash of its color. HTML, so a long name ellipsizes; hovering one is hovering its dot, a click pins it.
+function paintFoundKey(el, st) {
+  const box = el.parentElement.querySelector(".found-key");
+  if (!box) return;
+  box._st = st;
+  if (!box._wired) {
+    box._wired = true;
+    const nameAt = (e) => e.target.closest(".found-name")?.dataset.artist ?? null;
+    box.addEventListener("pointerover", (e) => box._st.hover(nameAt(e)));
+    box.addEventListener("pointerleave", () => box._st.hover(null));
+    box.addEventListener("click", (e) => {
+      const name = nameAt(e);
+      if (name != null) box._st.pins?.toggle(name);
+    });
+  }
+  box.classList.toggle("on", st.keyed);
+  const order = [...st.lit].sort((a, b) => a.t - b.t).map((e) => e.name);
+  const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
+  box.replaceChildren(
+    ...order.map((name) => {
+      let n = have.get(name);
+      if (!n) {
+        n = document.createElement("div");
+        n.className = "found-name";
+        n.dataset.artist = name;
+        n.textContent = shownName(name); // artist names come from user files
+      }
+      n.style.setProperty("--c", st.t.series[st.slotOf.get(name)]);
+      return n;
+    })
+  );
+  lightFoundKey(st, box);
+}
+function lightFoundKey(st, box) {
+  for (const n of box?.children ?? []) {
+    const name = n.dataset.artist, pinned = st.pinned.has(name);
+    n.classList.toggle("pinned", pinned);
+    n.classList.toggle("focus", st.hovered === name);
+    n.classList.toggle("dimmed", !isLitLook(litLook(st.pinned, st.hovered, name)) && (st.pinned.size > 0 || st.hovered != null));
+    n.title = `${pinned ? "Unpin" : "Pin"} ${shownName(name)}`;
+  }
 }
 
 // Where an item's dot sits in pixels, worked out from the axes as they're set (cheaper than asking ECharts for each)
@@ -2666,8 +2735,8 @@ function discoveryLit(st) {
     return {
       name: e.name,
       value: [e.t, Math.max(e.hours, st.floor)],
-      // named on the left near the right end, where there's no room after it
-      label: { position: (e.t - st.span[0]) / (st.span[1] - st.span[0]) > 0.8 ? "left" : "right" },
+      // named in the ink, faded as the dot is, unless the key names them
+      label: { position: foundOnLeft(st, e) ? "left" : "right", color: mix(t.surface, t.primary, t.fade[look]), opacity: st.keyed ? 0 : 1 },
       itemStyle: { color: fill, borderColor: mix(t.surface, col, t.fade[look]), borderWidth: isPinLook(look) ? 3 : 1 },
     };
   });
@@ -2693,6 +2762,7 @@ export function focusDiscovery(el, name) {
   st.hovered = next;
   setOptionFaded(c, { series: [{ id: "lit", data: discoveryLit(st) }] }, undefined, dur(FADE_MS));
   dimRest(c, st, dur(FADE_MS));
+  lightFoundKey(st, el.parentElement.querySelector(".found-key"));
 }
 
 // Contributors by total hours, with the viewer's bin picked out in the accent.

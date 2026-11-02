@@ -598,6 +598,25 @@ button.ghost:hover { background: var(--border); }
 .ridge-name.pinned { color: var(--text-primary); font-weight: 600; }
 .ridge-name.focus { color: var(--text-primary); }
 @media (prefers-reduced-motion: reduce) { .ridge-name { transition: none; } }
+/* First listen's key, right of the plot while its names would overlap beside their dots (charts.js paintFoundKey):
+   each after a dash of its color, in the order they were found. 152px is FOUND_KEY_W (168) less a gap; its top is the
+   chart's margin and its grid's top. */
+.found-frame { position: relative; }
+.found-key {
+  position: absolute; top: 20px; right: 0; width: 152px; max-height: calc(100% - 48px); overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px; opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-morph) var(--ease-in-out);
+}
+.found-key.on { opacity: 1; pointer-events: auto; }
+.found-name {
+  position: relative; height: 18px; line-height: 18px; padding-left: 16px; font-size: 13px; font-weight: 600;
+  color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  transition: color var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out);
+}
+.found-name::before { content: ""; position: absolute; left: 0; top: 8px; width: 10px; height: 2px; border-radius: 1px; background: var(--c); }
+.found-name.pinned::before { height: 4px; top: 7px; border-radius: 2px; }
+.found-name.dimmed { color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .found-key, .found-name { transition: none; } }
 #chart-clock { height: 230px; }
 /* Every play and Every day (every.js): canvases, their box gliding to a new layout's height */
 .grid-chart { position: relative; overflow: hidden; height: auto; min-height: 120px; transition: height var(--motion-morph) var(--ease-in-out); }

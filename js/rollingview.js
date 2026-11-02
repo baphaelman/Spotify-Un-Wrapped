@@ -295,7 +295,7 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 let heardMemo = null;
 export function paintDiscovery() {
   if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
-  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays, state.dim !== "track") };
+  if (heardMemo?.plays !== state.plays) heardMemo = { plays: state.plays, items: agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album") };
   const all = heardMemo.items;
   const [artists, , , pins] = mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
@@ -303,8 +303,7 @@ export function paintDiscovery() {
   const found = all.filter((e) => e.t >= start && e.t < end);
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
   const { one, many } = noun();
-  $("discovery-title").textContent = `${one[0].toUpperCase()}${one.slice(1)} Discovery`;
-  $("discovery-note").textContent = `${found.length.toLocaleString()} new ${found.length === 1 ? one : many} found in this period`;
+  $("discovery-note").textContent = `You discovered ${found.length.toLocaleString()} ${found.length === 1 ? one : many} over this period`;
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.name));
   // The hours axis fits the period's finds, with room above the highest for its name (at least up to an hour)
   const most = shown.reduce((m, x) => Math.max(m, x.hours), floor);

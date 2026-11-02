@@ -73,13 +73,13 @@ export function itemTotals(plays) {
   return m;
 }
 
-// Every item with the time it was first played, the song it was first heard through (with `songs`), and its hours
-// across all the plays, in order of first play
-export function firstHeard(plays, songs = true) {
+// Every item with the time it was first played, the song it was first heard through (with `songs`), that play's album
+// (with `albums`), and its hours across all the plays, in order of first play
+export function firstHeard(plays, songs = true, albums = true) {
   const m = new Map();
   for (const p of plays) {
     let e = m.get(p.artist);
-    if (!e) m.set(p.artist, (e = { name: p.artist, t: p.t, first: songs ? p.track : null, hours: 0 }));
+    if (!e) m.set(p.artist, (e = { name: p.artist, t: p.t, first: songs ? p.track : null, album: (albums && p.album) || null, hours: 0 }));
     e.hours += p.ms / HOUR;
   }
   return [...m.values()];
