@@ -205,22 +205,21 @@ export function setRidges(strip, on) {
   renderRolling(strip, fd, fn, w, currentZoom(strip), m, o, dur(MORPH_MS), p, fsl, sm);
 }
 
-// Spreads targets (y of each, in any order) at least `gap` apart, keeping their order, within [lo, hi]
+// Places names in the order given (top to bottom) at least `gap` apart, each as near its target y as that allows
+// (the least-squares fit, by pooling neighbours that crowd), within [lo, hi]
 function nudge(want, gap, lo, hi) {
-  const o = want.map((_, i) => i).sort((a, b) => want[a] - want[b] || a - b);
-  const y = o.map((i) => want[i]);
-  for (let k = 0; k < 40; k++) {
-    for (let j = 1; j < y.length; j++) if (y[j] - y[j - 1] < gap) { const m = (y[j] + y[j - 1]) / 2; y[j - 1] = m - gap / 2; y[j] = m + gap / 2; }
-  }
-  if (y.length) {
-    y[0] = Math.max(y[0], lo);
-    for (let j = 1; j < y.length; j++) y[j] = Math.max(y[j], y[j - 1] + gap);
-    y[y.length - 1] = Math.min(y[y.length - 1], hi);
-    for (let j = y.length - 2; j >= 0; j--) y[j] = Math.min(y[j], y[j + 1] - gap);
-  }
-  const r = [];
-  o.forEach((i, j) => (r[i] = y[j]));
-  return r;
+  const pools = [];
+  want.forEach((w, j) => {
+    pools.push({ sum: w - j * gap, n: 1 });
+    while (pools.length > 1) {
+      const b = pools[pools.length - 1], a = pools[pools.length - 2];
+      if (a.sum / a.n <= b.sum / b.n) break;
+      pools.splice(-2, 2, { sum: a.sum + b.sum, n: a.n + b.n });
+    }
+  });
+  const y = pools.flatMap((p) => Array(p.n).fill(p.sum / p.n)).map((v, j) => v + j * gap);
+  const shift = Math.max(0, lo - (y[0] ?? lo)) - Math.max(0, (y.at(-1) ?? hi) - hi);
+  return y.map((v) => v + shift);
 }
 
 // The strip's height follows its ridges. The page below moves on the morph's clock (the frame's height transitions),
@@ -260,7 +259,7 @@ function paintRidgeNames(el, at, ms, pinned, colors, act) {
   const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
   for (const [name, y] of at) {
     let n = have.get(name);
-    const place = `translateY(${y - NAME_H / 2}px)`;
+    const place = `translateY(${y - NAME_H / 2 + 2}px)`;
     if (!n) {
       n = document.createElement("div");
       n.className = "ridge-name";
