@@ -4,6 +4,7 @@ import { dur, flip, GROW_MS, EASE_OUT } from "./motion.js";
 import { $, state, noun, otherLabel } from "./state.js";
 import { mixArgs, MAX_PINS, pin } from "./rollingview.js";
 import { recolorRanking, focusRanking } from "./ranking.js";
+import { recolorRace, focusRace } from "./race.js";
 
 // The hovered artist lights everything that belongs to them, as pinning does: their chip in the period bar's
 // key (the mix bar is lit in mix.js)
@@ -14,6 +15,7 @@ export function paintFocus(name = listFocus) {
     item.classList.toggle("focus", name != null && item.dataset.artist === name);
   }
   focusRanking(name);
+  focusRace(name);
 }
 
 // The artist key in the period bar, for every graph: a chip per artist in the rolling chart, in its order and
@@ -22,6 +24,7 @@ export function paintFocus(name = listFocus) {
 // unpinned artist at once. Chips that stay glide to their new places when the artists change.
 export function paintArtistKey() {
   recolorRanking();
+  recolorRace();
   if (!mixArgs) return;
   const [artists, , , pins] = mixArgs;
   // mixArgs can lag a render behind the colors, so leave out any artist without a slot yet

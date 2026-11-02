@@ -293,6 +293,38 @@
         <div id="chart-rolling-hours" class="chart strip" aria-label="Hours per week"></div>
       </article>
 
+      <!-- Who was on top, played as a video over the period: the bars race, and the time slider runs with them (race.js) -->
+      <article class="card" id="race-card">
+        <div class="race-head">
+          <div>
+            <h2 id="race-title">Top Artists over time</h2>
+            <p class="muted" id="race-sub"></p>
+          </div>
+          <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
+            <button type="button" data-measure="total" aria-pressed="true">So far</button>
+            <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
+          </div>
+        </div>
+        <div id="race-stage" class="race-stage">
+          <ol id="race-rows" class="race-rows"></ol>
+          <div id="race-date" class="race-date" aria-live="off"></div>
+        </div>
+        <div class="race-controls">
+          <button id="race-play" type="button" class="race-play" aria-label="Play">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
+          </button>
+          <div class="slider race-time">
+            <input id="race-time" type="range" min="0" max="1" step="any" value="1" aria-label="Day shown">
+            <div id="race-ticks" class="race-ticks" aria-hidden="true"></div>
+          </div>
+          <div id="race-speed" class="segmented solid race-speed" role="group" aria-label="Speed">
+            <button type="button" data-speed="1" aria-pressed="true">1×</button>
+            <button type="button" data-speed="2" aria-pressed="false">2×</button>
+            <button type="button" data-speed="4" aria-pressed="false">4×</button>
+          </div>
+        </div>
+      </article>
+
       <article class="card" id="monthly-card">
         <div class="monthly-head">
           <div>

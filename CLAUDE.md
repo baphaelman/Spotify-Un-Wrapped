@@ -106,6 +106,8 @@ All in `js/` unless noted. Read a file's own comments for the details.
   broad families they're grouped into (see Genres below).
 - `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "Visual
   tweaks" switch, and each card's row of sliders for them. Off, `tune` holds the defaults. Imports nothing.
+- `race.js`: the "Top … over time" card: each day's top list through the period, played like a video (play, scrub, speed),
+  with rows, slider and date on one clock.
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
 - `covers.js`: the pictures in the mix's key (see Pictures below).
 - `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).

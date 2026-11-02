@@ -19,6 +19,7 @@ import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
 import { paintRanking } from "./ranking.js";
+import { paintRace } from "./race.js";
 import { loadSample } from "./sample.js";
 
 // The modules under this one call these back through hooks (state.js)
@@ -465,6 +466,7 @@ function renderDependents(charts = true) {
     paintClock(plays);
   }
   paintRanking();
+  paintRace();
   paintFocus();
 }
 

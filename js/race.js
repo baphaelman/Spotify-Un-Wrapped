@@ -1,0 +1,416 @@
+// "Top artists over time": the view's top n (the period bar's slider) day by day through the period, played like a
+// video. Each day's top list is worked out once per period (build); playing moves a playhead through the days, and
+// every frame ranks the items by their value at the playhead, interpolated between the days around it. The rows
+// chase their place, width and number on one clock with the time slider and the date, so a swap of ranks glides and
+// a drag of the slider (a scrub) moves everything together.
+// Two measures: the hours played so far in the period, or in the 30 days up to each day (reaching back before the
+// period's start, so its first days aren't empty).
+// Like the list below it, rows keep the chart's colors (the rest stay gray), hovering one lights its item everywhere,
+// and clicking it pins or unpins it. No pictures, so no lookups.
+import * as agg from "./aggregate.js";
+import { $, state, noun, putOff } from "./state.js";
+import { focusArtist } from "./charts.js";
+import { mixArgs, MAX_PINS } from "./rollingview.js";
+import { CHASE_MS, dur, litLook } from "./motion.js";
+
+const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
+const RECENT_DAYS = 30;
+// How long the period plays at 1×: a year in YEAR_MS, longer periods taking longer but less than in proportion
+// (by the square root), and never under MIN_MS
+const YEAR_MS = 12_000, MIN_MS = 5_000;
+// The rows chase their targets with this time constant, so a move is all but done within CHASE_MS
+const TAU = CHASE_MS / 3;
+const SETTLED = 1e-3;
+
+let measure = "total";
+let speed = 1;
+let built = null; // { key, lo, hi, frames: [{ map, list, floor }] }
+let t = 0; // the playhead, a fractional day index in [lo, hi]
+let playing = false;
+let raf = 0, last = 0;
+let scale = 0; // the hours the widest bar stands for, chased like the rows
+const rows = new Map(); // item -> { el, bar, val, rank, pos, op, v, shown }
+let hovered = null;
+
+const hoursText = (ms) => {
+  const h = ms / 3_600_000;
+  if (h < 1) return `${Math.max(0, Math.round(h * 60))} min`;
+  return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h).toLocaleString()} h`;
+};
+
+// ---------- Each day's top list ----------
+
+// The top KEEP of `keys` by vals, most first
+function pickTop(keys, vals) {
+  const top = [];
+  for (const k of keys) {
+    const v = vals.get(k);
+    if (!(v > 0) || (top.length === KEEP && v <= top[KEEP - 1][1])) continue;
+    if (top.length === KEEP) top.pop();
+    let i = top.length;
+    while (i > 0 && top[i - 1][1] < v) i--;
+    top.splice(i, 0, [k, v]);
+  }
+  return top;
+}
+
+function build(lo, hi) {
+  const hidden = new Set(state.hidden);
+  const back = measure === "recent" ? RECENT_DAYS - 1 : 0;
+  const days = hi - lo + 1 + back;
+  const buckets = Array.from({ length: days }, () => new Map()); // item -> ms that day
+  for (const p of agg.filterRange(state.plays, lo - back, hi)) {
+    if (hidden.has(p.artist)) continue;
+    const m = buckets[agg.dayIndex(p.t) - lo + back];
+    if (m) m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms);
+  }
+  const vals = new Map();
+  const frames = [];
+  let top = [];
+  for (let d = 0; d < days; d++) {
+    for (const [k, ms] of buckets[d]) vals.set(k, (vals.get(k) ?? 0) + ms);
+    if (measure === "recent") {
+      // The day leaving the window takes its hours with it
+      for (const [k, ms] of buckets[d - RECENT_DAYS] ?? []) {
+        const v = vals.get(k) - ms;
+        if (v < 1) vals.delete(k);
+        else vals.set(k, v);
+      }
+      if (d < back) continue;
+      top = pickTop(vals.keys(), vals);
+    } else {
+      // Totals only grow, so today's top is among yesterday's and today's players
+      top = pickTop(new Set([...top.map(([k]) => k), ...buckets[d].keys()]), vals);
+    }
+    frames.push({ list: top, map: new Map(top), floor: top.length === KEEP ? top[KEEP - 1][1] : 0 });
+  }
+  return frames;
+}
+
+// Every item near the top at the playhead, with its value there: between two days, each moves straight from one
+// day's value to the next. An item only one of the days kept was at most that day's last value on the other.
+function at(time) {
+  const { frames, lo } = built;
+  const x = Math.max(0, Math.min(frames.length - 1, time - lo));
+  const k = Math.floor(x), f = x - k;
+  const A = frames[k], B = frames[Math.min(k + 1, frames.length - 1)];
+  const out = new Map();
+  for (const [key, a] of A.list) out.set(key, a + ((B.map.get(key) ?? Math.min(a, B.floor)) - a) * f);
+  for (const [key, b] of B.list) if (!A.map.has(key)) out.set(key, Math.min(b, A.floor) + (b - Math.min(b, A.floor)) * f);
+  return [...out].sort((a, b) => b[1] - a[1]);
+}
+
+// ---------- Rows ----------
+
+const colorOf = (key) => {
+  const slot = state.chartNames?.includes(key) ? state.colorSlots?.get(key) : undefined;
+  return slot === undefined ? null : `var(--series-${slot + 1})`;
+};
+
+function makeRow(key) {
+  const li = document.createElement("li");
+  li._key = key;
+  li.tabIndex = 0;
+  li.setAttribute("role", "button");
+  const rank = document.createElement("span");
+  rank.className = "race-rank";
+  const name = document.createElement("span");
+  name.className = "race-name";
+  name.textContent = state.titles?.get(key) ?? key;
+  const by = state.owner?.get(key);
+  if (by) {
+    const small = document.createElement("small");
+    small.textContent = by;
+    name.append(small);
+  }
+  name.title = by ? `${state.titles?.get(key) ?? key} — ${by}` : key;
+  const track = document.createElement("span");
+  track.className = "race-track";
+  const bar = document.createElement("span");
+  bar.className = "race-bar";
+  const val = document.createElement("span");
+  val.className = "race-val";
+  track.append(bar, val);
+  li.append(rank, name, track);
+  const c = colorOf(key);
+  if (c) li.style.setProperty("--c", c);
+  $("race-rows").append(li);
+  return { el: li, bar, val, rankEl: rank, rank: -1, pos: n(), op: 0, v: 0, text: "", shown: false };
+}
+
+const n = () => Number($("n-artists").value);
+
+// The hover/pin rule, as on the list's rows: hovered rows shade, pinned ones shade deeper and outline, the rest dim
+function markRows() {
+  const pinned = new Set(state.pinned);
+  const full = state.pinned.length >= MAX_PINS;
+  for (const [key, r] of rows) {
+    const look = litLook(pinned, hovered, key);
+    r.el.classList.toggle("focus", look === "hover" || look === "pinHover");
+    r.el.classList.toggle("pinned", pinned.has(key));
+    r.el.classList.toggle("dim", look === "dim" || look === "dimHover");
+    r.el.classList.toggle("glance", look === "dimHover");
+    r.el.setAttribute("aria-pressed", pinned.has(key));
+    r.el.toggleAttribute("aria-disabled", full && !pinned.has(key));
+  }
+}
+
+// The key's repaint (key.js) recolors the rows and marks the pins, as for the list
+export function recolorRace() {
+  for (const [key, r] of rows) {
+    const c = colorOf(key);
+    if (c) r.el.style.setProperty("--c", c);
+    else r.el.style.removeProperty("--c");
+  }
+  markRows();
+}
+
+// The item hovered anywhere on the page
+export function focusRace(name) {
+  hovered = name ?? null;
+  markRows();
+}
+
+// ---------- The clock ----------
+
+const span = () => (built ? built.hi - built.lo : 0);
+const playMs = () => Math.max(MIN_MS, YEAR_MS * Math.sqrt(span() / 365));
+
+// One frame: the playhead moves on (while playing), and the rows, the slider and the date follow it
+function frame(now) {
+  raf = 0;
+  if (!built) return;
+  const dt = last ? Math.min(100, now - last) : 0; // (a frame after a stall moves on as one ordinary frame would)
+  last = now;
+  if (playing) {
+    t += (dt / playMs()) * span() * speed;
+    if (t >= built.hi) {
+      t = built.hi;
+      setPlaying(false);
+    }
+  }
+  const tau = dur(TAU);
+  const a = tau ? 1 - Math.exp(-dt / tau) : 1;
+  const count = n();
+  const ranked = at(t);
+  let settled = true;
+  const chase = (r, k, to) => {
+    r[k] += (to - r[k]) * a;
+    if (Math.abs(to - r[k]) > SETTLED * (k === "v" ? Math.max(1, to) : 1)) settled = false;
+    else r[k] = to;
+  };
+  const top = ranked[0]?.[1] ?? 0;
+  if (!scale) scale = top;
+  scale += (top - scale) * a;
+  if (Math.abs(top - scale) > SETTLED * Math.max(1, top)) settled = false;
+  else scale = top;
+
+  const here = new Set();
+  ranked.forEach(([key, v], i) => {
+    here.add(key);
+    let r = rows.get(key);
+    if (!r) {
+      // A newcomer starts below the last bar, faded out, at its value
+      rows.set(key, (r = makeRow(key)));
+      r.v = v;
+      markRows();
+    }
+    const shown = i < count;
+    chase(r, "pos", shown ? i : count);
+    chase(r, "op", shown ? 1 : 0);
+    chase(r, "v", v);
+    if (shown && r.rank !== i) {
+      r.rank = i;
+      r.rankEl.textContent = i + 1;
+    }
+    r.shown = shown;
+  });
+  for (const [key, r] of rows) {
+    if (here.has(key)) continue;
+    chase(r, "pos", count);
+    chase(r, "op", 0);
+    r.shown = false;
+    if (r.op === 0) {
+      r.el.remove();
+      rows.delete(key);
+    }
+  }
+  for (const r of rows.values()) {
+    r.el.style.transform = `translateY(calc(${r.pos} * var(--race-row)))`;
+    r.el.style.opacity = r.op;
+    r.el.style.visibility = r.op < 0.01 ? "hidden" : "";
+    r.el.style.setProperty("--f", scale > 0 ? Math.max(0, r.v / scale) : 0);
+    const text = hoursText(r.v);
+    if (text !== r.text) r.val.textContent = r.text = text;
+  }
+  $("race-stage").style.setProperty("--n", count);
+  paintTime();
+  if (playing || !settled) raf = requestAnimationFrame(frame);
+  else last = 0;
+}
+
+function kick() {
+  if (!raf) raf = requestAnimationFrame(frame);
+}
+
+function paintTime() {
+  const input = $("race-time");
+  input.value = t;
+  input.style.setProperty("--p", span() ? (t - built.lo) / span() : 1);
+  const d = agg.dayToDate(Math.floor(t));
+  const text = d.toLocaleDateString(undefined, span() > 400 ? { month: "short", year: "numeric" } : { day: "numeric", month: "short", year: "numeric" });
+  if ($("race-date").textContent !== text) $("race-date").textContent = text;
+}
+
+function setPlaying(on) {
+  playing = on;
+  $("race-card").classList.toggle("playing", on);
+  $("race-play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (on) kick();
+}
+
+// The slider's marks: each year's start, or each month's over a period of a year or so
+const TICK_PX = 48;
+function paintTicks() {
+  if (!built) return;
+  const { lo, hi } = built;
+  const marks = [];
+  const months = hi - lo <= 400;
+  const d = agg.dayToDate(lo);
+  let m = new Date(d.getFullYear(), months ? d.getMonth() + 1 : 12, 1);
+  for (; ; m = new Date(m.getFullYear(), m.getMonth() + (months ? 1 : 12), 1)) {
+    const i = agg.dayIndex(m.getTime());
+    if (i > hi) break;
+    marks.push([i, months ? m.toLocaleDateString(undefined, { month: "short" }) : String(m.getFullYear())]);
+  }
+  const most = Math.max(2, Math.floor($("race-ticks").clientWidth / TICK_PX)); // as many as fit without crowding
+  const step = Math.ceil(marks.length / most);
+  $("race-ticks").replaceChildren(...marks.filter((_, i) => i % step === 0).map(([i, label]) => {
+    const s = document.createElement("span");
+    s.textContent = label;
+    s.style.setProperty("--p", (i - lo) / Math.max(1, hi - lo));
+    return s;
+  }));
+}
+
+// ---------- Painting ----------
+
+// Rebuilt when the period, the view, the hidden items or the measure change; otherwise the rows just follow.
+// A drag of the period window repaints every frame, and a long period takes tens of ms to rebuild, so rebuilds come
+// at most once per REBUILD_MS (the last one always runs)
+const REBUILD_MS = CHASE_MS;
+let lastBuild = 0, rebuildTimer = 0;
+export function paintRace() {
+  const card = $("race-card");
+  if (!state.plays || putOff(card, () => paintRace())) return;
+  const { lo, hi } = state.range;
+  const words = noun();
+  $("race-title").textContent = `Top ${words.Many} over time`;
+  $("race-sub").textContent = measure === "total"
+    ? `${words.who} was on top through the period, by hours played since its start`
+    : `${words.who} was on top through the period, by hours played in the ${RECENT_DAYS} days up to each day`;
+  const key = [state.plays.length, state.dim, lo, hi, measure, ...state.hidden].join("\u0000");
+  clearTimeout(rebuildTimer);
+  const wait = lastBuild + REBUILD_MS - performance.now();
+  if (built && built.key !== key && wait > 0) rebuildTimer = setTimeout(paintRace, wait);
+  else if (built?.key !== key) {
+    const frames = build(lo, hi);
+    lastBuild = performance.now();
+    // Playing from the start skips the days before anything was played
+    const first = frames.findIndex((f) => f.list.length);
+    built = { key, lo, hi, frames, start: lo + Math.max(0, first) };
+    const input = $("race-time");
+    input.min = lo;
+    input.max = hi;
+    // A period changed while playing plays on from the same day, if it's in the new one; otherwise it shows the end
+    if (!playing || t < lo || t > hi) t = hi;
+    paintTicks();
+  }
+  kick();
+}
+
+function play() {
+  if (!built) return;
+  if (playing) return setPlaying(false);
+  if (t >= built.hi) t = built.start; // from the end, it starts over
+  last = 0;
+  setPlaying(true);
+}
+
+$("race-play").addEventListener("click", play);
+
+// A scrub: the playhead goes where the slider is, and playing carries on from there once it's let go
+let resume = false;
+const time = $("race-time");
+time.addEventListener("pointerdown", () => {
+  resume = playing;
+  setPlaying(false);
+});
+time.addEventListener("input", () => {
+  if (!built) return;
+  t = Number(time.value);
+  kick();
+});
+time.addEventListener("change", () => {
+  if (resume) {
+    resume = false;
+    if (t < built.hi) setPlaying(true);
+  }
+});
+
+for (const [group, set] of [["race-measure", (b) => (measure = b.dataset.measure)], ["race-speed", (b) => (speed = Number(b.dataset.speed))]]) {
+  $(group).addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.getAttribute("aria-pressed") === "true") return;
+    for (const o of $(group).children) o.setAttribute("aria-pressed", o === b);
+    set(b);
+    if (group === "race-measure") paintRace();
+  });
+}
+
+// The slider's count changes how many rows show
+$("n-artists").addEventListener("input", kick);
+
+// Pinning goes through the chart's own pins, which repaint the key and so these rows (recolorRace)
+function toggle(li) {
+  const pins = mixArgs?.[3];
+  if (!pins || (!pins.has(li._key) && state.pinned.length >= MAX_PINS)) return;
+  pins.toggle(li._key);
+}
+
+const list = $("race-rows");
+let under = null;
+list.addEventListener("pointerover", (e) => {
+  const li = e.target.closest("li");
+  if (!li || li === under) return;
+  under = li;
+  focusArtist($("chart-rolling"), li._key); // an item outside the chart has nothing there to light
+});
+list.addEventListener("pointerleave", () => {
+  under = null;
+  focusArtist($("chart-rolling"), null);
+});
+list.addEventListener("click", (e) => {
+  const li = e.target.closest("li");
+  if (li) toggle(li);
+});
+list.addEventListener("keydown", (e) => {
+  const li = e.target.closest("li");
+  if (!li || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  toggle(li);
+});
+
+// A video scrolled out of sight stops, rather than playing to nobody
+new IntersectionObserver((entries) => {
+  if (entries.some((e) => !e.isIntersecting) && playing) setPlaying(false);
+}).observe($("race-card"));
+
+// A narrower slider fits fewer marks
+let ticksWide = 0;
+new ResizeObserver(() => {
+  const w = $("race-ticks").clientWidth;
+  if (Math.abs(w - ticksWide) < TICK_PX / 2) return;
+  ticksWide = w;
+  paintTicks();
+}).observe($("race-ticks"));
