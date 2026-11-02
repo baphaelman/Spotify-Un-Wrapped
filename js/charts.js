@@ -2501,14 +2501,16 @@ export function focusClock(el, name) {
 // group: what it's colored, lit and pinned as, if not itself, so a genre's tracks: they're never named beside their
 // dots, and the key always shows);
 // span: the period, [start, end) times; pins is {has, toggle}; hover(name|null) reports the pointer; dot: the
-// neutral dots' size. The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
+// neutral dots' size in a roomy period (a crowded one shrinks them all). The pointer reads the nearest dot; a click pins it (into the chart) or unpins it.
 const discoveryState = new WeakMap();
 const NEUTRAL_Z = 1, LIT_Z = 2; // canvas layers above the axes
 const FOUND_GRID = { left: 56, right: 24, top: 12, bottom: 28 };
 const FOUND_KEY_W = 168; // the plot's right margin while the key shows (.found-key's width and a gap)
 const FOUND_LABEL = { size: 13, weight: 600, gap: 8, h: 18 };
+const FOUND_ROOMY = 400; // dots per 1000px of plot drawn at full size; more, and every dot shrinks (down to half)
 export function renderDiscovery(el, items, span, floor, top, names = [], slots = [], pins = null, hover = () => {}, dot = 5) {
   const t = tokens();
+  dot *= Math.min(1, Math.max(0.5, Math.sqrt((FOUND_ROOMY * el.clientWidth) / 1000 / Math.max(1, items.length))));
   const c = chart(el);
   const prev = discoveryState.get(el);
   const slotOf = new Map(names.map((n, k) => [n, slots[k]]));
@@ -2638,7 +2640,7 @@ const groupOf = (e) => e.group ?? e.name;
 // (named on the left near the right end, where there's no room after it)
 const foundOnLeft = (st, e) => (e.t - st.span[0]) / (st.span[1] - st.span[0]) > 0.8;
 
-// The key right of the plot, while the names would overlap: the lit artists in the order they were found, each
+// The key right of the plot, while the names would overlap: the lit artists in the period bar's order, each
 // after a dash of its color. HTML, so a long name ellipsizes; hovering one is hovering its dot, a click pins it.
 function paintFoundKey(el, st) {
   const box = el.parentElement.querySelector(".found-key");
@@ -2655,7 +2657,8 @@ function paintFoundKey(el, st) {
     });
   }
   box.classList.toggle("on", st.keyed);
-  const order = [...new Set([...st.lit].sort((a, b) => a.t - b.t).map(groupOf))];
+  const here = new Set(st.lit.map(groupOf));
+  const order = st.names.filter((n) => here.has(n));
   const have = new Map([...box.children].map((n) => [n.dataset.artist, n]));
   box.replaceChildren(
     ...order.map((name) => {

@@ -599,7 +599,7 @@ button.ghost:hover { background: var(--border); }
 .ridge-name.focus { color: var(--text-primary); }
 @media (prefers-reduced-motion: reduce) { .ridge-name { transition: none; } }
 /* First listen's key, right of the plot while its names would overlap beside their dots (charts.js paintFoundKey):
-   each after a dash of its color, in the order they were found. 152px is FOUND_KEY_W (168) less a gap; its top is the
+   each after a dash of its color, in the period bar's order. 152px is FOUND_KEY_W (168) less a gap; its top is the
    chart's margin and its grid's top. */
 .found-frame { position: relative; }
 .found-key {
