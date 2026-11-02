@@ -1543,6 +1543,8 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   if (caption) grid.top += (CAP_LINES - 1) * CAP_LINE_H;
   const st = { names, rows, span, other, t, off, pins, colorOf, underline: caption, grid, hovered: prev?.hovered ?? null, picked: prev?.picked ?? null, full: prev?.full ?? null, fullNext: prev?.full ?? null, last: fresh ? null : prev.last };
   monthlyState.set(el, st);
+  // Bars morph until then; a hover's setOption before it would restart their easing (see focusMonthly)
+  st.busyUntil = fresh ? 0 : performance.now() + dur(MORPH_MS);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const bar = { type: "bar", stack: "month", barCategoryGap: `${tune.barGap}%` };
   const looks = monthlySeries(st);
@@ -2090,9 +2092,22 @@ export function focusMonthly(el, name) {
   const next = name != null && st.names.includes(name) && !st.off.has(name) ? name : null;
   if (next === st.hovered) return;
   st.hovered = next;
+  paintUnderlines(el, st);
+  // Mid-morph, the slices' look waits for the morph to end: a setOption now would restart the bars' easing
+  const wait = st.busyUntil - performance.now();
+  if (wait > 0) {
+    clearTimeout(st.hoverWait);
+    st.hoverWait = setTimeout(() => {
+      if (monthlyState.get(el) === st) restyleMonthly(el, st, c);
+    }, wait);
+    return;
+  }
+  restyleMonthly(el, st, c);
+}
+
+function restyleMonthly(el, st, c) {
   const series = monthlySeries(st);
   setOptionFaded(c, { series }, undefined, dur(FADE_MS)); // faded, as hover in the other charts is
-  paintUnderlines(el, st);
   settleMonthly(el, st, series);
 }
 
