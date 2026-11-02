@@ -446,7 +446,12 @@
       <article class="card" id="rank-card">
         <h2>Rank race</h2>
         <p class="muted" id="rank-note"></p>
-        <div id="chart-rank" class="chart rank-chart"></div>
+        <!-- The readout and the pointer's marker are drawn over the chart, scrubbing with the pointer (rankrace.js) -->
+        <div class="rank-frame">
+          <div id="chart-rank" class="chart rank-chart"></div>
+          <div class="rank-cursor" aria-hidden="true"></div>
+          <div class="rank-tip" aria-hidden="true"><div class="rank-tip-head"></div><div class="rank-tip-rows"></div></div>
+        </div>
       </article>
 
       <article class="card" id="ranking-card">

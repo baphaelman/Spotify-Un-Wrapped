@@ -4,11 +4,12 @@
 // and the rest are gray, behind them. By the month, a rank is taken over the months around each one, so a phase
 // reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them
 // a line dives below the floor, the deeper the further down the item really was, and comes back. Every line is
-// named at its best point (grays too, over whatever is there). Hovering reads the whole slice, beside the pointer.
+// named at its best point (grays too, over whatever is there). Hovering reads the whole slice beside the pointer,
+// its rows sliding past each other as the pointer moves from one slice to the next.
 // Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
 import * as agg from "./aggregate.js";
-import { FADE_MS, MORPH_MS, EASE_IN_OUT, dur, litLook, isLitLook, setOptionFaded } from "./motion.js";
+import { FADE_MS, MORPH_MS, EASE_IN_OUT, dur, litLook, isLitLook, setOptionFaded, easeInOut } from "./motion.js";
 import { $, state, putOff, rangePlays, shownName } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
@@ -50,9 +51,10 @@ function chart(el) {
     c.on("mouseover", { seriesType: "line" }, (e) => hover(e.seriesName));
     c.on("mouseout", { seriesType: "line" }, () => hover(null));
     c.on("globalout", () => hover(null));
-    c.on("click", { seriesType: "line" }, (e) => {
-      if (st.colors.has(e.seriesName)) mixArgs?.[3]?.toggle(e.seriesName);
-    });
+    // Any line pins (one that isn't the chart's joins it)
+    c.on("click", { seriesType: "line" }, (e) => mixArgs?.[3]?.toggle(e.seriesName));
+    c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
+    c.getZr().on("globalout", () => scrub(null));
   }
   return c;
 }
@@ -85,7 +87,7 @@ function ranksOf(plays, span) {
     return new Map([...m].sort((a, b) => b[1] - a[1]).map(([a, h], j) => [a, { r: j + 1, h }]));
   });
   const label = (k) => {
-    const m0 = k * span, y = Math.floor(m0 / 12), m = m0 % 12, yy = `’${String(y).slice(2)}`;
+    const m0 = k * span, y = Math.floor(m0 / 12), m = m0 % 12, yy = String(y).slice(2);
     if (span === 1) return `${MON[m]} ${yy}`;
     if (span === 3) return `Q${m / 3 + 1} ${yy}`;
     if (span === 6) return `H${m / 6 + 1} ${yy}`;
@@ -105,7 +107,7 @@ export function paintRankRace() {
   const [unit, steps] = SPANS[span];
   $("rank-note").textContent = `Where everything that reached the top ${tune.rankMax} stood, ${steps}` +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
-  if (rows.length < 2) { c?.clear(); st = null; return; }
+  if (rows.length < 2) { c?.clear(); st = null; scrub(null); return; }
 
   const MAX = tune.rankMax;
   const hidden = new Set(state.hidden);
@@ -118,6 +120,7 @@ export function paintRankRace() {
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
   st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null };
   const cc = chart(el);
+  el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
   else setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS));
@@ -134,7 +137,7 @@ const yOf = (m, a, MAX) => {
 };
 
 // The chart's pinned items that are drawn
-const pinnedSet = () => new Set(mixArgs?.[3] ? [...st.colors.keys()].filter((n) => mixArgs[3].has(n)) : []);
+const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
 
 function seriesOf() {
   const { names, leaving, rows, colors, MAX, t, hovered } = st;
@@ -177,33 +180,6 @@ function seriesOf() {
   });
 }
 
-// Every item on the chart in the hovered slice, by rank: the chart's artists in their colors, pinned ones marked
-function sliceTip(params) {
-  const i = params[0]?.dataIndex;
-  if (!st || i == null) return "";
-  const { rows, labels, colors, MAX, t, unit, hovered } = st;
-  const pinned = pinnedSet(), hidden = new Set(state.hidden);
-  const lines = [];
-  for (const [a, e] of rows[i]) {
-    if (e.r > MAX) break;
-    if (hidden.has(a)) continue;
-    const col = colors.get(a);
-    const mark = pinned.has(a) ? `background:${alpha(col, 0.22)};box-shadow:inset 0 0 0 1px ${col};` : a === hovered && col ? `background:${alpha(col, 0.12)};` : "";
-    lines.push(`<div style="display:flex;gap:8px;padding:0 4px;border-radius:3px;${mark}">` +
-      `<span style="width:2.5ch;text-align:right;color:${t.muted}">${e.r}</span>` +
-      `<span style="flex:1;${col ? `color:${col};font-weight:600` : ""}">${esc(shownName(a))}</span>` +
-      `<span style="color:${t.muted}">${fmtH(e.h)}</span></div>`);
-  }
-  return `<div style="margin-bottom:4px"><b>${labels[i]}</b> <span style="color:${t.muted}">· hours ${unit === "month" ? "over the 3 months around it" : `that ${unit}`}</span></div>` + lines.join("");
-}
-
-// Beside the pointer, to its left where there's room
-function tipAt(point, _p, _dom, _rect, size) {
-  const [w, h] = size.contentSize, [W, H] = size.viewSize, gap = 16;
-  const x = point[0] - w - gap >= 0 ? point[0] - w - gap : Math.min(point[0] + gap, W - w);
-  return [x, Math.max(0, Math.min(H - h, point[1] - h / 2))];
-}
-
 function option() {
   const { labels, MAX, t } = st;
   const axis = { axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.muted } };
@@ -211,11 +187,7 @@ function option() {
     // (lines appear by drawing in left to right, on the same tier as lines leaving)
     animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(MORPH_MS), animationEasingUpdate: EASE_IN_OUT.echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
-    tooltip: {
-      trigger: "axis", position: tipAt, formatter: sliceTip, transitionDuration: 0,
-      axisPointer: { type: "line", lineStyle: { color: t.axis }, animation: false },
-      backgroundColor: t.surface, borderColor: t.axis, textStyle: { color: t.primary, fontSize: 12 }, extraCssText: "min-width:200px",
-    },
+    tooltip: { show: false }, // (scrub draws the readout)
     grid: { top: 30, bottom: 30, left: 44, right: 28 }, // (room above #1 for its names)
     xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
@@ -229,4 +201,73 @@ export function focusRankRace(name) {
   if (st.hovered === name) return;
   st.hovered = name;
   setOptionFaded(c, { series: seriesOf() }, undefined, dur(FADE_MS));
+  if (pointer) scrub(...pointer);
+}
+
+// The readout and marker for the pointer at (x, y) on the chart, or null to hide them. The pointer sits between two
+// slices: each row is placed between its rank in either, by how far along it is, so as it moves the rows overtake
+// each other like the bars of a race. Rows leaving the top ranks slide out at the bottom and fade.
+let pointer = null;
+const rowEls = new Map(); // item -> its row in the readout
+function scrub(x, y) {
+  const el = $("chart-rank"), tip = el.parentElement.querySelector(".rank-tip"), cursor = el.parentElement.querySelector(".rank-cursor");
+  const rect = x != null && st && c && !c.isDisposed() ? c.getModel().getComponent("grid").coordinateSystem.getRect() : null;
+  if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < rect.y || y > rect.y + rect.height) {
+    pointer = null;
+    tip.classList.remove("on");
+    cursor.classList.remove("on");
+    return;
+  }
+  pointer = [x, y];
+  const { rows, labels, colors, MAX, unit, hovered } = st;
+  const n = rows.length, f = Math.max(0, Math.min(n - 1, ((x - rect.x) / rect.width) * (n - 1)));
+  // The rows hold still near each slice and swap in the middle of the gap (tune.rankSwap of it), eased
+  const i = Math.floor(f), j = Math.min(n - 1, i + 1), swap = tune.rankSwap;
+  const u = easeInOut(Math.max(0, Math.min(1, (f - i - (1 - swap) / 2) / swap)));
+  const hidden = new Set(state.hidden), pinned = new Set(state.pinned);
+  const list = tip.querySelector(".rank-tip-rows");
+  list.style.setProperty("--n", MAX);
+  const seen = new Set();
+  for (const m of [rows[i], rows[j]])
+    for (const [a, e] of m) {
+      if (e.r > MAX) break;
+      if (hidden.has(a) || seen.has(a)) continue;
+      seen.add(a);
+      const ei = rows[i].get(a), ej = rows[j].get(a);
+      const ri = Math.min(MAX + 1, ei?.r ?? Infinity), rj = Math.min(MAX + 1, ej?.r ?? Infinity);
+      const r = ri + (rj - ri) * u, h = (ei?.h ?? 0) + ((ej?.h ?? 0) - (ei?.h ?? 0)) * u;
+      let li = rowEls.get(a);
+      if (!li) {
+        li = document.createElement("div");
+        li.className = "rank-tip-row";
+        li.append(document.createElement("span"), document.createElement("span"), document.createElement("span"));
+        li.children[1].textContent = shownName(a);
+        rowEls.set(a, li);
+      }
+      if (li.parentElement !== list) list.append(li);
+      const col = colors.get(a);
+      if (col) li.style.setProperty("--c", col);
+      else li.style.removeProperty("--c");
+      li.style.setProperty("--y", r - 1);
+      li.style.opacity = Math.max(0, Math.min(1, MAX + 1 - r));
+      li.children[0].textContent = Math.round(r) <= MAX ? Math.round(r) : "";
+      li.children[2].textContent = fmtH(h);
+      li.classList.toggle("lit", a === hovered && !pinned.has(a));
+      li.classList.toggle("pinned", pinned.has(a));
+    }
+  for (const [a, li] of rowEls) if (!seen.has(a)) { li.remove(); rowEls.delete(a); }
+  tip.querySelector(".rank-tip-head").innerHTML = "";
+  const head = tip.querySelector(".rank-tip-head");
+  head.append(labels[Math.round(f)], Object.assign(document.createElement("small"), { textContent: `hours ${unit === "month" ? "over the 3 months around it" : `that ${unit}`}` }));
+  // Beside the pointer, to its left where there's room
+  const ox = el.offsetLeft, oy = el.offsetTop, w = tip.offsetWidth, ht = tip.offsetHeight, W = el.parentElement.clientWidth;
+  const left = ox + x - w - 16 >= 0 ? ox + x - w - 16 : Math.min(ox + x + 16, W - w);
+  const top = Math.max(0, Math.min(el.parentElement.clientHeight - ht, oy + y - ht / 2));
+  tip.style.transform = `translate(${left}px, ${top}px)`;
+  tip.classList.add("on");
+  cursor.style.setProperty("--x", `${ox + x}px`);
+  cursor.style.setProperty("--slice", `${rect.width / (n - 1)}px`);
+  cursor.style.top = `${oy + rect.y}px`;
+  cursor.style.height = `${rect.height}px`;
+  cursor.classList.add("on");
 }

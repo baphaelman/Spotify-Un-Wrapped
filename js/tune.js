@@ -11,6 +11,7 @@ const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
+const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -44,6 +45,8 @@ export const TUNES = [
   { key: "rankGrayText", card: "rank-card", label: "Opacity of other names", def: 0.7, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
   { key: "rankText", card: "rank-card", label: "Name size", def: 11, min: 7, max: 18, step: 0.5, fmt: px },
   { key: "rankDim", card: "rank-card", label: "Dimming of the rest when one is lit", def: 0.25, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}% left` },
+  { key: "rankCursor", card: "rank-card", label: "Where you are", def: 0, options: CURSOR_LOOKS, fmt: (v) => CURSOR_LOOKS[v] },
+  { key: "rankSwap", card: "rank-card", label: "Rows swap over", def: 0.5, min: 0.05, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}% of the gap` },
   { key: "rankDive", card: "rank-card", label: "How far lines dive below the chart", def: 1.6, min: 0.2, max: 4, step: 0.1, fmt: x },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   { key: "skipsLook", card: "skips-card", label: "Bars", def: 0, options: SKIPS_LOOKS, fmt: (v) => SKIPS_LOOKS[v] },
