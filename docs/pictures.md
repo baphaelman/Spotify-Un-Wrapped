@@ -42,3 +42,24 @@ Order matters: the new function reads the tables, so make them first.
    To check it: the function's logs show `worker: N looked up, ...`, `select count(*) from picture_queue;` shrinks
    and `select count(*) from pictures;` grows. `select * from picture_budget;` shows this minute's count and any
    lockout. To stop it: `select cron.unschedule('pictures-worker');`.
+
+## Rules for agents (moved from CLAUDE.md)
+
+On 2026-10-29 an idle warm-up (about 150 lookups per page load, each several API calls) plus repeated test loads got
+the app a 429 with `Retry-After: 83512` (about 23 hours). While locked out, every picture is blank for every visitor.
+
+- **Never bulk-fetch pictures:** no warm-ups, prefetching or scripts that loop over artists or albums against the
+  function. Look up only what's on screen (the key already waits for the bar to hold still).
+- **Each page load of `test.html` costs real Spotify calls** for any picture not already cached. The cache is per
+  origin, so keep one port and one profile for a task, take few screenshots, and don't loop them. `OFFLINE=1` on
+  `dev/shot.py` (and `dev/motion_check.py`, always) cuts the page off from Supabase.
+- **Check whether the app is locked out** with one request:
+  `curl -s "https://qvsoxqeuvpnryitechsf.supabase.co/functions/v1/smooth-endpoint?kind=album&tracks=4cOdK2wGLETKBW3PvgPWqT"`.
+  `{"error":"busy","wait":N}` means locked out for N more seconds; the page then stops asking for that visit (waits
+  under 2 minutes it holds and retries).
+- **Don't work around a lockout** (new Spotify apps, other keys, spoofed clients). Wait it out and tell the owner.
+- The function tries up to five of an item's track IDs, then a search by name, then the other kind of picture, and
+  skips Spotify's ~1 KB blank placeholder. The page remembers found URLs in localStorage (`unwrapped-pictures`).
+- Before deploying a version of `smooth-endpoint` that needs new tables or the worker, confirm the owner has run the
+  SQL and set `PICTURES_WORKER_KEY`, or every picture goes blank. Never probe the database's functions to find out
+  (`picture_busy` writes the shared lockout). Each test of the function costs Spotify calls.

@@ -1,283 +1,130 @@
 # Spotify (Un)Wrapped
 
-Static site: users drop their Spotify streaming-history export and get interactive charts, all computed
-in the browser. An opt-in Community tab pools anonymous summaries in Supabase. Live at
-https://baphaelman.github.io/Spotify-Un-Wrapped/ (GitHub Pages, deployed from `main` by `.github/workflows/pages.yml`, which copies `index.html`, `css/` and `js/`
-and runs `dev/stamp.py` on the copy to add `?v=<hash>` to every asset URL, so a deploy can't be shown with
-a stale cached stylesheet or script. The files in git stay unstamped.)
+Static site: users drop their Spotify streaming-history export and get interactive charts, all computed in the
+browser. An opt-in Community tab pools anonymous summaries in Supabase. Live at
+https://baphaelman.github.io/Spotify-Un-Wrapped/, deployed from `main` by `.github/workflows/pages.yml` (which runs
+`dev/stamp.py` on a copy to add `?v=<hash>` to asset URLs; the files in git stay unstamped).
 `rolling_window.py` is the original pandas/Plotly prototype the main chart is ported from.
 
 ## Ground rules
 
-- **No build step, no Node.** Plain ES modules plus ECharts 5.6.0 and JSZip from cdnjs, loaded in
-  `index.html`. Run it with `python3 -m http.server` (modules don't load over `file://`).
-- **The owner cares most about smooth, beautiful interaction.** Check visual changes in a real render
-  (see Testing), and ask before major changes.
-- **Artist and track names come from user files.** Put them in the DOM with `textContent`, and escape
-  them (`esc`) in tooltip HTML.
-- **Colors live as CSS tokens in `css/style.css`** (`--series-1..10`, `--seq-*`, surfaces, inks), with
-  light and dark blocks. `charts.js` reads them via `tokens()`. A user-chosen palette (`PALETTES` in
-  `theme.js`, stored in localStorage) overrides `--series-*` on `<body>`.
-- **Commit when a change seems to work, before handing back to the owner.** You don't need to ask
-  first. Small commits with clear messages, so any change can be undone. **Don't push unless asked:**
+- **No build step, no Node.** Plain ES modules plus ECharts 5.6.0 and JSZip from cdnjs. Serve over HTTP (modules
+  don't load over `file://`).
+- **The owner cares most about smooth, beautiful interaction,** and about token use. Ask before major changes: for
+  anything architectural (rebuilding a chart's series, a new render path), propose a plan or options first, don't build.
+- **Spend tokens like they're the owner's:** few, cropped screenshots; numbers over pictures where a tool gives them
+  (`dev/motion_check.py`); if a bug won't reproduce in 2–3 tries, stop and ask instead of hunting.
+- **Artist and track names come from user files:** `textContent` in the DOM, `esc` in tooltip HTML.
+- **Colors are CSS tokens in `css/style.css`** (`--series-1..10`, `--seq-*`, surfaces, inks), light and dark.
+  `charts.js` reads them via `tokens()`; a palette from `PALETTES` (`theme.js`) overrides `--series-*` on `<body>`.
+- **Chart palette:** at most 10 categorical colors; color follows the artist, never the rank; "Everyone else" is
+  always the gray `--other`.
+- **Commit when a change seems to work,** without asking: small commits, clear messages. **Don't push unless asked:**
   pushing `main` deploys the live site.
-- **Several agents work on this project at once, so each one works in its own worktree** (see below).
-- **Chart palette rules:** at most 10 categorical colors; color follows the artist, never the rank;
-  "Everyone else" is always the gray `--other`.
-- **Options the owner passes over stay under "Visual tweaks".** Whenever the owner picks between options
-  (speeds, sizes, a toggle's choices, a value), and an option they didn't pick needs little code of its own (one more
-  button, a value on a slider), keep it reachable while the settings panel's "Visual tweaks" switch is on, rather
-  than deleting it: a number goes in `TUNES` (`tune.js`) as a slider on its card; a button or choice stays in the
-  markup with `class="tweak-only"` and `hidden`, which `useTunes` shows only while the switch is on. Off, the page
-  is exactly as chosen. Don't keep anything that would need real work of its own (a separate code path, its own
-  rendering), and say which options you kept.
+- **Options the owner passes over stay under "Visual tweaks"** when they need little code of their own: a number goes
+  in `TUNES` (`tune.js`) as a slider on its card; a button or choice stays in the markup with `class="tweak-only"` and
+  `hidden`, shown only while the settings panel's switch is on. Off, the page is exactly as chosen. Don't keep anything
+  that needs its own code path or rendering, and say which options you kept.
+- **README:** `README.md` is the owner's first-person tour, one `###` section per graph in page order. Adding,
+  renaming or removing a graph updates its section in the same change (what it shows and does, not how). Ask before
+  adding screenshots (`docs/images/`).
 
-## The README
+## Worktrees, servers and merging
 
-`README.md` is the owner's tour of the page for visitors, one `###` section per graph under "The Page", in the
-page's order. **When you add a graph, add its section there in the same change** (and rename or remove sections when
-a graph is renamed or removed): a few sentences in the README's own plain, first-person voice on what it shows and
-what you can do with it, not how it's built. Screenshots in `docs/images/` are optional; ask the owner before adding one.
+Several agents work at once, each on its own branch and folder.
 
-## Working alongside other agents
-
-The owner often runs several agents on this project at once. Each agent works on its own branch in its
-own folder, so no agent sees another's half-finished edits.
-
-- **At the start of a task, call `EnterWorktree`** with a short name for the task (for example
-  `artist-search`). This creates `.claude/worktrees/<name>/` on a new branch from local `main`.
-  `.claude/settings.json` sets `worktree.baseRef: head` because `origin/main` lags behind local `main`.
-  Skip this step only if `git worktree list` shows you're already in one.
-- **Use your own server port** (see "Showing changes to the owner").
-- **Commit on your branch** whenever something works (see Ground rules).
-- **Merge into `main` only when the owner approves.** In the worktree, run `git rebase main`, fix any
-  conflicts, re-test, then run `git -C "<main checkout>" merge --ff-only <branch>`. To find the main
-  checkout path, run `git worktree list` and use the first row. If the merge refuses, tell the owner
-  and don't force it.
-- **Check the rebased branch before merging,** because other agents merge too and a bad rebase has
-  reached `main` before (conflict markers in `index.html`, a page that threw on load):
-  1. `git grep -nE '^(<{7}|={7}|>{7})( |$)' -- index.html css js` must print nothing.
-  2. `python3 dev/harness.py`, then
-     `python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM" /tmp/merge.png 1280 900`
-     must end with the title `DONE` and print no uncaught exceptions.
-  If either fails, fix it on your branch first. After merging, if the owner looks at `main` on 8765,
-  re-run `python3 dev/harness.py` in the main checkout, since its `dev/site/index.html` is a copy.
-- **After merging,** remove the worktree with `ExitWorktree` (`remove`) if you created it in this
-  session. Otherwise, from the main checkout, run `git worktree remove <path>` and `git branch -d <branch>`.
-
-## Showing changes to the owner
-
-Whenever the owner asks for a change, finish it, start a live server and send them the link in your
-reply. They judge the result in their own browser, so don't hand back without a link.
-
-1. **Build the test site:** `python3 dev/harness.py` (`dev/site/` isn't in git, so each worktree needs
-   its own). `dev/site/` links to your `css/` and `js/`, so later edits to those show on a browser
-   refresh. Only `index.html` changes need the harness re-run.
-2. **Pick your own port.** The main folder uses 8765. In a worktree, pick 8766 or higher after checking
-   that `lsof -i :<port>` shows nothing, so agents don't collide.
-3. **Start it in the background:** `(cd dev/site && python3 -m http.server <port> >/dev/null 2>&1 &)`
-4. **Check it responds** (`curl -sI http://localhost:<port>/test.html | head -1`), then send the link:
-   - `http://localhost:<port>/test.html`: loads the owner's history automatically, so they see the
-     change with real data. Add a hash to land on the right view (`#hours`, `#community`, `#n5`; see
-     `dev/harness.py`).
-   - Say in one line what to look at and what to try (for example "hover a band in Hours mode").
-5. **Leave the server running** while the owner reviews and asks for tweaks, and re-use the same port
-   and link. Tell them to refresh (Cmd+Shift+R if it looks stale). Stop only your own server
-   (`pkill -f "http.server <port>"`) once the work is merged or the owner says they're done.
-
-### Quick tweak mode
-
-When the owner says you're their "tweaker" or asks for quick tweaks (copy, spacing, sizes, a color),
-go fast: make the edit, commit, reply with the link. Skip screenshots and exploration, and read only
-the lines you're changing. Still use a worktree and your own server, and still run the pre-merge
-check when they say "merge". If a tweak turns out to touch chart logic or motion, say so and handle
-it as a normal change.
+- **Start each task with `EnterWorktree`** (a short name, e.g. `artist-search`), unless `git worktree list` shows
+  you're already in one. It branches from local `main` (`worktree.baseRef: head`; `origin/main` lags).
+- **Show every change with a live link.** `python3 dev/harness.py` builds `dev/site/` (re-run after `index.html`
+  changes; `css/` and `js/` are linked). Pick a free port from 8766 up (`lsof -i :<port>`; 8765 is the main folder's),
+  start `(cd dev/site && python3 -m http.server <port> >/dev/null 2>&1 &)`, check it with `curl -sI`, and send
+  `http://localhost:<port>/test.html` (loads the owner's history; hash actions like `#hours`, `#community`, `#n5` are
+  in `dev/harness.py`) with one line on what to look at. Keep the server and port while the owner reviews.
+- **"Merge" (or "merge and push") means the `merge` skill:** rebase, check, merge from the main checkout, clean up.
+  Only on the owner's say-so.
+- **Quick tweak mode** ("tweaker", copy, spacing, sizes, a color): edit, commit, reply with the link. No screenshots or
+  exploration; read only the lines you change. If it turns out to touch chart logic or motion, treat it as a normal change.
 
 ## Files
 
-All in `js/` unless noted. Read a file's own comments for the details.
+All in `js/` unless noted; each file's own comments have the details.
 
-- `parse.js`: reads a zip, folder or JSON files into `{t, ms, artist, track, album, skipped, id}` (extended and older export).
-- `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()` (a port of `rolling_window.py`).
-- `charts.js`: every ECharts renderer. Most of the complexity is in `renderRolling` (see below).
-- `motion.js`: the timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, and the DOM helpers `tweenNumber`, `flip`, `dur`.
-- `state.js`: the shared `state` and small readers (`rangePlays`, `shownPlays`, `presetRange`…), and `hooks`.
-  **The period is `state.range`, `{lo, hi}` day indices (inclusive), not a year.** Years and "All time" are
-  presets that set it; anything else the brush picks shows as "Custom". Every graph, list and stat reads it.
-- `main.js`: the entry point: loading, tabs, the controls panel, sharing, the Artists/Tracks/Albums switch, and the
-  orchestration every change goes through (`renderAll`, `renderDependents`).
-- `period.js`: the sticky bar's period controls: presets, ‹ › steps, length buttons, the year menu, live dragging (`liveRender`).
-- `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`,
-  pins, the slice/smoothing sweeps) and the graphs that follow its artists (`paintBrush`, the mix bar, monthly, clock).
-- `key.js`: the period bar's artist key (`paintArtistKey`) and the artist search that pins.
-- `guide.js`: the guide behind the ? in the top bar ("How the page works"): small copies of the bar's controls that mirror them, and the ring
-  that lights the real control while a guide row is hovered.
-- `theme.js`: the palettes (`PALETTES`), the palette menu, the light/dark flip.
-- `brush.js`: the sticky bar's timeline and its draggable window. It owns no state beyond the window.
-- `views.js`: the plays as each view (Genres, Artists, Albums, Tracks) sees them (`keyedPlays`): the view's item in
-  `artist`, the real artist in `by`, and what each item is called and pictured by.
-- `genres.js`, `families.js`: the Genres view's data: each artist's genres from our `genres` edge function, and the
-  broad families they're grouped into (see Genres below).
-- `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "Visual
-  tweaks" switch, and each card's row of sliders for them; it also shows the `.tweak-only` controls while the switch
-  is on. Off, `tune` holds the defaults. Imports nothing.
-- `race.js`: the "Top … over time" card: each day's top list through the period, played like a video (play, scrub, speed),
-  with rows, slider and date on one clock.
-- `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
-- `covers.js`: the pictures in the mix's key (see Pictures below).
-- `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the community pool (see below).
-- `feedback.js`: the "Missing something?" requests, and the owner's inbox (open the site with `#inbox`).
-- `dev/`: test tools (see Testing). `docs/`: the long-form rules this file points to.
+- `parse.js`: zip, folder or JSON → `{t, ms, artist, track, album, skipped, id}`.
+- `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()`.
+- `charts.js`: every ECharts renderer; most complexity is in `renderRolling`.
+- `motion.js`: timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, `tweenNumber`, `flip`, `dur`, `litLook`.
+- `state.js`: `state`, small readers (`rangePlays`, `shownPlays`, `presetRange`…), `hooks`. **The period is
+  `state.range`, `{lo, hi}` inclusive day indices, not a year;** presets set it, a brush pick shows as "Custom".
+- `main.js`: entry point: loading, tabs, controls, sharing, the view switch, `renderAll` / `renderDependents`.
+- `period.js`: the sticky bar's period controls and live dragging (`liveRender`). `brush.js`: its timeline and window.
+- `rollingview.js`: the page's side of the rolling chart (`renderRollingChart`, `chartArtists`, `assignSlots`, pins,
+  sweeps) and the graphs that follow its artists (`paintBrush`, mix bar, monthly, clock).
+- `key.js`: the bar's artist key (`paintArtistKey`) and the search that pins. `guide.js`: the "How the page works" guide.
+- `theme.js`: palettes and light/dark. `tune.js`: the Visual tweaks sliders (`TUNES`) and `.tweak-only`; imports nothing.
+- `views.js`: plays as each view sees them (`keyedPlays`). `genres.js`, `families.js`: the Genres view's data.
+- `race.js`: "Top … over time". `mix.js`: the mix bar. `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB.
+- `covers.js`: pictures (see below). `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the
+  community pool. `feedback.js`: "Missing something?" and the owner's inbox (`#inbox`).
 
-**Keep imports one-way:** `tune.js`, then `state.js`, then `views.js`, `theme.js` and `rollingview.js`, then `key.js`, then `period.js`,
-then `main.js`. Each imports only from modules before it; a call the other way goes through `hooks`, which
-`main.js` fills at startup.
+**Imports are one-way:** `tune.js` → `state.js` → `views.js`, `theme.js`, `rollingview.js` → `key.js` → `period.js` →
+`main.js`. A call the other way goes through `hooks`, filled by `main.js` at startup.
 
-## Pictures and the Spotify rate limit: read before testing pictures
+## Read the doc before touching its area
 
-`covers.js` looks pictures up by up to five of an item's track IDs through the edge function
-`supabase/functions/artist-image`, deployed as `smooth-endpoint` (Spotify Web API; credentials in the
-function's secrets; JWT verification off). It tries each track, then a search by name, then the other kind
-of picture, and skips Spotify's ~1 KB blank placeholder. **Read `docs/pictures.md` before touching either:**
-answers are kept for everyone in the `pictures` table, Spotify lookups share one allowance a minute
-(`PER_MINUTE`), and what it can't cover is queued for a pg_cron worker. The page also remembers found URLs in
-localStorage (`unwrapped-pictures`). A deployed function can't be renamed (see "Edge functions" for deploying).
-
-**The Spotify app behind `smooth-endpoint` is in development mode, with a small, unpublished request
-allowance, and bursts earn long lockouts.** On 2026-10-29 an idle warm-up (about 150 lookups per page load,
-each several API calls) plus repeated test loads got the app a 429 with `Retry-After: 83512` (about 23
-hours). While locked out, every picture is blank for every visitor.
-
-- **Never bulk-fetch pictures:** no warm-ups, prefetching or scripts that loop over artists or albums
-  against the function. Look up only what's on screen (the key already waits for the bar to hold still).
-- **Each page load of `test.html` costs real Spotify calls** for any picture not already cached. The cache
-  is per origin, so keep one port and one profile for a task, take few screenshots, and don't loop them.
-- **Check whether the app is locked out** with one request:
-  `curl -s "https://qvsoxqeuvpnryitechsf.supabase.co/functions/v1/smooth-endpoint?kind=album&tracks=4cOdK2wGLETKBW3PvgPWqT"`.
-  `{"error":"busy","wait":N}` means locked out for N more seconds; the page then stops asking for that visit
-  (waits under 2 minutes it holds and retries).
-- **Don't work around a lockout** (new Spotify apps, other keys, spoofed clients). Wait it out and tell the
-  owner. The shared table and allowance (`docs/pictures.md`) are what keep it from happening again.
+- **`docs/motion.md`** before adding or changing any animation.
+- **`docs/rolling-chart.md`** before touching `renderRolling` or its hover, pins or morphs.
+- **`docs/genres.md`** before the Genres view, `genres.js` or `supabase/functions/genres`. Genres never cost Spotify
+  calls, and artists with no genre are left out of that view entirely.
+- **`docs/pictures.md`** before `covers.js` or `supabase/functions/artist-image`. **The Spotify app is in development
+  mode and bursts earn day-long lockouts that blank every visitor's pictures:** never bulk-fetch or loop pictures,
+  and remember each `test.html` load costs Spotify calls for uncached pictures (use `OFFLINE=1` when pictures don't matter).
+- **`docs/backend.md`** before deploying an edge function or touching the community pool.
 
 ## Motion
 
-Everything on the page moves on one set of timings, so a single action reads as one movement. Durations
-and easings live in `js/motion.js` and, mirrored, as the `--motion-*` and `--ease-*` tokens at the top of
-`css/style.css` (keep the two in step). **Never write a duration or easing literal:** pick the tier that
-matches what is moving. **Read `docs/motion.md` before adding or changing an animation:** it has the long
-form of each rule below, with the worked examples.
+One set of timings in `js/motion.js`, mirrored as `--motion-*` / `--ease-*` in `css/style.css` (keep them in step).
+**Never write a duration or easing literal;** pick the tier for what's moving.
 
 | Tier | ms | Easing | For |
 |---|---|---|---|
-| `FADE_MS` / `--motion-fade` | 200 | out | A highlight: hover, focus, a pressed or hovered control, a menu opening |
-| `GROW_MS` / `--motion-grow` | 250 | out | A small reflow: a row of chips appearing, a dialog, re-blurring after a zoom |
-| `CHASE_MS` | 450 | out | A morph following a moving input (a dragged period window), each cut short by the next |
-| `ENTER_MS` / `--motion-enter` | 550 | out | First appearance: the dashboard rising in, a chart's first draw, a new list row |
-| `MORPH_MS` / `--motion-morph` | 750 | in-out | The data changes: bands, bars, list rows, numbers, the mix bar, the bar's timeline |
+| `FADE_MS` | 200 | out | A highlight: hover, focus, a pressed control, a menu opening |
+| `GROW_MS` | 250 | out | A small reflow: chips appearing, a dialog, re-blurring after a zoom |
+| `CHASE_MS` | 450 | out | A morph following a moving input (a dragged window), each cut short by the next |
+| `ENTER_MS` | 550 | out | First appearance: the dashboard, a chart's first draw, a new list row |
+| `MORPH_MS` | 750 | in-out | The data changes: bands, bars, rows, numbers, the mix bar, the timeline |
 | `PAN_MS` | 900 | in-out | The view travels to another period of the same length |
-| `scaledMs` | 900 – 2200 | in-out | A change that has a size: a zoom to another length, days per slice, a blur radius |
-| `--motion-theme` | 350 | CSS `ease` | Colors cross-fading when the theme flips (CSS only) |
+| `scaledMs` | 900–2200 | in-out | A change with a size: a zoom, days per slice, a blur radius |
+| `--motion-theme` | 350 | CSS `ease` | Colors cross-fading on a theme flip |
 
-- **Two easings:** in-out for things that travel on their own, out for anything that answers the pointer or arrives.
-- **Nothing snaps.** Every change tweens; only a drag tracks the pointer directly. Restyle charts with
-  `setOptionFaded`, never a bare `setOption`, and never with ECharts' emphasis states.
-- **One action, one tier, one start,** except where a later step must wait for an earlier one (a preset pans,
-  then the artists morph in). Fold what can start together into one step and chain only what must follow.
-- **Things come and go by shrinking or fading,** never by appearing. Series can't tween in or out, so keep
-  them in place with no thickness.
-- **Interruptions carry on from what's on screen,** and a quick animation never cuts short a slower one in flight.
-- **Controls the page moves glide too** (a slider's thumb and number), on the same tier as the graphs.
-- **Time follows the size of the change:** use `scaledMs` for anything that interpolates a size, and give
-  everything riding that change the same time.
-- **Things that travel together share one clock:** drive both from one tick, not two matching tweens.
-- **The hover/pin rule:** a hover only shades lightly and dims the others a little; a pin shades deeper, is the
-  only thing that outlines, and dims the others more; a hovered pin is deeper still. Take each look from
-  `litLook` (`motion.js`) and its strength from the `--shade-*`, `--fade-*`, `--lit-*` and `--dim-item*` tokens,
-  never a number of your own. Applies to every graph, chip, row, card and the mix bar.
-- **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all.
-- **Reduced motion:** wrap every JS duration in `dur()`, and give every CSS animation an entry in the
-  `prefers-reduced-motion` blocks.
+- **Nothing snaps;** only a drag tracks the pointer. Restyle with `setOptionFaded`, never a bare `setOption` or
+  ECharts' emphasis states. Things come and go by shrinking or fading (keep series in place with no thickness).
+- **One action, one tier, one start;** chain only what must follow. Interruptions carry on from what's on screen,
+  and a quick animation never cuts short a slower one. Things that travel together share one tick, and controls the
+  page moves (a slider's thumb and number) glide on the same tier as the graphs.
+- **Hover vs pin:** hover shades lightly and dims others a little; a pin shades deeper, alone outlines, dims more;
+  a hovered pin is deeper still. Take each look from `litLook` and the `--shade-*`, `--fade-*`, `--lit-*`,
+  `--dim-item*` tokens. Applies to every graph, chip, row, card and the mix bar.
+- **Staggers** step `STAGGER_MS` (18) up to `STAGGER_MAX_MS` (240). **Reduced motion:** wrap JS durations in `dur()`
+  and give CSS animations a `prefers-reduced-motion` entry.
 
-## The rolling chart
-
-**Read `docs/rolling-chart.md` before touching `renderRolling` or its hover, pins or morphs.** It's the
-page's main chart, Share (stacked bands), with Hours (lines) drawn from it in its own card below, and its stacking, colors and
-hover are hand-built around ECharts quirks. The rules that reach beyond the chart:
-
-- **Colors follow the artist, not the stack position** (`assignSlots`), so never use a series index as a color index.
-- **There's one artist key for the whole page,** in the sticky period bar (`paintArtistKey`). No graph has its
-  own. Repaint it wherever the chart's artists, pins or selection change.
-- **`focusArtist(el, name)`** highlights an artist in the chart from anywhere on the page.
-- **The page must scroll when the wheel is over a chart.** Never add an `inside` dataZoom; zoom only
-  through the period brush.
-
-## Community pool
-
-- **Supabase project `qvsoxqeuvpnryitechsf`.** The publishable key in `js/config.js` is meant to be
-  public.
-- **The browser can only call these functions:** `submit_summary`, `delete_summary`, `is_shared`,
-  `community_stats` and `artist_ranks`, plus the feedback ones (`submit_feedback`, and `list_feedback`,
-  `set_feedback_done`, `delete_feedback`, which need the owner's admin key). RLS is on with no policies, so direct
-  table access is refused.
-- **The shared summary** (`summary.js`) holds totals, the top 500 artists and tracks with hours, and
-  the 168-cell clock. Nothing else leaves the browser.
-- **Submission key:** sha256 of the user's first 200 plays. Re-uploading replaces the old summary, and
-  only someone with the data can delete it.
-- **Minimum crowd of 5:** nothing is shown below 5 contributors, and an artist or track appears only
-  once 5 contributors have it.
-- **Known gap:** there's no rate limiting or bot check. Cloudflare Turnstile is the plan if spam shows
-  up.
-- **Fake data:** `python3 dev/seed_community.py seed|cleanup` adds or removes 12 fake contributors
-  (keys from `"synthetic-test-<i>"`). `cleanup` never touches real submissions.
-
-## Edge functions
-
-Deploy them yourself with the Supabase CLI; don't hand the owner a file to paste into the dashboard.
-
-- **Check before deploying:** `/opt/homebrew/bin/deno check supabase/functions/<name>/index.ts` (Deno isn't on the
-  shell's PATH). A deploy goes live for every visitor at once, so deploy only a change that's committed and checked.
-- **Deploy:** `supabase functions deploy <name> --project-ref qvsoxqeuvpnryitechsf --no-verify-jwt`. Every function
-  here has JWT verification off. Then watch its logs or make one test request. The CLI is at
-  `/opt/homebrew/bin/supabase`, logged in as the owner; its "Docker is not running" warning doesn't matter for a deploy.
-- **`artist-image` is deployed as `smooth-endpoint`:** `supabase functions deploy smooth-endpoint` (the
-  `[functions.smooth-endpoint]` entry in `supabase/config.toml` points at the `artist-image` folder). It reads the
-  pictures tables and functions in `supabase/schema.sql`, so confirm the owner has run that SQL and set
-  `PICTURES_WORKER_KEY` before deploying a version that needs them, or every picture goes blank. Never probe the
-  database's functions to find out (`picture_busy` writes the shared lockout). Each test of it costs Spotify calls
-  (see Pictures).
-- **Secrets** (`LASTFM_API_KEY`, `GENRES_WORKER_KEY`, the Spotify credentials) stay in the dashboard; never print them.
-
-## Genres
-
-**Read `docs/genres.md` before touching the Genres view, `genres.js` or `supabase/functions/genres`.** The rules
-that reach beyond it:
-
-- **Genres never cost Spotify calls.** They come from MusicBrainz (Last.fm as a fallback) through the `genres` edge
-  function, which answers from the shared `artist_genres` table and queues unknown names (`genre_queue`, worked by
-  pg_cron once a minute). Only that worker calls MusicBrainz.
-- **Artists with no genre (yet) are left out of the Genres view entirely,** so no graph, list, key or search has
-  them. A genre's band splits into its artists.
-- **Testing without the network:** `dev/harness.py` seeds the page's genre cache from `dev/genre_cache.json` when
-  it exists (written by `dev/genre_coverage.py`, gitignored), and `OFFLINE=1 python3 dev/shot.py ...` cuts the page
-  off from Supabase.
+**The rolling chart:** colors follow the artist (`assignSlots`), never the series index. One artist key for the whole
+page, in the period bar (`paintArtistKey`); repaint it when the chart's artists, pins or selection change.
+`focusArtist(el, name)` highlights an artist from anywhere. Never add an `inside` dataZoom: the page must scroll
+over charts, and zoom goes through the brush.
 
 ## Testing
 
-You need a real browser render to see visual or hover changes. Headless Brave is installed (no Chrome
-or Node).
+Headless Brave is installed (no Chrome or Node).
 
 ```sh
-python3 dev/harness.py                      # rebuild dev/site after any index.html change
-(cd dev/site && python3 -m http.server 8765 &)
-python3 dev/shot.py "http://localhost:8765/test.html?v=$RANDOM#hours" /tmp/out.png 1280 1900
-HOVER_SEL=".mix-legend-item:nth-child(3)" python3 dev/shot.py ...   # also HOVER, EVAL, FRAMES, WHEEL
+python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM#hours" /tmp/out.png 1280 1900
+# env: HOVER_SEL / HOVER, CLICK_JS + CLICK_TIMES (frames after an action), EVAL (+ PROFILE=1), WHEEL, OFFLINE=1
+python3 dev/motion_check.py <port> [slice|slice-back|smooth|drag|preset|custom ...]
 ```
 
-- **`test.html`** loads the owner's history from `../spotify/datas/Spotify Extended Streaming History`.
-  Its hash actions are documented in `dev/harness.py`.
-- **`EVAL`** is handy for inspecting chart state, for example how many shapes are stuck in a highlight
-  state:
+- **`motion_check.py`** prints frame times (lag) and the biggest one-frame jump (a cut) for the slow actions, offline.
+  Use it before and after any performance or animation change instead of judging from screenshots; its header
+  explains the numbers. `custom --setup "<js>" --action "<js>"` measures anything else.
+- **`EVAL`** inspects chart state, e.g. shapes stuck in a highlight:
   `getZr().storage.getDisplayList(true).filter(e => e.currentStates?.length)`.
-- **Headless frames don't show how smooth an animation feels.** Ask the owner to judge smoothness in a
-  real browser.
-- **Keep screenshots cheap:** crop them, or take only what proves the change.
+- **Headless frames don't show how smooth an animation feels;** the owner judges that in a real browser.

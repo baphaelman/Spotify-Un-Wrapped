@@ -160,3 +160,8 @@ From `python3 dev/genre_coverage.py 500` on 2026-10-30, with the matching rules 
   hip hop styles (hardcore, experimental, east coast, southern, cloud rap, conscious, jazz rap, west coast),
   indie pop, pop, electronic and indie rock at about 1% each. Genres are fine-grained, which the family mapping
   (step 3) has to fold up: most of this history is one "Hip hop" family plus "Lo-fi / instrumental".
+
+## Testing without the network
+
+`dev/harness.py` seeds the page's genre cache from `dev/genre_cache.json` when it exists (written by
+`dev/genre_coverage.py`, gitignored), and `OFFLINE=1 python3 dev/shot.py ...` cuts the page off from Supabase.
