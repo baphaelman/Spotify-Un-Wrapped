@@ -24,7 +24,7 @@ export const TUNES = [
   { key: "clockReach", card: "clock-card", label: "Blur reach", def: 4, min: 0, max: 12, step: 0.5, fmt: h },
   { key: "clockMinBlur", card: "clock-card", label: "Least blur", def: 0.5, min: 0, max: 4, step: 0.25, fmt: h },
   { key: "clockCurve", card: "clock-card", label: "Least curve rounding", def: 0.3, min: 0, max: 1, step: 0.05, fmt: (v) => `${v}` },
-  { key: "raceWindow", card: "race-card", label: "Last … days", def: 0, min: 0, max: 365, step: 1, fmt: (v) => (+v ? `${v} days` : "Auto") },
+  { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },
 ];

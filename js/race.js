@@ -11,19 +11,21 @@ import * as agg from "./aggregate.js";
 import { $, state, noun, putOff } from "./state.js";
 import { focusArtist } from "./charts.js";
 import { mixArgs, MAX_PINS, WINDOWS } from "./rollingview.js";
-import { CHASE_MS, dur, litLook } from "./motion.js";
+import { CHASE_MS, dur, litLook, scaledMs, easeInOut } from "./motion.js";
 import { tune } from "./tune.js";
 
 const KEEP = 12; // each day keeps the slider's most (10) plus two under them, which slide up from below the last bar
-// The trailing window for "Last … days": about a twelfth of the period (a month of a year), as the nearest of the
-// rolling chart's slice sizes, so a short period looks at days and all time at months. Visual tweaks can set it
-// by hand (tune.raceWindow, 0 for this)
-const recentDays = (span) =>
-  tune.raceWindow || WINDOWS.reduce((a, b) => (Math.abs(b - span / 12) < Math.abs(a - span / 12) ? b : a));
+// The trailing window for "Last … days", one of the rolling chart's slice sizes (its slider, #race-window). A new
+// period's length sets it to about a twelfth of it (a month of a year), so a short period looks at days and all time
+// at months; the reader can move it from there, as the period buttons set "Days per slice".
+const fitWindow = (span) => {
+  let best = 0;
+  for (let i = 1; i < WINDOWS.length; i++) if (Math.abs(WINDOWS[i] - span / 12) < Math.abs(WINDOWS[best] - span / 12)) best = i;
+  return best;
+};
 let recent = 30;
-// How fast the period plays at 1×: the same days a second whatever its length, so all time plays as slowly as a
-// year does (a year in YEAR_MS), never in under MIN_MS
-const YEAR_MS = 48_000, MIN_MS = 20_000;
+let fittedSpan = null; // the period length the window was last fitted to
+// How fast the period plays at 1×: the same days a second (tune.raceRate, a visual tweak) whatever its length
 // The rows chase their targets with this time constant, so a move is all but done within CHASE_MS
 const TAU = CHASE_MS / 3;
 const SETTLED = 1e-3;
@@ -181,7 +183,7 @@ export function focusRace(name) {
 // ---------- The clock ----------
 
 const span = () => (built ? built.hi - built.lo : 0);
-const playMs = () => Math.max(MIN_MS, (YEAR_MS * span()) / 365);
+const playMs = () => (span() / tune.raceRate) * 1000;
 
 // One frame: the playhead moves on (while playing), and the rows, the slider and the date follow it
 function frame(now) {
@@ -270,9 +272,8 @@ function paintTime() {
 }
 
 // The speed as days of the period a second, under its buttons
-function paintRate() {
-  if (!built) return;
-  const rate = span() ? (span() / playMs()) * 1000 * speed : 0;
+export function paintRate() {
+  const rate = tune.raceRate * speed;
   $("race-rate").textContent = `${rate < 10 ? rate.toFixed(1) : Math.round(rate)} days/s`;
 }
 
@@ -318,8 +319,14 @@ export function paintRace() {
   const card = $("race-card");
   if (!state.plays || putOff(card, () => paintRace())) return;
   const { lo, hi } = state.range;
-  recent = recentDays(hi - lo + 1);
+  if (fittedSpan !== hi - lo) {
+    fittedSpan = hi - lo;
+    glideWindow(fitWindow(hi - lo + 1));
+  }
+  recent = WINDOWS[Math.round(Number($("race-window").value))];
+  if (glide) recent = WINDOWS[glide.to];
   $("race-measure").querySelector('[data-measure="recent"]').textContent = `Last ${recent} days`;
+  $("race-window").closest(".slider").classList.toggle("off", measure !== "recent");
   const words = noun();
   $("race-title").textContent = `Top ${words.Many} over time`;
   $("race-sub").textContent = measure === "total"
@@ -385,6 +392,67 @@ for (const [group, set] of [["race-measure", (b) => (measure = b.dataset.measure
     else paintRate();
   });
 }
+
+// ---------- The window's slider ----------
+
+// The thumb sits at --p and only the current size shows its number, as on the chart's "Days per slice"
+function paintWindow() {
+  const input = $("race-window");
+  const v = Number(input.value), at = (x) => x / (WINDOWS.length - 1);
+  input.style.setProperty("--p", at(v));
+  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
+    tick.style.setProperty("--p", at(tick.dataset.v));
+    tick.classList.toggle("on", +tick.dataset.v === Math.round(v));
+  }
+  input.setAttribute("aria-valuetext", `${WINDOWS[Math.round(v)]} days`);
+}
+
+// Code moving the slider (a new period) glides its thumb, taking as long as the size changes by (scaledMs)
+let glide = null;
+function glideWindow(to) {
+  const input = $("race-window");
+  const from = Number(input.value);
+  if (glide) cancelAnimationFrame(glide.raf);
+  glide = null;
+  const ms = from === to ? 0 : scaledMs(WINDOWS[Math.round(from)], WINDOWS[to]);
+  if (!ms) {
+    input.value = to;
+    return paintWindow();
+  }
+  input.step = "any";
+  const t0 = performance.now();
+  const step = (now) => {
+    const e = Math.min(1, (now - t0) / ms);
+    input.value = from + (to - from) * easeInOut(e);
+    paintWindow();
+    if (e < 1) glide.raf = requestAnimationFrame(step);
+    else {
+      input.step = 1;
+      input.value = to;
+      glide = null;
+    }
+  };
+  glide = { to, raf: requestAnimationFrame(step) };
+}
+
+// The reader's hand: the thumb follows the pointer
+$("race-window").addEventListener("input", () => {
+  if (glide) {
+    cancelAnimationFrame(glide.raf);
+    glide = null;
+    $("race-window").step = 1;
+  }
+  paintWindow();
+  if (measure !== "recent") $("race-measure").querySelector('[data-measure="recent"]').click();
+  else paintRace();
+});
+for (const tick of $("race-window").closest(".slider").querySelectorAll(".ticks [data-v]")) {
+  tick.addEventListener("click", () => {
+    $("race-window").value = tick.dataset.v;
+    $("race-window").dispatchEvent(new Event("input"));
+  });
+}
+paintWindow();
 
 // The slider's count changes how many rows show
 $("n-artists").addEventListener("input", kick);
