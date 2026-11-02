@@ -42,6 +42,21 @@ export function travel(a, b, e) {
   return [a[0] + p + (0 - p) * k, a[0] + p + (sa - p) * k];
 }
 
+// The hover/pin rule (docs/motion.md): how lit an item is, given the pinned items (only those drawn) and the
+// hovered one (null for none). A hover only glances: a lighter shade, and the others dim a little. A pin commits:
+// a deeper shade, the only stronger outline, and the others dim more; hovering a pin deepens it again. Each look
+// names a --shade-* token (rest is --shade-band) and, for the dimmed two, a --fade-* one, so every graph, chip
+// and card shows the same steps.
+export function litLook(pinned, hovered, item) {
+  const pin = pinned.has(item), hover = hovered != null && item === hovered;
+  if (pin) return hover ? "pinHover" : "pin";
+  if (hover) return "hover";
+  return pinned.size ? "dim" : hovered != null ? "dimHover" : "rest";
+}
+export const SHADE_TOKENS = { rest: "band", hover: "hover", pin: "pin", pinHover: "pin-hover", dim: "dim", dimHover: "dim-hover" };
+export const isLitLook = (look) => look === "hover" || look === "pin" || look === "pinHover";
+export const isPinLook = (look) => look === "pin" || look === "pinHover";
+
 // The two easings. In-out for things that travel on their own from one state to another; out for anything
 // answering the pointer or arriving, so it responds at once and settles. Each as a JS function, an
 // ECharts/zrender name and a CSS curve.

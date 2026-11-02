@@ -42,7 +42,7 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   Pinned artists are placed first, so they keep their color for as long as they're pinned. A newcomer avoids a
   slot an artist leaving the chart just gave up while another is free, so the two don't read as one band. Stack
   order is still rank, so don't use the series index as a color index.
-- **Overlay series `t{k}`/`b{k}`** draw the hovered band's top and bottom outline.
+- **Overlay series `t{k}`/`b{k}`** draw each band's top and bottom outline, thicker only while it's pinned (a hover only shades).
 - **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
   period brush; `clampZoom` trims a range to the points that exist (the chart has none before the first
   window fills).

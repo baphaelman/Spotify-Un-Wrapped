@@ -38,13 +38,32 @@
   --seq-3: #6c747b;
   --seq-4: #a3b0b8;
   --seq-5: #f2f4f4;
-  /* Rolling chart fills (charts.js): band at rest, hovered band, under a hovered hours line, under a
-     pinned one (deeper than a hover's; overlapping pins just blend), and the other bands while one is hovered */
+  /* The hover/pin rule (docs/motion.md, motion.js litLook): a hover shades, a pin shades deeper and outlines, a
+     hovered pin is deeper still; the others dim a little while something is only hovered, more while something
+     is pinned. Graph fills (charts.js, brush.js): the share of the artist's color mixed into the surface for a
+     band at rest, hovered, pinned, pinned and hovered, and the others while a pin (dim) or only a hover
+     (dim-hover) lights something; then the opacity of the fill under a hovered, pinned, and hovered pinned hours
+     line (faint enough that overlapping pins just blend) */
   --shade-band: 0.1;
-  --shade-hover: 0.3;
+  --shade-hover: 0.2;
+  --shade-pin: 0.3;
+  --shade-pin-hover: 0.4;
+  --shade-dim: 0.03;
+  --shade-dim-hover: 0.06;
   --shade-line: 0.05;
   --shade-line-pin: 0.09;
-  --shade-dim: 0.03;
+  --shade-line-pin-hover: 0.18;
+  /* How strongly the others show while something is lit: lines' opacity (Hours) or their mix into the surface
+     (the clock's outlines), and dimmed chips, segments and cards */
+  --fade-dim: 0.3;
+  --fade-dim-hover: 0.55;
+  /* A chip's, row's or card's wash is its own --tint of its color when hovered, times these when pinned and when
+     pinned and hovered */
+  --lit-pin: 1.4;
+  --lit-pin-hover: 1.8;
+  /* The same two dims for whole chips, segments and cards, gentler than a thin line's */
+  --dim-item: 0.45;
+  --dim-item-hover: 0.7;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
@@ -78,10 +97,14 @@
   --seq-4: #184f95;
   --seq-5: #0d366b;
   --shade-band: 0.2;
-  --shade-hover: 0.4;
+  --shade-hover: 0.3;
+  --shade-pin: 0.4;
+  --shade-pin-hover: 0.5;
+  --shade-dim: 0.06;
+  --shade-dim-hover: 0.12;
   --shade-line: 0.1;
   --shade-line-pin: 0.12;
-  --shade-dim: 0.06;
+  --shade-line-pin-hover: 0.24;
 }
 
 * { box-sizing: border-box; }
@@ -594,7 +617,9 @@ button.ghost:hover { background: var(--border); }
     left var(--motion-morph) var(--ease-in-out), width var(--motion-morph) var(--ease-in-out);
 }
 .month-caps .mark.on { clip-path: inset(0); }
-.month-caps .mark.pin { background: color-mix(in srgb, var(--c) 9%, transparent); } /* hovered: lighter; pinned: deeper */
+/* The hover/pin rule: hovered, a light wash; pinned, deeper; pinned and hovered, deeper still */
+.month-caps .mark.pin { background: color-mix(in srgb, var(--c) 9%, transparent); }
+.month-caps .mark.pin.hot { background: color-mix(in srgb, var(--c) 13%, transparent); }
 /* Joined to a neighbour: square corners there */
 .month-caps .mark.jl { border-top-left-radius: 0; }
 .month-caps .mark.jr { border-top-right-radius: 0; }
@@ -692,11 +717,14 @@ dialog pre {
 .toplist .bar.muted-bar { background: var(--other); }
 /* The page's last card: every item of the view. Ranks run to five digits, so their column fits the longest */
 .ranking li { grid-template-columns: var(--rank-w, 2ch) 1fr auto; }
-/* Its rows pin like the key's chips: hover (here or anywhere on the page) shades the item's color, a pin outlines it */
+/* Its rows pin like the key's chips (the hover/pin rule): hover (here or anywhere on the page) shades the item's
+   color, a pin shades it deeper and outlines it, and hovering a pinned row deepens it again */
 .ranking li.pinnable { cursor: pointer; transition: background-color var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), opacity var(--motion-fade) var(--ease-out); }
 .ranking li[aria-disabled] { cursor: default; }
-.ranking li:is(:hover, .focus):not([aria-disabled]), .ranking li.pinned { background-color: color-mix(in srgb, var(--c, var(--other)) 14%, transparent); }
-.ranking li.pinned { box-shadow: inset 0 0 0 1.5px var(--c, var(--other)); }
+.ranking li { --tint: 12%; }
+.ranking li:is(:hover, .focus):not([aria-disabled]) { background-color: color-mix(in srgb, var(--c, var(--other)) var(--tint), transparent); }
+.ranking li.pinned { background-color: color-mix(in srgb, var(--c, var(--other)) calc(var(--tint) * var(--lit-pin)), transparent); box-shadow: inset 0 0 0 1.5px var(--c, var(--other)); }
+.ranking li.pinned:is(:hover, .focus) { background-color: color-mix(in srgb, var(--c, var(--other)) calc(var(--tint) * var(--lit-pin-hover)), transparent); }
 .ranking li:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ranking-more { display: block; margin: 12px auto 0; }
 .ranking-more[hidden] { display: none; }
@@ -775,8 +803,11 @@ dialog pre {
 .chart-legend .legend-item .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-legend .legend-item.hidden-artist { opacity: 0.4; }
 .chart-legend .legend-item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-/* A pinned artist's chip is outlined and tinted in the artist's color (--c), with an x that unpins */
-.chart-legend .legend-item.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); padding-right: 4px; }
+/* A pinned artist's chip is outlined and tinted in the artist's color (--c), deeper than a hovered one's (the
+   hover/pin rule; deeper again while hovered), with an x that unpins */
+.chart-legend .legend-item { --tint: 12%; }
+.chart-legend .legend-item.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin)), transparent); padding-right: 4px; }
+.chart-legend .legend-item.pinned:is(.focus, :hover) { background: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin-hover)), transparent); }
 
 /* Artist search under the chips: a combobox that pins any artist into the chart */
 .artist-search { position: relative; width: min(100%, 340px); }
@@ -932,7 +963,7 @@ dialog pre {
 .g-chip .swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--c); box-shadow: inset 0 0 0 1.5px var(--c); }
 .g-chip .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-chip.g-short { max-width: 72px; }
-.g-chip.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.g-chip.pinned { border-color: var(--c); background: color-mix(in srgb, var(--c) calc(12% * var(--lit-pin)), transparent); }
 .g-chip.off { opacity: 0.4; }
 .g-chip.off .swatch { background: transparent; }
 .g-other { --c: var(--other); }
@@ -1071,7 +1102,8 @@ dialog pre {
   transition: box-shadow var(--motion-fade) var(--ease-out);
 }
 .mix-list li.pinnable .mix-card { cursor: pointer; }
-.mix-list li.dim, .mix-list li.off { opacity: 0.45; }
+.mix-list li.dim, .mix-list li.off { opacity: var(--dim-item); }
+.mix-list li.dim.glance:not(.off) { opacity: var(--dim-item-hover); }
 .mix-list .mix-card:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
 /* The tab: the whole strip left of the card is its button, so it's easy to hit. Hovering it previews the click
    without resizing: a filled tab partly drains, an empty one partly fills */
@@ -1109,18 +1141,25 @@ dialog pre {
 @media (prefers-reduced-motion: reduce) { .mix-seg, .mix-seg > * { transition: none; } }
 
 /* A lit artist (pinned, or hovered here or anywhere on the page: mix.js sets .focus on both its segment and its
-   card) looks the same in the bar and in its card: a deeper wash of its color, a ring in it, and bold text in the
-   main ink. Segments and cards are clickable to pin */
+   card) looks the same in the bar and in its card, by the hover/pin rule: a deeper wash of its color and bold text
+   in the main ink when hovered; a pin deepens the wash further and rings it, and hovering a pin deepens it again.
+   Segments and cards are clickable to pin */
 .mix-seg.pinnable { cursor: pointer; }
-.mix-seg { box-shadow: inset 0 0 0 0 var(--c); }
-.mix-seg:is(:hover, .focus, .pinned) { background: color-mix(in srgb, var(--c) 34%, var(--surface)); font-weight: 700; }
-.mix-seg.pinned { box-shadow: inset 0 0 0 1.5px var(--c); }
+.mix-seg { --tint: 26%; box-shadow: inset 0 0 0 0 var(--c); }
+.mix-seg:is(:hover, .focus, .pinned) { background: color-mix(in srgb, var(--c) var(--tint), var(--surface)); font-weight: 700; }
+.mix-seg.pinned { background: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin)), var(--surface)); box-shadow: inset 0 0 0 1.5px var(--c); }
+.mix-seg.pinned:is(:hover, .focus) { background: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin-hover)), var(--surface)); }
 .mix-seg:is(:hover, .focus, .pinned) > * { font-weight: 700; }
 .mix-seg:is(:hover, .focus, .pinned) > .mix-hours { color: var(--text-primary); }
-.mix-list li:is(.pinned, .focus) .mix-card, .mix-list li.pinnable .mix-card:hover { background-color: color-mix(in srgb, var(--c) 18%, transparent); }
+.mix-list li { --tint: 14%; }
+.mix-list li.focus .mix-card, .mix-list li.pinnable .mix-card:hover { background-color: color-mix(in srgb, var(--c) var(--tint), transparent); }
+.mix-list li.pinned .mix-card { background-color: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin)), transparent); }
+.mix-list li.pinned.focus .mix-card, .mix-list li.pinned .mix-card:hover { background-color: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin-hover)), transparent); }
 .mix-list li.pinned .mix-card::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
 .mix-list li:is(.pinned, .focus) .name, .mix-list li.pinnable .mix-card:hover .name { color: var(--text-primary); font-weight: 600; }
-.mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
+.mix-legend-item { --tint: 12%; }
+.mix-legend-item.pinned { background: color-mix(in srgb, var(--c, var(--text-muted)) calc(var(--tint) * var(--lit-pin)), transparent); font-weight: 600; }
+.mix-legend-item.pinned.focus { background: color-mix(in srgb, var(--c, var(--text-muted)) calc(var(--tint) * var(--lit-pin-hover)), transparent); }
 /* Every name is as wide as its bold self (an invisible bold copy sets the width), so pinning one doesn't
    nudge its neighbors */
 .mix-legend-item .name::after {
@@ -1133,10 +1172,12 @@ dialog pre {
 }
 
 /* Hover anywhere on an artist (chart, legends, lists, this bar) lights their segment, a little less than a pin
-   does (above); pinned and hovered artists stay lit and the rest dim (mix.js sets .dim) */
-.mix-seg.dim { opacity: 0.45; }
-.mix-legend-item.focus { background: color-mix(in srgb, var(--c, var(--text-muted)) 14%, transparent); font-weight: 600; }
-.chart-legend .legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c) 12%, transparent); }
+   does (above); pinned and hovered artists stay lit and the rest dim (mix.js sets .dim), less while only a hover
+   lights anyone (.glance) */
+.mix-seg.dim { opacity: var(--dim-item); }
+.mix-seg.dim.glance { opacity: var(--dim-item-hover); }
+.mix-legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c, var(--text-muted)) var(--tint), transparent); font-weight: 600; }
+.chart-legend .legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c) var(--tint), transparent); }
 
 /* Feedback */
 #feedback-form { display: flex; flex-direction: column; gap: 10px; }

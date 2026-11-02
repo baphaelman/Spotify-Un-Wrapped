@@ -27,12 +27,21 @@ matches what is moving.
   drag tracks the pointer directly. ECharts applies style changes instantly, so restyle charts with
   `setOptionFaded` (`FADE_MS` for hover, `MORPH_MS` alongside a data morph), never a bare `setOption`.
   Highlights are restyles, never ECharts' emphasis states (see the rolling chart's hover rules).
-- **Hover shades, a pin outlines.** Anywhere an artist (or a card, chip or bar) is lit, hovering only animates a
-  shade of its color (`FADE_MS`); the outline is the pin's, and fades in and out only as the artist is pinned or
-  unpinned. Where the pinned shade is deeper than the hovered one (the monthly bars), a pin deepens the hover's
-  shade (the Hours lines too: a pinned line's fill, `--shade-line-pin`, is deeper than a hovered one's, faint enough that overlapping pins just blend, and twice as deep while hovered; every fill lies under every line; and a hover dims
-  the other lines less than a pin does). The period bar's chips are the model (`.legend-item`: `:hover`/`.focus` tint, `.pinned` border). A
-  lit segment of the mix bar sets its hours in the main ink and leaves its percentage in the artist's color.
+- **The hover/pin rule: a hover glances, a pin commits.** Everything that can be lit (bands, lines, bars, the clock,
+  the period bar's backdrop, chips, rows, cards, the mix bar) has the same four looks, from `litLook` in `motion.js`:
+  - **hovered:** a light shade of its color, and nothing else changes on it;
+  - **pinned:** a deeper shade, and the only stronger outline (a thicker edge or line, a ring or border);
+  - **pinned and hovered:** deeper still;
+  - **the others** dim a little while something is only hovered (`dimHover`), and more while something is pinned (`dim`).
+
+  The steps are tokens, so every graph agrees: `--shade-*` for graph fills (band, hover, pin, pin-hover, dim,
+  dim-hover; `charts.js` reads them into `t.shade[look]`, `brush.js` uses them as CSS), `--shade-line*` for the fill
+  under an Hours line (faint enough that overlapping pins just blend), `--fade-dim*` for how dimmed lines show, and
+  for HTML each kind sets its own hover wash `--tint`, times `--lit-pin` when pinned and `--lit-pin-hover` when
+  pinned and hovered, with `--dim-item*` for the dimmed ones. A graph with its own scale (the monthly bars,
+  `MONTH_SHADE`; their caption wash) keeps the same four steps. Hover animates on `FADE_MS`; the outline fades in
+  and out only as the artist is pinned or unpinned. In Hours every fill lies under every line. A lit segment of
+  the mix bar sets its hours in the main ink and leaves its percentage in the artist's color.
 - **One action, one tier, one start.** Everything an action changes (the charts, the period bar's
   timeline, the lists, the stats, the mix bar) moves at the same tier and starts together. A preset is
   the exception by design: the view pans first (`PAN_MS`, longer when the length changes), then the new artists morph in. So is

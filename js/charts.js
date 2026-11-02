@@ -1,6 +1,6 @@
 // ECharts renderers. Colors come from the CSS tokens so light/dark stay in one place (style.css).
 
-import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur } from "./motion.js";
+import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, drawnShapes, setOptionFaded, easeInOut, travel, dur, litLook, isLitLook, isPinLook, SHADE_TOKENS } from "./motion.js";
 import { shownName, putOff, owes } from "./state.js";
 import { tune } from "./tune.js";
 
@@ -25,10 +25,14 @@ function tokens() {
     other: v("--other"),
     series: Array.from({ length: 10 }, (_, i) => i + 1).map((i) => v(`--series-${i}`)),
     seq: [0, 1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
-    // Rolling chart fills, set per theme: the share of the artist's color mixed into the surface for a
-    // band at rest, a hovered band, and the other bands while one is hovered; and the opacity under a
-    // hovered hours line, and under a pinned one
-    shade: { band: +v("--shade-band"), hover: +v("--shade-hover"), dim: +v("--shade-dim"), line: +v("--shade-line"), linePin: +v("--shade-line-pin") },
+    // The hover/pin rule's steps (the --shade-* and --fade-* tokens), keyed by litLook's looks: the share of the
+    // artist's color mixed into the surface for a band in each look, the opacity of the fill under a lit hours
+    // line in each, and how strongly a dimmed line shows
+    shade: Object.fromEntries(
+      Object.entries(SHADE_TOKENS).map(([look, name]) => [look, +v(`--shade-${name}`)])
+    ),
+    line: { hover: +v("--shade-line"), pin: +v("--shade-line-pin"), pinHover: +v("--shade-line-pin-hover") },
+    fade: { rest: 1, hover: 1, pin: 1, pinHover: 1, dim: +v("--fade-dim"), dimHover: +v("--fade-dim-hover") },
   };
 }
 
@@ -511,7 +515,7 @@ function panTo(el, from, to, { ms, easing, onFrame }, done, yMax, strip) {
 // over the bottom of higher ones. In hours mode the fills fade out and the lines move to hours per week.
 // "Everyone else" flattens to zero and fades out in hours mode, where it would dwarf everyone.
 //
-// Share mode draws each band as a pale tint of the artist's color (t.shade.band), outlined on both edges
+// Share mode draws each band as a pale tint of the artist's color (t.shade.rest), outlined on both edges
 // by two silent overlay lines, its top (t) and bottom (b), drawn above every band and inset slightly so
 // neighbors' borders sit side by side. Hours mode hides them.
 //
@@ -609,7 +613,9 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const nSlots = data.parts && ms ? slotsMax(needSlots, hadSlots) : needSlots;
   const t = tokens();
   // (scaled by the tunables, see tune.js; all ×1 by default)
-  t.shade = { band: t.shade.band * tune.bandTint, hover: t.shade.hover * tune.hoverTint, dim: t.shade.dim * tune.dimTint, line: t.shade.line * tune.lineFill, linePin: t.shade.linePin * tune.lineFill };
+  const tint = { rest: tune.bandTint, hover: tune.hoverTint, pin: tune.hoverTint, pinHover: tune.hoverTint, dim: tune.dimTint, dimHover: tune.dimTint };
+  t.shade = Object.fromEntries(Object.entries(t.shade).map(([look, w]) => [look, w * tint[look]]));
+  t.line = Object.fromEntries(Object.entries(t.line).map(([look, w]) => [look, w * tune.lineFill]));
   const c = chart(el);
   const share = mode === "share";
   const otherIdx = hasOther ? names.length - 1 : -1;
@@ -719,36 +725,35 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // ECharts tweens point by point, and a break never tweens into a value (a vertical stroke).
   const edgeData = (s, side) =>
     points((i) => (bottom[s][i] == null ? null : !share ? hoursAt(s, i) : side === "t" ? top[s][i] : bottom[s][i]));
-  // Visible widths 1.5px, or 2.5px for lit bands (tune.edgeWidth, and 1 more), doubled since half is clipped away;
-  // hours mode hides them
-  const overlayStyle = (s, on) => ({ width: 2 * (on ? tune.edgeWidth + 1 : tune.edgeWidth), color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
+  // Visible widths 1.5px, or 2.5px for pinned bands (tune.edgeWidth, and 1 more: only a pin outlines, a hover
+  // only shades), doubled since half is clipped away; hours mode hides them
+  const overlayStyle = (s) => ({ width: 2 * (base.has(s) ? tune.edgeWidth + 1 : tune.edgeWidth), color: colors[s], opacity: share && visible(s) ? 1 : 0, cap: "butt", join: "round" });
 
-  // The artists drawn highlighted: the pinned ones, plus the one under the pointer (or hovered in the
-  // legend or a list) while there is one. Built into the options below as well as applied on hover, so
-  // a re-render or a mode morph keeps the pinned artists lit.
+  // The pinned artists (drawn ones only). With the one under the pointer (or hovered in the legend or a list),
+  // they set each artist's look by the hover/pin rule (litLook, docs/motion.md). Built into the options below as
+  // well as applied on hover, so a re-render or a mode morph keeps the pinned artists lit. Everything below takes
+  // h, the hovered artist's index or null.
   const base = new Set(names.flatMap((n, k) => (pins?.has(n) && visible(k) && k !== otherIdx ? [k] : [])));
+  const look = (k, h) => litLook(base, h, k);
   // The artist under the pointer when a click to pin or unpin re-rendered the chart stays lit from the first
   // frame (see zrClick), rather than snapping to rest and fading back in, as does one unpinned anywhere on the
   // page (holdFocus)
   const kept = st.keepFocus == null ? -1 : names.indexOf(st.keepFocus);
-  const shown = kept < 0 ? base : new Set([...base, kept]);
+  const held = kept < 0 ? null : kept;
   // Fills are opaque tints, not transparency, because bands overlap down to the axis.
-  // Share: lit bands (pinned, or under the pointer) are filled in more strongly (t.shade.hover), and while
-  // any band is lit the rest dim slightly (t.shade.dim); with none lit, every band has its resting tint
-  const bandFill = (k, lit) =>
-    mix(t.surface, colors[k], lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band);
-  // Hours: pinned lines are thicker; lit lines (pinned or hovered) stay while the rest fade, and only a lit line gets a faint fill. The fill is the same
-  // tint as a lit share band, at the opacity that gives t.shade.line of the artist's color (t.shade.linePin, deeper,
-  // under a pinned line: hover shades, a pin deepens it). Sharing the color means a morph only changes opacity:
-  // tweening a band's opaque tint to the artist's full color at low opacity would pass through a stronger fill than either end.
-  // Pinned fills are faint enough to simply overlap; hovering a pinned line deepens its fill to twice that.
-  const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.hover));
-  const hoursFillOpacity = t.shade.line / t.shade.hover;
-  const hoursPinOpacity = t.shade.linePin / t.shade.hover;
-  const hoursPinHot = Math.min(1, 2 * hoursPinOpacity);
+  // Share: a band's tint is its look's shade: deeper hovered, deeper still pinned, deepest pinned and hovered; the
+  // rest dim a little while one is only hovered and more while one is pinned
+  const bandFill = (k, h) => mix(t.surface, colors[k], t.shade[look(k, h)]);
+  // Hours: pinned lines are thicker; lit lines (pinned or hovered) stay while the rest fade (less for a hover than
+  // while one is pinned: t.fade), and only a lit line gets a faint fill, t.line of its look (a hover's, deeper under
+  // a pin, deeper still under a hovered pin; pinned fills are faint enough to simply overlap). The fill is the same
+  // tint as a pinned share band, at the opacity that gives that share of the artist's color. Sharing the color means
+  // a morph only changes opacity: tweening a band's opaque tint to the artist's full color at low opacity would pass
+  // through a stronger fill than either end.
+  const hoursFill = colors.map((c) => mix(t.surface, c, t.shade.pin));
+  const lineFill = (lk) => Math.min(1, (t.line[lk] ?? 0) / t.shade.pin);
   // (a line leaving in an artist change, fading, has none)
-  const hoursArea = (k, lit, hot = null) =>
-    k === otherIdx || fading(k) || !lit.has(k) ? 0 : !base.has(k) ? hoursFillOpacity : k === hot ? hoursPinHot : hoursPinOpacity;
+  const hoursArea = (k, h) => (k === otherIdx || fading(k) ? 0 : lineFill(look(k, h)));
   // Morphing from share to hours, a pinned artist's fill waits until the lines have settled. Its share
   // band fills all the way down to the axis, hidden under the bands below; fading only partway while
   // theirs fade out would bare it across the whole chart mid-morph. It fades out with them and back in
@@ -762,44 +767,41 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth), ms);
   }
   const restWidth = isStrip ? tune.hoursLine : 2; // the strip's lines are finer
-  // Hover only shades a line (the others fade and it gets its faint fill); only a pin thickens it
-  // The rest fade less for a hover (HOVER_DIM) than while an artist is pinned (PIN_DIM): a hover only glances at a line
-  const PIN_DIM = 0.3, HOVER_DIM = 0.5;
-  const lineLook = (k, lit) => ({
+  // Hover only shades a line (the others fade a little and it gets its faint fill); only a pin thickens it
+  const lineLook = (k, h) => ({
     width: base.has(k) ? restWidth + 1 : restWidth,
-    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : !lit.size || lit.has(k) ? 1 : base.size ? PIN_DIM : HOVER_DIM,
+    opacity: (!share && k === otherIdx) || !visible(k) || fading(k) ? 0 : t.fade[look(k, h)],
   });
   // Every artist always shows all its parts; lighting some artists (pinned or hovered) only dims the others'
   const partShown = (k, j) => !!parts && visible(k) && j < partRows(k).length;
   // The part under the pointer ({k, j}, or null): filled deeper than its siblings and outlined on both sides
   let hotPart = null;
   const isHot = (k, j) => hotPart?.k === k && hotPart.j === j;
-  // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a lit one, most
+  // A part's shade: the band's own tint w, deepened by part of the step from a resting band to a pinned one, most
   // for the biggest part (and less in a dimmed band). The four biggest step down; past them the parts alternate
   // between two depths, so any two neighbours differ (their dividers tell the rest apart)
   const PART_DEPTH = [0.8, 0.55, 0.35, 0.18];
   const partDepth = (j) => PART_DEPTH[j] ?? (j % 2 ? 0.06 : 0.3);
   const HOT_DEPTH = 1.6;
   const partShade = (k, j, w, depth = partDepth(j)) =>
-    mix(t.surface, colors[k], Math.min(1, w + (t.shade.hover - t.shade.band) * depth * tune.partDepth * Math.min(1, w / t.shade.band)));
-  const partFill = (k, j, lit) =>
-    !partShown(k, j)
-      ? bandFill(k, lit)
-      : partShade(k, j, lit.has(k) ? t.shade.hover : lit.size ? t.shade.dim : t.shade.band, isHot(k, j) ? HOT_DEPTH : partDepth(j));
+    mix(t.surface, colors[k], Math.min(1, w + (t.shade.pin - t.shade.rest) * depth * tune.partDepth * Math.min(1, w / t.shade.rest)));
+  const partFill = (k, j, h) =>
+    !partShown(k, j) ? bandFill(k, h) : partShade(k, j, t.shade[look(k, h)], isHot(k, j) ? HOT_DEPTH : partDepth(j));
   // Its divider (share), or its line (hours): faint beside its artist's, and fainter while others are lit
   // (the hot part's own divider and the one below it, its outline; a line, in hours mode)
-  const partLine = (k, j, lit) => {
+  const partLine = (k, j, h) => {
     const hot = isHot(k, j) || (share && isHot(k, j + 1));
+    const lk = look(k, h);
     return {
       width: hot ? 2 : share ? 1 : base.has(k) ? 1.5 : 1.25,
-      opacity: !partShown(k, j) ? 0 : hot ? 1 : share ? (lit.size && !lit.has(k) ? 0.3 : 0.7) : lit.size ? (lit.has(k) ? 0.85 : 0.08) : 0.4,
+      opacity: !partShown(k, j) ? 0 : hot ? 1 : share ? (t.fade[lk] < 1 ? 0.3 : 0.7) : isLitLook(lk) ? 0.85 : lk === "rest" ? 0.4 : 0.08,
     };
   };
-  const partStyles = (lit) =>
+  const partStyles = (h) =>
     partKeys.map(([k, j]) => ({
       id: `p${k}_${j}`,
-      lineStyle: partLine(k, j, lit),
-      ...(share ? { areaStyle: { color: partFill(k, j, lit) } } : {}),
+      lineStyle: partLine(k, j, h),
+      ...(share ? { areaStyle: { color: partFill(k, j, h) } } : {}),
     }));
 
   const series = names
@@ -821,7 +823,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         z: share ? 2 + (names.length - s) / 100 : 3,
         // Share: hidden; the edge overlays draw each band's borders instead (see edgeData)
         lineStyle: {
-          ...(share ? { width: 2, opacity: 0 } : lineLook(s, shown)),
+          ...(share ? { width: 2, opacity: 0 } : lineLook(s, held)),
           color: colors[s],
           cap: "round",
           join: "round",
@@ -831,8 +833,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         // Hours mode keeps an invisible fill, so the hovered line's shading and the morph back into
         // bands can fade it in rather than have it appear
         areaStyle: {
-          color: share ? bandFill(s, shown) : hoursFill[s],
-          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, shown, kept) : 0,
+          color: share ? bandFill(s, held) : hoursFill[s],
+          opacity: share ? 1 : !hide && !holdFill ? hoursArea(s, held) : 0,
           origin: "start",
         },
         // Share mode: ECharts' hover emphasis clears itself on stacked areas, so bands are faded by
@@ -861,10 +863,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
         smooth,
         color: colors[k],
         z: share ? 2 + (names.length - k) / 100 + (nSlots[k] + 1 - j) / (100 * (nSlots[k] + 2)) : 2.9,
-        lineStyle: { ...partLine(k, j, shown), color: colors[k], cap: "butt", join: "round" },
+        lineStyle: { ...partLine(k, j, held), color: colors[k], cap: "butt", join: "round" },
         // An empty slot's fill would only repeat its band's tint, so it isn't painted (it fades out as its part goes,
         // which looks the same as crossfading to the band's tint)
-        areaStyle: { color: share ? partFill(k, j, shown) : hoursFill[k], opacity: share && partShown(k, j) ? 1 : 0, origin: "start" },
+        areaStyle: { color: share ? partFill(k, j, held) : hoursFill[k], opacity: share && partShown(k, j) ? 1 : 0, origin: "start" },
         emphasis: { disabled: true },
         data: points((i) => (share ? partTop[k][j][i] : partHoursAt(k, j, i))),
       }))
@@ -881,7 +883,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
           smooth,
           color: colors[s],
           z: 4,
-          lineStyle: overlayStyle(s, shown.has(s)),
+          lineStyle: overlayStyle(s),
           areaStyle: null,
           emphasis: { disabled: true },
           data: edgeData(s, side),
@@ -916,15 +918,14 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const PART_TIP_MIN = 0.01;
   const partTips = (k, i, valueOf, fmt, extra) => {
     if (!parts || k === otherIdx) return [];
-    const on = lit();
-    const ofArtist = on.has(k);
+    const ofArtist = isLitLook(look(k, focused));
     return partRows(k)
       .map((_, j) => j)
       .filter((j) => partShown(k, j) && parts.share[k][j][i] * scale[i] >= PART_TIP_MIN)
       // In the order they're drawn: share mode stacks them up from the band's floor, so the top one comes first;
       // in hours mode the highest line does
       .sort((a, b) => (share ? b - a : valueOf(b) - valueOf(a)))
-      .map((j) => subRow(partShade(k, j, t.shade.hover), fmt(valueOf(j, ofArtist)), parts.names[k][j] + extra(j), isHot(k, j)));
+      .map((j) => subRow(partShade(k, j, t.shade.pin), fmt(valueOf(j, ofArtist)), parts.names[k][j] + extra(j), isHot(k, j)));
   };
   const shareTooltip = (params) => {
     params = bands(params);
@@ -1117,50 +1118,42 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       if (st.renderToken !== renderToken) return;
       setOptionFaded(c, {
         animationDurationUpdate: 0,
-        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursPinOpacity } })),
+        series: [...base].map((k) => ({ id: `s${k}`, areaStyle: { opacity: hoursArea(k, focused) } })),
       }, undefined, dur(FADE_MS));
     }, ms);
   }
 
-  // Share mode: highlight the band under the pointer by filling it in more strongly (t.shade.hover),
-  // dimming every other band a little (t.shade.dim). The hovered band's edge overlays draw its whole
-  // border, bottom included.
-  const lit = () => (focused == null ? base : new Set([...base, focused]));
+  // Share mode: shade the band under the pointer (t.shade.hover, or pinHover over a pinned one) and dim the
+  // others a little (dimHover; more, dim, while one is pinned). Its outline stays: only a pin outlines.
   const focusBand = (sIndex) => {
     if (sIndex === focused) return;
     focused = sIndex;
     tellFocus(focused == null ? null : names[focused]);
-    const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
-      series: names.flatMap((_, k) => [
-        { id: `s${k}`, areaStyle: { color: bandFill(k, on) } },
-        { id: `t${k}`, lineStyle: overlayStyle(k, on.has(k)) },
-        { id: `b${k}`, lineStyle: overlayStyle(k, on.has(k)) },
-      ]).concat(partStyles(on)),
+      series: names.map((_, k) => ({ id: `s${k}`, areaStyle: { color: bandFill(k, focused) } })).concat(partStyles(focused)),
     }, undefined, FADE_MS);
     clipEdges();
   };
   // Hours mode: shade one line (its faint fill) and fade the rest, by restyling directly (ECharts' own blur state is
   // cleared on every pointer move over empty plot space, which is all of it once lines are silent).
-  // Only a lit line gets a faint fill (hoursFillOpacity); nothing is filled at rest.
+  // Only a lit line gets a faint fill (hoursArea); nothing is filled at rest.
   const focusLine = (k) => {
     if (k === focused) return;
     focused = k;
     tellFocus(focused == null ? null : names[focused]);
-    const on = lit();
     setOptionFaded(c, {
       animationDurationUpdate: 0,
       series: names.map((_, j) => ({
         id: `s${j}`,
-        lineStyle: lineLook(j, on),
-        areaStyle: { opacity: hoursArea(j, on, focused) },
-      })).concat(partStyles(on)),
+        lineStyle: lineLook(j, focused),
+        areaStyle: { opacity: hoursArea(j, focused) },
+      })).concat(partStyles(focused)),
     }, undefined, FADE_MS);
   };
 
   // Only the parts change (the pointer moved between parts of one band)
-  const restyleParts = () => setOptionFaded(c, { animationDurationUpdate: 0, series: partStyles(lit()) }, undefined, FADE_MS);
+  const restyleParts = () => setOptionFaded(c, { animationDurationUpdate: 0, series: partStyles(focused) }, undefined, FADE_MS);
 
   // Highlight an artist from outside the plot (legend, top lists): their band in share mode, their
   // line in hours mode. null, or an artist not in the chart, clears it.
@@ -1604,11 +1597,15 @@ function fadeOutFrame(el, background) {
 }
 
 // The artists in the spotlight: the pinned ones, and the one hovered
+const pinnedSet = (st) => new Set(st.names.filter((n) => st.pins?.has(n) && !st.off.has(n)));
 function litSet(st) {
-  const lit = new Set(st.names.filter((n) => st.pins?.has(n) && !st.off.has(n)));
+  const lit = pinnedSet(st);
   if (st.hovered != null) lit.add(st.hovered);
   return lit;
 }
+// How much of an artist's color fills their slices in each look of the hover/pin rule (litLook): deeper than the
+// rolling chart's tints, since a slice is small
+const MONTH_SHADE = { rest: 0.25, hover: 0.38, pin: 0.5, pinHover: 0.62, dim: 0.1, dimHover: 0.16 };
 
 // A bar's total and its top five, [{ name, hours }]: of everyone, or only of the chart's artists when everyone
 // else is left out
@@ -1627,8 +1624,9 @@ function barView(st, r) {
 function monthlySeries(st) {
   const { t, names, rows, colorOf } = st;
   const lit = litSet(st);
-  const fill = (col, on, dim, base) => mix(t.surface, col, on ? 0.5 : dim ? 0.1 : base);
-  // A hairline in the surface color between slices, or the artist's color around a lit one
+  const pinned = pinnedSet(st);
+  const fill = (col, look) => mix(t.surface, col, MONTH_SHADE[look]);
+  // A hairline in the surface color between slices, or the artist's color around a pinned one (only a pin outlines)
   const edge = (col, on) => (on ? { borderColor: col, borderWidth: 1.5 } : { borderColor: t.surface, borderWidth: 1 });
   const radius = { borderRadius: [1.5, 1.5, 0, 0] };
   // A zero-height bar still strokes its outline, so an emptied bar keeps it only while it shrinks (settleMonthly
@@ -1645,18 +1643,18 @@ function monthlySeries(st) {
     return Math.max(0, r.hours - slices - (tops[i]?.hours ?? 0));
   });
   const slices = names.map((n, k) => {
-    const on = lit.has(n);
+    const look = litLook(pinned, st.hovered, n);
     const col = colorOf(n);
     return {
       id: `m${k}`,
-      itemStyle: { color: fill(col, on, lit.size && !on, 0.25), ...edge(col, on && "lit") },
+      itemStyle: { color: fill(col, look), ...edge(col, isPinLook(look)) },
       data: items(`m${k}`, rows.map((r, i) => (shown[k][i] ? r.by[k] : 0))),
     };
   });
   // Always drawn like a pinned artist, so lighting another doesn't dim them
   const topBlocks = names.map((n, k) => ({
     id: `t${k}`,
-    itemStyle: { color: fill(colorOf(n), true), ...edge(colorOf(n), true), ...radius },
+    itemStyle: { color: fill(colorOf(n), "pin"), ...edge(colorOf(n), true), ...radius },
     data: items(`t${k}`, rows.map((r, i) => (tops[i]?.name === n ? r.by[k] : 0))),
   }));
   // A top artist outside the chart has no color of their own: a lighter gray than the rest, without an outline
@@ -1855,7 +1853,8 @@ function paintCaptionMarks(el, st) {
     const n = mark[i];
     d.classList.toggle("on", n != null);
     if (n == null) return; // sinks away as it was, in its color
-    d.classList.toggle("pin", pinned(n)); // a pin deepens the hover's lighter wash
+    d.classList.toggle("pin", pinned(n)); // a pin deepens the hover's lighter wash, and hovering it deepens it again
+    d.classList.toggle("hot", pinned(n) && n === focus);
     d.classList.toggle("jl", mark[i - 1] != null);
     d.classList.toggle("jr", mark[i + 1] != null);
     Object.assign(d.style, { left: `${mid - slot / 2}px`, width: `${slot}px` });
@@ -2111,20 +2110,19 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
   zr.on("click", st.zrClick);
 }
 
-// The style of artist k's bands: lit (pinned or hovered), dim (something else is lit) or at rest, as in the
-// rolling chart's Share mode
+// The style of artist k's bands by the hover/pin rule (litLook), as in the rolling chart's Share mode: shaded by
+// its look, outlined more strongly only while pinned, and the others' outlines fading into the surface (less for
+// a hover than while one is pinned)
 function clockLook(st, k) {
   const { t, names, colors } = st;
   const col = colors[k];
   // A deselected artist has no share, so no outline either (a flat line would still draw)
-  if (k < names.length && st.off.has(names[k])) return { lineStyle: { width: 0, opacity: 0 }, areaStyle: { color: mix(t.surface, col, t.shade.band), opacity: 1 } };
-  const lit = new Set([...st.pinned, ...(st.hovered != null ? [st.hovered] : [])]);
-  const rest = k === names.length; // the gray series is never lit
-  const on = !rest && lit.has(names[k]);
-  const dim = lit.size && !on;
+  if (k < names.length && st.off.has(names[k])) return { lineStyle: { width: 0, opacity: 0 }, areaStyle: { color: mix(t.surface, col, t.shade.rest), opacity: 1 } };
+  // (the gray series, names[names.length], is never lit, only dimmed)
+  const look = litLook(st.pinned, st.hovered, names[k]);
   return {
-    lineStyle: { color: dim ? mix(t.surface, col, 0.4) : col, width: on ? 2 : 1, opacity: 1 },
-    areaStyle: { color: mix(t.surface, col, on ? t.shade.hover : dim ? t.shade.dim : t.shade.band), opacity: 1 },
+    lineStyle: { color: mix(t.surface, col, t.fade[look]), width: isPinLook(look) ? 2 : 1, opacity: 1 },
+    areaStyle: { color: mix(t.surface, col, t.shade[look]), opacity: 1 },
   };
 }
 

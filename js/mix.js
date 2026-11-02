@@ -290,11 +290,15 @@ function dim() {
   // A pinned artist with no listening in the period isn't drawn, so it dims nobody. The pins are read live: a pin
   // re-renders the chart, which clears its hover before this bar is told about the new pin
   const pinned = (e) => e.pinnable && ctx.pins.has(e.name) && e.to?.w > 0;
-  const any = !!focus || [...entries.values()].some(pinned);
+  const anyPin = [...entries.values()].some(pinned);
+  const any = !!focus || anyPin;
   for (const e of entries.values()) {
     const lit = !any || e === focus || pinned(e);
-    e.seg.classList.toggle("dim", !lit);
-    e.row.classList.toggle("dim", !lit);
+    // Only a hover lighting anyone dims the rest less (the hover/pin rule)
+    for (const el of [e.seg, e.row]) {
+      el.classList.toggle("dim", !lit);
+      el.classList.toggle("glance", !lit && !anyPin);
+    }
   }
 }
 

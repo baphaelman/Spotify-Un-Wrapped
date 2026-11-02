@@ -3,7 +3,7 @@
 // everything from that range, so nothing is rounded to a year.
 
 import { dayToDate } from "./aggregate.js";
-import { dur, easeInOut, easeOut, travel, FADE_MS } from "./motion.js";
+import { dur, easeInOut, easeOut, travel, FADE_MS, SHADE_TOKENS, isPinLook } from "./motion.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -123,9 +123,9 @@ export function setBrushData(first, last, min = first) {
 
 // The stack graph in miniature, behind the window: the rolling chart's own artists and colors over the
 // whole history. { start, days: day index of each point, bands: [{ lo, hi, color, look }] } with lo/hi the band's
-// edges as 0..1 of the height (null where nothing was played), color a CSS color, and look "lit" (pinned or
-// hovered), "dim" (something else is lit), "rest" or "hidden" (deselected: give it no thickness, so it can
-// grow back in a morph rather than pop).
+// edges as 0..1 of the height (null where nothing was played), color a CSS color, and look one of the hover/pin
+// rule's (motion.js litLook: "rest", "hover", "pin", "pinHover", "dim", "dimHover") or "hidden" (deselected: give it
+// no thickness, so it can grow back in a morph rather than pop).
 //
 // morph: { delay, ms, ease } to keep the old bands for `delay` ms (while the window slides over), then tween
 // their edges and colors into the new ones over `ms` (easing in and out by default), as the rolling chart
@@ -250,13 +250,14 @@ function blend(a, b, e, eh = e) {
   };
 }
 
-// A look as numbers, so a change of look (pinned, hovered, shown again) can tween: the weights of the three
-// shades (CSS variables, so they follow the theme), the edge's width and the band's opacity
+// A look as numbers, so a change of look (pinned, hovered, shown again) can tween: the weight of each look's
+// shade (its --shade-* variable, so it follows the theme), the edge's width (thicker only for a pin) and the
+// band's opacity
+const SHADES = Object.keys(SHADE_TOKENS);
+const lookAs = (look, width = 1.25, alpha = 1) => ({ ...Object.fromEntries(SHADES.map((k) => [k, +(k === look)])), width, alpha });
 const LOOKS = {
-  lit: { band: 0, hover: 1, dim: 0, width: 2, alpha: 1 },
-  dim: { band: 0, hover: 0, dim: 1, width: 1.25, alpha: 1 },
-  rest: { band: 1, hover: 0, dim: 0, width: 1.25, alpha: 1 },
-  hidden: { band: 1, hover: 0, dim: 0, width: 1.25, alpha: 0 },
+  ...Object.fromEntries(SHADES.map((k) => [k, lookAs(k, isPinLook(k) ? 2 : 1.25)])),
+  hidden: lookAs("rest", 1.25, 0),
 };
 const lookOf = (band) => band.mix ?? LOOKS[band.look];
 function lookMix(a, b, e) {
@@ -377,7 +378,7 @@ function draw() {
       const hi = edge("hi"), lo = edge("lo");
       const stroke = `M${hi.join("L")}M${lo.join("L")}`;
       const fill = `M${hi.join("L")}L${lo.reverse().join("L")}Z`;
-      const shade = `(var(--shade-band) * ${m.band.toFixed(3)} + var(--shade-hover) * ${m.hover.toFixed(3)} + var(--shade-dim) * ${m.dim.toFixed(3)})`;
+      const shade = `(${SHADES.filter((k) => m[k] > 0.0005).map((k) => `var(--shade-${SHADE_TOKENS[k]}) * ${m[k].toFixed(3)}`).join(" + ") || 0})`;
       const alpha = m.alpha < 1 ? `;opacity:${m.alpha.toFixed(3)}` : "";
       el("path", { d: fill, mask, style: `fill:color-mix(in srgb, ${band.color} calc(${shade} * 100%), var(--surface))${alpha}` });
       el("path", {

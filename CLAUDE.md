@@ -173,8 +173,10 @@ form of each rule below, with the worked examples.
 - **Time follows the size of the change:** use `scaledMs` for anything that interpolates a size, and give
   everything riding that change the same time.
 - **Things that travel together share one clock:** drive both from one tick, not two matching tweens.
-- **Hover shades, a pin outlines:** hover animates only a shade of the artist's color; the outline fades in
-  and out only on pin/unpin (like the period bar's chips). Applies to the mix bar and cards and the monthly bars too.
+- **The hover/pin rule:** a hover only shades lightly and dims the others a little; a pin shades deeper, is the
+  only thing that outlines, and dims the others more; a hovered pin is deeper still. Take each look from
+  `litLook` (`motion.js`) and its strength from the `--shade-*`, `--fade-*`, `--lit-*` and `--dim-item*` tokens,
+  never a number of your own. Applies to every graph, chip, row, card and the mix bar.
 - **Staggers** step `STAGGER_MS` (18 ms) per item, up to `STAGGER_MAX_MS` (240 ms) in all.
 - **Reduced motion:** wrap every JS duration in `dur()`, and give every CSS animation an entry in the
   `prefers-reduced-motion` blocks.

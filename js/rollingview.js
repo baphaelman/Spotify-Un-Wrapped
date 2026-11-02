@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
@@ -194,7 +194,8 @@ export function paintBrush(_raw, morph = brushMorph) {
   const { edges, days, start, end } = brushMemo.bands;
   const inChart = new Set(state.chartNames.filter((a) => state.colorSlots.has(a)));
   const shown = new Set([...inChart].filter((a) => !state.hidden.includes(a)));
-  const lit = new Set([...state.pinned, brushFocus].filter((a) => a != null && shown.has(a)));
+  const pinned = new Set(state.pinned.filter((a) => shown.has(a)));
+  const hovered = shown.has(brushFocus) ? brushFocus : null;
   // The rest take, in rank order, the colors no band here has: first those the chart leaves free, then those of
   // chart artists outside the top 10, so no two bands share one. They aren't the chart's artists, so only their
   // own name lights them, never a color they happen to share
@@ -206,7 +207,7 @@ export function paintBrush(_raw, morph = brushMorph) {
   const bands = names.map((n, i) => ({
     ...edges[i],
     color: `var(--series-${slotOf(n) + 1})`,
-    look: lit.has(n) ? "lit" : lit.size ? "dim" : "rest",
+    look: litLook(pinned, hovered, n),
   }));
   setBrushBands({ start, end, days, bands }, morph);
 }
