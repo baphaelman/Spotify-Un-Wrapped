@@ -10,12 +10,13 @@ from pathlib import Path
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent).resolve()
 VERSIONED = re.compile(r"\?v=[0-9a-f]+")
-files = [ROOT / "css" / "style.css", *sorted((ROOT / "js").glob("*.js"))]
+modules = sorted((ROOT / "js").rglob("*.js"))  # js/charts/ too
+files = [ROOT / "css" / "style.css", *modules]
 
 # The hash covers the files as they are without any stamp, so stamping never changes the hash itself
 h = hashlib.sha256()
 for f in files:
-    h.update(f.name.encode())
+    h.update(f.relative_to(ROOT).as_posix().encode())
     h.update(VERSIONED.sub("", f.read_text()).encode())
 v = h.hexdigest()[:8]
 
@@ -27,7 +28,9 @@ def rewrite(path, pattern, repl):
 
 # index.html: the stylesheet and the entry scripts
 rewrite(ROOT / "index.html", r'((?:css|js)/[a-z]+\.(?:css|js))(\?v=[0-9a-f]+)?"', rf'\1?v={v}"')
-# every module: its relative imports
-for f in (ROOT / "js").glob("*.js"):
-    rewrite(f, r'(from "\./[a-z]+\.js)(\?v=[0-9a-f]+)?"', rf'\1?v={v}"')
+# every module: its relative imports ("./x.js", "./charts/x.js", "../x.js", and a bare `import "./x.js"`). All of
+# them, or a module reached by two URLs (stamped from one file, not from another) loads twice, each copy with its
+# own state
+for f in modules:
+    rewrite(f, r'((?:from|import) "\.\.?/(?:[a-z]+/)*[a-z]+\.js)(\?v=[0-9a-f]+)?"', rf'\1?v={v}"')
 print(f"stamped v={v}")
