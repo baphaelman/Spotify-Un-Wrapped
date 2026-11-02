@@ -438,16 +438,12 @@
             <h2>First listen</h2>
             <p class="muted" id="discovery-note"></p>
           </div>
-          <!-- Listening threshold: only finds with this many minutes all time are drawn (paintDiscovery); in-between values are the Visual tweaks slider -->
-          <div class="found-floor">
-            <span class="muted">Listening Threshold</span>
-            <div id="discovery-floor" class="segmented solid" role="group" aria-label="Listening Threshold">
-              <button type="button" data-min="1" aria-pressed="true">1 min</button>
-              <button type="button" data-min="3" aria-pressed="false">3 min</button>
-              <button type="button" data-min="5" aria-pressed="false">5 min</button>
-              <button type="button" data-min="10" aria-pressed="false">10 min</button>
-              <button type="button" data-min="30" aria-pressed="false">30 min</button>
-              <button type="button" data-min="60" aria-pressed="false">1 hour</button>
+          <!-- Finds with fewer minutes all time aren't drawn (paintDiscovery); in-between values are the Visual tweaks slider -->
+          <div class="slider tav-window found-floor">
+            <label class="slider-label" for="discovery-floor">Listening Threshold</label>
+            <input id="discovery-floor" type="range" min="0" max="5" step="any" value="0" aria-valuetext="1 min">
+            <div class="ticks" aria-hidden="true">
+              <span data-v="0">1m</span><span data-v="1">3m</span><span data-v="2">5m</span><span data-v="3">10m</span><span data-v="4">30m</span><span data-v="5">1h</span>
             </div>
           </div>
         </div>

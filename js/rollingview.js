@@ -294,6 +294,20 @@ $("monthly-other").addEventListener("change", () => paintMonthly());
 // The chart's artists among them take their colors (same pins and hover); deselected ones are left out. In the genres
 // view the finds are tracks, each in its genre's color when that's one of the chart's. Those under
 // tune.discoveryFloor minutes all time aren't drawn, but count.
+export const FLOORS = [1, 3, 5, 10, 30, 60]; // minutes all time, the slider's stops
+// The thumb sits where the threshold falls among the stops (the Visual tweaks slider can land between them); only a stop shows its number
+function paintFloor() {
+  const input = $("discovery-floor"), v = tune.discoveryFloor;
+  const i = Math.max(0, FLOORS.findLastIndex((f) => f <= v));
+  const at = i >= FLOORS.length - 1 ? i : i + (v - FLOORS[i]) / (FLOORS[i + 1] - FLOORS[i]);
+  input.value = at;
+  input.style.setProperty("--p", at / (FLOORS.length - 1));
+  for (const tick of input.closest(".slider").querySelectorAll(".ticks [data-v]")) {
+    tick.style.setProperty("--p", tick.dataset.v / (FLOORS.length - 1));
+    tick.classList.toggle("on", FLOORS[tick.dataset.v] === v);
+  }
+  input.setAttribute("aria-valuetext", v >= 60 ? "1 hour" : `${v} min`);
+}
 let heardMemo = null;
 export function paintDiscovery() {
   if (!mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
@@ -307,8 +321,7 @@ export function paintDiscovery() {
   const start = agg.dayToDate(state.range.lo).getTime(), end = agg.dayToDate(state.range.hi + 1).getTime();
   const found = all.filter((e) => e.t >= start && e.t < end);
   const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
-  // An in-between value from the Visual tweaks slider leaves every preset unpressed
-  for (const b of $("discovery-floor").children) b.setAttribute("aria-pressed", +b.dataset.min === tune.discoveryFloor);
+  paintFloor();
   const { one, many } = genre ? NOUN.track : noun();
   $("discovery-note").textContent = `You discovered ${found.length.toLocaleString()} ${found.length === 1 ? one : many} over this period`;
   const shown = found.filter((x) => x.hours >= floor && !hidden.has(x.group ?? x.name));

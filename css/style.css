@@ -1581,5 +1581,4 @@ button:not(:disabled):active { transform: scale(0.96); }
 }
 
 .found-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
-.found-floor { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.found-floor .segmented button { padding: 3px 9px; font-size: 12px; }
+.found-head .found-floor { margin-top: 0; }

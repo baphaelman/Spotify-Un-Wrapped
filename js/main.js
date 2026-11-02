@@ -16,7 +16,7 @@ import { askGenres } from "./genres.js";
 import { $, state, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
-import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
+import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, mixArgs, renderMix, setBrushMorph, setBrushFocus, clearMixArgs, syncSplit, MAX_PINS } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
 import { closeHelp } from "./guide.js";
@@ -291,10 +291,10 @@ function syncEverything() {
   useTunes(everything);
 }
 buildTunes(retune);
-$("discovery-floor").addEventListener("click", (e) => {
-  const b = e.target.closest("button");
-  if (b) setTune("discoveryFloor", +b.dataset.min);
-});
+$("discovery-floor").addEventListener("input", (e) => setTune("discoveryFloor", FLOORS[Math.round(+e.target.value)]));
+for (const tick of $("discovery-floor").closest(".slider").querySelectorAll(".ticks [data-v]")) {
+  tick.addEventListener("click", () => setTune("discoveryFloor", FLOORS[tick.dataset.v]));
+}
 syncEverything();
 $("see-everything").addEventListener("click", () => {
   everything = !everything;
