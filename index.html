@@ -22,6 +22,7 @@
       <!-- How the page works: a row per feature, each with a small copy of its control (mirroring its state, filled by
            guide.js). Hovering a row rings the real control on the page: one ring per |-separated group, around
            everything the group matches -->
+      <button id="feedback-open" class="ghost" type="button" hidden>Missing something?</button>
       <div class="help">
         <button id="help-button" class="ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-panel" aria-label="How the page works" title="How the page works" hidden>
           <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M5.2 5.6a2.8 2.8 0 1 1 4.2 2.4c-.9.5-1.4 1.05-1.4 2.05" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="13.1" r="1.05" fill="currentColor"/></svg>
@@ -359,10 +360,6 @@
       </div>
     </section>
   </main>
-
-  <footer class="site-footer">
-    <button id="feedback-open" class="ghost" type="button">Missing something?</button>
-  </footer>
 
   <dialog id="feedback-dialog">
     <form id="feedback-form">

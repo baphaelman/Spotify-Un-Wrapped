@@ -137,6 +137,7 @@ function showView(view) {
   $("controls-button").hidden = !state.plays;
   // The guide points at the stats page's controls
   $("help-button").hidden = $("dashboard").hidden;
+  $("feedback-open").hidden = $("dashboard").hidden;
   closeControls();
   closeHelp();
   if (view === "community") renderCommunity(state.sample ? null : state.raw);

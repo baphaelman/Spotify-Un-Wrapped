@@ -885,6 +885,8 @@ dialog pre {
 .controls, .help { position: relative; display: flex; }
 :is(#controls-button, #help-button) { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
 :is(#controls-button, #help-button)[hidden] { display: none; }
+#feedback-open { padding: 6px 10px; font-size: 13px; color: var(--text-secondary); }
+#feedback-open:hover { color: var(--text-primary); }
 :is(#controls-button, #help-button):is(:hover, [aria-expanded="true"]) { color: var(--text-primary); }
 /* The gear turns while its panel is open */
 #controls-button svg { transition: transform var(--motion-grow) var(--ease-out); }
@@ -1137,7 +1139,6 @@ dialog pre {
 .chart-legend .legend-item.focus:not(.pinned) { background: color-mix(in srgb, var(--c) 12%, transparent); }
 
 /* Feedback */
-.site-footer { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; text-align: center; }
 #feedback-form { display: flex; flex-direction: column; gap: 10px; }
 dialog textarea, dialog input[type="text"], dialog input[type="password"] {
   font: inherit;
