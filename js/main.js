@@ -115,7 +115,7 @@ window.addEventListener("drop", (e) => e.preventDefault());
 $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 // Remembered plays from before the reasons were kept: reading the files again brings the skips and picks
 $("skips-reread").addEventListener("click", () => $("file-input").click());
-$("skips-other").addEventListener("change", () => state.mixArgs && renderMix(...mixArgs));
+$("skips-other").addEventListener("change", () => state.mixArgs && renderMix(...state.mixArgs));
 
 $("reset").addEventListener("click", () => {
   if (!state.sample) {
@@ -282,7 +282,7 @@ function retune(card) {
   else if (card === "discovery-card") paintDiscovery();
   else if (card === "rank-card") paintRankRace();
   else if (card === "mix-card") placeMix();
-  else if (card === "skips-card" && state.mixArgs) renderMix(...mixArgs);
+  else if (card === "skips-card" && state.mixArgs) renderMix(...state.mixArgs);
   else if (card === "race-card") paintRate();
 }
 function syncEverything() {
@@ -510,7 +510,7 @@ onSelectionChange($("chart-rolling"), (hidden) => {
   state.hidden = hidden;
   if (!state.plays) return;
   renderDependents();
-  if (state.mixArgs) renderMix(...mixArgs);
+  if (state.mixArgs) renderMix(...state.mixArgs);
   paintArtistKey();
   paintBrush(undefined, brushMorph ?? { ms: MORPH_MS });
 });
