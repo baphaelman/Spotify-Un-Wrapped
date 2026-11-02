@@ -916,6 +916,9 @@ dialog pre {
 .controls, .help { position: relative; display: flex; }
 :is(#controls-button, #help-button) { display: grid; place-items: center; padding: 6px 9px; color: var(--text-secondary); }
 :is(#controls-button, #help-button)[hidden] { display: none; }
+/* The GitHub link sits after the gear, shaped like the ghost buttons beside it */
+#github-link { display: grid; place-items: center; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); transition: color var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out); }
+#github-link:hover { color: var(--text-primary); background: var(--border); }
 #feedback-open { padding: 6px 10px; font-size: 13px; color: var(--text-secondary); }
 #feedback-open:hover { color: var(--text-primary); }
 :is(#controls-button, #help-button):is(:hover, [aria-expanded="true"]) { color: var(--text-primary); }
