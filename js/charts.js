@@ -402,8 +402,10 @@ function flightData(st) {
   const p = (performance.now() - F.t0) / F.ms;
   if (!(p < 1)) return null;
   const e = easeInOut(Math.max(0, p));
-  const lerp = (a, b) => (Array.isArray(a?.[0]) ? a.map((r, j) => lerp(r, b[j])) : a && a.map((v, i) => (v == null || b[i] == null ? v : v + (b[i] - v) * e)));
-  const rows = (a, b) => a.map((r, k) => lerp(r, b[k]));
+  // Shaped like where it's going: an artist's albums or songs can number differently at each end, and a row or
+  // value missing at the start is taken as it ends
+  const lerp = (a, b) => (a == null || b == null ? b : Array.isArray(b[0]) ? b.map((r, j) => lerp(a[j], r)) : b.map((v, i) => (v == null || a[i] == null ? v : a[i] + (v - a[i]) * e)));
+  const rows = (a, b) => b.map((r, k) => lerp(a?.[k], r));
   const { from, to } = F;
   return {
     ...to,
