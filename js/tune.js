@@ -25,6 +25,8 @@ export const TUNES = [
   { key: "hoursLine", card: "hours-card", label: "Line width", def: 1.5, min: 0.25, max: 6, step: 0.25, fmt: px },
   { key: "lineFill", card: "hours-card", label: "Lit line fill", def: 1, min: 0, max: 6, step: 0.1, fmt: x },
   { key: "ridgeGap", card: "hours-card", label: "Distance between graphs", def: 24, min: 4, max: 70, step: 1, fmt: px },
+  // (0: every gap ridgeGap; more: a tall ridge lifts the ones above it, see ridgeLayout)
+  { key: "ridgeFollow", card: "hours-card", label: "Distance follows the peak below", def: 0.75, min: 0, max: 1.5, step: 0.05, fmt: (v) => (+v ? `${Math.round(v * 100)}% of it` : "Off (even)") },
   { key: "maxBars", card: "monthly-card", label: "Most bars", def: 18, min: 4, max: 60, step: 1, fmt: (v) => `${v}` },
   { key: "barGap", card: "monthly-card", label: "Gap between bars", def: 30, min: 0, max: 90, step: 5, fmt: (v) => `${v}%` },
   { key: "clockReach", card: "clock-card", label: "Blur reach", def: 4, min: 0, max: 12, step: 0.5, fmt: h },

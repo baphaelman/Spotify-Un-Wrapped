@@ -53,9 +53,9 @@ export function linkStrip(el, strip) {
 }
 
 // The strip as ridgelines (the card's "Separate artists"): each artist's line on a baseline of its own, in rank order
-// from the top, tune.ridgeGap px apart, on one shared scale whose tallest peak in range reaches the plot's top from the
-// top baseline (at least RIDGE_PEAK px, the strip growing if it must), so no peak is cut off however close the ridges
-// are. The y axis then counts pixels up from the bottom baseline. Same series as the lines, so switching morphs point
+// from the top, each tune.ridgeGap px above the one below or more for a tall one below it (ridgeLayout), on one shared
+// scale that keeps every peak in range on the plot (the tallest at least RIDGE_PEAK px, the strip growing if it
+// must). The y axis then counts pixels up from the bottom baseline. Same series as the lines, so switching morphs point
 // by point; the plot keeps its height and the bottom baseline is the lines' floor, so the bottom line stays put.
 const ridged = new WeakSet();
 const STRIP_H = 400; // the strip's height as lines (.chart.strip in css/style.css)
@@ -87,6 +87,36 @@ function nudge(want, gap, lo, hi) {
   const y = pools.flatMap((p) => Array(p.n).fill(p.sum / p.n)).map((v, j) => v + j * gap);
   const shift = Math.max(0, lo - (y[0] ?? lo)) - Math.max(0, (y.at(-1) ?? hi) - hi);
   return y.map((v) => v + shift);
+}
+
+// Ridges for rows (top to bottom) with peaks (name → hours per week in range): the plot's height (at least minH,
+// more if the tallest peak needs it to reach RIDGE_PEAK px), each baseline (px up from the plot's floor) and the scale
+// (px per hour). Each ridge stands tune.ridgeGap above the one below it or, if more, tune.ridgeFollow of that one's
+// peak, so a tall ridge lifts the ones above it clear rather than covering them. The scale is the largest that keeps
+// every peak on the plot; with an even gap (ridgeFollow 0), the tallest peak from the top baseline.
+function ridgeLayout(rows, peaks, minH) {
+  const g = tune.ridgeGap, f = tune.ridgeFollow;
+  const max = Math.max(0.1, ...rows.map((n) => peaks.get(n) ?? 0));
+  const place = (k) => {
+    const at = new Map();
+    let y = 0, top = 0, below = null;
+    for (const n of [...rows].reverse()) {
+      if (below != null) y += Math.max(g, f * below * k);
+      at.set(n, y);
+      below = peaks.get(n) ?? 0;
+      top = Math.max(top, y + (f ? below : max) * k);
+    }
+    return { at, top };
+  };
+  const h = Math.max(minH, place(RIDGE_PEAK / max).top);
+  // (the top only grows with the scale)
+  let lo = 0, hi = h / max;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (place(mid).top > h) hi = mid;
+    else lo = mid;
+  }
+  return { h, at: place(lo).at, k: lo };
 }
 
 // The strip's height follows its ridges. The page below moves on the morph's clock (the frame's height transitions),
@@ -171,25 +201,32 @@ function hoursTop(data, names, window, hasOther, hide, zoom) {
 // The tallest shown line in the zoom range, as it is
 function hoursPeak(data, names, window, hasOther, hide, zoom) {
   let m = 0;
-  const n = data.dates.length;
-  names.forEach((n_, s) => {
+  names.forEach((n, s) => {
     if (hasOther && s === names.length - 1) return;
-    if (hide?.[n_] === false) return;
-    const at = (i) => (data.share[s][i] != null ? (data.hours[s][i] / window) * 7 : null);
-    for (let i = 0; i < n; i++) {
-      const d = data.dates[i];
-      const v = at(i);
-      if (v == null) continue;
-      if (d >= zoom[0] && d <= zoom[1]) m = Math.max(m, v);
-      else if (i + 1 < n && d < zoom[0] && data.dates[i + 1] > zoom[0]) {
-        const w = at(i + 1);
-        if (w != null) m = Math.max(m, v + ((w - v) * (zoom[0] - d)) / (data.dates[i + 1] - d));
-      } else if (i > 0 && d > zoom[1] && data.dates[i - 1] < zoom[1]) {
-        const w = at(i - 1);
-        if (w != null) m = Math.max(m, w + ((v - w) * (zoom[1] - data.dates[i - 1])) / (d - data.dates[i - 1]));
-      }
-    }
+    if (hide?.[n] === false) return;
+    m = Math.max(m, linePeak(data, s, window, zoom));
   });
+  return m;
+}
+// Artist s's tallest in the zoom range. A line leaves the range between two points, so the value where it crosses
+// each edge counts, not the whole point just past it
+function linePeak(data, s, window, zoom) {
+  let m = 0;
+  const n = data.dates.length;
+  const at = (i) => (data.share[s][i] != null ? (data.hours[s][i] / window) * 7 : null);
+  for (let i = 0; i < n; i++) {
+    const d = data.dates[i];
+    const v = at(i);
+    if (v == null) continue;
+    if (d >= zoom[0] && d <= zoom[1]) m = Math.max(m, v);
+    else if (i + 1 < n && d < zoom[0] && data.dates[i + 1] > zoom[0]) {
+      const w = at(i + 1);
+      if (w != null) m = Math.max(m, v + ((w - v) * (zoom[0] - d)) / (data.dates[i + 1] - d));
+    } else if (i > 0 && d > zoom[1] && data.dates[i - 1] < zoom[1]) {
+      const w = at(i - 1);
+      if (w != null) m = Math.max(m, w + ((v - w) * (zoom[1] - data.dates[i - 1])) / (d - data.dates[i - 1]));
+    }
+  }
   return m;
 }
 
@@ -341,7 +378,7 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
       // Lines already leaving when this change interrupted the last one carry on gone
       const fade = new Set(st.flight?.fade ?? []);
       // (ridges: the rows it's coming from, see renderRolling)
-      artistCtx = { el, report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null, rows: A };
+      artistCtx = { el, report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null, rows: A, next: { rows: B, data: after, zoom } };
       renderRolling(el, before, uNames, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, uSlots, st.args[8]);
     }
     artistCtx = { el, report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers), rows: B };
@@ -795,29 +832,42 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
 
   // Ridges (see setRidges): a row for each artist shown, in rank order from the top; mid artist change, the rows of
   // the artists it's coming from, then going to (withArtistMorph). An artist without a row (hidden, or not arrived)
-  // lies flat on the next row down's baseline, faded out; one leaving sinks onto its own. The scale is held through
-  // an artist change's first step, which redraws what's on screen.
+  // lies flat where it will stand once it has one, faded out, so it draws in or rises there rather than climbing to
+  // it; one leaving sinks onto its own. The peaks are held through an artist change's first step, which redraws what's
+  // on screen.
   // As lines, the strip lists the same names in the same order, packed up from the plot's floor, NAME_PITCH apart or
   // the ridges' gap if that's closer: switching only spreads them up from the bottom one, if at all. A hidden artist has no row or name, as if it weren't there.
-  // As lines the strip sets its own axis top (the tallest shown line in range).
-  let ridgeBase = null, ridgeK = 0, plotH = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
+  // As lines the strip sets its own axis top (the tallest shown line in range). The plot is as tall either way.
+  const LINES_H = STRIP_H - STRIP_TOP - STRIP_BOTTOM;
+  let ridgeBase = null, ridgeK = 0, plotH = LINES_H;
   const order = (artistCtx?.el === el && artistCtx.rows) || artistsOf(names, hasOther);
   const nameRows = isStrip && !share ? order.filter((n) => names.includes(n) && visible(names.indexOf(n)) && !fading(names.indexOf(n))) : [];
-  const ridgeH = Math.max(0, nameRows.length - 1) * tune.ridgeGap + RIDGE_PEAK;
-  if (isStrip) plotH = Math.max(plotH, ridgeH);
+  const inRange = Number.isFinite(zoom?.[0]) ? zoom : [-Infinity, Infinity];
+  const peaksOf = (d, z) => new Map(names.map((n, s) => [n, linePeak(d, s, window, z)]));
+  const heldPeaks = artistCtx?.el === el && artistCtx.yMax != null && prev?.ridgePeaks;
+  const peaks = !isStrip || share ? null
+    : heldPeaks ? new Map(names.map((n, s) => [n, heldPeaks.get(n) ?? linePeak(data, s, window, inRange)])) : peaksOf(data, inRange);
+  const lay = peaks && ridgeLayout(nameRows, peaks, LINES_H);
+  if (lay) plotH = lay.h;
   if (ridge) {
-    const rows = nameRows;
-    const at = new Map(rows.map((n, r) => [n, (rows.length - 1 - r) * tune.ridgeGap]));
-    const nextRow = (list, n) => list.slice(list.indexOf(n) + 1).find((m) => at.has(m));
-    ridgeBase = names.map((n, s) =>
-      at.get(n) ?? (fading(s) && prev?.ridgeAt?.get(n)) ?? at.get(nextRow(order.includes(n) ? order : names, n)) ?? 0);
-    const peak = (artistCtx?.el === el && artistCtx.yMax != null && prev?.ridgePeak) ||
-      hoursPeak(data, names, window, hasOther, st.selected, Number.isFinite(zoom?.[0]) ? zoom : [-Infinity, Infinity]);
-    st.ridgePeak = Math.max(peak, 0.1);
+    // Where an artist without a row will stand: in the artist change's next step, or once shown. (Baselines count up
+    // from the floor, which moves by as much as the plot's height changes.)
+    const next = artistCtx?.el === el && artistCtx.next;
+    const nextLay = next && ridgeLayout(next.rows.filter((n) => names.includes(n) && visible(names.indexOf(n))),
+      peaksOf(next.data, Number.isFinite(next.zoom?.[0]) ? next.zoom : inRange), LINES_H);
+    const landing = (n, s) => {
+      if (s === otherIdx) return null;
+      if (nextLay?.at.has(n)) return nextLay.at.get(n) - (nextLay.h - plotH);
+      const list = order.includes(n) ? order : names;
+      const L = ridgeLayout(list.filter((m) => lay.at.has(m) || m === n), peaks, LINES_H);
+      return L.at.get(n) - (L.h - plotH);
+    };
+    ridgeBase = names.map((n, s) => lay.at.get(n) ?? (fading(s) && prev?.ridgeAt?.get(n)) ?? landing(n, s) ?? 0);
     st.ridgeAt = new Map(names.map((n, s) => [n, ridgeBase[s]]));
-    ridgeK = (plotH - Math.max(0, rows.length - 1) * tune.ridgeGap) / st.ridgePeak;
-    st.ridgeRows = at;
+    ridgeK = lay.k;
+    st.ridgeRows = lay.at;
   }
+  if (peaks) st.ridgePeaks = peaks;
   const namePitch = Math.min(NAME_PITCH, tune.ridgeGap);
   const range = [Number.isFinite(zoom?.[0]) ? zoom[0] : data.dates[0], Number.isFinite(zoom?.[1]) ? zoom[1] : data.dates[data.dates.length - 1]];
   const stripMax = isStrip && !share && !ridge ? (artistCtx?.yMax ?? hoursTop(data, names, window, hasOther, st.selected, range)) : null;

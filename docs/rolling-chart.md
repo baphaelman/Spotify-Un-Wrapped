@@ -50,7 +50,7 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
 - **Ridgelines (the strip only, `setRidges`).** The Hours card's "Separate artists" puts each hours line on a
   baseline of its own: the same series, values `base + hours × scale` and `areaStyle.origin` at the baseline (both
   tween, so the switch is a plain merge morph), filled with the share bands' tints and z-ordered so each ridge covers
-  the ones above it. The y axis counts pixels (`plotH`). The plot is the same height as lines and ridges (taller only
+  the ones above it. Each baseline sits `tune.ridgeGap` above the next or, if more, `tune.ridgeFollow` of that lower ridge's peak (`ridgeLayout`), so a tall ridge lifts the rest clear. An artist without a row (arriving, or hidden) lies flat where it will stand, so it draws in or rises in place. The y axis counts pixels (`plotH`). The plot is the same height as lines and ridges (taller only
   if the ridges need it, for a peak of at least `RIDGE_PEAK`), and the tallest peak in range reaches its top from the
   top baseline, so nothing is cut off. Rows follow rank, or mid artist change `artistCtx.rows` (the old artists, then
   the new); a hidden artist has none. The names (`paintRidgeNames`, HTML) sit on each line's floor in both modes, in
