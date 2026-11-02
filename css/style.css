@@ -1106,6 +1106,8 @@ dialog pre {
 .controls-warn p { padding-top: 2px; }
 .tune-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 20px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .tune { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name val" "input input" "def def"; column-gap: 8px; font-size: 11px; color: var(--text-secondary); }
+.tune { transition: opacity var(--motion-fade) var(--ease-out); }
+.tune.idle { opacity: 0.45; }
 .tune-name { grid-area: name; }
 .tune-val { grid-area: val; font-family: var(--mono); color: var(--text-primary); transition: color var(--motion-fade) var(--ease-out); }
 .tune-val.changed { color: var(--accent); }

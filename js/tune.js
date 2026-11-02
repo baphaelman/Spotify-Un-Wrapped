@@ -11,6 +11,7 @@ const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
 // A spec with `live` is also set from the graph itself, so its value applies with the switch off too.
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
+// A spec with `idle(values)` shows dimmed while another value leaves it with little to do.
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
 const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
@@ -24,9 +25,10 @@ export const TUNES = [
   { key: "curveScale", card: "rolling-card", label: "Curve rounding", def: 1, min: 0, max: 1.5, step: 0.05, fmt: x },
   { key: "hoursLine", card: "hours-card", label: "Line width", def: 1.5, min: 0.25, max: 6, step: 0.25, fmt: px },
   { key: "lineFill", card: "hours-card", label: "Lit line fill", def: 1, min: 0, max: 6, step: 0.1, fmt: x },
-  { key: "ridgeGap", card: "hours-card", label: "Distance between graphs", def: 24, min: 4, max: 70, step: 1, fmt: px },
+  // (only the least gap while ridgeFollow is on, so it shows dimmed)
+  { key: "ridgeGap", card: "hours-card", label: "Distance between graphs", def: 24, min: 4, max: 70, step: 1, fmt: px, idle: (v) => v.ridgeFollow > 0 },
   // (0: every gap ridgeGap; more: a tall ridge lifts the ones above it, see ridgeLayout)
-  { key: "ridgeFollow", card: "hours-card", label: "Distance follows the peak below", def: 0.75, min: 0, max: 1.5, step: 0.05, fmt: (v) => (+v ? `${Math.round(v * 100)}% of it` : "Off (even)") },
+  { key: "ridgeFollow", card: "hours-card", label: "Distance follows the peak below", def: 0.5, min: 0, max: 1.5, step: 0.05, fmt: (v) => (+v ? `${Math.round(v * 100)}% of it` : "Off (even)") },
   { key: "maxBars", card: "monthly-card", label: "Most bars", def: 18, min: 4, max: 60, step: 1, fmt: (v) => `${v}` },
   { key: "barGap", card: "monthly-card", label: "Gap between bars", def: 30, min: 0, max: 90, step: 5, fmt: (v) => `${v}%` },
   { key: "clockReach", card: "clock-card", label: "Blur reach", def: 4, min: 0, max: 12, step: 0.5, fmt: h },
@@ -98,6 +100,8 @@ function syncInputs() {
     val.textContent = spec.fmt(v);
     val.classList.toggle("changed", v !== spec.def);
   }
+  const values = Object.fromEntries(TUNES.map((s) => [s.key, Number.isFinite(mine[s.key]) ? mine[s.key] : s.def]));
+  for (const { input, spec } of inputs.values()) input.closest(".tune")?.classList.toggle("idle", !!spec.idle?.(values));
   for (const btn of document.querySelectorAll(".tune-reset")) {
     btn.disabled = !TUNES.some((s) => s.card === btn.dataset.card && Number.isFinite(mine[s.key]));
   }
