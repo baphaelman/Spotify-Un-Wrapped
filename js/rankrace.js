@@ -11,8 +11,8 @@
 // Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
 import * as agg from "./aggregate.js";
-import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut } from "./motion.js";
-import { $, state, putOff, rangePlays, shownName } from "./state.js";
+import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
+import { $, state, putOff, rangePlays, shownName, OTHER } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { tokens, alpha } from "./colors.js";
@@ -29,16 +29,39 @@ const SPANS = {
 };
 
 let c = null;
-// How many positions the chart shows: the slider at its top right
-const maxInput = $("rank-max");
-const positions = () => Math.round(+maxInput.value);
+// How many positions the chart shows: the slider at its top right. With "Everyone else" on, the chart is the key's
+// artists and everyone else, so the positions are locked to them (the slider, disabled, glides to that number and
+// back to the reader's own when it's off)
+const maxInput = $("rank-max"), otherInput = $("rank-other");
+let ownMax = +maxInput.value, maxTo = ownMax, maxGlide = 0;
+const positions = () => maxTo;
 const paintMax = () => {
   maxInput.style.setProperty("--p", (maxInput.value - maxInput.min) / (maxInput.max - maxInput.min));
-  $("rank-max-out").textContent = positions();
+  $("rank-max-out").textContent = Math.round(+maxInput.value);
 };
 paintMax();
+// The thumb and its number walk to `to` on the graph's tier, a fractional value with the step lifted
+function glideMax(to, ms = MORPH_MS) {
+  if (to === maxTo) return;
+  maxTo = to;
+  cancelAnimationFrame(maxGlide);
+  const from = +maxInput.value, total = dur(ms), start = performance.now();
+  maxInput.step = "any";
+  const tick = (now) => {
+    const e = total ? easeInOut(Math.max(0, Math.min(1, (now - start) / total))) : 1;
+    maxInput.value = from + (to - from) * e;
+    paintMax();
+    if (e < 1) maxGlide = requestAnimationFrame(tick);
+    else { maxInput.step = 1; maxInput.value = to; paintMax(); }
+  };
+  maxGlide = requestAnimationFrame(tick);
+}
 // (a drag is a moving input: each morph is cut short by the next)
-maxInput.addEventListener("input", () => { paintMax(); paintRankRace(CHASE_MS); });
+maxInput.addEventListener("input", () => { ownMax = maxTo = Math.round(+maxInput.value); paintMax(); paintRankRace(CHASE_MS); });
+otherInput.addEventListener("change", () => {
+  maxInput.disabled = otherInput.checked;
+  paintRankRace();
+});
 let st = null; // what the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered }
 let dropTimer = 0; // drops the lines that faded out
 
@@ -60,28 +83,32 @@ function chart(el) {
     const rowOf = (e) => e.target.closest?.(".rank-tip-row");
     tip.addEventListener("mouseover", (e) => { const li = rowOf(e); if (li && colPin != null) hover(li._key); });
     tip.addEventListener("mouseleave", () => { if (colPin != null && !pointer) hover(null); });
-    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) state.mixArgs?.[3]?.toggle(li._key); });
+    tip.addEventListener("click", (e) => { const li = rowOf(e); if (li && colPin != null) pin(li._key); });
   }
   return c;
 }
 
-// Hovering a line lights it here and, when it's one of the chart's artists, everywhere
+// Hovering a line lights it here and, when it's one of the chart's artists, everywhere (Everyone else is this chart's own)
 function hover(name) {
   if (!st || st.hovered === name || st.leaving.has(name)) return;
-  if (name == null || st.colors.has(name)) focusArtist($("chart-rolling"), name);
+  if (name == null || (st.colors.has(name) && name !== OTHER)) focusArtist($("chart-rolling"), name);
   focusRankRace(name);
 }
 
+// A click pins an item (one that isn't the chart's joins it); Everyone else can't be
+const pin = (name) => { if (name !== OTHER) state.mixArgs?.[3]?.toggle(name); };
+
 // The period's ranks: for each slice of `span` months (empty ones too), a Map item -> { r: rank, h: the hours it's
-// ranked by (by the month, the month and those either side)
-function ranksOf(plays, span) {
+// ranked by (by the month, the month and those either side). who: the item a play counts for (null for none)
+function ranksOf(plays, span, who = (p) => p.artist) {
   const keyOf = (t) => { const d = new Date(t); return Math.floor((d.getFullYear() * 12 + d.getMonth()) / span); };
   const buckets = new Map();
   for (const p of plays) {
     const k = keyOf(p.t);
     if (!buckets.has(k)) buckets.set(k, new Map());
     const m = buckets.get(k);
-    m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
+    const a = who(p);
+    if (a != null) m.set(a, (m.get(a) ?? 0) + p.ms / HOUR);
   }
   const keys = [];
   if (plays.length) for (let k = keyOf(plays[0].t); k <= keyOf(plays.at(-1).t); k++) keys.push(k);
@@ -110,16 +137,22 @@ export function paintRankRace(ms = MORPH_MS) {
   const t = tokens();
   const plays = rangePlays();
   const span = agg.monthSpan(plays, tune.maxBars + 1);
-  const { rows, labels } = ranksOf(plays, span);
+  // With Everyone else on: the key's shown artists, and everyone else as one
+  const hidden = new Set(state.hidden);
+  const other = otherInput.checked;
+  const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
+  const inKey = new Set(keyed);
+  glideMax(other ? keyed.length + 1 : ownMax);
+  const { rows, labels } = other ? ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : hidden.has(p.artist) ? null : OTHER)) : ranksOf(plays, span);
   const [unit, steps] = SPANS[span];
-  $("rank-note").textContent = `Where everything that reached the top ${positions()} stood, ${steps}` +
+  $("rank-note").textContent = (other ? `Where the key's ${keyed.length} and everyone else stood, ${steps}` : `Where everything that reached the top ${positions()} stood, ${steps}`) +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
   if (rows.length < 2) { scrub(null); dropRiders(); paintTimeline(true); c?.clear(); st = null; return; }
 
   const MAX = positions();
-  const hidden = new Set(state.hidden);
   const colors = new Map();
   for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
+  if (other) colors.set(OTHER, t.other);
   const names = new Set();
   for (const m of rows) for (const [a, e] of m) if (e.r <= MAX && !hidden.has(a)) names.add(a);
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)
@@ -309,7 +342,7 @@ function clickAt(x, y) {
   if (!st || !pointer) return;
   const rect = gridRect();
   if (!inLane(y, rect)) {
-    if (st.hovered != null) state.mixArgs?.[3]?.toggle(st.hovered);
+    if (st.hovered != null) pin(st.hovered);
     return;
   }
   const k = colAt(x);
