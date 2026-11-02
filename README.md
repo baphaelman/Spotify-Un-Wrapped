@@ -1,57 +1,87 @@
 # Spotify (Un)Wrapped
-If you have Spotify Premium you can request all your streaming data for free. This is a website that will automatically create beautiful visualizations once you drag your streaming files
 
-**Try it:** https://baphaelman.github.io/Spotify-Un-Wrapped/
+Spotify Wrapped is interesting but shallow. Turns out if you have Premium, you can access all the data they use to make your Wrapped, for free. **(Un)Wrapped** then creates beautiful visualizations and charts, inviting you to interact with your listening habits with more depth than a yearly slideshow.
 
-<img width="1163" height="608" alt="Screenshot 2026-10-30 at 5 44 43 PM" src="https://github.com/user-attachments/assets/ffe7c362-0dff-4838-8d2a-be2acb666761" />
+**Try it:** https://baphaelman.github.io/Spotify-Un-Wrapped/ (no export yet? click *Try it with sample data*)
 
+![The dashboard: the period bar, the listening mix and the Top Artists View](docs/images/dashboard.png)
 
-# Website
-## Run it
+## Getting started
 
-No build step or dependencies. Serve the folder with any static server:
+1. Request your data: go to [Spotify's privacy settings](https://www.spotify.com/account/privacy/), scroll to *Download your data*, check **Extended streaming history** and click *Request data*. Spotify emails you a zip, usually within a few days
+2. Open the site and drop in `my_spotify_data.zip`, its unzipped folder, or the `Streaming_History_Audio_*.json` files. The older *Account data* export (`StreamingHistory_music_*.json`, last year only) works too
+
+![The landing page](docs/images/landing.png)
+
+**Your files never leave your browser.** Everything is computed on your device, and it keeps the data until you click *Forget my data* in the settings. The only things looked up online are artist pictures and album covers (from Spotify) and artists' genres (from MusicBrainz and LastFM).
+
+## The Page
+
+### All about the window
+
+All the stats generated throughout the page depend on the period you select in the timeline on the navbar. Graphs throughout the page morph as you change the period because top artists of each period might be different. The rest of the navbar controls the page similarly:
+
+- **Timeline:** Scroll the window, or drag an edge to resize
+- **Lengths and years:** preset window sizes for 30 days, 3 or 6 months, 1 or 2 years, and step back and forward with ‹ ›. You can look at a specific year or your whole history with *All time* in the dropdown
+- **View:** choose whether you're breaking things up by **Genre**, **Artist**, **Album** or **Track**
+- **Artists slider:** how many of your top artists the graphs show (3 to 10)
+- **The key:** your top artists for the period. Hovering an artist anywhere on the page lightly shades them in every graph; click one to **pin** them, which shades them deeper, outlines them everywhere and persists through period changes. Click the color tab to hide someone. You can search for anyone in your history with *Pin an artist…*
+
+### Listening mix
+
+How your listening time split between your top artists in the period, with pictures. Click to pin
+
+### Top Artists View
+
+Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in.
+
+### Hours per week
+
+The same data as above, but not stacked nor normalized. More about seeing your listening time than an artist breakdown.
+
+![Hours per week](docs/images/hours.png)
+
+### Hours per month
+
+A bar per month with each month's top artist on top.
+
+![Hours per month](docs/images/monthly.png)
+
+### When you listened
+Similar data as the stack graph, but compressed by day. Maybe you have a sleep playlist, or you can see when you go to the gym.
+
+![When you listened](docs/images/clock.png)
+
+### All your artists
+
+The full ranking for the period, with hours and plays. Scroll to see literally all of it.
+
+![All your artists](docs/images/ranking.png)
+
+### Community
+
+If you opt in, which you should, the page shares an **anonymous summary** of your listening: your totals, your top 500 artists and tracks with hours, and a weekday × hour grid (which is compressed to make the 'When you listened' view). No timestamps, IP addresses, devices or locations. You can preview exactly what's sent before sharing and remove it any time, both under settings cog in the top right bar. Eventually, the **Community** tab will show how much people listen, the most shared artists and tracks, what time of day everyone listens, etc. But it needs 5 people so I can't really work on it yet---opt in please!!
+
+### PS
+
+- **Colors:** literally the same from day 1 but have served me well. I like riso print and synthwave
+- **?** button in the top right bar explains every control and lights it up on the page as you hover.
+- **Missing something?** at the bottom of the page sends a request straight to me, if you have an idea for something you'd want to see
+
+## Running it yourself
+
+No build step or dependencies: plain JavaScript modules, with [ECharts](https://echarts.apache.org/) for the
+charts. Serve the folder with any static server:
 
 ```sh
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000 and drop in `my_spotify_data.zip`, its unzipped folder, or the `Streaming_History_Audio_*.json` files. (Opening `index.html` straight from disk won't work, because browsers block ES modules over `file://`.)
+and open http://localhost:8000. Opening `index.html` straight from disk won't work, because browsers block
+modules over `file://`. The Community tab, pictures and genres use a [Supabase](https://supabase.com/) project,
+set in `js/config.js`; its tables and functions are in [`supabase/schema.sql`](supabase/schema.sql).
 
-To deploy, push the folder to any static host (GitHub Pages, Netlify, Cloudflare Pages).
+[`rolling_window.py`](rolling_window.py) is the original pandas/Plotly prototype the Top Artists View grew from.
 
-## Getting the data
-
-1. Go to [Spotify's privacy settings](https://www.spotify.com/account/privacy/) and scroll to *Download your data*.
-2. Check *Extended streaming history* and click *Request data*.
-3. Spotify emails you a zip. This can take a few days.
-
-The older *Account data* export (`StreamingHistory_music_*.json`, last year only) also works.
-
-## Layout
-
-| File | What it does |
-|---|---|
-| `index.html` | Page shell. Loads ECharts and JSZip from cdnjs |
-| `js/parse.js` | Reads the zip, folder, or JSON files and normalizes plays |
-| `js/aggregate.js` | Pure aggregations: top lists, monthly totals, the listening clock, and the rolling window (a port of `rolling_window.py`) |
-| `js/charts.js` | ECharts renderers |
-| `js/main.js` | Drag and drop, filters, tabs, sharing, and wiring |
-| `js/lists.js` | Ranked lists and stat tiles |
-| `js/store.js` | Remembers the loaded data on this device (IndexedDB) |
-| `dev/` | Test tools: headless screenshots, test pages, fake community data |
-| `js/summary.js` | Builds the anonymous summary that gets shared, plus the submission key |
-| `js/api.js`, `js/config.js` | Supabase client and settings |
-| `js/community.js` | Community page |
-| `supabase/schema.sql` | Tables and functions for the community pool |
-| `css/style.css` | Light and dark color tokens and layout |
-
-`rolling_window.py` is the original pandas/Plotly prototype.
-
-## Community pool (optional)
-
-Users can opt in to share an anonymous summary: totals, their top 500 artists and tracks with hours, and a weekday × hour grid. It's stored in Supabase and powers the Community tab.
-
-- Setup: paste [`supabase/schema.sql`](supabase/schema.sql) into the Supabase SQL editor and run it. The project URL and publishable key live in `js/config.js`.
-- The browser can only call the validated functions in that file. It can't read the tables.
-- Community charts only include artists and tracks shared by at least 5 contributors, and nothing appears until 5 people have shared.
-- Each submission is keyed by a hash of the user's first 200 plays, so re-uploading replaces the old summary, and only someone holding the data can remove it.
+## AI Note
+Claude made everything, I understand none of the server the backend, and I don't know the specifics of the graph backend. I made versions of most of these visualizations on Jupyter notebooks before asking Claude to make an interactive website with them,, it's been growing on that project since.
