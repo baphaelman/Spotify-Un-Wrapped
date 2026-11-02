@@ -319,10 +319,12 @@
           </div>
           <div id="race-speed" class="segmented solid race-speed" role="group" aria-label="Speed">
             <button type="button" data-speed="0.125" aria-pressed="false">0.125×</button>
-            <button type="button" data-speed="0.25" aria-pressed="false">0.25×</button>
+            <button type="button" data-speed="0.25" aria-pressed="true">0.25×</button>
             <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
-            <button type="button" data-speed="1" aria-pressed="true">1×</button>
-            <button type="button" data-speed="2" aria-pressed="false">2×</button>
+            <!-- The earlier speeds, kept under "Visual tweaks" (tune.js) -->
+            <button type="button" class="tweak-only" data-speed="1" aria-pressed="false" hidden>1×</button>
+            <button type="button" class="tweak-only" data-speed="2" aria-pressed="false" hidden>2×</button>
+            <button type="button" class="tweak-only" data-speed="4" aria-pressed="false" hidden>4×</button>
           </div>
         </div>
       </article>

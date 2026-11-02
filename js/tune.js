@@ -52,6 +52,8 @@ export function useTunes(everything) {
     row.classList.toggle("on", on);
     row.inert = !on;
   }
+  // Options kept from earlier choices (a faster speed, say) show only while it's on
+  for (const el of document.querySelectorAll(".tweak-only")) el.hidden = !on;
   syncInputs();
 }
 

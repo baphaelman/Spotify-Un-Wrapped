@@ -26,7 +26,8 @@ const TAU = CHASE_MS / 3;
 const SETTLED = 1e-3;
 
 let measure = "total";
-let speed = 1;
+const SPEED = 0.25; // the default; the buttons go from half as fast to twice as fast (more under "Visual tweaks")
+let speed = SPEED;
 let built = null; // { key, lo, hi, frames: [{ map, list, floor }] }
 let t = 0; // the playhead, a fractional day index in [lo, hi]
 let playing = false;
@@ -419,3 +420,9 @@ new ResizeObserver(() => {
   ticksWide = w;
   paintTicks();
 }).observe($("race-ticks"));
+
+// A speed hidden again (the visual tweaks switched off) gives way to the default
+new MutationObserver(() => {
+  const on = [...$("race-speed").children].find((b) => b.getAttribute("aria-pressed") === "true");
+  if (on?.hidden) $("race-speed").querySelector(`[data-speed="${SPEED}"]`).click();
+}).observe($("race-speed"), { subtree: true, attributes: true, attributeFilter: ["hidden"] });

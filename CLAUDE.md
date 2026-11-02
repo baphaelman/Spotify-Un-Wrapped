@@ -24,6 +24,13 @@ a stale cached stylesheet or script. The files in git stay unstamped.)
 - **Several agents work on this project at once, so each one works in its own worktree** (see below).
 - **Chart palette rules:** at most 10 categorical colors; color follows the artist, never the rank;
   "Everyone else" is always the gray `--other`.
+- **Options the owner passes over stay under "Visual tweaks".** Whenever the owner picks between options
+  (speeds, sizes, a toggle's choices, a value), and an option they didn't pick needs little code of its own (one more
+  button, a value on a slider), keep it reachable while the settings panel's "Visual tweaks" switch is on, rather
+  than deleting it: a number goes in `TUNES` (`tune.js`) as a slider on its card; a button or choice stays in the
+  markup with `class="tweak-only"` and `hidden`, which `useTunes` shows only while the switch is on. Off, the page
+  is exactly as chosen. Don't keep anything that would need real work of its own (a separate code path, its own
+  rendering), and say which options you kept.
 
 ## Working alongside other agents
 
@@ -105,7 +112,8 @@ All in `js/` unless noted. Read a file's own comments for the details.
 - `genres.js`, `families.js`: the Genres view's data: each artist's genres from our `genres` edge function, and the
   broad families they're grouped into (see Genres below).
 - `tune.js`: the graphs' hidden variables (tints, widths, blur scaling, cutoffs) behind the settings panel's "Visual
-  tweaks" switch, and each card's row of sliders for them. Off, `tune` holds the defaults. Imports nothing.
+  tweaks" switch, and each card's row of sliders for them; it also shows the `.tweak-only` controls while the switch
+  is on. Off, `tune` holds the defaults. Imports nothing.
 - `race.js`: the "Top … over time" card: each day's top list through the period, played like a video (play, scrub, speed),
   with rows, slider and date on one clock.
 - `mix.js`: the listening mix bar; `lists.js`: ranked lists and stat tiles; `store.js`: plays kept in IndexedDB.
