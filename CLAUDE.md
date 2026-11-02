@@ -53,7 +53,7 @@ Several agents work at once, each on its own branch and folder.
 
 All in `js/` unless noted; each file's own comments have the details.
 
-- `parse.js`: zip, folder or JSON → `{t, ms, artist, track, album, skipped, id}`.
+- `parse.js`: zip, folder or JSON → `{t, ms, artist, track, album, skipped, id, rs, re}` (rs, re: why a play began and ended).
 - `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()`.
 - `charts.js`: every ECharts renderer; most complexity is in `renderRolling`.
 - `motion.js`: timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, `tweenNumber`, `flip`, `dur`, `litLook`.
@@ -67,7 +67,7 @@ All in `js/` unless noted; each file's own comments have the details.
 - `theme.js`: palettes and light/dark. `tune.js`: the Visual tweaks sliders (`TUNES`) and `.tweak-only`; imports nothing.
 - `views.js`: plays as each view sees them (`keyedPlays`). `genres.js`, `families.js`: the Genres view's data.
 - `every.js`: "Every play" and "Every day", drawn on their own canvas (per-artist `Path2D`s, eased looks, crossfades).
-- `race.js`: "Top … over time". `mix.js`: the mix bar. `sunburst.js`: "Inside your top …", the rings under it. `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB.
+- `race.js`: "Top … over time". `mix.js`: the mix bar. `skips.js`: skips and picks. `sunburst.js`: "Inside your top …", the rings under it. `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB.
 - `covers.js`: pictures (see below). `summary.js`, `api.js`, `config.js`, `community.js`, `supabase/schema.sql`: the
   community pool. `feedback.js`: "Missing something?" and the owner's inbox (`#inbox`).
 

@@ -5,6 +5,7 @@ import { focusArtist, focusMonthly, focusClock, focusDiscovery, onFocusChange, o
 import { setBrushData, brushRange, glideBrushRange } from "./brush.js";
 import { FADE_MS, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { setupMix, highlightMix, placeMix } from "./mix.js";
+import { setupSkips, highlightSkips } from "./skips.js";
 import { buildTunes, useTunes, tunesChanged } from "./tune.js";
 import { buildSummary, submissionKey } from "./summary.js";
 import { renderCommunity } from "./community.js";
@@ -111,6 +112,9 @@ dz.addEventListener("drop", async (e) => {
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
 $("file-input").addEventListener("change", (e) => load([...e.target.files]));
+// Remembered plays from before the reasons were kept: reading the files again brings the skips and picks
+$("skips-reread").addEventListener("click", () => $("file-input").click());
+$("skips-other").addEventListener("change", () => mixArgs && renderMix(...mixArgs));
 
 $("reset").addEventListener("click", () => {
   if (!state.sample) {
@@ -276,6 +280,7 @@ function retune(card) {
   else if (card === "raster-card") paintEvery();
   else if (card === "discovery-card") paintDiscovery();
   else if (card === "mix-card") placeMix();
+  else if (card === "skips-card" && mixArgs) renderMix(...mixArgs);
   else if (card === "race-card") paintRate();
 }
 function syncEverything() {
@@ -332,7 +337,7 @@ function applyDim() {
   $("artist-search").placeholder = `Pin ${w.a}…`;
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
-  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = otherLabel();
+  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = $("skips-other-label").textContent = otherLabel();
   $("clock-note").textContent = `${w.who} you listen to through the day, as a share of that time, in your local time zone`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);
@@ -503,8 +508,10 @@ onSelectionChange($("chart-rolling"), (hidden) => {
 });
 
 setupMix((name) => focusArtist($("chart-rolling"), name));
+setupSkips((name) => focusArtist($("chart-rolling"), name));
 onFocusChange($("chart-rolling"), (name) => {
   highlightMix(name);
+  highlightSkips(name);
   paintFocus(name);
   focusMonthly($("chart-monthly"), name);
   focusClock($("chart-clock"), name);

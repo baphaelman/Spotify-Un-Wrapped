@@ -7,6 +7,7 @@ import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { renderRaster, renderCalendar } from "./every.js";
+import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
 import { $, state, noun, extent, presetOf, presetLabel, rangePlays, shownPlays, splitKind, hooks, putOff, rangeTotals } from "./state.js";
@@ -312,8 +313,10 @@ export function paintDiscovery() {
   renderDiscovery($("chart-discovery"), shown, [start, end], floor, top, keyed, keyed.map((n) => state.colorSlots.get(n)), pins, hover, tune.discoveryDot);
 }
 
-// The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period
+// The listening mix bar: the same artists, colors and per-day hours as the chart above, over the period; and the
+// skips and picks of the same artists (skips.js)
 let mixMemo = null;
+let reasonsMemo = null; // whether the loaded plays carry their reasons (aggregate.hasReasons), per loaded plays
 export let mixArgs = null; // the last renderMix arguments, to redraw the bar when only the legend's selection changed
 export function renderMix(artists, slots, includeOther, pins) {
   mixArgs = [artists, slots, includeOther, pins];
@@ -325,6 +328,12 @@ export function renderMix(artists, slots, includeOther, pins) {
   const { items, count } = rangeTotals();
   const plays = new Map(artists.map((n) => [n, items.get(n)?.n ?? 0]));
   if (includeOther) plays.set("Everyone else", count - [...new Set(artists)].reduce((t, n) => t + (items.get(n)?.n ?? 0), 0));
+  // Skips and picks, when the plays say why they began and ended; plays remembered from before parse.js kept that
+  // have it back once the files are read again
+  if (reasonsMemo?.raw !== state.raw) {
+    const has = agg.hasReasons(state.raw);
+    reasonsMemo = { raw: state.raw, has, lost: !has && !state.sample && state.raw.some((p) => p.id) }; // lost: an extended history
+  }
   // A genre's picture is its biggest artist in the period, so it follows the period
   const covers = state.dim === "genre" ? genreCoversIn(rangePlays()) : state.covers;
   updateMix({
@@ -348,6 +357,17 @@ export function renderMix(artists, slots, includeOther, pins) {
     },
     lo: state.range.lo,
     hi: state.range.hi,
+  });
+  updateSkips({
+    names: artists,
+    other: $("skips-other").checked,
+    slots,
+    hidden: new Set(state.hidden),
+    pins,
+    periodLabel: presetLabel(),
+    title: (n) => state.titles?.get(n) ?? n,
+    reasons: reasonsMemo.has ? items : null,
+    reasonsLost: reasonsMemo.lost,
   });
 }
 

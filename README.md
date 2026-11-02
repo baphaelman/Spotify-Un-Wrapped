@@ -35,6 +35,12 @@ How your listening time split between your top artists in the period, with pictu
 
 The same artists opened up into rings: each artist, then their albums, then their songs, sized by hours and labeled with their share of the period where it fits. Click a slice to zoom into it, and click the middle circle to come back out. Switching tabs keeps you on the same thing where it's there: an album you opened under its artist stays open in Albums, and back in Artists you can step out to its artist again. In the Albums view it's each album's songs, and in Genres each genre's artists and then their albums (it doesn't show in Tracks).
 
+### Skips and picks
+
+For each of those artists, a bar of their plays in the period: the songs you picked yourself (clicked in a list), the
+ones that just came up next, and the ones you skipped, in shades of their color, with how often you picked and skipped
+them beside it. Hover for their hours and plays; click to pin. A switch adds everyone else, for comparison.
+
 ### Top Artists View
 
 Each selected artist's share of your listening as stacked bands. Each point averages the days around it (*Days per slice*, from a week to half a year). You can split each artist into their **albums** or **songs**, and further explore by clicking in. Toggle **Everyone else** to add the rest of your listening as a gray band on top.

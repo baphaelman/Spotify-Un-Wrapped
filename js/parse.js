@@ -1,5 +1,5 @@
 // Turns whatever the user dropped (zip, folder, JSON files) into a flat list of plays:
-// { t: epoch ms, ms: ms played, artist, track, album, skipped }
+// { t: epoch ms, ms: ms played, artist, track, album, skipped, id, rs, re }
 
 const EXTENDED = /Streaming_History_Audio.*\.json$/i;        // "Extended streaming history"
 const ACCOUNT = /StreamingHistory(_music)?_?\d*\.json$/i;     // older "Account data" export
@@ -60,6 +60,10 @@ function normalizeExtended(r) {
     track: r.master_metadata_track_name || "Unknown track",
     album: r.master_metadata_album_album_name || "",
     skipped: !!r.skipped,
+    // Why the play began and ended (reason_start, reason_end): "clickrow" is a song picked from a list, "fwdbtn" the
+    // next button. The mix bar's skips and picks read them (isSkip, isPick in aggregate.js)
+    rs: r.reason_start || "",
+    re: r.reason_end || "",
     // Spotify's ID for the track (spotify:track:<id>), which finds its album cover (covers.js)
     id: r.spotify_track_uri?.split(":")[2] || undefined,
   };

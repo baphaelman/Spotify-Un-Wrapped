@@ -1135,6 +1135,65 @@ dialog pre {
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-hours .mix-hours { opacity: 1; }
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+/* Skips and picks (skips.js): a row per artist, its name, a thick bar of its plays split into picked / played on /
+   skipped in shades of its color, and its pick and skip rates. Rows light and pin like the mix's cards. */
+.skips-head[hidden], #skips-card[hidden] { display: none; }
+/* The key: each word over the middle of its part of the top artist's bar (skips.js sets their flex-grow); its swatch
+   only shows with vertical bars, where there's no bar beneath to point at */
+.skips-key { display: flex; gap: 2px; font-size: 12px; }
+.skips-key > span { flex: 0 0 0; min-width: 0; display: flex; justify-content: center; align-items: center; gap: 6px; white-space: nowrap; transition: flex-grow var(--motion-morph) var(--ease-in-out); }
+.skips-key i { display: none; --c: var(--text-secondary); width: 14px; height: 10px; border-radius: 2px; }
+#skips-note { font-size: 12px; margin: 10px 0 0; }
+#skips-note button { padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.skips-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+/* The head and every row share columns: name, bar, picked, skipped */
+.skips-head, .skips-list li { display: grid; grid-template-columns: minmax(0, 180px) 1fr 7ch 7ch; align-items: center; column-gap: 14px; }
+.skips-head { margin-top: 12px; padding: 0 10px 4px; }
+.skips-head > .num { font-size: 12px; }
+.skips-list li {
+  --tint: 14%;
+  padding: 3px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; position: relative;
+  transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out);
+}
+.skips-list li::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent); transition: box-shadow var(--motion-fade) var(--ease-out);
+}
+.skips-list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: color-mix(in srgb, var(--text-primary) 80%, var(--c)); transition: color var(--motion-fade) var(--ease-out); }
+.skips-bar { display: flex; height: var(--skips-bar, 18px); border-radius: 6px; overflow: hidden; gap: 2px; }
+.skips-bar > i { flex: 0 0 0; min-width: 0; transition: flex-grow var(--motion-morph) var(--ease-in-out); }
+.skips-bar .picked, .skips-key .picked { background: var(--c); }
+.skips-bar .on, .skips-key .on { background: color-mix(in srgb, var(--c) 50%, var(--surface)); }
+.skips-bar .skipped, .skips-key .skipped { background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
+.skips-head .num, .skips-list .num { text-align: right; white-space: nowrap; }
+.skips-list .num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.skips-list li:is(.focus, :hover) { background-color: color-mix(in srgb, var(--c) var(--tint), transparent); }
+.skips-list li.pinned { background-color: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin)), transparent); }
+.skips-list li.pinned:is(.focus, :hover) { background-color: color-mix(in srgb, var(--c) calc(var(--tint) * var(--lit-pin-hover)), transparent); }
+.skips-list li.pinned::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
+.skips-list li:is(.pinned, .focus, :hover) .name { color: var(--text-primary); font-weight: 600; }
+.skips-list li.dim { opacity: var(--dim-item); }
+.skips-list li.dim.glance { opacity: var(--dim-item-hover); }
+.skips-list li:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
+.skips-list li.other { cursor: default; }
+/* Vertical bars (a visual tweak): a column per artist, its bar standing with picked at the foot, its name and rates
+   beneath; the key is a plain row of swatches */
+#skips-card[data-look="1"] .skips-head:not([hidden]) { display: block; }
+#skips-card[data-look="1"] .skips-head > :not(.skips-key) { display: none; }
+#skips-card[data-look="1"] .skips-key { gap: 16px; }
+#skips-card[data-look="1"] .skips-key > span { flex: none; }
+#skips-card[data-look="1"] .skips-key i { display: block; }
+#skips-card[data-look="1"] .skips-list { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+#skips-card[data-look="1"] .skips-list li { grid-template-columns: minmax(0, 1fr); justify-items: center; row-gap: 6px; padding: 10px 6px; text-align: center; }
+#skips-card[data-look="1"] .skips-bar { order: -1; flex-direction: column-reverse; width: calc(var(--skips-bar, 18px) * 2); height: 180px; }
+#skips-card[data-look="1"] .skips-list .name { max-width: 100%; }
+#skips-card[data-look="1"] .skips-list .pick::after { content: " picked"; }
+#skips-card[data-look="1"] .skips-list .skip::after { content: " skipped"; }
+@media (max-width: 600px) {
+  .skips-head, .skips-list li { grid-template-columns: minmax(0, 1fr) 7ch 7ch; }
+  .skips-bar, .skips-key { grid-column: 1 / -1; grid-row: 2; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .skips-list li, .skips-list li::after, .skips-bar > i, .skips-key > span { transition: none; } }
 /* Under the bar, every segment in full as a card: a light wash of its color, with a tab of it just outside to the
    left. A hovered card deepens its wash; a pinned one also draws a ring in its color on all four sides. Cards are narrow enough that the
    default 8 artists fit on two rows of four */

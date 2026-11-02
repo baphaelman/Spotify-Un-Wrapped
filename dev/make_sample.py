@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Builds sample/history.json.gz, the "Try it with sample data" history (js/sample.js reads it), from the owner's
 extended streaming history. It keeps only what the page uses, the fields parse.js keeps per play
-({t, ms, artist, track, album, skipped, id}): no IP addresses, platforms, countries, reasons or anything else.
+({t, ms, artist, track, album, skipped, id}), and of the reasons a play began and ended only whether it was picked
+(reason_start "clickrow") or skipped with the next button (reason_end "fwdbtn"): no IP addresses, platforms, countries
+or anything else.
 
 Columnar, with string tables, then gzipped (the browser unzips it with DecompressionStream):
   artists, albums: names
   tracks: [[name, artist index, album index, Spotify track ID or ""], ...]
   t0: the first play's time (epoch seconds); dt: each play's seconds after the one before
-  ms: ms played; k: each play's track index; skip: the skipped plays' indices, each as the gap after the last
+  ms: ms played; k: each play's track index; skip: the skipped plays' indices, each as the gap after the last;
+  pick, fwd: the same for the plays begun with "clickrow" and ended with "fwdbtn"
 
   python3 dev/make_sample.py [history folder]
 """
@@ -34,7 +37,8 @@ for f in sorted(src.glob("Streaming_History_Audio*.json")):
         uri = r.get("spotify_track_uri") or ""
         plays.append((t, r.get("ms_played") or 0, artist, r.get("master_metadata_track_name") or "Unknown track",
                       r.get("master_metadata_album_album_name") or "", bool(r.get("skipped")),
-                      uri.split(":")[2] if uri.count(":") >= 2 else ""))
+                      uri.split(":")[2] if uri.count(":") >= 2 else "",
+                      r.get("reason_start") == "clickrow", r.get("reason_end") == "fwdbtn"))
 plays.sort(key=lambda p: p[0])
 
 def table():
@@ -44,16 +48,18 @@ def table():
 artists, artist_of = table()
 albums, album_of = table()
 tracks, track_of = table()
-out = {"v": 1, "t0": plays[0][0], "dt": [], "ms": [], "k": [], "skip": []}
-last_t, last_skip = plays[0][0], -1
-for i, (t, ms, artist, track, album, skipped, tid) in enumerate(plays):
+out = {"v": 2, "t0": plays[0][0], "dt": [], "ms": [], "k": [], "skip": [], "pick": [], "fwd": []}
+last_t = plays[0][0]
+last = {"skip": -1, "pick": -1, "fwd": -1}
+for i, (t, ms, artist, track, album, skipped, tid, pick, fwd) in enumerate(plays):
     out["dt"].append(t - last_t)
     last_t = t
     out["ms"].append(ms)
     out["k"].append(track_of((track, artist_of(artist), album_of(album), tid)))
-    if skipped:
-        out["skip"].append(i - last_skip)
-        last_skip = i
+    for key, on in (("skip", skipped), ("pick", pick), ("fwd", fwd)):
+        if on:
+            out[key].append(i - last[key])
+            last[key] = i
 out["artists"] = list(artists)
 out["albums"] = list(albums)
 out["tracks"] = [list(k) for k in tracks]

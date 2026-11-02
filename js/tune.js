@@ -10,6 +10,7 @@ const x = (v) => `×${(+v).toFixed(2).replace(/\.?0+$/, "")}`;
 const px = (v) => `${+v} px`;
 const h = (v) => `${+v} h`;
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
+const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -35,6 +36,8 @@ export const TUNES = [
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
+  { key: "skipsLook", card: "skips-card", label: "Bars", def: 0, options: SKIPS_LOOKS, fmt: (v) => SKIPS_LOOKS[v] },
+  { key: "skipsBar", card: "skips-card", label: "Bar thickness", def: 18, min: 4, max: 40, step: 1, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },
 ];
 const DEFAULTS = Object.fromEntries(TUNES.map((s) => [s.key, s.def]));

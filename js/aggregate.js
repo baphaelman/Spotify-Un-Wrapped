@@ -48,15 +48,27 @@ function sumBy(plays, keyFn) {
 
 // Each item's totals over some plays, in order of first play: { hours, ms, plays (a shared genre play counts its
 // share), n (records) }, summed in the same order as sumBy and paintRanking do, so they rank alike
+// A skip: the file says skipped, or the play ended with the next button. A pick: the song was clicked in a list.
+// (parse.js keeps the reasons; data remembered before it did has none, see hasReasons.)
+export const isSkip = (p) => p.skipped || p.re === "fwdbtn";
+export const isPick = (p) => p.rs === "clickrow";
+// Whether plays carry why they began and ended (an extended history read since parse.js kept the reasons)
+export const hasReasons = (plays) => plays.some((p) => p.rs !== undefined);
+
+// skip, pick: plays (weighted, as plays) skipped and picked; both: picked and then skipped
 export function itemTotals(plays) {
   const m = new Map();
   for (const p of plays) {
     let e = m.get(p.artist);
-    if (!e) m.set(p.artist, (e = { hours: 0, ms: 0, plays: 0, n: 0 }));
+    if (!e) m.set(p.artist, (e = { hours: 0, ms: 0, plays: 0, n: 0, skip: 0, pick: 0, both: 0 }));
+    const w = p.w ?? 1, s = isSkip(p), k = isPick(p);
     e.hours += p.ms / HOUR;
     e.ms += p.ms;
-    e.plays += p.w ?? 1;
+    e.plays += w;
     e.n++;
+    if (s) e.skip += w;
+    if (k) e.pick += w;
+    if (s && k) e.both += w;
   }
   return m;
 }
