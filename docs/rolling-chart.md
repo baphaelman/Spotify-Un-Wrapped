@@ -53,9 +53,11 @@ talks to the main chart. Both cards have a Days per slice slider; `#window` is t
   the ones above it. The y axis counts pixels (`plotH`); the tallest peak in range is `RIDGE_PEAK` px, and the top
   baseline sits that far below the plot's top. Rows follow rank, or mid artist change `artistCtx.rows` (the old
   artists, then the new). The strip's grid is placed from the top (`top` + `height`) so `sizeStrip` can grow its canvas
-  at once and shrink it after the morph while the card's frame glides. Its names are HTML (`paintRidgeNames`), in both
-  modes and in the same order (packed at the top as lines), and the plot's left and right don't change, so a switch only
-  spaces them out; the strip's hours axis is on the right. A pan holds
+  at once and shrink it after the morph while the card's frame glides. Its names are chips like the key's (`paintRidgeNames`: box
+  hides, click pins, hover lights), in both modes and in the same order, each centered on its line's floor (packed up
+  from the plot's floor as lines). As lines the strip is at least as tall as its ridges would be, so switching only moves
+  the chips up (down on the way back); the plot's left and right don't change, and the hours axis is on the right. A
+  hidden artist keeps its row, flat and faded. A pan holds
   the ridges' scale (no `yMax` travel); the artist morph after it rescales.
 - **Overlay series `t{k}`/`b{k}`** draw each band's top and bottom outline, thicker only while it's pinned (a hover only shades).
 - **The chart has no slider of its own.** Its `dataZoom` is hidden (`show: false`) and driven from the
