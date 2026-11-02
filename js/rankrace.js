@@ -5,7 +5,9 @@
 // reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them
 // a line dives below the floor, the deeper the further down the item really was, and comes back. Every line is
 // named at its best point (grays too, over whatever is there). Hovering reads the whole slice beside the pointer,
-// its rows sliding past each other as the pointer moves from one slice to the next.
+// its rows sliding past each other as the pointer moves from one slice to the next; meanwhile the names move to the
+// slice nearest the pointer, above each point on the chart there, and the other grays' names go (the chart's and
+// pinned artists not there keep theirs).
 // Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
 import * as agg from "./aggregate.js";
@@ -118,12 +120,16 @@ export function paintRankRace() {
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
-  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null };
+  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null };
+  // (the column the pointer is over, set before drawing, so a redraw under the pointer doesn't cut its own morph short)
+  if (pointer && c && !c.isDisposed()) st.col = colAt(pointer[0]);
   const cc = chart(el);
   el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
   else setOptionFaded(cc, option(), { replaceMerge: ["series"] }, dur(MORPH_MS));
+  // The readout follows at once (a pin's color, new ranks)
+  if (pointer) scrub(...pointer);
   if (leaving.size) dropTimer = setTimeout(() => {
     st.leaving = new Set();
     cc.setOption({ series: seriesOf() }, { replaceMerge: ["series"] });
@@ -140,7 +146,7 @@ const yOf = (m, a, MAX) => {
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
 
 function seriesOf() {
-  const { names, leaving, rows, colors, MAX, t, hovered } = st;
+  const { names, leaving, rows, colors, MAX, t, hovered, col: at } = st;
   const pinned = pinnedSet();
   const n = rows.length;
   return [...names, ...leaving].map((a) => {
@@ -155,11 +161,15 @@ function seriesOf() {
     // The best (lowest) rank, earliest: where the name goes
     let best = -1;
     if (!gone) ys.forEach((y, i) => { if (y <= MAX && (best < 0 || y < ys[best])) best = i; });
+    // Hovering, the name is above its point in the hovered column, or (for the chart's and pinned artists not on the
+    // chart there) stays at its best; other grays' go
+    let named = best;
+    if (at != null && best >= 0) named = ys[at] <= MAX ? at : col || pinned.has(a) ? best : -1;
     const data = ys.map((y, i) => {
       const d = { value: y, symbol: y <= MAX ? "circle" : "none" };
-      if (i === best) {
+      if (i === named) {
         d.label = {
-          show: true, formatter: shownName(a), position: i < n * 0.15 ? "right" : i > n * 0.85 ? "left" : "top", distance: col ? 8 : 6,
+          show: true, formatter: shownName(a), position: i === at ? "top" : i < n * 0.15 ? "right" : i > n * 0.85 ? "left" : "top", distance: col ? 8 : 6,
           fontSize: col ? tune.rankText + 2 : tune.rankText, fontWeight: col ? 700 : 500,
           color: col ? alpha(base, Math.min(1, 0.4 + k)) : alpha(t.muted, tune.rankGrayText * k),
           textBorderColor: alpha(t.surface, 0.85), textBorderWidth: col ? 3 : 2.5,
@@ -216,9 +226,18 @@ function scrub(x, y) {
     pointer = null;
     tip.classList.remove("on");
     cursor.classList.remove("on");
+    if (st?.col != null && c && !c.isDisposed()) {
+      st.col = null;
+      setOptionFaded(c, { series: seriesOf() }, undefined, dur(FADE_MS));
+    }
     return;
   }
   pointer = [x, y];
+  const k = colAt(x);
+  if (k !== st.col) {
+    st.col = k;
+    setOptionFaded(c, { series: seriesOf() }, undefined, dur(FADE_MS));
+  }
   const { rows, labels, colors, MAX, unit, hovered } = st;
   const n = rows.length, f = Math.max(0, Math.min(n - 1, ((x - rect.x) / rect.width) * (n - 1)));
   // The rows hold still near each slice and swap in the middle of the gap (tune.rankSwap of it), eased
@@ -259,15 +278,40 @@ function scrub(x, y) {
   tip.querySelector(".rank-tip-head").innerHTML = "";
   const head = tip.querySelector(".rank-tip-head");
   head.append(labels[Math.round(f)], Object.assign(document.createElement("small"), { textContent: `hours ${unit === "month" ? "over the 3 months around it" : `that ${unit}`}` }));
-  // Beside the pointer, to its left where there's room
+  // Beside the hovered column, clear of its names, to its left where there's room (gliding from column to column,
+  // style.css; appearing, it starts there rather than gliding in from where it last was)
   const ox = el.offsetLeft, oy = el.offsetTop, w = tip.offsetWidth, ht = tip.offsetHeight, W = el.parentElement.clientWidth;
-  const left = ox + x - w - 16 >= 0 ? ox + x - w - 16 : Math.min(ox + x + 16, W - w);
+  const slice = rect.width / (n - 1), at = ox + rect.x + k * slice;
+  const left = at - slice / 2 - w - 8 >= 0 ? at - slice / 2 - w - 8 : Math.min(at + slice / 2 + 8, W - w);
   const top = Math.max(0, Math.min(el.parentElement.clientHeight - ht, oy + y - ht / 2));
-  tip.style.transform = `translate(${left}px, ${top}px)`;
+  const place = `translate(${left}px, ${top}px)`;
+  if (!tip.classList.contains("on")) {
+    tip.style.transition = "none";
+    tip.style.transform = place;
+    tip.offsetWidth;
+    tip.style.transition = "";
+  }
+  tip.style.transform = place;
   tip.classList.add("on");
-  cursor.style.setProperty("--x", `${ox + x}px`);
-  cursor.style.setProperty("--slice", `${rect.width / (n - 1)}px`);
+  // A column centers on the nearest slice (gliding there, style.css); a line is at the pointer. Appearing, it starts
+  // where it is rather than gliding in from where it last was
+  const column = tune.rankCursor === 2 || tune.rankCursor === 3;
+  const cx = `${ox + (column ? rect.x + k * slice : x)}px`;
+  if (!cursor.classList.contains("on")) {
+    cursor.style.transition = "none";
+    cursor.style.setProperty("--x", cx);
+    cursor.offsetWidth; // (applies the jump before the transition comes back)
+    cursor.style.transition = "";
+  }
+  cursor.style.setProperty("--x", cx);
+  cursor.style.setProperty("--slice", `${slice}px`);
   cursor.style.top = `${oy + rect.y}px`;
   cursor.style.height = `${rect.height}px`;
   cursor.classList.add("on");
+}
+
+// The slice nearest the pointer at x, on the chart as drawn
+function colAt(x) {
+  const rect = c.getModel().getComponent("grid").coordinateSystem.getRect(), n = st.rows.length;
+  return Math.max(0, Math.min(n - 1, Math.round(((x - rect.x) / rect.width) * (n - 1))));
 }

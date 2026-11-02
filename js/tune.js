@@ -45,7 +45,7 @@ export const TUNES = [
   { key: "rankGrayText", card: "rank-card", label: "Opacity of other names", def: 0.7, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
   { key: "rankText", card: "rank-card", label: "Name size", def: 11, min: 7, max: 18, step: 0.5, fmt: px },
   { key: "rankDim", card: "rank-card", label: "Dimming of the rest when one is lit", def: 0.25, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}% left` },
-  { key: "rankCursor", card: "rank-card", label: "Where you are", def: 0, options: CURSOR_LOOKS, fmt: (v) => CURSOR_LOOKS[v] },
+  { key: "rankCursor", card: "rank-card", label: "Where you are", def: 2, options: CURSOR_LOOKS, fmt: (v) => CURSOR_LOOKS[v] },
   { key: "rankSwap", card: "rank-card", label: "Rows swap over", def: 0.5, min: 0.05, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}% of the gap` },
   { key: "rankDive", card: "rank-card", label: "How far lines dive below the chart", def: 1.6, min: 0.2, max: 4, step: 0.1, fmt: x },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
