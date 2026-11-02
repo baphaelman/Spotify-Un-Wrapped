@@ -573,7 +573,7 @@ button.ghost:hover { background: var(--border); }
 #chart-clock { height: 230px; }
 /* Every play and Every day (every.js): canvases, their box gliding to a new layout's height */
 .grid-chart { position: relative; overflow: hidden; height: auto; min-height: 120px; transition: height var(--motion-morph) var(--ease-in-out); }
-#chart-raster { height: 590px; }
+#chart-raster { height: 460px; }
 .canvas-tip {
   position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: 320px;
   background: var(--surface); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 8px;

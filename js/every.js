@@ -5,7 +5,7 @@
 // (MORPH_MS), and show their own hover card.
 
 import * as agg from "./aggregate.js";
-import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isPinLook } from "./motion.js";
+import { FADE_MS, CHASE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isPinLook } from "./motion.js";
 import { shownName, OTHER } from "./state.js";
 import { tune } from "./tune.js";
 
@@ -255,14 +255,38 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
+  const first = !v.key, moved = !first && data.some((x, i) => x !== v.key[i]);
+  Object.assign(v, { key, plays, lo, hi });
+  v.relayout = () => layoutRaster(v);
+  if (moved) {
+    // New plays (a period window dragged or travelling): the marks fade out and wait there until the changes stop
+    // coming, then the new ones fade in, rather than redrawing under the moving window
+    if (!v.waiting) fadeCanvas(v, 0, dur(FADE_MS), EASE_OUT.css);
+    v.waiting = true;
+    hideTip();
+    clearTimeout(v.waitTimer);
+    v.waitTimer = setTimeout(() => {
+      v.waiting = false;
+      layoutRaster(v);
+      settle(v, true);
+      fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css);
+    }, dur(CHASE_MS));
+    return;
+  }
+  if (v.waiting) return; // (the wait's end draws with what's current)
   if (relaid) {
-    // A new height only lays the marks out again; anything else crossfades
-    arrive(v, data.some((x, i) => x !== v.key?.[i]));
-    Object.assign(v, { key, plays, lo, hi });
-    v.relayout = () => layoutRaster(v);
+    if (first) fadeCanvas(v, 1, dur(ENTER_MS), EASE_OUT.css); // a new height only lays the marks out again
     layoutRaster(v);
   }
   settle(v, relaid);
+}
+
+// Fades the canvas to an opacity from wherever it is
+function fadeCanvas(v, to, ms, easing) {
+  const from = +getComputedStyle(v.canvas).opacity;
+  v.canvas.getAnimations().forEach((a) => a.cancel());
+  v.canvas.style.opacity = to;
+  if (ms) v.canvas.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing });
 }
 
 function layoutRaster(v) {
@@ -350,7 +374,7 @@ function timeTicks(lo, hi, plotW) {
 
 function drawRaster(v) {
   const { ctx, t, width: w, cssH: h } = v;
-  if (!v.paths) return;
+  if (!v.paths || v.waiting) return;
   ctx.clearRect(0, 0, w, h);
   ctx.font = `12px ${t.font}`;
   ctx.fillStyle = t.muted;
@@ -381,7 +405,7 @@ function drawRaster(v) {
 }
 
 function pickRaster(v, x, y) {
-  if (!v.byDay || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
+  if (!v.byDay || v.waiting || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
   const day = Math.floor((x - GRID.left) / v.dw);
   // Under a pixel wide, a day's marks share their column with their neighbours': look a pixel or two either way
   const reach = Math.ceil(2 / v.dw);
