@@ -295,12 +295,13 @@ function stillChart(c, st) {
 // re-ranked, morphs as before. Step 1 is skipped when the union is what's on screen already (artists only leaving),
 // and an interrupted change starts from where its bands had got to (flightData), so a dragged artist count keeps up.
 // Returns true if it handled this render.
-let artistCtx = null; // set while those steps draw: { report, strip, fade, yMax } (see renderRolling)
+let artistCtx = null; // set while those steps draw: { el, report, strip, fade, yMax } (see renderRolling)
 let redrawing = false; // set while a morph first redraws what's on screen (its selection isn't news, and the strip has no parts)
 const SEP = "\u0000";
 function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, pins, slots, smooth) {
   const st = rollingState.get(el);
-  if (!morph || morph.pan || morph.live || artistCtx || !st?.args || !data.share.length) return false;
+  // (the strip, drawn within the main chart's change, makes its own: it's other series, and lines come and go their own way)
+  if (!morph || morph.pan || morph.live || artistCtx?.el === el || !st?.args || !data.share.length) return false;
   if (st.mode !== mode || st.hasOther !== hasOther || st.window !== window) return false;
   const A = artistsOf(st.names, hasOther), B = artistsOf(names, hasOther);
   if (A.join(SEP) === B.join(SEP)) return false;
@@ -362,10 +363,10 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
       const yMax = share ? null : c?.getModel().getComponent("yAxis", 0)?.axis.scale.getExtent()[1];
       // Lines already leaving when this change interrupted the last one carry on gone
       const fade = new Set(st.flight?.fade ?? []);
-      artistCtx = { report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null };
+      artistCtx = { el, report: B, strip: null, fade, yMax: Number.isFinite(yMax) ? yMax : null };
       renderRolling(el, before, uNames, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, uSlots, st.args[8]);
     }
-    artistCtx = { report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers) };
+    artistCtx = { el, report: B, strip: { data, names, slots }, fade: share ? null : new Set(leavers) };
     renderRolling(el, after, uNames, window, zoom, mode, hasOther, { ms, easing }, pins, uSlots, smooth);
   } finally {
     artistCtx = outer;
@@ -379,7 +380,7 @@ function withArtistMorph(el, data, names, window, zoom, mode, hasOther, morph, p
       const st = rollingState.get(el);
       if (st?.renderToken !== token) return; // something re-rendered since
       // The same picture with the new artists alone; whatever's under the pointer stays lit
-      artistCtx = { report: B, strip: null };
+      artistCtx = { el, report: B, strip: null };
       st.keepFocus = st.focused;
       try {
         renderRolling(el, data, names, window, currentZoom(el) ?? zoom, mode, hasOther, false, pins, slots, smooth);
