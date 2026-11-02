@@ -91,7 +91,7 @@ export function drawnShapes(c) {
       const data = m.getData();
       for (let i = 0; i < data.count(); i++) {
         const el = data.getItemGraphicEl(i)?.childAt?.(0);
-        if (el) shapes.set(`${m.id}:${data.getName(i)}`, el);
+        if (el) shapes.set(`dot:${m.id}:${data.getName(i)}`, el);
       }
     }
   }
@@ -111,6 +111,9 @@ export function setOptionFaded(c, option, opts, ms, easing = EASE_IN_OUT.echarts
   for (const [k, e] of drawnShapes(c)) {
     const to = pickStyle(e.style);
     const was = before.get(k);
+    // A new dot grows in on ECharts' own entrance; faded in as well, a render cutting the fade short would leave it
+    // invisible (ECharts doesn't set a dot's opacity again)
+    if (!was && k.startsWith("dot:")) continue;
     const from = was ? { ...was.style } : { ...to, opacity: 0 }; // a shape that just appeared fades in
     // Fading from or to invisible changes only opacity: tweening the color as well would show a
     // blend of the two colors partway, though neither end shows any color at all
