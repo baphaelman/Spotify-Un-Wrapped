@@ -205,6 +205,24 @@ export function setRidges(strip, on) {
   renderRolling(strip, fd, fn, w, currentZoom(strip), m, o, dur(MORPH_MS), p, fsl, sm);
 }
 
+// Spreads targets (y of each, in any order) at least `gap` apart, keeping their order, within [lo, hi]
+function nudge(want, gap, lo, hi) {
+  const o = want.map((_, i) => i).sort((a, b) => want[a] - want[b] || a - b);
+  const y = o.map((i) => want[i]);
+  for (let k = 0; k < 40; k++) {
+    for (let j = 1; j < y.length; j++) if (y[j] - y[j - 1] < gap) { const m = (y[j] + y[j - 1]) / 2; y[j - 1] = m - gap / 2; y[j] = m + gap / 2; }
+  }
+  if (y.length) {
+    y[0] = Math.max(y[0], lo);
+    for (let j = 1; j < y.length; j++) y[j] = Math.max(y[j], y[j - 1] + gap);
+    y[y.length - 1] = Math.min(y[y.length - 1], hi);
+    for (let j = y.length - 2; j >= 0; j--) y[j] = Math.min(y[j], y[j + 1] - gap);
+  }
+  const r = [];
+  o.forEach((i, j) => (r[i] = y[j]));
+  return r;
+}
+
 // The strip's height follows its ridges. The page below moves on the morph's clock (the frame's height transitions),
 // while the canvas grows at once, with nothing on it moving (the plot is placed from the top), and shrinks once the
 // morph has landed.
@@ -230,9 +248,9 @@ function sizeStrip(el, c, h, ms) {
   el._settle = setTimeout(settle, ms);
 }
 
-// The strip's names at its left, each beside a dash of its color: HTML over the chart, so a long one ellipsizes. Each
-// is kept from render to render, so it glides with the morph. at: [name, y of its middle in the frame] (its ridge's
-// baseline, or its place in the list), for the artists drawn; the rest fade out. Hovering one is hovering its line,
+// The strip's names at its left, level with where each line starts, each before a dash of its color: HTML over the chart, so a long one ellipsizes. Each
+// is kept from render to render, so it glides with the morph. at: [name, y of its middle in the frame] (level with its
+// line's left end, nudged clear of the others), for the artists drawn; the rest fade out. Hovering one is hovering its line,
 // and clicking it pins or unpins, as lines or ridges. act: { hover(name), toggle(name) }, the latest render's.
 function paintRidgeNames(el, at, ms, pinned, colors, act) {
   const box = el.parentElement.querySelector(".ridge-names");
@@ -1322,9 +1340,15 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   st.still = !st.tweens; // (see stillChart)
   if (isStrip) {
     sizeStrip(el, c, STRIP_TOP + plotH + STRIP_BOTTOM, dur(ms));
-    const at = ridge
-      ? [...st.ridgeRows].map(([n, b]) => [n, STRIP_TOP + plotH - b])
-      : nameRows.map((n, r) => [n, STRIP_TOP + plotH - (nameRows.length - 1 - r) * namePitch]);
+    // Each name sits level with where its line starts at the plot's left edge, nudged apart where those meet
+    const px = (s) => {
+      let i = data.dates.findIndex((d, j) => d >= range[0] && hoursAt(s, j) != null);
+      if (i < 0) i = 0;
+      return Math.max(0, Math.min(plotH, ridge ? lineY(s, i) : (lineY(s, i) * plotH) / stripMax));
+    };
+    const want = nameRows.map((n) => STRIP_TOP + plotH - px(names.indexOf(n)));
+    const put = nudge(want, NAME_H + 1, STRIP_TOP + NAME_H / 2, STRIP_TOP + plotH);
+    const at = nameRows.map((n, r) => [n, put[r]]);
     paintRidgeNames(el, at, dur(ms), new Set([...base].map((k) => names[k])), new Map(names.map((n, k) => [n, colors[k]])), {
       hover: (n) => rollingState.get(el)?.focusArtist?.(n),
       // (kept lit through the re-render, as a click on the plot is, see zrClick)
