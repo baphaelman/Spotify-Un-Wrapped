@@ -534,14 +534,30 @@ function calHeight(m, lo, hi) {
   return m.kind === "weeks" ? CAL.top + rows * rowH(m) + 6 : CAL.top + (rows - 1) * rowH(m) + m.cell * 7 + 6;
 }
 
+// How grown a box centred on day c is while one edge of the window travels from e0 to e1 (now at e): a box the edge
+// uncovers grows from when it passes until the pan ends, one it covers shrinks from the start until it passes, so
+// every box is whole at either end and none pops. (The right edge is the left one mirrored: -c against -(hi + 1).)
+function edgeGrow(c, e0, e1, e) {
+  if (c >= Math.max(e0, e1)) return 1;
+  if (c < Math.min(e0, e1)) return 0;
+  const u = (c - e0) / (e1 - e0), f = (e - e0) / (e1 - e0); // when the edge passes c, and how far it's come
+  return e1 < e0 ? clamp01((f - u) / (1 - u)) : clamp01((u - f) / u);
+}
+
 // The boxes and labels for the days `at` shows ({lo, hi}, fractional while a pan slides it), laid out as `m` with the
 // columns or rows moved along by m.shift. Each has an opacity a: how much of its first day (a week: of its days) is
-// in view, so days fade in and out as the window's edges pass over them.
-function calPlace(v, m, at) {
+// in view, so days fade in and out as the window's edges pass over them. During a resize (grow: the pan's from and
+// to ranges) boxes scale instead (g, about their centre) and only the labels fade.
+function calPlace(v, m, at, grow = null) {
   const { cell, left, shift } = m;
   const { jan1 } = v.cells;
   const seen = (a, b) => clamp01(Math.min(b + 1, at.hi + 1) - Math.max(a, at.lo)); // days a…b in view, up to 1
-  const boxes = []; // { x, y, w, h, key, from, a } for each box in view
+  const shown = (a, b) => {
+    if (!grow) return { a: seen(a, b), g: 1 };
+    const c = (a + b + 1) / 2, { from, to } = grow;
+    return { a: 1, g: Math.min(edgeGrow(c, from.lo, to.lo, at.lo), edgeGrow(-c, -from.hi - 1, -to.hi - 1, -at.hi - 1)) };
+  };
+  const boxes = []; // { x, y, w, h, key, from, a, g } for each box in view
   const labels = []; // [x, y, text, align, a year?, a]
   const k0 = Math.max(v.lo, Math.floor(at.lo)), k1 = Math.min(v.hi, Math.ceil(at.hi));
   // Month labels at the month's first column, or (one in view from partway) at the first column in view
@@ -558,8 +574,8 @@ function calPlace(v, m, at) {
   if (m.kind === "strip") {
     ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, CAL.top + r * cell + cell / 2, d, "right", false, 1]));
     for (let k = k0; k <= k1; k++) {
-      const a = seen(k, k);
-      if (a > 0) boxes.push({ x: left + (wkOf(k) - shift) * cell, y: CAL.top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, a });
+      const o = shown(k, k);
+      if (o.a * o.g > 0) boxes.push({ x: left + (wkOf(k) - shift) * cell, y: CAL.top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, ...o });
     }
     for (let y = yearOf(k0); y <= yearOf(k1); y++) months(y, CAL.top, shift);
   } else {
@@ -570,8 +586,8 @@ function calPlace(v, m, at) {
         labels.push([CAL.left - 10, top + cell / 2, String(y), "right", true, ya]);
         for (let wk = 0; wk < 53; wk++) {
           const from = jan1(y) + 7 * wk, to = wk === 52 ? jan1(y + 1) - 1 : from + 6;
-          const a = seen(from, to);
-          if (a > 0) boxes.push({ x: CAL.left + wk * cell, y: top, w: cell - CAL.gap, h: cell - CAL.gap, key: y * 100 + wk, from, a });
+          const o = shown(from, to);
+          if (o.a * o.g > 0) boxes.push({ x: CAL.left + wk * cell, y: top, w: cell - CAL.gap, h: cell - CAL.gap, key: y * 100 + wk, from, ...o });
         }
         continue;
       }
@@ -579,8 +595,8 @@ function calPlace(v, m, at) {
       ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, top + r * cell + cell / 2, d, "right", false, ya]));
       const col0 = wkOf(jan1(y));
       for (let k = Math.max(k0, jan1(y)); k <= Math.min(k1, jan1(y + 1) - 1); k++) {
-        const a = seen(k, k);
-        if (a > 0) boxes.push({ x: left + (wkOf(k) - col0) * cell, y: top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, a });
+        const o = shown(k, k);
+        if (o.a * o.g > 0) boxes.push({ x: left + (wkOf(k) - col0) * cell, y: top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, ...o });
       }
       months(y, top, col0);
     }
@@ -627,7 +643,9 @@ export function panCalendar(el, plays, lo, hi, p) {
   hideTip();
   const weeks = mt.kind === "weeks";
   const topOf = (r) => calendarCells(agg.filterRange(plays, r.lo, r.hi), r.lo, r.hi, weeks).top;
-  v.calPan = { p, mf, mt, topFrom: v.cells.top, topTo: topOf(p.to), now: mf };
+  // (a resize, the two lengths differing, grows and shrinks the boxes at its ends instead of fading them)
+  const grow = Math.abs(p.to.hi - p.to.lo - (p.from.hi - p.from.lo)) > 0.5 ? { from: p.from, to: p.to } : null;
+  v.calPan = { p, mf, mt, grow, topFrom: v.cells.top, topTo: topOf(p.to), now: mf };
   Object.assign(v, { plays, lo, hi });
   v.cells = calendarCells(plays, lo, hi, weeks);
   size(v, Math.max(calHeight(mf, from.lo, from.hi), calHeight(mt, p.to.lo, p.to.hi)));
@@ -642,7 +660,7 @@ export function panCalendarTo(el, at, e) {
   const f = p.to.lo !== p.from.lo ? clamp01((at.lo - p.from.lo) / (p.to.lo - p.from.lo)) : e;
   cp.now = { ...mt, cell: mf.cell + (mt.cell - mf.cell) * f, shift: mf.shift + (mt.shift - mf.shift) * f };
   v.cells.top = cp.topFrom + (cp.topTo - cp.topFrom) * e;
-  calPlace(v, cp.now, at);
+  calPlace(v, cp.now, at, cp.grow);
   drawCalendar(v);
 }
 export function endPanCalendar(el, { lo, hi }) {
@@ -673,7 +691,7 @@ function drawCalendar(v) {
     const c = cells.get(b.key);
     if (!c) {
       ctx.fillStyle = empty;
-      roundRect(ctx, b.x, b.y, b.w, b.h, 2);
+      roundRect(ctx, ...scaled(b), 2);
       continue;
     }
     const name = v.colorOf.has(c.best) ? c.best : OTHER;
@@ -681,7 +699,7 @@ function drawCalendar(v) {
     const q = Math.min(1, Math.sqrt(c.h / top));
     const share = Math.min(1, (0.15 + 0.6 * q) * look.s) * (name === OTHER ? 0.75 : 1);
     ctx.fillStyle = mix(t.surface, v.colorOf.get(name), share);
-    roundRect(ctx, b.x, b.y, b.w, b.h, 2);
+    roundRect(ctx, ...scaled(b), 2);
     if (look.o > 0.01) rings.push([b, name, look.o * b.a]);
   }
   // A pinned artist's boxes are ringed in their color (only a pin outlines)
@@ -689,12 +707,16 @@ function drawCalendar(v) {
   for (const [b, name, o] of rings) {
     ctx.globalAlpha = o;
     ctx.strokeStyle = v.colorOf.get(name);
+    const [x, y, bw, bh] = scaled(b);
     ctx.beginPath();
-    ctx.roundRect(b.x + 0.75, b.y + 0.75, b.w - 1.5, b.h - 1.5, 2);
+    ctx.roundRect(x + 0.75, y + 0.75, Math.max(0, bw - 1.5), Math.max(0, bh - 1.5), 2);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
+
+// A box's rect, scaled about its centre by how grown it is
+const scaled = ({ x, y, w, h, g = 1 }) => [x + (w * (1 - g)) / 2, y + (h * (1 - g)) / 2, w * g, h * g];
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
