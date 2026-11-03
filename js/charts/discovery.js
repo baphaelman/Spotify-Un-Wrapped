@@ -5,6 +5,7 @@ import { shownName } from "../state.js";
 import { tokens, mix } from "../colors.js";
 import { esc, fmtHoursRound } from "../format.js";
 import { baseAxis, chart, instances, tooltipBase } from "./core.js";
+import { tune } from "../tune.js";
 
 // The items first heard in the period, across it: each a dot at the day it was first played and as high as its
 // hours across everything (a log scale from `floor` hours up to `top`). The
@@ -205,10 +206,12 @@ function nameRest(el, st) {
   const order = [...st.rest].sort((a, b) => b.hours - a.hours);
   const boxes = nameBoxes(st, rect, order, REST_LABEL, st.dot);
   const named = new Set();
+  // (each name keeps tune.discoveryNameGap of room around it, so they stay sparse enough to read)
+  const gap = tune.discoveryNameGap / 2;
   order.forEach((e, i) => {
     const b = boxes[i];
     if (b[0] < rect.x || b[1] > rect.x + rect.width || b[2] < rect.y || b[3] > rect.y + rect.height || !clear(b)) return;
-    take(b);
+    take([b[0] - gap, b[1] + gap, b[2] - gap, b[3] + gap]);
     named.add(e.name);
   });
   return named;

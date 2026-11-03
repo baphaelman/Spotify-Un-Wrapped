@@ -39,6 +39,7 @@ export const TUNES = [
   { key: "waitFade", card: "raster-card", label: "Shown while the period moves", def: 0.6, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
   { key: "discoveryFloor", card: "discovery-card", label: "Listening Threshold", def: 1, min: 0.25, max: 60, step: 0.25, live: true, fmt: (v) => (v >= 60 ? "1 hour" : `${v} min`) },
   { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
+  { key: "discoveryNameGap", card: "discovery-card", label: "Room around gray names", def: 18, min: 0, max: 60, step: 2, fmt: px },
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   // (also set by the card's Positions slider, which goes to 20)
