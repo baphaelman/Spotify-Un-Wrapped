@@ -221,19 +221,37 @@ const nameStyle = (L) => ({
 
 const SMOOTH = 0.5; // the lines' curve rounding (lineY follows it)
 
-// Whether nothing drawn sits a rank above rank r in slice i (above #1 is the room for its names)
-function roomAbove(i, r) {
-  if (r <= 1) return true;
-  for (const [a, e] of st.rows[i]) if (e.r === r - 1) return !st.names.includes(a) && !st.leaving.has(a);
-  return true;
+// Where each name goes ({ position, align } for its label): over its circle, never along its own line; near either end
+// it runs from the circle toward the chart's middle, so it stays whole. One that would run into a name already
+// placed (the best ranks go first) goes under its circle instead.
+let measure = null;
+function nameSpots(items) {
+  const { rows, MAX } = st, n = rows.length;
+  const H = c.getHeight(), top = plotTop(), row = (H - PLOT_BOTTOM - top) / (MAX + 0.4 - 1);
+  const slice = (c.getWidth() - PLOT_LEFT - 28) / (n - 1);
+  measure ??= document.createElement("canvas").getContext("2d");
+  const placed = [], spots = new Map();
+  const hits = (b) => placed.some((p) => b.x0 < p.x1 && p.x0 < b.x1 && b.y0 < p.y1 && p.y0 < b.y1);
+  for (const { a, L, ys, named: i } of items.filter((t) => t.named >= 0).sort((p, q) => p.ys[p.named] - q.ys[q.named])) {
+    const ns = nameStyle(L), gap = L.size / 2 + (L.col ? 8 : 6), h = ns.fontSize + 2;
+    measure.font = `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`;
+    const w = measure.measureText(shownName(a)).width + ns.textBorderWidth;
+    const x = PLOT_LEFT + i * slice, y = top + (ys[i] - 1) * row;
+    const align = i < n * 0.15 ? "left" : i > n * 0.85 ? "right" : "center";
+    const x0 = align === "left" ? x : align === "right" ? x - w : x - w / 2;
+    const over = { x0, x1: x0 + w, y0: y - gap - h, y1: y - gap }, under = { x0, x1: x0 + w, y0: y + gap, y1: y + gap + h };
+    const [position, box] = hits(over) && !hits(under) ? ["bottom", under] : ["top", over];
+    placed.push(box);
+    spots.set(a, { position, align });
+  }
+  return spots;
 }
 
 // ms: how long the circles take to grow or shrink (into the lines, while hovering)
 function seriesOf(ms = MORPH_MS) {
   const { names, leaving, rows, MAX, col: at } = st;
   const pinned = pinnedSet();
-  const n = rows.length;
-  return [...names, ...leaving].map((a) => {
+  const items = [...names, ...leaving].map((a) => {
     const L = lookOf(a, pinned);
     const ys = rows.map((m) => yOf(m, a, MAX));
     // The best (lowest) rank, earliest: where the name goes, for the chart's and pinned artists. Hovering, one on the
@@ -241,17 +259,14 @@ function seriesOf(ms = MORPH_MS) {
     let named = -1;
     if (!L.gone && (L.col || pinned.has(a)) && !(at != null && ys[at] <= MAX))
       ys.forEach((y, i) => { if (y <= MAX && (named < 0 || y < ys[named])) named = i; });
+    return { a, L, ys, named };
+  });
+  const spots = nameSpots(items);
+  return items.map(({ a, L, ys, named }) => {
     const data = ys.map((y, i) => {
       const d = { value: y, symbol: y <= MAX ? "circle" : "none" };
       if (at != null) d.symbolSize = 0;
-      // Over the circle when the rank above is free there (always for #1), toward the chart's middle near either
-      // end so it stays whole; otherwise beside it, off the edge's side
-      if (i === named) {
-        const end = i < n * 0.15 ? "right" : i > n * 0.85 ? "left" : null;
-        const free = !end || roomAbove(i, y);
-        d.label = { show: true, formatter: shownName(a), position: free ? "top" : end, distance: L.col ? 8 : 6, ...nameStyle(L) };
-        if (end && free) d.label.align = end === "right" ? "left" : "right";
-      }
+      if (i === named) d.label = { show: true, formatter: shownName(a), distance: L.col ? 8 : 6, ...spots.get(a), ...nameStyle(L) };
       return d;
     });
     return {
@@ -307,7 +322,8 @@ let riders = null; // item -> { dot, text }: a circle per line, riding it at `at
 let tlRider = null; // the timeline's
 const rowEls = new Map(); // item -> its row in the card
 
-const inLane = (y, rect) => y < rect.y - headroom() / 2; // (#1's names count as below)
+const laneFloor = (rect) => rect.y - headroom(); // (#1's names count as below)
+const inLane = (y, rect) => y < laneFloor(rect);
 function scrub(x, y) {
   const rect = x != null && st && c && !c.isDisposed() ? gridRect() : null;
   if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < LANE_TOP || y > rect.y + rect.height) {
@@ -496,33 +512,37 @@ function dropRiders() {
 // ---------- the timeline ----------
 // The lane above #1: a line with a dot at each slice, bigger at its two ends, dated over the dots the x-axis labels. Hovering, a bright one rides it with the
 // column, over the dots, swelling to cover an end's as it gets there (see draw). Drawn again only when its slices or
-// place change, the old fading out as the new fades in.
+// place change, the old fading out as the new fades in. A thin rule under it, over #1's names, is where hovering
+// starts lighting artists (inLane).
 const TL_R = 3.5, TL_END_R = 6, TL_RIDER_R = 4.5;
-let tl = null; // { key, line, dots }
+let tl = null; // { key, els }
 function paintTimeline(drop = false) {
   if (!c || c.isDisposed()) return;
   const zr = c.getZr();
   const fade = (e, to, done) => e.animateTo({ style: { opacity: to } }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.echarts, done });
   const old = tl;
   if (drop || !st) {
-    if (old) for (const e of [old.line, ...old.dots, ...old.dates]) fade(e, 0, () => zr.remove(e));
+    if (old) for (const e of old.els) fade(e, 0, () => zr.remove(e));
     tl = null;
     return;
   }
   const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY();
   // (the x-axis's own pick of labels, so the two agree as they thin out)
   const shownLabels = c.getModel().getComponent("xAxis").axis.getViewLabels().map((l) => l.tickValue);
-  const key = [n, rect.x, rect.width, y, ...shownLabels, st.labels[0]].join();
+  const key = [n, rect.x, rect.width, y, c.getWidth(), ...shownLabels, st.labels[0]].join();
   if (old?.key === key) return;
-  if (old) for (const e of [old.line, ...old.dots, ...old.dates]) fade(e, 0, () => zr.remove(e));
+  if (old) for (const e of old.els) fade(e, 0, () => zr.remove(e));
   const line = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: st.t.axis, lineWidth: 1.5, opacity: 0 } });
   const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: i === 0 || i === n - 1 ? TL_END_R : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
   const dates = shownLabels.map((i) => new echarts.graphic.Text({ silent: true, z: 2, style: {
     text: st.labels[i], x: rect.x + i * slice, y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom",
     fill: st.t.muted, font: "500 11px Inter, sans-serif", opacity: 0,
   } }));
-  for (const e of [line, ...dots, ...dates]) { zr.add(e); fade(e, 1); }
-  tl = { key, line, dots, dates };
+  const ry = Math.round(laneFloor(rect)) + 0.5;
+  const rule = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry }, style: { stroke: st.t.axis, lineWidth: 1, opacity: 0 } });
+  const els = [line, ...dots, ...dates, rule];
+  for (const e of els) { zr.add(e); fade(e, 1); }
+  tl = { key, els };
 }
 
 // Draws the hover at `at` and `shown`
