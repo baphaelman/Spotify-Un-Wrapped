@@ -10,9 +10,11 @@
 // card's rows (overtaking each other like the bars of a race) together, on one tick (see glide).
 // Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
+// A slice is also known by its key, counted from year 0, the same in any period. A pan (state.js) to a period of the
+// same slice size slides the chart there rather than redrawing it (see slideStart).
 import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
-import { $, state, putOff, rangePlays, shownName } from "./state.js";
+import { $, state, putOff, rangePlays, shownName, pan, onPan } from "./state.js";
 import { tune, setTune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { tokens, alpha } from "./colors.js";
@@ -69,7 +71,10 @@ otherInput.addEventListener("change", () => {
   maxInput.disabled = !otherInput.checked;
   paintRankRace();
 });
-let st = null; // what the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered }
+// What the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered, col, k0: rows[0]'s key, span,
+// segs: the periods drawn, [first key, last key] each (two while sliding), view: the keys the axis shows, [lo, hi],
+// iv: the slices between labels, slide: whether it's sliding }
+let st = null;
 let dropTimer = 0; // drops the lines that faded out
 
 function chart(el) {
@@ -79,6 +84,7 @@ function chart(el) {
     new ResizeObserver(() => {
       if (el.clientWidth === c.getWidth() && el.clientHeight === c.getHeight()) return;
       c.resize();
+      if (st && !st.slide) st.iv = labelStep(st.labels, st.span);
       paintTimeline();
     }).observe(el);
     // The lines don't take the pointer: scrub picks who it's on. A click pins them (one that isn't the chart's joins it)
@@ -102,8 +108,19 @@ function hover(name) {
   focusRankRace(name);
 }
 
+// What slice `k` of `span` months is called
+function labelOf(k, span) {
+  const m0 = k * span, y = Math.floor(m0 / 12), m = m0 % 12, yy = String(y).slice(2);
+  if (span === 1) return `${MON[m]} ${yy}`;
+  if (span === 3) return `Q${m / 3 + 1} ${yy}`;
+  if (span === 6) return `H${m / 6 + 1} ${yy}`;
+  if (span === 12) return String(y);
+  return `${y}–${String(y + 1).slice(2)}`;
+}
+
 // The period's ranks: for each slice of `span` months (empty ones too), a Map item -> { r: rank, h: the hours it's
-// ranked by (by the month, the month and those either side). who: the item a play counts for (null for none)
+// ranked by (by the month, the month and those either side). who: the item a play counts for (null for none).
+// k0: the first slice's key
 function ranksOf(plays, span, who = (p) => p.artist) {
   const keyOf = (t) => { const d = new Date(t); return Math.floor((d.getFullYear() * 12 + d.getMonth()) / span); };
   const buckets = new Map();
@@ -123,15 +140,18 @@ function ranksOf(plays, span, who = (p) => p.artist) {
       for (const [a, h] of buckets.get(kk) ?? []) m.set(a, (m.get(a) ?? 0) + h);
     return new Map([...m].sort((a, b) => b[1] - a[1]).map(([a, h], j) => [a, { r: j + 1, h }]));
   });
-  const label = (k) => {
-    const m0 = k * span, y = Math.floor(m0 / 12), m = m0 % 12, yy = String(y).slice(2);
-    if (span === 1) return `${MON[m]} ${yy}`;
-    if (span === 3) return `Q${m / 3 + 1} ${yy}`;
-    if (span === 6) return `H${m / 6 + 1} ${yy}`;
-    if (span === 12) return String(y);
-    return `${y}–${String(y + 1).slice(2)}`;
-  };
-  return { rows, labels: keys.map(label) };
+  return { rows, labels: keys.map((k) => labelOf(k, span)), k0: keys[0] };
+}
+
+// The slices between labels: the fewest that keep them apart, counted from year 0 so they stay put as the chart slides
+const LABEL_STEPS = { 1: [1, 2, 3, 4, 6, 12, 24, 48], 3: [1, 2, 4, 8, 16], 6: [1, 2, 4, 8], 12: [1, 2, 5, 10, 20], 24: [1, 2, 5, 10] };
+const LABEL_FONT = "12px Inter, sans-serif", DATE_FONT = "500 11px Inter, sans-serif";
+function labelStep(labels, span) {
+  measure ??= document.createElement("canvas").getContext("2d");
+  measure.font = LABEL_FONT;
+  const w = Math.max(...labels.map((l) => measure.measureText(l).width));
+  const slice = (c.getWidth() - PLOT_LEFT - 28) / (labels.length - 1);
+  return LABEL_STEPS[span].find((s) => s * slice >= w + 12) ?? LABEL_STEPS[span].at(-1);
 }
 
 // ms: how long the lines take to morph (CHASE_MS while the slider is dragged)
@@ -147,11 +167,17 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
   const inKey = new Set(keyed);
   glideMax(other ? tune.rankMax : Math.max(1, keyed.length));
-  const { rows, labels } = other ? ranksOf(plays, span) : ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : null));
+  const { rows, labels, k0 } = other ? ranksOf(plays, span) : ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : null));
   const [unit, steps] = SPANS[span];
   $("rank-note").textContent = (other ? `Where everything that reached the top ${positions()} stood, ${steps}` : `Where the key's ${keyed.length} stood among themselves, ${steps}`) +
     (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
+  // A pan starting at the same slice size: the chart slides there, from what's on screen (the pan's end draws it as
+  // usual). A slide whose pan was taken over by one it can't follow lands at once.
+  const follow = pan && !pan.done && !pan.e && slid?.pan !== pan && st && c && !c.isDisposed() && st.span === span && rows.length > 1;
+  if (slid && slid.pan !== pan && !follow) slideEnd(false);
   if (rows.length < 2) { scrub(null); dropRiders(); paintTimeline(true); c?.clear(); st = null; return; }
+  if (follow) return slideStart(rows, labels, k0);
+  if (slid) return;
 
   const MAX = positions();
   const colors = new Map();
@@ -161,7 +187,8 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
-  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null };
+  const k1 = k0 + rows.length - 1;
+  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null, k0, span, segs: [[k0, k1]], view: [k0, k1], iv: 1, slide: false };
   // A new period unpins the column: its slices are other months now
   const period = `${state.range.lo}:${state.range.hi}`;
   const unpinned = period !== pinPeriod && colPin != null;
@@ -171,6 +198,7 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   if (colPin != null && colPin >= rows.length) colPin = null;
   if ((pointer || colPin != null) && c && !c.isDisposed()) st.col = at = colPin ?? colAt(pointer[0]);
   const cc = chart(el);
+  st.iv = labelStep(labels, span);
   el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
   if (fresh) cc.setOption(option(), { notMerge: true });
@@ -234,20 +262,22 @@ const SMOOTH = 0.5; // the lines' curve rounding (lineY follows it)
 
 // Where each name goes ({ position, align } for its label): over its circle, never along its own line; near either end
 // it runs from the circle toward the chart's middle, so it stays whole. One that would run into a name already
-// placed (the best ranks go first) goes under its circle instead.
+// placed (the best ranks go first) goes under its circle instead. Each period drawn (st.segs[s]) is placed as it is
+// at rest.
 let measure = null;
-function nameSpots(items) {
-  const { rows, MAX } = st, n = rows.length;
+function nameSpots(items, s) {
+  const { MAX, k0, segs } = st, [ka, kb] = segs[s], n = Math.max(2, kb - ka + 1);
   const H = c.getHeight(), top = plotTop(), row = (H - PLOT_BOTTOM - top) / (MAX + 0.4 - 1);
   const slice = (c.getWidth() - PLOT_LEFT - 28) / (n - 1);
   measure ??= document.createElement("canvas").getContext("2d");
   const placed = [], spots = new Map();
   const hits = (b) => placed.some((p) => b.x0 < p.x1 && p.x0 < b.x1 && b.y0 < p.y1 && p.y0 < b.y1);
-  for (const { a, L, ys, named: i } of items.filter((t) => t.named >= 0).sort((p, q) => p.ys[p.named] - q.ys[q.named])) {
+  for (const { a, L, ys, named } of items.filter((t) => t.named[s] >= 0).sort((p, q) => p.ys[p.named[s]] - q.ys[q.named[s]])) {
     const ns = nameStyle(L), gap = L.size / 2 + (L.col ? 8 : 6), h = ns.fontSize + 2;
     measure.font = `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`;
     const w = measure.measureText(shownName(a)).width + ns.textBorderWidth;
-    const x = PLOT_LEFT + i * slice, y = top + (ys[i] - 1) * row;
+    const i = named[s] - (ka - k0); // (the slice within its period)
+    const x = PLOT_LEFT + i * slice, y = top + (ys[named[s]] - 1) * row;
     const align = i < n * 0.15 ? "left" : i > n * 0.85 ? "right" : "center";
     const x0 = align === "left" ? x : align === "right" ? x - w : x - w / 2;
     const over = { x0, x1: x0 + w, y0: y - gap - h, y1: y - gap }, under = { x0, x1: x0 + w, y0: y + gap, y1: y + gap + h };
@@ -260,28 +290,33 @@ function nameSpots(items) {
 
 // ms: how long the circles take to grow or shrink (into the lines, while hovering)
 function seriesOf(ms = MORPH_MS) {
-  const { names, leaving, rows, MAX, col: at } = st;
+  const { names, leaving, rows, MAX, col: at, k0, segs } = st;
   const pinned = pinnedSet();
   const items = [...names, ...leaving].map((a) => {
     const L = lookOf(a, pinned);
     const ys = rows.map((m) => yOf(m, a, MAX));
-    // The best (lowest) rank, earliest: where the name goes, for the chart's and pinned artists. Hovering, one on the
-    // chart in the hovered column is named there instead, over its riding circle
-    let named = -1;
-    if (!L.gone && (L.col || pinned.has(a)) && !(at != null && ys[at] <= MAX))
-      ys.forEach((y, i) => { if (y <= MAX && (named < 0 || y < ys[named])) named = i; });
+    // The best (lowest) rank in each period, earliest: where the name goes, for the chart's and pinned artists.
+    // Hovering, one on the chart in the hovered column is named there instead, over its riding circle
+    const named = segs.map(([ka, kb]) => {
+      let best = -1;
+      if (!L.gone && (L.col || pinned.has(a)) && !(at != null && ys[at] <= MAX))
+        for (let i = ka - k0; i <= kb - k0; i++) if (ys[i] <= MAX && (best < 0 || ys[i] < ys[best])) best = i;
+      return best;
+    });
     return { a, L, ys, named };
   });
-  const spots = nameSpots(items);
+  const spots = segs.map((_, s) => nameSpots(items, s));
   return items.map(({ a, L, ys, named }) => {
     const data = ys.map((y, i) => {
-      const d = { value: y, symbol: y <= MAX ? "circle" : "none" };
+      const d = { value: [i, y], symbol: y <= MAX ? "circle" : "none" };
       if (at != null) d.symbolSize = 0;
-      if (i === named) d.label = { show: true, formatter: shownName(a), distance: L.col ? 8 : 6, ...spots.get(a), ...nameStyle(L) };
+      const s = named.indexOf(i);
+      if (s >= 0) d.label = { show: true, formatter: shownName(a), distance: L.col ? 8 : 6, ...spots[s].get(a), ...nameStyle(L) };
       return d;
     });
     return {
-      id: a, name: a, type: "line", smooth: SMOOTH, smoothMonotone: "x", clip: true, z: L.col ? (L.lit ? 6 : 4) : L.lit ? 5 : 2,
+      // (sliding, the plot's edge is clipSeries's, which cuts circles and names rather than dropping them)
+      id: a, name: a, type: "line", smooth: SMOOTH, smoothMonotone: "x", clip: !st.slide, z: L.col ? (L.lit ? 6 : 4) : L.lit ? 5 : 2,
       symbol: "circle", symbolSize: L.size, showSymbol: true,
       silent: true,
       data, animationDurationUpdate: dur(ms),
@@ -292,12 +327,13 @@ function seriesOf(ms = MORPH_MS) {
   });
 }
 
-function option(ms = MORPH_MS) {
-  const { labels, MAX, t } = st;
+// animate: false draws it at once (a slide's start and end)
+function option(ms = MORPH_MS, animate = true) {
+  const { MAX, t, view, k0 } = st;
   const axis = { axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.muted } };
   return {
     // (lines appear by drawing in left to right, on the same tier as lines leaving)
-    animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(ms), animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
+    animation: animate, animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(ms), animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
     grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
@@ -305,7 +341,9 @@ function option(ms = MORPH_MS) {
     // for #1's names
     graphic: [{ type: "text", id: "lane", silent: true, x: PLOT_LEFT - 8, y: laneY(),
       style: { text: "Timeline", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
-    xAxis: { type: "category", data: labels, boundaryGap: false, ...axis, splitLine: { show: false } },
+    // (by the slice's place in st.rows, so a period's lines morph point by point into another's; its labels are
+    // paintTimeline's, so they slide with it)
+    xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
     series: seriesOf(ms),
   };
@@ -316,6 +354,7 @@ export function focusRankRace(name) {
   if (!st || !c || c.isDisposed()) return;
   if (st.hovered === name) return;
   st.hovered = name;
+  if (st.slide) return; // (the slide's end draws it)
   morphPoints(() => setOptionFaded(c, { series: seriesOf(CHASE_MS) }, undefined, dur(FADE_MS)), dur(FADE_MS));
   if (pointer || colPin != null) draw();
 }
@@ -336,7 +375,7 @@ const rowEls = new Map(); // item -> its row in the card
 const laneFloor = (rect) => rect.y - headroom() - 6; // (the rule under the timeline: #1's names, and a little room over them, count as below)
 const inLane = (y, rect) => y < laneFloor(rect);
 function scrub(x, y) {
-  const rect = x != null && st && c && !c.isDisposed() ? gridRect() : null;
+  const rect = x != null && st && !st.slide && c && !c.isDisposed() ? gridRect() : null; // (no hover while sliding)
   if (!rect || x < rect.x - 8 || x > rect.x + rect.width + 8 || y < LANE_TOP || y > rect.y + rect.height) {
     if (c && !c.isDisposed()) c.getZr().setCursorStyle("default");
     if (pointer) leave();
@@ -524,36 +563,176 @@ function dropRiders() {
 // The lane above #1: a line with a dot at each slice, bigger at its two ends, dated over the dots the x-axis labels. Hovering, a bright one rides it with the
 // column, over the dots, swelling to cover an end's as it gets there (see draw). Drawn again only when its slices or
 // place change, the old fading out as the new fades in. A thin rule under it, over #1's names, is where hovering
-// starts lighting artists (inLane).
+// starts lighting artists (inLane). The x axis's labels are drawn here too, under the plot, so they slide with it.
 const TL_R = 3.5, TL_END_R = 6, TL_RIDER_R = 4.5;
-let tl = null; // { key, els }
-function paintTimeline(drop = false) {
-  if (!c || c.isDisposed()) return;
+let tl = null; // { key, root, els }: root holds them all; each slice's element knows its key (_k)
+// now: at once, no fade (a slide's start and end, which look the same as what they replace)
+function paintTimeline(drop = false, now = false) {
+  if (!c || c.isDisposed() || st?.slide) return; // (a slide moves its own: placeTimeline)
   const zr = c.getZr();
   const fade = (e, to, done) => e.animateTo({ style: { opacity: to } }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.echarts, done });
   const old = tl;
+  const drop0 = () => { if (!old) return; if (now) zr.remove(old.root); else old.els.forEach((e, i) => fade(e, 0, i ? undefined : () => zr.remove(old.root))); };
   if (drop || !st) {
-    if (old) for (const e of old.els) fade(e, 0, () => zr.remove(e));
+    drop0();
     tl = null;
     return;
   }
-  const rect = gridRect(), n = st.rows.length, slice = rect.width / (n - 1), y = laneY();
-  // (the x-axis's own pick of labels, so the two agree as they thin out)
-  const shownLabels = c.getModel().getComponent("xAxis").axis.getViewLabels().map((l) => l.tickValue);
-  const key = [n, rect.x, rect.width, y, c.getWidth(), ...shownLabels, st.labels[0]].join();
+  const rect = gridRect();
+  const key = [st.k0, st.rows.length, st.iv, rect.x, rect.y, rect.width, rect.height, laneY(), c.getWidth()].join();
   if (old?.key === key) return;
-  if (old) for (const e of old.els) fade(e, 0, () => zr.remove(e));
-  const line = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: st.t.axis, lineWidth: 1.5, opacity: 0 } });
-  const dots = st.rows.map((_, i) => new echarts.graphic.Circle({ silent: true, z: 2, shape: { cx: rect.x + i * slice, cy: y, r: i === 0 || i === n - 1 ? TL_END_R : TL_R }, style: { fill: st.t.muted, opacity: 0 } }));
-  const dates = shownLabels.map((i) => new echarts.graphic.Text({ silent: true, z: 2, style: {
-    text: st.labels[i], x: rect.x + i * slice, y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom",
-    fill: st.t.muted, font: "500 11px Inter, sans-serif", opacity: 0,
-  } }));
+  drop0();
+  tl = { key, ...timelineEls(rect) };
+  placeTimeline();
+  zr.add(tl.root);
+  if (!now) for (const e of tl.els) { e.style.opacity = 0; fade(e, 1); }
+}
+
+// The timeline's elements for st's slices (dots big at each period's ends), with its labels and the x axis's at
+// every st.iv'th key, in a group clipped a little past the plot's ends (a label's half, a dot) so they leave it cut
+const textWidth = (text, font) => { measure ??= document.createElement("canvas").getContext("2d"); measure.font = font; return measure.measureText(text).width; };
+function timelineEls(rect) {
+  const { rows, labels, k0, iv, segs, t } = st, y = laneY(), floor = rect.y + rect.height, H = c.getHeight();
+  const { Group, Line, Circle, Text, Rect } = echarts.graphic;
+  const clipped = (pad) => {
+    const g = new Group();
+    g.setClipPath(new Rect({ shape: { x: rect.x - pad, y: 0, width: rect.width + 2 * pad, height: H } }));
+    return g;
+  };
+  const ends = new Set(segs.flat());
+  const dots = rows.map((_, i) => Object.assign(new Circle({ silent: true, z: 2, shape: { cy: y, r: ends.has(k0 + i) ? TL_END_R : TL_R }, style: { fill: t.muted } }), { _k: k0 + i }));
+  const texts = [];
+  let half = 0;
+  rows.forEach((_, i) => {
+    if ((k0 + i) % iv) return;
+    half = Math.max(half, textWidth(labels[i], LABEL_FONT) / 2, textWidth(labels[i], DATE_FONT) / 2);
+    texts.push(
+      Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom", fill: t.muted, font: DATE_FONT } }), { _k: k0 + i }),
+      Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: floor + 8, align: "center", verticalAlign: "top", fill: t.muted, font: LABEL_FONT } }), { _k: k0 + i }),
+    );
+  });
+  const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: t.axis, lineWidth: 1.5 } });
   const ry = Math.round(laneFloor(rect)) + 0.5;
-  const rule = new echarts.graphic.Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry }, style: { stroke: st.t.axis, lineWidth: 1, opacity: 0 } });
-  const els = [line, ...dots, ...dates, rule];
-  for (const e of els) { zr.add(e); fade(e, 1); }
-  tl = { key, els };
+  const rule = new Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry }, style: { stroke: t.axis, lineWidth: 1 } });
+  const root = new Group(), dotG = clipped(TL_END_R + 1), textG = clipped(Math.ceil(half) + 1);
+  dots.forEach((e) => dotG.add(e));
+  texts.forEach((e) => textG.add(e));
+  [line, rule, dotG, textG].forEach((e) => root.add(e));
+  return { root, els: [line, rule, ...dots, ...texts] };
+}
+// Places the timeline's slices for the keys the axis shows (st.view). Sliding, a label fades as it passes either end,
+// gone half a slice past it, so what's past the ends is never seen at rest
+function placeTimeline() {
+  const rect = gridRect(), [lo, hi] = st.view, per = rect.width / (hi - lo);
+  for (const e of tl.els) {
+    if (e._k == null) continue;
+    const x = rect.x + (e._k - lo) * per;
+    if (e.type === "circle") e.attr({ shape: { cx: x } });
+    else e.attr({ style: st.slide ? { x, opacity: Math.max(0, 1 - 2 * Math.max(0, lo - e._k, e._k - hi)) } : { x } });
+  }
+}
+
+// ---------- sliding with a pan ----------
+// A pan (state.js) to a period of the same slice size slides the chart there: the slices on screen and the new
+// period's (ranked on its own, so each end looks as it does at rest; where the two overlap, the new one's) are drawn
+// once with the lines of both, in the colors already drawn, each period named as at rest; each frame then moves the
+// axis. Hover is off meanwhile. At the pan's end the new period alone is drawn at once (the same picture), then
+// paintRankRace morphs it as usual: lines that left dive away, names move to their new best points, colors change.
+let slid = null; // { pan, from: the view it slid from, to: the new period's view, rows, labels, k0: the new period's }
+onPan((p) => {
+  if (slid?.pan !== p) return;
+  if (p.done) return slideEnd(true);
+  if (!st || !c || c.isDisposed()) return;
+  // (each end of the axis travels as that end of the pan's range does)
+  const u = (a, b, x) => (b !== a ? (x - a) / (b - a) : p.e);
+  const { from, to } = slid;
+  st.view = [from[0] + (to[0] - from[0]) * u(p.from.lo, p.to.lo, p.at.lo), from[1] + (to[1] - from[1]) * u(p.from.hi, p.to.hi, p.at.hi)];
+  moveSeries();
+  placeTimeline();
+});
+
+// Moves the lines drawn for the keys slid.laid to show st.view: shifted, and stretched by s with their circles and
+// names kept round (the line's width stretches with it, unseen within the 3% it's allowed before they're laid out
+// again for the view, as at the slide's end)
+function moveSeries() {
+  const [lo, hi] = st.view, [a, b] = slid.laid, rect = gridRect();
+  let s = (b - a) / (hi - lo);
+  if (Math.abs(s - 1) > 0.03) {
+    transformSeries(1, 0, rect);
+    c.setOption({ xAxis: { min: lo - st.k0, max: hi - st.k0 } }, { lazyUpdate: false });
+    clipSeries(rect);
+    slid.laid = [lo, hi];
+    return;
+  }
+  transformSeries(s, (a - lo) * (rect.width / (hi - lo)), rect);
+}
+function transformSeries(s, dx, rect) {
+  for (const m of c.getModel().getSeries())
+    for (const g of c.getViewOfSeriesModel(m)?.group.children() ?? []) {
+      g.attr({ x: dx, scaleX: s, originX: rect.x });
+      for (const sym of g.isGroup ? g.children() : []) if (sym.isGroup) sym.attr({ scaleX: 1 / s });
+    }
+}
+
+function slideStart(rows, labels, k0) {
+  const k1 = k0 + rows.length - 1, end = st.k0 + st.rows.length - 1;
+  const lo = Math.min(k0, st.k0), hi = Math.max(k1, end);
+  const all = [], allLabels = [];
+  for (let k = lo; k <= hi; k++) {
+    all.push(k >= k0 && k <= k1 ? rows[k - k0] : k >= st.k0 && k <= end ? st.rows[k - st.k0] : new Map());
+    allLabels.push(labelOf(k, st.span));
+  }
+  const hidden = new Set(state.hidden), names = new Set(st.names);
+  for (const m of rows) for (const [a, e] of m) if (e.r <= st.MAX && !hidden.has(a)) names.add(a);
+  // The hover goes (a new period unpins the column too)
+  cancelAnimationFrame(anim);
+  gliding = false;
+  shown = 0;
+  const pointed = pointer;
+  pointer = colPin = pinTop = null;
+  ringAt(null);
+  dropRiders();
+  const frame = $("chart-rank").parentElement;
+  frame.querySelector(".rank-tip").classList.remove("on", "held");
+  frame.querySelector(".rank-cursor").classList.remove("on", "pinned");
+  clearTimeout(dropTimer);
+  slid = { pan, from: [...st.view], laid: [...st.view], to: [k0, k1], rows, labels, k0 };
+  st = { ...st, rows: all, labels: allLabels, k0: lo, names: [...names], leaving: new Set(), col: null, slide: true,
+    segs: [...st.segs.filter(([a, b]) => b < k0 || a > k1), [k0, k1]] };
+  if (pointed) hover(null); // (here it only takes note: the slide's end draws it)
+  c.setOption(option(MORPH_MS, false), { replaceMerge: ["series"] });
+  clipSeries(gridRect());
+  if (tl) c.getZr().remove(tl.root);
+  tl = { key: null, ...timelineEls(gridRect()) };
+  placeTimeline();
+  c.getZr().add(tl.root);
+}
+
+// Sliding, each line's group is clipped a circle's width past the plot's ends (none to clear it). ECharts' own clip
+// of the line, which would move with it (moveSeries), goes; each layout puts it back.
+function clipSeries(rect) {
+  const pad = Math.max(tune.rankDot, tune.rankGrayDot) * 0.625 + 1.5; // (a lit circle's radius and its border)
+  for (const m of c.getModel().getSeries()) {
+    const g = c.getViewOfSeriesModel(m)?.group;
+    if (!g) continue;
+    if (!rect) { g.removeClipPath(); continue; }
+    g.setClipPath(new echarts.graphic.Rect({ shape: { x: rect.x - pad, y: 0, width: rect.width + 2 * pad, height: rect.y + rect.height } }));
+    for (const part of g.children()) part.removeClipPath();
+  }
+}
+
+// The new period alone, at once; paint: then morph it as usual
+function slideEnd(paint) {
+  const { rows, labels, k0 } = slid;
+  slid = null;
+  if (!st || !c || c.isDisposed()) return;
+  const k1 = k0 + rows.length - 1;
+  st = { ...st, rows, labels, k0, segs: [[k0, k1]], view: [k0, k1], slide: false };
+  transformSeries(1, 0, gridRect());
+  clipSeries(null);
+  c.setOption(option(MORPH_MS, false), { replaceMerge: ["series"] });
+  paintTimeline(false, true);
+  if (paint) paintRankRace();
 }
 
 // Draws the hover at `at` and `shown`
