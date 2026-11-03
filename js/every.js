@@ -466,8 +466,8 @@ function pickRaster(v, x, y) {
 
 // A calendar of the period, each box tinted by its top artist and darker the more you listened (up to the period's
 // 95th percentile). Up to two years it has a box per day (a rolling year in one strip, longer in a strip per
-// calendar year); beyond, a box per week, a row per year, the boxes about twice as tall as wide so all time isn't a
-// thin strip. Days whose top isn't one of the chart's artists are gray.
+// calendar year); beyond, a square box per week, a row per year. Days whose top isn't one of the chart's artists
+// are gray.
 const DAY_MODE_MAX = 731;
 
 // onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note)
@@ -528,7 +528,7 @@ function calMode(lo, hi, w) {
   const cols = kind === "strip" ? wkOf(hi) - wkOf(lo) + 1 : 54;
   return { kind, left, cell: Math.max(6, Math.min(24, Math.floor((w - left - CAL.right) / cols))), shift: kind === "strip" ? wkOf(lo) : yearOf(lo) };
 }
-const rowH = (m) => (m.kind === "weeks" ? m.cell * 2 + CAL.gap : m.cell * 7 + CAL.top + CAL.rowGap);
+const rowH = (m) => (m.kind === "weeks" ? m.cell + CAL.gap : m.cell * 7 + CAL.top + CAL.rowGap);
 function calHeight(m, lo, hi) {
   const rows = m.kind === "strip" ? 1 : yearOf(hi) - yearOf(lo) + 1;
   return m.kind === "weeks" ? CAL.top + rows * rowH(m) + 6 : CAL.top + (rows - 1) * rowH(m) + m.cell * 7 + 6;
@@ -567,12 +567,11 @@ function calPlace(v, m, at) {
       const top = CAL.top + (y - shift) * rowH(m);
       const ya = clamp01((Math.min(jan1(y + 1), at.hi + 1) - Math.max(jan1(y), at.lo)) / 7);
       if (m.kind === "weeks") {
-        const ch = cell * 2;
-        labels.push([CAL.left - 10, top + ch / 2, String(y), "right", true, ya]);
+        labels.push([CAL.left - 10, top + cell / 2, String(y), "right", true, ya]);
         for (let wk = 0; wk < 53; wk++) {
           const from = jan1(y) + 7 * wk, to = wk === 52 ? jan1(y + 1) - 1 : from + 6;
           const a = seen(from, to);
-          if (a > 0) boxes.push({ x: CAL.left + wk * cell, y: top, w: cell - CAL.gap, h: ch - CAL.gap, key: y * 100 + wk, from, a });
+          if (a > 0) boxes.push({ x: CAL.left + wk * cell, y: top, w: cell - CAL.gap, h: cell - CAL.gap, key: y * 100 + wk, from, a });
         }
         continue;
       }
