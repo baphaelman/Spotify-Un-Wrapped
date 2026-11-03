@@ -327,13 +327,14 @@ function seriesOf(ms = MORPH_MS) {
   });
 }
 
-// animate: false draws it at once (a slide's start and end)
+// animate: false draws it at once (a slide's start and end): still animated, but in no time, so ECharts keeps where
+// each name was (with animation off it forgets, and the next morph fades every name in from nothing)
 function option(ms = MORPH_MS, animate = true) {
   const { MAX, t, view, k0 } = st;
   const axis = { axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false }, axisLabel: { color: t.muted } };
   return {
     // (lines appear by drawing in left to right, on the same tier as lines leaving)
-    animation: animate, animationDuration: dur(MORPH_MS), animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: dur(ms), animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
+    animationDuration: animate ? dur(MORPH_MS) : 0, animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: animate ? dur(ms) : 0, animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
     grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
@@ -345,7 +346,7 @@ function option(ms = MORPH_MS, animate = true) {
     // paintTimeline's, so they slide with it)
     xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },
     yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
-    series: seriesOf(ms),
+    series: seriesOf(animate ? ms : 0),
   };
 }
 
@@ -443,7 +444,7 @@ function clickAt(x, y) {
 }
 
 // ECharts swaps a line's circles' sizes and names at once: grow and shrink the circles over ms instead, from their
-// size on screen, and fade in the names that appear
+// size on screen, fade in the names that appear, and fade out a copy of each that goes, where it was
 function morphPoints(apply, ms) {
   const points = () => {
     const out = new Map();
@@ -460,11 +461,20 @@ function morphPoints(apply, ms) {
   const before = new Map();
   for (const [k, el] of points()) {
     el.stopAnimation("size");
-    before.set(k, { sx: el.scaleX, sy: el.scaleY, named: shownText(el) });
+    const named = shownText(el), t = el.getTextContent();
+    before.set(k, { sx: el.scaleX, sy: el.scaleY, named, name: named && { style: { ...t.style }, m: t.getComputedTransform()?.slice() } });
   }
   apply();
   if (!ms) return;
-  for (const [k, el] of points()) {
+  const after = points(), zr = c.getZr();
+  for (const [k, b] of before) {
+    if (!b.name || (after.has(k) && shownText(after.get(k)))) continue;
+    const ghost = new echarts.graphic.Text({ silent: true, z: 20, style: b.name.style });
+    if (b.name.m) ghost.setLocalTransform(b.name.m);
+    zr.add(ghost);
+    ghost.animateTo({ style: { opacity: 0 } }, { duration: ms, easing: EASE_OUT.echarts, done: () => zr.remove(ghost) });
+  }
+  for (const [k, el] of after) {
     const b = before.get(k);
     if (!b) continue;
     const sx = el.scaleX, sy = el.scaleY;
@@ -472,8 +482,10 @@ function morphPoints(apply, ms) {
       el.attr({ scaleX: b.sx, scaleY: b.sy });
       el.animateTo({ scaleX: sx, scaleY: sy }, { duration: ms, easing: EASE_OUT.echarts, scope: "size" });
     }
-    if (shownText(el) && !b.named) {
-      const t = el.getTextContent(), o = t.style.opacity ?? 1;
+    // (a name new to ECharts it fades in itself, from 0: left to it, rather than faded to that 0)
+    const t = el.getTextContent();
+    if (shownText(el) && !b.named && !t.animators.length) {
+      const o = t.style.opacity ?? 1;
       t.setStyle({ opacity: 0 });
       t.animateTo({ style: { opacity: o } }, { duration: ms, easing: EASE_OUT.echarts });
     }
