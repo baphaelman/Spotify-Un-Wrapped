@@ -162,6 +162,11 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
   st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null };
+  // A new period unpins the column: its slices are other months now
+  const period = `${state.range.lo}:${state.range.hi}`;
+  const unpinned = period !== pinPeriod && colPin != null;
+  pinPeriod = period;
+  if (unpinned) colPin = pinTop = null;
   // (the column the pointer is over, set before drawing, so a redraw under the pointer doesn't cut its own morph short)
   if (colPin != null && colPin >= rows.length) colPin = null;
   if ((pointer || colPin != null) && c && !c.isDisposed()) st.col = at = colPin ?? colAt(pointer[0]);
@@ -173,6 +178,12 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   paintTimeline();
   // The card and circles follow at once (a pin's color, new ranks)
   if (pointer) draw();
+  // (the card and column fade as when the pointer leaves; the morph above already drops the column's look)
+  else if (unpinned) {
+    el.parentElement.querySelector(".rank-tip").classList.remove("on", "held");
+    el.parentElement.querySelector(".rank-cursor").classList.remove("on", "pinned");
+    glide(at, 0);
+  }
   if (leaving.size) dropTimer = setTimeout(() => {
     st.leaving = new Set();
     cc.setOption({ series: seriesOf() }, { replaceMerge: ["series"] });
@@ -370,7 +381,7 @@ function leave() {
 // A click on the timeline pins the column there (a ring marks it on the timeline, a border on the column): it, its
 // names and the card stay put, even once the pointer leaves, until the same click unpins it. Below, a click pins the
 // lit artist.
-let colPin = null, pinTop = null;
+let colPin = null, pinTop = null, pinPeriod = null;
 function clickAt(x, y) {
   if (!st || !pointer) return;
   const rect = gridRect();

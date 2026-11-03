@@ -294,13 +294,13 @@ function liveSettleChart() {
   const artists = chartArtists(null, n);
   if (state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") && state.mixArgs) {
     $("rolling-sub").textContent = rollingSub(n, WINDOWS[$("window").value], $("include-other").checked);
-    renderMix(...mixArgs);
+    renderMix(...state.mixArgs);
   } else {
     // New artists morph in while the range keeps sliding, the backdrop in the bar with them
     const ms = dur(CHASE_MS);
     renderRollingChart(periodZoom(), ms && { ms, live: true }, null, false);
     liveTail = () => {
-      if (state.mixArgs) renderMix(...mixArgs);
+      if (state.mixArgs) renderMix(...state.mixArgs);
       paintArtistKey();
       paintBrush(undefined, ms ? { ms, ease: EASE_OUT.js } : null);
     };
