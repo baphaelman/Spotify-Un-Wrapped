@@ -862,7 +862,7 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
       const L = ridgeLayout(list.filter((m) => lay.at.has(m) || m === n), peaks, LINES_H);
       return L.at.get(n) - (L.h - plotH);
     };
-    ridgeBase = names.map((n, s) => lay.at.get(n) ?? (fading(s) && prev?.ridgeAt?.get(n)) ?? landing(n, s) ?? 0);
+    ridgeBase = names.map((n, s) => lay.at.get(n) ?? (fading(s) ? prev?.ridgeAt?.get(n) : null) ?? landing(n, s) ?? 0);
     st.ridgeAt = new Map(names.map((n, s) => [n, ridgeBase[s]]));
     ridgeK = lay.k;
     st.ridgeRows = lay.at;
