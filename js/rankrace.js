@@ -322,7 +322,7 @@ let riders = null; // item -> { dot, text }: a circle per line, riding it at `at
 let tlRider = null; // the timeline's
 const rowEls = new Map(); // item -> its row in the card
 
-const laneFloor = (rect) => rect.y - headroom(); // (#1's names count as below)
+const laneFloor = (rect) => rect.y - headroom() - 6; // (the rule under the timeline: #1's names, and a little room over them, count as below)
 const inLane = (y, rect) => y < laneFloor(rect);
 function scrub(x, y) {
   const rect = x != null && st && c && !c.isDisposed() ? gridRect() : null;
@@ -648,9 +648,9 @@ function draw() {
   const ox = el.offsetLeft, oy = el.offsetTop, w = tip.offsetWidth, ht = tip.offsetHeight, W = frame.clientWidth;
   const cx = ox + x;
   const left = cx - slice / 2 - w - 8 >= 0 ? cx - slice / 2 - w - 8 : Math.min(cx + slice / 2 + 8, W - w);
-  // (beside the pointer, or where it was when the column was pinned; always under the timeline, so its stops and
-  // dates stay in sight on either side of the column)
-  const under = oy + laneY() + TL_END_R + 6;
+  // (beside the pointer, or where it was when the column was pinned; always under the timeline's rule, so its stops
+  // and dates stay in sight on either side of the column)
+  const under = oy + laneFloor(rect) + 6;
   let top = Math.max(under, Math.min(frame.clientHeight - ht, oy + (pointer?.[1] ?? 0) - ht / 2));
   if (colPin != null) top = pinTop ??= pointer ? top : under;
   tip.style.transform = `translate(${left}px, ${top}px)`;
