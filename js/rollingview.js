@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, renderDiscovery, panDiscover
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster } from "./every.js";
+import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster, panCalendar, panCalendarTo, endPanCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
@@ -243,15 +243,27 @@ export function paintClock(plays) {
 $("clock-other").addEventListener("change", () => paintClock());
 
 // Every play and Every day, in the chart's artists' colors (pins and hover as everywhere), the rest gray
-// During a pan (state.js) Every play slides: drawn once over both periods with the artists it had, then moved to
-// the clock's range each frame. The pan's end draws it as usual, with the new artists, where it already is.
-let rasterPan = null; // the pan it's sliding with
+// During a pan (state.js) both slide: drawn once over both periods with the artists they had, then moved to the
+// clock's range each frame. The pan's end draws them as usual, with the new artists, where they already are.
+const SLIDES = {
+  "chart-raster": [panRaster, panRasterTo, endPanRaster],
+  "chart-calendar": [panCalendar, panCalendarTo, endPanCalendar],
+};
+const sliding = new Map(); // id -> the pan it slides with
 onPan((p) => {
-  if (rasterPan !== p) return;
-  if (!p.done) return panRasterTo($("chart-raster"), p.at);
-  rasterPan = null;
-  endPanRaster($("chart-raster"), p.to);
-  paintEvery();
+  let ended = false;
+  for (const [id, q] of sliding) {
+    if (q !== p) continue;
+    const [, to, end] = SLIDES[id];
+    if (!p.done) {
+      to($(id), p.at, p.e);
+      continue;
+    }
+    sliding.delete(id);
+    end($(id), p.to);
+    ended = true;
+  }
+  if (ended) paintEvery();
 });
 export function paintEvery(plays) {
   if (!state.mixArgs) return;
@@ -267,14 +279,15 @@ export function paintEvery(plays) {
   };
   for (const [id, render] of [["chart-raster", renderRaster], ["chart-calendar", renderCalendar]]) {
     if (putOff($(id).closest(".card"), () => paintEvery())) continue;
-    if (id === "chart-raster" && pan && !pan.done) {
-      if (rasterPan === pan) continue; // (sliding: the pan's end draws it)
+    if (pan && !pan.done) {
+      if (sliding.get(id) === pan) continue; // (sliding: the pan's end draws it)
       const a = Math.floor(Math.min(pan.from.lo, lo)), b = Math.ceil(Math.max(pan.from.hi, hi));
       const hidden = new Set(state.hidden);
       const both = agg.filterRange(state.plays, a, b).filter((p) => !hidden.has(p.artist));
-      if (panRaster($(id), both, a, b)) {
-        rasterPan = pan;
-        panRasterTo($(id), pan.at);
+      const [start, to] = SLIDES[id];
+      if (start($(id), both, a, b, pan)) {
+        sliding.set(id, pan);
+        to($(id), pan.at, pan.e);
         continue;
       }
     }
