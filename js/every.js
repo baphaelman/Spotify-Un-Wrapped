@@ -225,8 +225,39 @@ function settle(v, changed) {
 
 // Every play as a mark at its day (across) and time of day (down, midnight at the top), as tall as it lasted, in
 // its artist's color (the rest gray). A play running past midnight carries on at the top of the next day. Plays
-// under 10 s are left out. The marks are merged per pixel column where they overlap, so all time draws fast.
+// under 10 s are left out. Plays of the same item (the view's: artist, track, album or genre) one after another are
+// one mark, a run, so a long stretch of one artist reads as one bar. The marks are merged per pixel column where
+// they overlap, so all time draws fast.
 const GRID = { top: 10, bottom: 30, left: 52, right: 12 };
+const RUN_GAP = 2 * 60000; // the longest pause a run carries on through
+
+// The plays as runs { item, start, end, plays }: each play joins its item's run if that item's last play ended at
+// most RUN_GAP before it started and nothing else played in between. In the genres view a play is one entry per
+// genre (sharing its end time t), so it carries on each of its genres' runs and ends the others.
+function playRuns(plays) {
+  const runs = [], open = new Map(); // item -> its run still going
+  let i = 0;
+  while (i < plays.length) {
+    const t = plays[i].t, items = new Map();
+    for (; i < plays.length && plays[i].t === t; i++) {
+      const p = plays[i];
+      if (p.ms / (p.w ?? 1) >= 10000) items.set(p.artist, p); // (the genres view shares a play's time out between its genres)
+    }
+    if (!items.size) continue;
+    for (const item of open.keys()) if (!items.has(item)) open.delete(item);
+    for (const [item, p] of items) {
+      const start = t - p.ms / (p.w ?? 1);
+      let run = open.get(item);
+      if (run && start - run.end <= RUN_GAP) run.end = Math.max(run.end, t), run.plays.push(p);
+      else {
+        run = { item, start, end: t, plays: [p] };
+        runs.push(run);
+        open.set(item, run);
+      }
+    }
+  }
+  return runs;
+}
 
 export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}) {
   const v = setup(el, drawRaster, pickRaster);
@@ -288,27 +319,25 @@ function layoutRaster(v) {
   // Per layer, per device-pixel column, the marks' [y0, y1] runs; and per day, the plays for the pointer
   const cols = new Map([[OTHER, new Map()], ...names.map((n) => [n, new Map()])]);
   v.byDay = Array.from({ length: days }, () => []);
-  const put = (layer, day, y0, y1, p) => {
+  const put = (layer, day, y0, y1, run) => {
     const x0 = GRID.left + day * dw;
     const col = Math.floor(x0 * dpr);
     const m = cols.get(layer);
     let runs = m.get(col);
     if (!runs) m.set(col, (runs = []));
     runs.push([y0, y1, x0]);
-    v.byDay[day].push({ y0, y1, p, layer });
+    v.byDay[day].push({ y0, y1, run, day, layer });
   };
-  for (const p of plays) {
-    const ms = p.ms / (p.w ?? 1); // the genres view shares a play's time out between its genres
-    if (ms < 10000) continue;
-    const start = p.t - ms;
-    const day = agg.dayIndex(start) - lo;
-    const s = new Date(start), hour = s.getHours() + s.getMinutes() / 60 + s.getSeconds() / 3600;
-    const layer = known.has(p.artist) ? p.artist : OTHER;
-    const len = ms / HOUR;
-    const y0 = GRID.top + hour * pph;
-    const y1 = GRID.top + Math.min(24, hour + len) * pph;
-    if (day >= 0 && day < days) put(layer, day, y0, Math.max(y1, y0 + 1.5), p);
-    if (hour + len > 24 && day + 1 >= 0 && day + 1 < days) put(layer, day + 1, GRID.top, GRID.top + (hour + len - 24) * pph, p);
+  // A run is one mark, carried on at the top of each next day it reaches
+  for (const run of playRuns(plays)) {
+    const s = new Date(run.start), hour = s.getHours() + s.getMinutes() / 60 + s.getSeconds() / 3600;
+    const layer = known.has(run.item) ? run.item : OTHER;
+    let day = agg.dayIndex(run.start) - lo, from = hour, left = (run.end - run.start) / HOUR;
+    for (; left > 0 && day < days; day++, from = 0) {
+      const y0 = GRID.top + from * pph, y1 = GRID.top + Math.min(24, from + left) * pph;
+      if (day >= 0) put(layer, day, y0, Math.max(y1, y0 + 1.5), run);
+      left -= 24 - from;
+    }
   }
   // Merge each column's runs that touch, then one rect each
   const mw = Math.max(1, dw);
@@ -455,11 +484,20 @@ function pickRaster(v, x, y) {
     }
   }
   if (!best) return null;
-  const p = best.p;
-  const col = mix(v.t.surface, v.colorOf.get(best.layer), 0.9);
+  const { run, layer } = best;
+  // The play under the pointer: the first of the run still playing at that time of day
+  const at = agg.dayToDate(v.lo + best.day).getTime() + ((y - GRID.top) / v.pph) * HOUR;
+  const p = run.plays.find((p) => at <= p.t) ?? run.plays.at(-1);
+  const col = mix(v.t.surface, v.colorOf.get(layer), 0.9);
   const sub = p.track && p.track !== shownName(p.artist) ? `<div>${esc(p.track)}${p.by && p.by !== p.artist ? ` · ${esc(p.by)}` : ""}</div>` : "";
-  const when = new Date(p.t - p.ms / (p.w ?? 1)).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
-  return { name: best.layer === OTHER ? OTHER : p.artist, html: tipTitle(col, best.layer === OTHER ? p.artist : best.layer) + sub + tipMuted(`${esc(when)} · ${fmtH(p.ms / (p.w ?? 1) / HOUR)}`) };
+  const date = (t) => new Date(t).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  const head = tipTitle(col, layer === OTHER ? run.item : layer), name = layer === OTHER ? OTHER : run.item;
+  const long = fmtH((run.end - run.start) / HOUR);
+  if (run.plays.length === 1) return { name, html: head + sub + tipMuted(`${esc(date(run.start))} · ${long}`) };
+  // A run: when it went on, how long and how many plays, then the one under the pointer
+  const end = agg.dayIndex(run.end) === agg.dayIndex(run.start) ? new Date(run.end).toLocaleTimeString([], { timeStyle: "short" }) : date(run.end);
+  const span = tipMuted(`${esc(date(run.start))} – ${esc(end)}<br>${long} in a row · ${run.plays.length} plays`);
+  return { name, html: head + span + sub };
 }
 
 // ---------- Every day ----------

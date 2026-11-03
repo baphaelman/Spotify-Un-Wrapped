@@ -68,7 +68,7 @@ Similar data as the stack graph, but compressed by day. Maybe you have a sleep p
 
 ### Every play
 
-Every single play in the period as a little mark: across is the day, down is the time of day (midnight at the top), and each mark is as tall as the song lasted. Your selected artists are in their colors, everyone else in gray, so you can spot the late-night binges and the weeks one artist took over. Hover a mark for the song and when you played it; click to pin.
+Every single play in the period as a little mark: across is the day, down is the time of day (midnight at the top), and each mark is as tall as the song lasted. Plays of the same artist back to back (or track, album or genre, whichever tab you're on) join into one mark, so a long stretch of one artist reads as one bar. Your selected artists are in their colors, everyone else in gray, so you can spot the late-night binges and the weeks one artist took over. Hover a mark for when it started, how long you kept going and how many plays that was, with the song under your pointer; click to pin.
 
 ### Every day
 
