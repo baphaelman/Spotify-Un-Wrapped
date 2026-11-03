@@ -72,7 +72,7 @@ Every single play in the period as a little mark: across is the day, down is the
 
 ### Every day
 
-A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to two years it's a box per day; longer than that it switches to a box per week, a row per year. Hover a day for its hours and who topped it; click to pin.
+A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to a year it's a single strip of days, up to two a strip per calendar year, and longer than that a box per week, a row per year, always in the same height. When the period changes, the days slide along with it, grow in or shrink away at its ends, and regroup into the new layout (a week's days gathering into its box). Hover a day for its hours and who topped it; click to pin.
 
 ### First listen
 

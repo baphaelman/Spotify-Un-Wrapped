@@ -473,7 +473,7 @@ const DAY_MODE_MAX = 731;
 // onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note)
 export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, onUnit = null) {
   const v = setup(el, drawCalendar, pickCalendar);
-  const key = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
+  const key = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface, tune.calendarHeight];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, DAY_FACTOR);
   v.table = DAY_FACTOR;
@@ -487,16 +487,9 @@ export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins =
 
 // Each day's (or week's) hours and top artist, and the scale for the tint
 function calendarCells(plays, lo, hi, weeks = hi - lo + 1 > DAY_MODE_MAX) {
-  const jan1 = (y) => agg.dayIndex(new Date(y, 0, 1).getTime());
-  const keyOf = weeks
-    ? (k) => {
-        const y = agg.dayToDate(k).getFullYear();
-        return y * 100 + Math.min(52, Math.floor((k - jan1(y)) / 7));
-      }
-    : (k) => k;
   const by = new Map();
   for (const p of plays) {
-    const key = keyOf(agg.dayIndex(p.t));
+    const k = agg.dayIndex(p.t), key = weeks ? weekKey(k) : k;
     let m = by.get(key);
     if (!m) by.set(key, (m = new Map()));
     m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
@@ -511,27 +504,43 @@ function calendarCells(plays, lo, hi, weeks = hi - lo + 1 > DAY_MODE_MAX) {
     cells.set(key, { h, best, bh });
   }
   const sorted = [...cells.values()].map((c) => c.h).sort((a, b) => a - b);
-  return { plays, lo, hi, weeks, jan1, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
+  return { plays, lo, hi, weeks, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
 }
 
-const CAL = { top: 22, left: 52, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
+const CAL = { top: 22, bottom: 6, left: 52, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
 const wkOf = (k) => (k - weekday(k)) / 7; // a day's week column, counted from any Monday
 const yearOf = (k) => agg.dayToDate(k).getFullYear();
+const jan1 = (y) => agg.dayIndex(new Date(y, 0, 1).getTime());
+// The week box a day belongs to: its year's 7-day blocks from Jan 1, the 53rd taking the rest
+const weekKey = (k) => {
+  const y = yearOf(k);
+  return y * 100 + Math.min(52, Math.floor((k - jan1(y)) / 7));
+};
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const lerp = (a, b, f) => a + (b - a) * f;
 
-// How a period is laid out on a width w: "strip", a box per day in one strip (a year or less); "years", a strip of
-// days per calendar year, the years' weeks lined up (up to two years); "weeks", a box per week, a row per year.
-// cell: the box size; shift: the first column (strip) or year (the others), which a pan slides
+// How a period is laid out on a width w, always tune.calendarHeight tall: "strip", a box per day in one strip (a
+// year or less); "years", a strip of days per calendar year, the years' weeks lined up (up to two years); "weeks", a
+// box per week, a row per year. cw: a column's width (from the width); ch: a day's height (a week row's), the rows
+// filling the height, so boxes are only square by chance; shift: the first column (strip) or year (the others),
+// which a pan slides
 function calMode(lo, hi, w) {
-  if (hi - lo + 1 > DAY_MODE_MAX) return { kind: "weeks", left: CAL.left, cell: Math.max(5, Math.min(24, Math.floor((w - CAL.left - CAL.right) / 53))), shift: yearOf(lo) };
-  const kind = hi - lo + 1 <= 371 ? "strip" : "years", left = kind === "years" ? 72 : 28;
+  const room = tune.calendarHeight - CAL.top - CAL.bottom, years = yearOf(hi) - yearOf(lo) + 1;
+  if (hi - lo + 1 > DAY_MODE_MAX) return { kind: "weeks", left: CAL.left, cw: Math.max(5, Math.min(24, Math.floor((w - CAL.left - CAL.right) / 53))), ch: Math.floor(room / years), shift: yearOf(lo) };
+  const kind = hi - lo + 1 <= 371 ? "strip" : "years", left = kind === "years" ? 72 : 28, rows = kind === "strip" ? 1 : years;
   const cols = kind === "strip" ? wkOf(hi) - wkOf(lo) + 1 : 54;
-  return { kind, left, cell: Math.max(6, Math.min(24, Math.floor((w - left - CAL.right) / cols))), shift: kind === "strip" ? wkOf(lo) : yearOf(lo) };
+  const cw = Math.max(6, Math.min(24, Math.floor((w - left - CAL.right) / cols)));
+  return { kind, left, cw, ch: Math.floor((room - (rows - 1) * CAL.rowGap) / (7 * rows)), shift: kind === "strip" ? wkOf(lo) : yearOf(lo) };
 }
-const rowH = (m) => (m.kind === "weeks" ? m.cell + CAL.gap : m.cell * 7 + CAL.top + CAL.rowGap);
-function calHeight(m, lo, hi) {
-  const rows = m.kind === "strip" ? 1 : yearOf(hi) - yearOf(lo) + 1;
-  return m.kind === "weeks" ? CAL.top + rows * rowH(m) + 6 : CAL.top + (rows - 1) * rowH(m) + m.cell * 7 + 6;
+const rowH = (m) => (m.kind === "weeks" ? m.ch : m.ch * 7 + CAL.rowGap);
+
+// Day k's box in layout m (in "weeks", its week's box)
+function rectOf(m, k) {
+  const { cw, ch } = m, w = cw - CAL.gap, h = ch - CAL.gap;
+  if (m.kind === "strip") return { x: m.left + (wkOf(k) - m.shift) * cw, y: CAL.top + weekday(k) * ch, w, h };
+  const y = yearOf(k), top = CAL.top + (y - m.shift) * rowH(m);
+  if (m.kind === "weeks") return { x: CAL.left + (weekKey(k) % 100) * cw, y: top, w, h };
+  return { x: m.left + (wkOf(k) - wkOf(jan1(y))) * cw, y: top + weekday(k) * ch, w, h };
 }
 
 // How grown a box centred on day c is while one edge of the window travels from e0 to e1 (now at e): a box the edge
@@ -543,23 +552,20 @@ function edgeGrow(c, e0, e1, e) {
   const u = (c - e0) / (e1 - e0), f = (e - e0) / (e1 - e0); // when the edge passes c, and how far it's come
   return e1 < e0 ? clamp01((f - u) / (1 - u)) : clamp01((u - f) / u);
 }
+const growAt = (c, { from, to }, at) => Math.min(edgeGrow(c, from.lo, to.lo, at.lo), edgeGrow(-c, -from.hi - 1, -to.hi - 1, -at.hi - 1));
 
 // The boxes and labels for the days `at` shows ({lo, hi}, fractional while a pan slides it), laid out as `m` with the
 // columns or rows moved along by m.shift. Each has an opacity a: how much of its first day (a week: of its days) is
 // in view, so days fade in and out as the window's edges pass over them. During a resize (grow: the pan's from and
 // to ranges) boxes scale instead (g, about their centre) and only the labels fade.
 function calPlace(v, m, at, grow = null) {
-  const { cell, left, shift } = m;
-  const { jan1 } = v.cells;
+  const { cw, ch, left, shift } = m;
   const seen = (a, b) => clamp01(Math.min(b + 1, at.hi + 1) - Math.max(a, at.lo)); // days a…b in view, up to 1
-  const shown = (a, b) => {
-    if (!grow) return { a: seen(a, b), g: 1 };
-    const c = (a + b + 1) / 2, { from, to } = grow;
-    return { a: 1, g: Math.min(edgeGrow(c, from.lo, to.lo, at.lo), edgeGrow(-c, -from.hi - 1, -to.hi - 1, -at.hi - 1)) };
-  };
+  const shown = (a, b) => (grow ? { a: 1, g: growAt((a + b + 1) / 2, grow, at) } : { a: seen(a, b), g: 1 });
   const boxes = []; // { x, y, w, h, key, from, a, g } for each box in view
   const labels = []; // [x, y, text, align, a year?, a]
   const k0 = Math.max(v.lo, Math.floor(at.lo)), k1 = Math.min(v.hi, Math.ceil(at.hi));
+  const weekdays = (top, a) => ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, top + r * ch + ch / 2, d, "right", false, a]));
   // Month labels at the month's first column, or (one in view from partway) at the first column in view
   const months = (y, top, col0) => {
     for (let mo = 0; mo < 12; mo++) {
@@ -568,41 +574,38 @@ function calPlace(v, m, at, grow = null) {
       const days = Math.min(last + 1, at.hi + 1) - Math.max(first, at.lo);
       const a = Math.max(seen(first, first), clamp01((days - 10) / 4));
       const from = Math.max(first, Math.min(last, Math.ceil(at.lo)));
-      if (a > 0) labels.push([left + (wkOf(from) - col0) * cell, top - 8, MON[mo], "left", false, a]);
+      if (a > 0) labels.push([left + (wkOf(from) - col0) * cw, top - 8, MON[mo], "left", false, a]);
     }
   };
+  const day = (k) => {
+    const o = shown(k, k);
+    if (o.a * o.g > 0) boxes.push({ ...rectOf(m, k), key: k, from: k, ...o });
+  };
   if (m.kind === "strip") {
-    ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, CAL.top + r * cell + cell / 2, d, "right", false, 1]));
-    for (let k = k0; k <= k1; k++) {
-      const o = shown(k, k);
-      if (o.a * o.g > 0) boxes.push({ x: left + (wkOf(k) - shift) * cell, y: CAL.top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, ...o });
-    }
+    weekdays(CAL.top, 1);
+    for (let k = k0; k <= k1; k++) day(k);
     for (let y = yearOf(k0); y <= yearOf(k1); y++) months(y, CAL.top, shift);
   } else {
     for (let y = yearOf(k0); y <= yearOf(k1); y++) {
       const top = CAL.top + (y - shift) * rowH(m);
       const ya = clamp01((Math.min(jan1(y + 1), at.hi + 1) - Math.max(jan1(y), at.lo)) / 7);
       if (m.kind === "weeks") {
-        labels.push([CAL.left - 10, top + cell / 2, String(y), "right", true, ya]);
+        labels.push([CAL.left - 10, top + ch / 2, String(y), "right", true, ya]);
         for (let wk = 0; wk < 53; wk++) {
           const from = jan1(y) + 7 * wk, to = wk === 52 ? jan1(y + 1) - 1 : from + 6;
           const o = shown(from, to);
-          if (o.a * o.g > 0) boxes.push({ x: CAL.left + wk * cell, y: top, w: cell - CAL.gap, h: cell - CAL.gap, key: y * 100 + wk, from, ...o });
+          if (o.a * o.g > 0) boxes.push({ ...rectOf(m, from), key: y * 100 + wk, from, ...o });
         }
         continue;
       }
-      labels.push([left - 26, top + (cell * 7) / 2, String(y), "right", true, ya]);
-      ["M", "", "W", "", "F", "", ""].forEach((d, r) => d && labels.push([left - 8, top + r * cell + cell / 2, d, "right", false, ya]));
-      const col0 = wkOf(jan1(y));
-      for (let k = Math.max(k0, jan1(y)); k <= Math.min(k1, jan1(y + 1) - 1); k++) {
-        const o = shown(k, k);
-        if (o.a * o.g > 0) boxes.push({ x: left + (wkOf(k) - col0) * cell, y: top + weekday(k) * cell, w: cell - CAL.gap, h: cell - CAL.gap, key: k, from: k, ...o });
-      }
-      months(y, top, col0);
+      labels.push([left - 26, top + (ch * 7) / 2, String(y), "right", true, ya]);
+      weekdays(top, ya);
+      for (let k = Math.max(k0, jan1(y)); k <= Math.min(k1, jan1(y + 1) - 1); k++) day(k);
+      months(y, top, wkOf(jan1(y)));
     }
     if (m.kind === "weeks") {
       const DOY = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]; // each month's first day of the year
-      DOY.forEach((d, mo) => labels.push([CAL.left + Math.floor(d / 7) * cell, CAL.top - 8, MON[mo], "left", false, 1]));
+      DOY.forEach((d, mo) => labels.push([CAL.left + Math.floor(d / 7) * cw, CAL.top - 8, MON[mo], "left", false, 1]));
     }
   }
   // Month labels that would collide with the one before give way
@@ -617,38 +620,72 @@ function calPlace(v, m, at, grow = null) {
 }
 
 function layoutCalendar(v) {
-  const m = calMode(v.lo, v.hi, v.el.clientWidth || 1000);
-  calPlace(v, m, { lo: v.lo, hi: v.hi });
-  size(v, calHeight(m, v.lo, v.hi));
+  calPlace(v, calMode(v.lo, v.hi, v.el.clientWidth || 1000), { lo: v.lo, hi: v.hi });
+  size(v, tune.calendarHeight);
   if (v.looks.size) v.draw(v);
 }
 
-// A pan (state.js) sliding Every day to another period laid out the same way (both a strip, both strips per year, or
-// both rows of weeks): the days of both periods, still with the artists it has, and each frame (panCalendarTo) places
-// them for the days `at` shows, the strip's columns or the rows travelling from the old period's place to the new
-// one's in step with the window, the box size and the tint's scale between the two. endPanCalendar hands back to the
-// usual render, which lands where it already is.
+// A box's fill, from its cell (none: nothing played) at the tint's scale `top`, and the artist a pin rings it for
+function tintOf(v, c, top) {
+  if (!c) return { fill: mix(v.t.surface, v.t.grid, 0.6), name: null };
+  const name = v.colorOf.has(c.best) ? c.best : OTHER;
+  const look = lookOf(v, name) ?? { s: 1, o: 0 };
+  const share = Math.min(1, (0.15 + 0.6 * Math.min(1, Math.sqrt(c.h / top))) * look.s) * (name === OTHER ? 0.75 : 1);
+  return { fill: mix(v.t.surface, v.colorOf.get(name), share), name };
+}
+
+// A pan (state.js) sliding Every day to another period: the days of both periods, still with the artists it has, and
+// each frame (panCalendarTo) places them for the days `at` shows. Laid out the same way at both ends (both a strip,
+// both strips per year, or both rows of weeks), the strip's columns or the rows travel from the old period's place
+// to the new one's in step with the window, the box size and the tint's scale between the two. Laid out differently
+// (a morph), every day has a box in each layout (in "weeks", its week's) and moves and resizes from one to the other,
+// its tint crossing from the old layout's to the new one's, so a week's seven days gather into its box or spread out
+// of it, and the labels cross-fade. Either way, when the length changes, days at the ends grow or shrink.
+// endPanCalendar hands back to the usual render, which lands where it already is.
 export function panCalendar(el, plays, lo, hi, p) {
   const v = views.get(el);
   if (!v?.boxes) return false;
   const w = el.clientWidth || 1000;
   const from = { lo: Math.round(p.from.lo), hi: Math.round(p.from.hi) };
-  const mf = v.calPan?.now ?? calMode(from.lo, from.hi, w), mt = calMode(p.to.lo, p.to.hi, w);
-  if (mf.kind !== mt.kind) return false;
+  const was = v.calPan;
+  const mf = was?.now ?? calMode(from.lo, from.hi, w), mt = calMode(p.to.lo, p.to.hi, w);
   if (v.waiting) {
     clearTimeout(v.waitTimer);
     v.waiting = false;
     fadeCanvas(v, 1, dur(FADE_MS), EASE_OUT.css);
   }
   hideTip();
-  const weeks = mt.kind === "weeks";
-  const topOf = (r) => calendarCells(agg.filterRange(plays, r.lo, r.hi), r.lo, r.hi, weeks).top;
   // (a resize, the two lengths differing, grows and shrinks the boxes at its ends instead of fading them)
   const grow = Math.abs(p.to.hi - p.to.lo - (p.from.hi - p.from.lo)) > 0.5 ? { from: p.from, to: p.to } : null;
-  v.calPan = { p, mf, mt, grow, topFrom: v.cells.top, topTo: topOf(p.to), now: mf };
+  const cellsOf = (r, weeks) => calendarCells(agg.filterRange(plays, r.lo, r.hi), r.lo, r.hi, weeks);
+  const toCells = cellsOf(p.to, mt.kind === "weeks");
+  const fromTop = v.cells.top;
   Object.assign(v, { plays, lo, hi });
-  v.cells = calendarCells(plays, lo, hi, weeks);
-  size(v, Math.max(calHeight(mf, from.lo, from.hi), calHeight(mt, p.to.lo, p.to.hi)));
+  v.cells = calendarCells(plays, lo, hi, mt.kind === "weeks");
+  size(v, tune.calendarHeight);
+  if (mf.kind === mt.kind && !was?.days) {
+    v.calPan = { p, mf, mt, grow, topFrom: fromTop, topTo: toCells.top, now: mf };
+    return true;
+  }
+  // A morph: each day's box and tint at both ends, the old end taken from what's on screen
+  const fromCells = was?.days ? null : cellsOf(from, mf.kind === "weeks");
+  const prev = new Map(was?.days?.map((d) => [d.k, d]));
+  const tint = (cells, k, top, weeks) => tintOf(v, cells.cells.get(weeks ? weekKey(k) : k), top);
+  // (a day in only one of the periods grows or shrinks where it is at that end, rather than flying in from a layout
+  // that doesn't show it)
+  const days = [];
+  for (let k = lo; k <= hi; k++) {
+    const d = prev.get(k), inFrom = !!d?.fill || (k >= from.lo && k <= from.hi), inTo = k >= p.to.lo && k <= p.to.hi;
+    const ct = inTo ? tint(toCells, k, toCells.top, mt.kind === "weeks") : null;
+    const cf = d?.fill ? { fill: d.fill, name: d.name } : inFrom ? tint(fromCells, k, fromTop, mf.kind === "weeks") : ct;
+    const rf = inFrom ? (d?.now ?? rectOf(mf, k)) : null, rt = inTo ? rectOf(mt, k) : null;
+    days.push({ k, rf: rf ?? rt, rt: rt ?? rf, cf: cf ?? ct, ct: ct ?? cf });
+  }
+  // The labels as they are at either end
+  calPlace(v, mf, p.from);
+  const labelsFrom = v.labels;
+  calPlace(v, mt, p.to);
+  v.calPan = { p, mf, mt, grow: { from: p.from, to: p.to }, days, labelsFrom, labelsTo: v.labels };
   return true;
 }
 export function panCalendarTo(el, at, e) {
@@ -658,9 +695,12 @@ export function panCalendarTo(el, at, e) {
   const { p, mf, mt } = cp;
   // (the columns or rows travel with the window's start, or with the clock if only its end moves)
   const f = p.to.lo !== p.from.lo ? clamp01((at.lo - p.from.lo) / (p.to.lo - p.from.lo)) : e;
-  cp.now = { ...mt, cell: mf.cell + (mt.cell - mf.cell) * f, shift: mf.shift + (mt.shift - mf.shift) * f };
-  v.cells.top = cp.topFrom + (cp.topTo - cp.topFrom) * e;
-  calPlace(v, cp.now, at, cp.grow);
+  if (cp.days) morphPlace(v, cp, at, f);
+  else {
+    cp.now = { ...mt, cw: lerp(mf.cw, mt.cw, f), ch: lerp(mf.ch, mt.ch, f), shift: lerp(mf.shift, mt.shift, f) };
+    v.cells.top = lerp(cp.topFrom, cp.topTo, e);
+    calPlace(v, cp.now, at, cp.grow);
+  }
   drawCalendar(v);
 }
 export function endPanCalendar(el, { lo, hi }) {
@@ -668,6 +708,23 @@ export function endPanCalendar(el, { lo, hi }) {
   if (!v?.calPan) return;
   v.calPan = null;
   Object.assign(v, { lo, hi });
+}
+
+// A morph's frame: each day's box f of the way from its old rect to its new one, grown as the window's ends allow,
+// and its fill f of the way to its new tint
+function morphPlace(v, cp, at, f) {
+  const boxes = [];
+  for (const d of cp.days) {
+    const { rf, rt, cf, ct } = d;
+    d.now = { x: lerp(rf.x, rt.x, f), y: lerp(rf.y, rt.y, f), w: lerp(rf.w, rt.w, f), h: lerp(rf.h, rt.h, f) };
+    d.fill = cf.fill === ct.fill ? cf.fill : mix(cf.fill, ct.fill, f);
+    d.name = f < 0.5 ? cf.name : ct.name;
+    const g = growAt(d.k + 0.5, cp.grow, at);
+    if (g > 0) boxes.push({ ...d.now, a: 1, g, fill: d.fill, name: d.name });
+  }
+  v.boxes = boxes;
+  const fade = (labels, a) => labels.map((l) => [...l.slice(0, 5), l[5] * a]);
+  v.labels = [...fade(cp.labelsFrom, 1 - f), ...fade(cp.labelsTo, f)];
 }
 
 function drawCalendar(v) {
@@ -678,29 +735,21 @@ function drawCalendar(v) {
   ctx.textBaseline = "middle";
   // The years read first, larger and brightest; the months along the top next; the weekdays quietest
   for (const [x, y, text, align, year, a] of v.labels) {
+    if (a <= 0) continue;
     ctx.globalAlpha = a;
     ctx.font = year ? `600 13px ${t.font}` : `11px ${t.font}`;
     ctx.fillStyle = year ? t.primary : align === "left" ? t.secondary : t.muted;
     ctx.textAlign = align;
     ctx.fillText(text, x, y);
   }
-  const empty = mix(t.surface, t.grid, 0.6);
   const rings = [];
   for (const b of v.boxes) {
     ctx.globalAlpha = b.a;
-    const c = cells.get(b.key);
-    if (!c) {
-      ctx.fillStyle = empty;
-      roundRect(ctx, ...scaled(b), 2);
-      continue;
-    }
-    const name = v.colorOf.has(c.best) ? c.best : OTHER;
-    const look = lookOf(v, name) ?? { s: 1, o: 0 };
-    const q = Math.min(1, Math.sqrt(c.h / top));
-    const share = Math.min(1, (0.15 + 0.6 * q) * look.s) * (name === OTHER ? 0.75 : 1);
-    ctx.fillStyle = mix(t.surface, v.colorOf.get(name), share);
+    const { fill, name } = b.fill ? b : tintOf(v, cells.get(b.key), top); // (a morph's boxes carry their fill)
+    ctx.fillStyle = fill;
     roundRect(ctx, ...scaled(b), 2);
-    if (look.o > 0.01) rings.push([b, name, look.o * b.a]);
+    const o = name ? (lookOf(v, name)?.o ?? 0) : 0;
+    if (o > 0.01) rings.push([b, name, o * b.a]);
   }
   // A pinned artist's boxes are ringed in their color (only a pin outlines)
   ctx.lineWidth = 1.5;

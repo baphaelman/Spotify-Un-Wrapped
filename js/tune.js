@@ -37,6 +37,8 @@ export const TUNES = [
   { key: "rasterHeight", card: "raster-card", label: "Height", def: 400, min: 260, max: 1100, step: 10, fmt: px },
   // (Every day's too)
   { key: "waitFade", card: "raster-card", label: "Shown while the period moves", def: 0.6, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
+  // (the same in every layout; the boxes' height fills it)
+  { key: "calendarHeight", card: "calendar-card", label: "Height", def: 240, min: 160, max: 600, step: 10, fmt: px },
   { key: "discoveryFloor", card: "discovery-card", label: "Listening Threshold", def: 1, min: 0.25, max: 60, step: 0.25, live: true, fmt: (v) => (v >= 60 ? "1 hour" : `${v} min`) },
   { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
   { key: "discoveryNameGap", card: "discovery-card", label: "Room around gray names", def: 18, min: 0, max: 60, step: 2, fmt: px },
