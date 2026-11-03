@@ -443,8 +443,10 @@ function clickAt(x, y) {
   } else draw();
 }
 
-// ECharts swaps a line's circles' sizes and names at once: grow and shrink the circles over ms instead, from their
-// size on screen, fade in the names that appear, and fade out a copy of each that goes, where it was
+// ECharts swaps a line's circles' sizes, colors and names at once: grow and shrink the circles and fade their colors
+// over ms instead, from what's on screen, fade in the names that appear, and fade out a copy of each that goes, where
+// it was
+const lookStyle = (el) => ({ fill: el.style.fill, stroke: el.style.stroke, opacity: el.style.opacity ?? 1, lineWidth: el.style.lineWidth });
 function morphPoints(apply, ms) {
   const points = () => {
     const out = new Map();
@@ -461,8 +463,9 @@ function morphPoints(apply, ms) {
   const before = new Map();
   for (const [k, el] of points()) {
     el.stopAnimation("size");
+    el.stopAnimation("look");
     const named = shownText(el), t = el.getTextContent();
-    before.set(k, { sx: el.scaleX, sy: el.scaleY, named, name: named && { style: { ...t.style }, m: t.getComputedTransform()?.slice() } });
+    before.set(k, { sx: el.scaleX, sy: el.scaleY, look: lookStyle(el), named, name: named && { style: { ...t.style }, m: t.getComputedTransform()?.slice() } });
   }
   apply();
   if (!ms) return;
@@ -481,6 +484,12 @@ function morphPoints(apply, ms) {
     if (sx !== b.sx || sy !== b.sy) {
       el.attr({ scaleX: b.sx, scaleY: b.sy });
       el.animateTo({ scaleX: sx, scaleY: sy }, { duration: ms, easing: EASE_OUT.echarts, scope: "size" });
+    }
+    // (its color and how much it shows fade with the line's, which setOptionFaded fades)
+    const look = lookStyle(el);
+    if (Object.keys(look).some((p) => look[p] !== b.look[p])) {
+      el.setStyle(b.look);
+      el.animateTo({ style: look }, { duration: ms, easing: EASE_OUT.echarts, scope: "look" });
     }
     // (a name new to ECharts it fades in itself, from 0: left to it, rather than faded to that 0)
     const t = el.getTextContent();
