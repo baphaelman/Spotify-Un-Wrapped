@@ -712,6 +712,13 @@ function paintTimeline(drop = false, now = false) {
   if (!now) for (const e of tl.els) { e.style.opacity = 0; fade(e, 1); }
 }
 
+// Where the framed strip starts: a little left of the ranks' labels (the widest's width and 8px past the axis's own
+// 8px gap), or further out if the column at the first slice needs the room. It runs to the chart's right edge.
+const stripLeft = (rect) => {
+  const hug = rect.x - 16 - textWidth(`#${st.MAX}`, "12px Inter, sans-serif"), half = rect.width / Math.max(1, st.view[1] - st.view[0]) / 2;
+  return Math.max(0, Math.floor(Math.min(hug, rect.x - half)));
+};
+
 // The timeline's elements for st's slices (dots big at each period's ends), with its labels and the x axis's at
 // every st.iv'th key, in a group clipped a little past the plot's ends (a label's half, a dot) so they leave it cut
 const textWidth = (text, font) => { measure ??= document.createElement("canvas").getContext("2d"); measure.font = font; return measure.measureText(text).width; };
@@ -742,15 +749,14 @@ function timelineEls(rect) {
     if ((k0 + i) % iv) return;
     half = Math.max(half, textWidth(labels[i], LABEL_FONT) / 2, textWidth(labels[i], DATE_FONT) / 2);
     texts.push(
-      Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom", fill: t.muted, font: DATE_FONT } }), { _k: k0 + i }),
+      Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: y - TL_END_R - 3, align: "center", verticalAlign: "bottom", fill: t.muted, font: DATE_FONT } }), { _k: k0 + i, _top: true }),
       Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: floor + 8, align: "center", verticalAlign: "top", fill: t.muted, font: LABEL_FONT } }), { _k: k0 + i }),
     );
   });
   const track = look === 3 ? { stroke: alpha(t.primary, 0.16), lineWidth: 9, lineCap: "round" } : look === 4 ? { stroke: "transparent", lineWidth: 0 } : { stroke: t.axis, lineWidth: look === 2 ? 1 : 1.5 };
   const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: track });
-  // (the framed strip's is its lower edge; it starts a little left of the ranks' labels, the widest's width and 8px
-  // past the axis's own 8px gap, and runs to the card's right edge)
-  const strip = look === 5, sx = Math.floor(rect.x - 16 - textWidth(`#${st.MAX}`, "12px Inter, sans-serif"));
+  // (the framed strip's is its lower edge)
+  const strip = look === 5, sx = stripLeft(rect);
   const rule = new Line({ silent: true, z: 1, shape: { x1: strip ? sx : 8, y1: ry, x2: c.getWidth() - (strip ? 0 : 8), y2: ry },
     style: { stroke: strip ? t.grid : t.axis, lineWidth: 1, lineDash: look === 4 ? [3, 4] : null, opacity: look === 1 ? 0 : 1 } });
   const extra = [];
@@ -773,7 +779,12 @@ function placeTimeline() {
     const x = rect.x + (e._k - lo) * per;
     if (e.type === "circle") e.attr({ shape: { cx: x } });
     else if (e.type === "rect") e.attr({ shape: { x: x - e.shape.width / 2 } });
-    else e.attr({ style: st.slide ? { x, opacity: Math.max(0, 1 - 2 * Math.max(0, lo - e._k, e._k - hi)) } : { x } });
+    else {
+      // (in the framed strip, the dates at its ends stay whole inside it)
+      const half = e._top && tune.rankLane === 5 ? e.getBoundingRect().width / 2 + 4 : 0;
+      const tx = half ? Math.max(stripLeft(rect) + half, Math.min(c.getWidth() - half, x)) : x;
+      e.attr({ style: st.slide ? { x: tx, opacity: Math.max(0, 1 - 2 * Math.max(0, lo - e._k, e._k - hi)) } : { x: tx } });
+    }
   }
 }
 
@@ -923,10 +934,12 @@ function draw() {
       style: { text: shownName(a), x, y: y - L.size / 2 - (L.col ? 8 : 6), align: "center", verticalAlign: "bottom", font: `${ns.fontWeight} ${ns.fontSize}px Inter, sans-serif`, fill: ns.color, stroke: ns.textBorderColor, lineWidth: ns.textBorderWidth, opacity: r.nm * shown * depth },
       z: L.col ? 15 : 14,
     });
-    // (a name at either end stays whole on the canvas)
-    if (r.nm) {
-      const half = r.text.getBoundingRect().width / 2, W = c.getWidth();
-      r.text.attr({ style: { x: Math.max(half + 2, Math.min(W - half - 2, x)) } });
+    // (a name at either end stays whole inside the chart and the framed strip's left edge, as if aligned to it; measured
+    // rather than read from the text, whose bounds can lag its new style)
+    {
+      const half = (textWidth(shownName(a), r.text.style.font) + ns.textBorderWidth) / 2 + 2, W = c.getWidth();
+      const lo = tune.rankLane === 5 ? stripLeft(rect) : 0;
+      r.text.attr({ style: { x: Math.max(lo + half, Math.min(W - half, x)) } });
     }
   }
   if (!tlRider) {
@@ -994,9 +1007,11 @@ function draw() {
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
   const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
-  cursor.style.setProperty("--x", `${column || !pointer || colPin != null ? cx : ox + pointer[0]}px`);
+  // (a column stays inside the chart, and inside the framed strip: at either end it's cut to fit)
+  const a = Math.max(cx - slice / 2, ox + (tune.rankLane === 5 ? stripLeft(rect) : 0)), b = Math.min(cx + slice / 2, ox + c.getWidth());
+  cursor.style.setProperty("--x", `${column ? (a + b) / 2 : !pointer || colPin != null ? cx : ox + pointer[0]}px`);
   cursor.classList.toggle("pinned", colPin != null);
-  cursor.style.setProperty("--slice", `${slice}px`);
+  cursor.style.setProperty("--slice", `${b - a}px`);
   cursor.style.top = `${oy + rect.y - room}px`;
   cursor.style.height = `${rect.height + room}px`;
   cursor.classList.add("on");
