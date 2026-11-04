@@ -5,7 +5,7 @@ import { currentZoom, setZoom } from "./charts.js";
 import { setupBrush, setBrushRange } from "./brush.js";
 import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS, endPan } from "./state.js";
-import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph } from "./rollingview.js";
+import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph, dragEvery, endDragEvery } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
 import { fmtDay } from "./format.js";
 
@@ -166,7 +166,8 @@ $("year-prev").addEventListener("click", () => stepPeriod(-1));
 $("year-next").addEventListener("click", () => stepPeriod(1));
 
 // The brush: the graphs follow the window as it's dragged. The chart's range only slides when the artists
-// stay the same (liveRender), so a drag is cheap and the rest settles as the artists change.
+// stay the same (liveRender), so a drag is cheap and the rest settles as the artists change. Every play and Every
+// day slide with the chart, and take the new artists as the window is let go.
 let livePending = 0;
 let dragLen = undefined; // while the window is dragged: the length button it started on (null for none) if it moves whole
 setupBrush((range) => {
@@ -182,7 +183,11 @@ setupBrush((range) => {
   cancelAnimationFrame(livePending);
   livePending = requestAnimationFrame(liveRender);
   return range;
-}, (...a) => { dragLen = undefined; return paintBrush(...a); });
+}, (...a) => {
+  dragLen = undefined;
+  endDragEvery();
+  return paintBrush(...a);
+});
 
 // The period menu: the hidden select's options, shown in a menu that lives in the sticky bar, so it
 // moves with the bar on scroll (a native dropdown can end up off screen). It lists All time, then the years
@@ -265,6 +270,7 @@ let liveTail = null; // the chart's own followers (the mix bar and the bar's bac
 function liveRender() {
   if (!state.plays || !state.range) return;
   setZoom($("chart-rolling"), clampZoom(periodZoom(), rawMemo?.raw.dates));
+  dragEvery(state.range); // (Every play and Every day follow it each frame too)
   clearTimeout(liveTimer);
   const wait = liveAt + Math.max(LIVE_MS, liveCost * 3) - performance.now();
   if (wait <= 0) liveSettle();

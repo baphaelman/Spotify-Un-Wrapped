@@ -1,8 +1,8 @@
 // Every play and Every day: two graphs drawn on their own canvas rather than by ECharts. Every play has a mark per
 // play (a hundred thousand over all time), and ECharts can neither fade that many marks on a hover nor draw them
 // fast, so each artist's marks are one Path2D, built once per layout, and a frame is a dozen fills. Both follow the
-// rolling chart's artists, colors, pins and hover (litLook, eased per artist), fade out while the period moves and
-// back in once it settles (refresh), and show their own hover card.
+// rolling chart's artists, colors, pins and hover (litLook, eased per artist), slide with a pan or a dragged period
+// window (panRaster, panCalendar, dragCalendar), and show their own hover card.
 
 import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isPinLook } from "./motion.js";
@@ -551,10 +551,14 @@ export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins =
 function calendarCells(plays, lo, hi, keep = null, weeks = hi - lo + 1 > DAY_MODE_MAX) {
   const kept = keep == null ? null : new Set(keep ? keep.split("\u0000") : []);
   const by = new Map();
+  let next = -Infinity, m = null; // (the plays come in time order: a day's are looked up once, at its first)
   for (const p of plays) {
-    const k = agg.dayIndex(p.t), key = weeks ? weekKey(k) : k;
-    let m = by.get(key);
-    if (!m) by.set(key, (m = new Map()));
+    if (p.t >= next) {
+      const k = agg.dayIndex(p.t), key = weeks ? weekKey(k) : k;
+      next = agg.dayToDate(k + 1).getTime();
+      m = by.get(key);
+      if (!m) by.set(key, (m = new Map()));
+    }
     if (!kept || kept.has(p.artist)) m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
   }
   const cells = new Map();
@@ -586,20 +590,22 @@ const lerp = (a, b, f) => a + (b - a) * f;
 // year or less); "years", a strip of days per calendar year, the years' weeks lined up (up to two years); "weeks", a
 // box per week, a row per year. cw: a column's width (from the width); ch: a day's height (a week row's), the rows
 // filling the height, so boxes are only square by chance; shift: the first column (strip) or year (the others),
-// which a pan slides
-function calMode(lo, hi, w) {
+// which a pan slides. A drag holds the kind it started in (`kind`), so a period too long for it squeezes in.
+const kindOf = (lo, hi) => (hi - lo + 1 > DAY_MODE_MAX ? "weeks" : hi - lo + 1 <= 371 ? "strip" : "years");
+function calMode(lo, hi, w, kind = kindOf(lo, hi)) {
   const room = tune.calendarHeight - CAL.top - CAL.bottom, years = yearOf(hi) - yearOf(lo) + 1;
-  if (hi - lo + 1 > DAY_MODE_MAX) return { kind: "weeks", left: CAL.left, cw: Math.max(5, Math.min(24, Math.floor((w - CAL.left - CAL.right) / 53))), ch: Math.floor(room / years), shift: yearOf(lo) };
-  const kind = hi - lo + 1 <= 371 ? "strip" : "years", left = kind === "years" ? 72 : 28, rows = kind === "strip" ? 1 : years;
+  const min = kind === kindOf(lo, hi) ? 1 : 0.4; // (the share of a box's smallest size it can squeeze to)
+  if (kind === "weeks") return { kind, left: CAL.left, cw: Math.max(5 * min, Math.min(24, Math.floor((w - CAL.left - CAL.right) / 53))), ch: Math.floor(room / years), shift: yearOf(lo) };
+  const left = kind === "years" ? 72 : 28, rows = kind === "strip" ? 1 : years;
   const cols = kind === "strip" ? wkOf(hi) - wkOf(lo) + 1 : 54;
-  const cw = Math.max(6, Math.min(24, Math.floor((w - left - CAL.right) / cols)));
-  return { kind, left, cw, ch: Math.floor((room - (rows - 1) * CAL.rowGap) / (7 * rows)), shift: kind === "strip" ? wkOf(lo) : yearOf(lo) };
+  const cw = Math.max(6 * min, Math.min(24, Math.floor((w - left - CAL.right) / cols)));
+  return { kind, left, cw, ch: Math.max(2, Math.floor((room - (rows - 1) * CAL.rowGap) / (7 * rows))), shift: kind === "strip" ? wkOf(lo) : yearOf(lo) };
 }
 const rowH = (m) => (m.kind === "weeks" ? m.ch : m.ch * 7 + CAL.rowGap);
 
 // Day k's box in layout m (in "weeks", its week's box)
 function rectOf(m, k) {
-  const { cw, ch } = m, w = cw - CAL.gap, h = ch - CAL.gap;
+  const { cw, ch } = m, w = cw - Math.min(CAL.gap, cw / 3), h = ch - Math.min(CAL.gap, ch / 3); // (a squeezed box keeps some of its size)
   if (m.kind === "strip") return { x: m.left + (wkOf(k) - m.shift) * cw, y: CAL.top + weekday(k) * ch, w, h };
   const y = yearOf(k), top = CAL.top + (y - m.shift) * rowH(m);
   if (m.kind === "weeks") return { x: CAL.left + (weekKey(k) % 100) * cw, y: top, w, h };
@@ -620,11 +626,12 @@ const growAt = (c, { from, to }, at) => Math.min(edgeGrow(c, from.lo, to.lo, at.
 // The boxes and labels for the days `at` shows ({lo, hi}, fractional while a pan slides it), laid out as `m` with the
 // columns or rows moved along by m.shift. Each has an opacity a: how much of its first day (a week: of its days) is
 // in view, so days fade in and out as the window's edges pass over them. During a resize (grow: the pan's from and
-// to ranges) boxes scale instead (g, about their centre) and only the labels fade.
+// to ranges) boxes scale instead (g, about their centre) and only the labels fade; grow true (a dragged edge) scales
+// each by how much of it is in view.
 function calPlace(v, m, at, grow = null) {
   const { cw, ch, left, shift } = m;
   const seen = (a, b) => clamp01(Math.min(b + 1, at.hi + 1) - Math.max(a, at.lo)); // days a…b in view, up to 1
-  const shown = (a, b) => (grow ? { a: 1, g: growAt((a + b + 1) / 2, grow, at) } : { a: seen(a, b), g: 1 });
+  const shown = (a, b) => (grow === true ? { a: 1, g: seen(a, b) } : grow ? { a: 1, g: growAt((a + b + 1) / 2, grow, at) } : { a: seen(a, b), g: 1 });
   const boxes = []; // { x, y, w, h, key, from, a, g } for each box in view
   const labels = []; // [x, y, text, align, a year?, a]
   const k0 = Math.max(v.lo, Math.floor(at.lo)), k1 = Math.min(v.hi, Math.ceil(at.hi));
@@ -773,6 +780,91 @@ export function endPanCalendar(el, { lo, hi }) {
   Object.assign(v, { lo, hi });
 }
 
+// A drag of the period window (rollingview.js): Every day follows each move rather than waiting for it to stop. It's
+// given the days of a span wide enough for any drag, with the artists and tint scale it has, and held in the layout
+// it was in (a strip, strips per year or rows of weeks); each move (dragCalendarTo) sets where it's heading, and the
+// days shown and the layout's sizes and place chase it (CHASE_MS), so the columns or rows glide, days fade in and out
+// at the window's ends as it moves and grow or shrink at an edge being dragged. endDragCalendar lands on the window's
+// range as a pan does (panCalendar), morphing into another layout if its new length calls for one, then calls done.
+export function dragCalendar(el, plays, lo, hi) {
+  const v = views.get(el);
+  if (!v?.boxes) return false;
+  if (v.waiting) {
+    clearTimeout(v.waitTimer);
+    v.waiting = false;
+    fadeCanvas(v, 1, dur(FADE_MS), EASE_OUT.css);
+  }
+  hideTip();
+  // From what's on screen: a landing still in flight carries on from where it is (a morph from where it's heading)
+  const land = v.calLand?.cp === v.calPan ? v.calLand : null;
+  if (land) cancelAnimationFrame(land.raf);
+  const at = land ? { ...land.at } : { lo: v.lo, hi: v.hi };
+  const now = { ...(land ? (land.cp.now ?? land.cp.mt) : calMode(v.lo, v.hi, el.clientWidth || 1000)) };
+  const top = v.cells.top;
+  v.calPan = v.calLand = null;
+  Object.assign(v, { plays, lo, hi });
+  v.cells = calendarCells(plays, lo, hi, v.keep, now.kind === "weeks");
+  v.cells.top = top;
+  v.calDrag = { now, at, to: at, len: at.hi - at.lo, grow: false, t: 0, raf: 0 };
+  return true;
+}
+export function dragCalendarTo(el, at) {
+  const v = views.get(el), d = v?.calDrag;
+  if (!d) return;
+  d.to = { ...at };
+  d.grow ||= Math.abs(at.hi - at.lo - d.len) > 0.5; // (an edge: its days grow and shrink rather than fade)
+  if (d.raf) return;
+  d.t = performance.now();
+  d.raf = requestAnimationFrame(() => chaseCalendar(v));
+}
+function chaseCalendar(v) {
+  const d = v.calDrag;
+  if (!d) return;
+  const now = performance.now(), ms = dur(CHASE_MS);
+  const k = ms ? 1 - Math.exp((d.t - now) / (ms / 4)) : 1; // (most of the way there in CHASE_MS)
+  d.t = now;
+  const m = calMode(d.to.lo, d.to.hi, v.width || 1000, d.now.kind);
+  let still = true;
+  const near = (a, b) => {
+    const x = lerp(a, b, k);
+    if (Math.abs(b - x) < 0.01) return b;
+    still = false;
+    return x;
+  };
+  for (const f of ["left", "cw", "ch", "shift"]) d.now[f] = near(d.now[f], m[f]);
+  d.at = { lo: near(d.at.lo, d.to.lo), hi: near(d.at.hi, d.to.hi) };
+  calPlace(v, d.now, d.at, d.grow || null);
+  drawCalendar(v);
+  d.raf = still ? 0 : requestAnimationFrame(() => chaseCalendar(v));
+}
+export function endDragCalendar(el, to, done) {
+  const v = views.get(el), d = v?.calDrag;
+  if (!d) return done();
+  cancelAnimationFrame(d.raf);
+  v.calDrag = null;
+  const from = { ...d.at };
+  const a = Math.floor(Math.min(from.lo, to.lo)), b = Math.ceil(Math.max(from.hi, to.hi));
+  v.calPan = { now: d.now }; // (so the landing starts from the layout on screen)
+  panCalendar(el, agg.filterRange(v.plays, a, b), a, b, { from, to });
+  const cp = v.calPan, morph = !!cp.days;
+  const ms = dur(morph ? MORPH_MS : CHASE_MS), ease = morph ? EASE_IN_OUT.js : EASE_OUT.js, t0 = performance.now();
+  const land = (v.calLand = { cp, at: from, raf: 0 });
+  const frame = (now) => {
+    if (v.calPan !== cp) return; // (a pan or another drag took over)
+    const t = ms ? clamp01((now - t0) / ms) : 1, e = ease(t);
+    land.at = { lo: lerp(from.lo, to.lo, e), hi: lerp(from.hi, to.hi, e) };
+    panCalendarTo(el, land.at, e);
+    if (t < 1) {
+      land.raf = requestAnimationFrame(frame);
+      return;
+    }
+    v.calLand = null;
+    endPanCalendar(el, to);
+    done();
+  };
+  frame(t0);
+}
+
 // A morph's frame: each day's box f of the way from its old rect to its new one, grown as the window's ends allow,
 // and its fill f of the way to its new tint
 function morphPlace(v, cp, at, f) {
@@ -837,7 +929,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function pickCalendar(v, x, y) {
-  const b = !v.waiting && !v.calPan && v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
+  const b = !v.waiting && !v.calPan && !v.calDrag && v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
   if (!b) return null;
   const c = v.cells.cells.get(b.key);
   const d = agg.dayToDate(b.from);

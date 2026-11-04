@@ -6,7 +6,7 @@ import { renderRolling, renderMonthly, renderClock, renderDiscovery, panDiscover
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
-import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster, panCalendar, panCalendarTo, endPanCalendar } from "./every.js";
+import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster, panCalendar, panCalendarTo, endPanCalendar, dragCalendar, dragCalendarTo, endDragCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
 import { tune } from "./tune.js";
 import { genreCoversIn } from "./views.js";
@@ -265,6 +265,37 @@ onPan((p) => {
   }
   if (ended) paintEvery();
 });
+// While the period window is dragged (period.js), both follow it each frame (dragEvery) rather than waiting for it to
+// stop: given the whole history once, with the artists they have, then shown the window's range. Letting go
+// (endDragEvery) lands them on it, then draws them as usual, with the new artists.
+const DRAGS = {
+  "chart-raster": [panRaster, panRasterTo, (el, to, done) => (endPanRaster(el, to), done())],
+  "chart-calendar": [dragCalendar, dragCalendarTo, endDragCalendar],
+};
+const dragging = new Map(); // id -> "drag" while it follows the window, "land" while it lands
+export function dragEvery(range) {
+  if (!state.mixArgs) return;
+  for (const [id, [start, to]] of Object.entries(DRAGS)) {
+    if (dragging.get(id) !== "drag") {
+      if (putOff($(id).closest(".card"), () => paintEvery())) continue;
+      const { lo, hi } = extent(), hidden = new Set(state.hidden);
+      if (!start($(id), state.hidden.length ? state.plays.filter((p) => !hidden.has(p.artist)) : state.plays, lo, hi)) continue;
+      dragging.set(id, "drag");
+    }
+    to($(id), range);
+  }
+}
+export function endDragEvery() {
+  for (const [id, mode] of dragging) {
+    if (mode !== "drag") continue;
+    dragging.set(id, "land");
+    DRAGS[id][2]($(id), state.range, () => {
+      if (dragging.get(id) !== "land") return;
+      dragging.delete(id);
+      paintEvery();
+    });
+  }
+}
 export function paintEvery(plays) {
   if (!state.mixArgs) return;
   const [artists, , , pins] = state.mixArgs;
@@ -278,6 +309,9 @@ export function paintEvery(plays) {
     $("calendar-note").textContent = `Each ${u} is tinted by its top ${noun().one}, darker the more you listened`;
   };
   for (const [id, render, otherId] of [["chart-raster", renderRaster, "raster-other"], ["chart-calendar", renderCalendar, "calendar-other"]]) {
+    const drag = dragging.get(id);
+    if (drag === "drag" || (drag === "land" && !pan)) continue; // (their own: letting go draws them)
+    dragging.delete(id); // (a pan takes over a landing)
     if (putOff($(id).closest(".card"), () => paintEvery())) continue;
     if (pan && !pan.done) {
       if (sliding.get(id) === pan) continue; // (sliding: the pan's end draws it)
