@@ -120,6 +120,9 @@ One set of timings in `js/motion.js`, mirrored as `--motion-*` / `--ease-*` in `
 - **Hover vs pin:** hover shades lightly and dims others a little; a pin shades deeper, alone outlines, dims more;
   a hovered pin is deeper still. Take each look from `litLook` and the `--shade-*`, `--fade-*`, `--lit-*`,
   `--dim-item*` tokens. Applies to every graph, chip, row, card and the mix bar.
+- **Graph cards keep their size.** A setting in the navbar (artist count, hiding or pinning an artist, the period, the
+  view) must never move the reader up or down the page: a card's contents re-fit inside a constant height (rows thin
+  or thicken, newcomers open where they go, leavers close) instead of the card growing or shrinking.
 - **Staggers** step `STAGGER_MS` (18) up to `STAGGER_MAX_MS` (240). **Reduced motion:** wrap JS durations in `dur()`
   and give CSS animations a `prefers-reduced-motion` entry.
 

@@ -1225,6 +1225,17 @@ dialog pre {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent); transition: box-shadow var(--motion-fade) var(--ease-out);
 }
+/* Horizontal, the list keeps one height (skips.js) and rows share it: each sits at --y, --h tall, and both glide, so
+   hiding an artist or showing more thins or thickens the bars instead of moving the page. A bar fills its row, up to
+   twice the set thickness */
+#skips-card:not([data-look="1"]) .skips-list { display: block; position: relative; }
+#skips-card:not([data-look="1"]) .skips-list li {
+  position: absolute; left: 0; right: 0; top: var(--y, 0); height: var(--h, 0); box-sizing: border-box; padding-block: 0;
+  grid-template-rows: minmax(0, 1fr); overflow: hidden;
+  transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out),
+    top var(--motion-morph) var(--ease-in-out), height var(--motion-morph) var(--ease-in-out);
+}
+#skips-card:not([data-look="1"]) .skips-bar { height: max(0px, min(calc(100% - 6px), calc(var(--skips-bar, 18px) * 2))); }
 .skips-list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); transition: color var(--motion-fade) var(--ease-out); }
 .skips-bar { display: flex; height: var(--skips-bar, 18px); border-radius: 6px; overflow: hidden; gap: 2px; }
 .skips-bar > i { flex: 0 0 0; min-width: 0; transition: flex-grow var(--motion-morph) var(--ease-in-out); }
