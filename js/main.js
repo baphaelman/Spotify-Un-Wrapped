@@ -116,6 +116,7 @@ $("file-input").addEventListener("change", (e) => load([...e.target.files]));
 // Remembered plays from before the reasons were kept: reading the files again brings the skips and picks
 $("skips-reread").addEventListener("click", () => $("file-input").click());
 $("skips-other").addEventListener("change", () => state.mixArgs && renderMix(...state.mixArgs));
+$("mix-other").addEventListener("change", () => state.mixArgs && renderMix(...state.mixArgs));
 
 $("reset").addEventListener("click", () => {
   if (!state.sample) {
@@ -345,7 +346,7 @@ function applyDim() {
   $("artist-search").placeholder = `Pin ${w.a}…`;
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
-  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = $("skips-other-label").textContent = $("rank-other-label").textContent = $("sunburst-other-label").textContent = otherLabel();
+  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = $("skips-other-label").textContent = $("mix-other-label").textContent = $("rank-other-label").textContent = $("sunburst-other-label").textContent = otherLabel();
   $("clock-note").textContent = `${w.who} you listen to through the day, as a share of that time, in your local time zone`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);

@@ -473,8 +473,9 @@ let discoveryLast = null; // the last draw's hours top and artists, which a pan 
 // skips and picks of the same artists (skips.js)
 let mixMemo = null;
 let reasonsMemo = null; // whether the loaded plays carry their reasons (aggregate.hasReasons), per loaded plays
-export function renderMix(artists, slots, includeOther, pins) {
-  state.mixArgs = [artists, slots, includeOther, pins];
+export function renderMix(artists, slots, chartOther, pins) {
+  state.mixArgs = [artists, slots, chartOther, pins];
+  const includeOther = $("mix-other").checked; // the bar's own toggle
   const key = [state.dim, state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
   // Deselected artists stay in the key but drop out of the bar (see updateMix)
