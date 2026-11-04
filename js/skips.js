@@ -119,7 +119,13 @@ export function updateSkips(next) {
     r.row.classList.toggle("other", name === OTHER);
     r.row.title = `${name === OTHER ? "" : pinned ? "Click to unpin · " : "Click to pin · "}${r.shown} · ${fmtHours(hours)} · ${Math.round(n).toLocaleString()} plays · skipped ${pct(skip / n)} · picked ${pct(pick / n)}`;
   });
-  list.replaceChildren(...names.map((n) => rows.get(n).row));
+  // Rows stay where they are in the page and take their place from \`order\` (the vertical grid) or --y (horizontal):
+  // taking a row out and back in would cut short its parts' and place's transitions
+  names.forEach((n, i) => {
+    const el = rows.get(n).row;
+    el.style.order = i;
+    if (el.parentNode !== list) list.append(el);
+  });
   if (horizontal) {
     // A newcomer opens from nothing, and a leaver closes to nothing, where the row after it is in the other layout,
     // so every edge glides straight from one layout to the next
@@ -130,7 +136,6 @@ export function updateSkips(next) {
       place(rows.get(name).row, edge(oldNames, next, oldH), 0);
     }
     for (const [name, el] of leaving) {
-      list.append(el);
       const next = oldNames.slice(oldNames.indexOf(name) + 1).find((n) => names.includes(n));
       el.style.pointerEvents = "none";
       place(el, edge(names, next, h), 0);
@@ -141,7 +146,7 @@ export function updateSkips(next) {
     for (const name of entering) fade(rows.get(name).row, false);
   } else {
     // Everyone else is last, so it can grow and shrink in place without moving the other rows
-    for (const [, el] of leaving) { list.append(el); resize(el, true).then(() => el.remove()); }
+    for (const [, el] of leaving) { el.style.order = names.length; resize(el, true).then(() => el.remove()); }
     if (rows.has(OTHER) && !before.has(OTHER)) resize(rows.get(OTHER).row, false);
   }
   // The key's words sit over the middle of the top bar's parts, and glide with them

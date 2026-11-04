@@ -1247,8 +1247,8 @@ dialog pre {
 .skips-bar { display: flex; height: var(--skips-bar, 18px); border-radius: 6px; overflow: hidden; gap: 2px; }
 .skips-bar > i { flex: 0 0 0; min-width: 0; transition: flex-grow var(--motion-morph) var(--ease-in-out); }
 .skips-bar .picked, .skips-key .picked { background: var(--c); }
-.skips-bar .on, .skips-key .on { background: color-mix(in srgb, var(--c) 50%, var(--surface)); }
-.skips-bar .skipped, .skips-key .skipped { background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
+.skips-bar .on, .skips-key .on { background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
+.skips-bar .skipped, .skips-key .skipped { background: color-mix(in srgb, var(--c) 50%, var(--surface)); }
 .skips-head .num, .skips-list .num { text-align: left; white-space: nowrap; }
 .skips-list .num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .skips-list li:is(.focus, :hover) { background-color: color-mix(in srgb, var(--c) var(--tint), transparent); }
