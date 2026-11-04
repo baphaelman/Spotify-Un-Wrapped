@@ -327,7 +327,7 @@ const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
 // The lane above #1 ("Timeline"), from LANE_TOP down, is as tall whatever the positions: the height it has when
 // LANE_RANKS ranks keep REF_RANKS' spacing (at least the room for #1's names and the word). The ranks spread or
 // close up to fill the rest.
-const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 72; // (room for "Timeline")
+const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64;
 function plotTop() {
   const H = $("chart-rank").clientHeight || 472;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
@@ -441,10 +441,6 @@ function option(ms = MORPH_MS, animate = true) {
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
     grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
-    // The lane above #1, named like a rank (its line and dots are paintTimeline's); between it and #1 is the room
-    // for #1's names
-    graphic: [{ type: "text", id: "lane", silent: true, x: 0, y: laneY(),
-      style: { text: "Timeline", align: "left", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     // (by the slice's place in st.rows, so a period's lines morph point by point into another's; its labels are
     // paintTimeline's, so they slide with it)
     xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },
@@ -752,13 +748,15 @@ function timelineEls(rect) {
   });
   const track = look === 3 ? { stroke: alpha(t.primary, 0.16), lineWidth: 9, lineCap: "round" } : look === 4 ? { stroke: "transparent", lineWidth: 0 } : { stroke: t.axis, lineWidth: look === 2 ? 1 : 1.5 };
   const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: track });
-  const rule = new Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry },
-    style: { stroke: t.axis, lineWidth: 1, lineDash: look === 4 ? [3, 4] : null, opacity: look === 1 || look === 5 ? 0 : 1 } });
+  // (the framed strip's is its lower edge, the card's full width)
+  const strip = look === 5;
+  const rule = new Line({ silent: true, z: 1, shape: { x1: strip ? 0 : 8, y1: ry, x2: c.getWidth() - (strip ? 0 : 8), y2: ry },
+    style: { stroke: strip ? t.grid : t.axis, lineWidth: 1, lineDash: look === 4 ? [3, 4] : null, opacity: look === 1 ? 0 : 1 } });
   const extra = [];
   // A soft wash over the lane, around the line and its dates
   if (look === 1) extra.push(new Rect({ silent: true, z: 0, shape: { x: rect.x - 12, y: 0, width: rect.width + 24, height: ry - 4, r: 10 }, style: { fill: alpha(t.primary, 0.05) } }));
-  // A strip across the card, from the top to the rule, its edge a hairline
-  if (look === 5) extra.push(new Rect({ silent: true, z: 0, shape: { x: 0.5, y: 0.5, width: c.getWidth() - 1, height: ry - 0.5, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03), stroke: t.grid, lineWidth: 1 } }));
+  // A strip across the card, from the top to the rule, its top corners rounded
+  if (strip) extra.push(new Rect({ silent: true, z: 0, shape: { x: 0, y: 0, width: c.getWidth(), height: ry, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03) } }));
   const root = new Group(), dotG = clipped(TL_END_R + 1), textG = clipped(Math.ceil(half) + 1);
   dots.forEach((e) => dotG.add(e));
   texts.forEach((e) => textG.add(e));
