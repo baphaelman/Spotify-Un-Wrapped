@@ -1518,10 +1518,11 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* Top … over time (race.js): a bar per item, each row placed by the race's clock (translateY in rows of --race-row,
    its bar's width as --f of the track), so the rows have no transitions of their own beyond the hover/pin rule's */
 .race-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-/* The window's slider beside the measure it sets, faded while "So far" leaves it unused */
+/* The window's slider under the measure it sets, faded while "So far" leaves it unused */
 .race-opts { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.race-opts > .other-toggle { margin-top: 6px; }
 .race-pick { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 6px; transition: opacity var(--motion-fade) var(--ease-out); }
+.slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .race-window.off { opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .race-window { transition: none; } }
 .race-stage { --race-row: 34px; --race-val: 64px; --race-axis: 16px; position: relative; margin-top: 4px; padding-top: var(--race-axis); height: calc(var(--n, 8) * var(--race-row) + var(--race-axis)); overflow: hidden; transition: height var(--motion-morph) var(--ease-in-out); }
