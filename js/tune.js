@@ -14,6 +14,7 @@ const h = (v) => `${+v} h`;
 // A spec with `idle(values)` shows dimmed while another value leaves it with little to do.
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
 const SUN_REACH = ["A circle", "Out to the card"];
+const SUN_TEETH = ["Left empty", "One piece", "Light line", "Ring gaps", "Lighter"];
 const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
@@ -60,7 +61,9 @@ export const TUNES = [
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   // (smaller slices fold into their parent's "Other …" until it's gone into)
   { key: "sunMinShare", card: "sunburst-card", label: "Smallest slice", def: 1, min: 0.25, max: 5, step: 0.25, fmt: (v) => `${v}% of the middle` },
-  { key: "sunReach", card: "sunburst-card", label: "Outer ring", def: 0, options: SUN_REACH, fmt: (v) => SUN_REACH[v] },
+  { key: "sunReach", card: "sunburst-card", label: "Outer ring", def: 1, options: SUN_REACH, fmt: (v) => SUN_REACH[v] },
+  // (a slice with nothing drawn outside it: its rings left empty, or it reaching out to the edge, marked or not)
+  { key: "sunTeeth", card: "sunburst-card", label: "Slices with nothing outside", def: 2, options: SUN_TEETH, fmt: (v) => SUN_TEETH[v] },
   { key: "sunMargin", card: "sunburst-card", label: "Margin to the card", def: 12, min: 0, max: 48, step: 2, fmt: px, idle: (v) => !v.sunReach },
   { key: "skipsLook", card: "skips-card", label: "Bars", def: 0, options: SKIPS_LOOKS, fmt: (v) => SKIPS_LOOKS[v] },
   { key: "skipsBar", card: "skips-card", label: "Bar thickness", def: 18, min: 4, max: 40, step: 1, fmt: px },

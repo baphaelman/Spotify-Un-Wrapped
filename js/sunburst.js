@@ -1,10 +1,12 @@
 // "Inside your top …": the listening mix's items opened up, as rings around a middle circle. Artists, then their
-// albums, then their songs (albums: their songs; genres: their artists, then those artists' albums), each slice
-// as wide as its hours, with "Everyone else" (the rest of the period, opening into the view's other items) last when
-// its toggle is on. Slices show their share of the middle circle where it fits, the name where both fit, and once
+// albums, then their songs (albums: their songs; genres: their artists, their albums, then their songs; tracks: just
+// the tracks), each slice as wide as its hours, with "Everyone else" (the rest of the period, opening into the view's
+// other items) last when its toggle is on. At most TIERS rings show at once: going in moves each level in a ring and
+// brings the next one in at the edge. Slices show their share of the middle circle where it fits, the name where both fit, and once
 // gone in, their share of everything (of the items the mix bar shows, so the two agree) small below; the middle
 // shows only that. Clicking a slice goes in: it opens out into the middle circle and its insides fill the rings;
-// clicking the middle circle goes back out, and clicking a song opens it in Tracks, pinned. A slice under
+// clicking the middle circle goes back out, and clicking a song opens it in Tracks, pinned (in Tracks, pins it).
+// A slice with nothing drawn outside it reaches out to the edge, marked as tune.sunTeeth says. A slice under
 // tune.sunMinShare of the middle folds into its parent's "Other …", so going in brings out what was too small
 // before (out of that slice). Every move (going in or out, a new period, items coming and going) is one morph of
 // every slice from where it is on screen, the shares counting along with it.
@@ -27,25 +29,31 @@ const MAX_SIZE = 560; // px, the circle's widest
 const HOLE = 0.22; // the middle circle's radius, as a share of the whole
 const GAP = 1; // px of surface on each side of a slice
 const PAD = 4; // px a label keeps from its slice's edges
+const TIERS = 3; // the most rings shown at once
 
 // What each view's items open into: how to name a play at each level below the item, what the "Other …" slice that
 // holds the level's smallest is called, and what kind of thing the level is (a song opens in Tracks)
 const LEVELS = {
   artist: [[(p) => p.album || "Unknown album", "Other albums", "album"], [(p) => p.track, "Other songs", "track"]],
   album: [[(p) => p.track, "Other songs", "track"]],
-  genre: [[(p) => p.by, "Other artists", "artist"], [(p) => p.album || "Unknown album", "Other albums", "album"]],
+  genre: [[(p) => p.by, "Other artists", "artist"], [(p) => p.album || "Unknown album", "Other albums", "album"], [(p) => p.trackKey, "Other songs", "track"]],
+  track: [],
 };
+// A genre's song is called as Tracks calls it, with its artist after it where another artist has one of that name
+const untag = (key, by) => (by != null && key.endsWith(" · " + by) ? key.slice(0, -by.length - 3) : key);
 // What a node at each level stands for, whatever view it's in ({ genre, artist, album }), so a tab change can keep
 // the same thing in the middle: means(name, the parent's meaning) per level below the root
 const MEANS = {
   artist: [(n) => ({ artist: n }), (n, up) => ({ ...up, album: n }), (n, up) => ({ ...up, track: n })],
   album: [(n) => ({ artist: state.owner?.get(n), album: state.titles?.get(n) ?? n }), (n, up) => ({ ...up, track: n })],
-  genre: [(n) => ({ genre: n }), (n, up) => ({ ...up, artist: n }), (n, up) => ({ ...up, album: n })],
+  genre: [(n) => ({ genre: n }), (n, up) => ({ ...up, artist: n }), (n, up) => ({ ...up, album: n }), (n, up) => ({ ...up, track: untag(n, up.artist) })],
+  track: [(n) => ({ artist: state.owner?.get(n), track: state.titles?.get(n) ?? n })],
 };
 const NOTES = {
   artist: "Each artist's albums, then their songs",
   album: "Each album's songs",
-  genre: "Each genre's artists, then their albums",
+  genre: "Each genre's artists, their albums, then their songs",
+  track: "Your top tracks",
 };
 
 const fmtShare = (s) => (s >= 0.005 ? Math.round(s * 100) + "%" : "<1%");
@@ -91,6 +99,10 @@ function setup() {
       if (n.parent) zoomTo(n.parent.id);
     } else if (n.kids.length) zoomTo(n.id);
     else if (opens(n)) hooks.openPart(itemOf(n), "track", n.name);
+    else if (pinnable(n)) {
+      pins?.toggle(pinName(n));
+      tip.__node = null;
+    }
   });
   // (out to the card, the card's size matters too: its row of sliders, say)
   const resized = new ResizeObserver(() => {
@@ -116,6 +128,12 @@ function build(plays, items, withOther) {
     const mine = want.has(p.artist);
     if (!mine && !withOther) continue;
     const keys = mine ? levels : below;
+    // (a track has nothing below it: just its hours)
+    if (!keys.length) {
+      const v = top.get(p.artist);
+      top.set(p.artist, (typeof v === "number" ? v : 0) + p.ms / HOUR);
+      continue;
+    }
     let m = top.get(mine ? p.artist : OTHER);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i](p);
@@ -133,7 +151,8 @@ function build(plays, items, withOther) {
     const id = parent ? (parent.id ? parent.id + SEP : "") + name : "";
     const level = depth - 1 - (inOther ? 1 : 0);
     const means = depth === 0 ? {} : MEANS[state.dim][level]?.(name, parent.means) ?? parent.means;
-    const shown = depth === 1 && inOther ? otherLabel() : level === 0 && titles ? titles.get(name) ?? name : name;
+    const kind = level >= 1 ? LEVELS[state.dim][level - 1]?.[2] : null;
+    const shown = depth === 1 && inOther ? otherLabel() : level === 0 && titles ? titles.get(name) ?? name : kind === "track" ? means.track ?? name : name;
     const n = { id, name, shown, parent, depth, item, level, inOther, means, value: sum(x), kids: [] };
     if (typeof x === "number" || !x.size) return n;
     const kids = [...x].map(([k, y]) => [k, y, sum(y)]).filter((k) => k[2] > 0);
@@ -189,12 +208,15 @@ function fold(f) {
 }
 
 // What a node's level is ("album", "track"…), the view's item it lies in, and whether clicking it opens it elsewhere
-const kindOf = (n) => (n.level >= 1 ? LEVELS[state.dim][n.level - 1][2] : null);
+const kindOf = (n) => (n.level >= 1 ? LEVELS[state.dim][n.level - 1]?.[2] ?? null : null); // (none for a slice of the view just left)
 const itemOf = (n) => {
   for (let p = n; p; p = p.parent) if (p.level === 0) return p.name;
   return null;
 };
 const opens = (n) => !n.other && !n.kids.length && kindOf(n) === "track";
+// In Tracks, a track itself (or one of Everyone else's), which a click pins
+const pinnable = (n) => state.dim === "track" && !n.other && !n.kids.length && n.level === 0;
+const pinName = (n) => (n.inOther ? n.name : n.item);
 
 const eachNode = (n, fn) => {
   fn(n);
@@ -206,7 +228,8 @@ const eachNode = (n, fn) => {
 // Where every node sits with `f` in the middle: its angles a0..a1 (from 12 o'clock, clockwise) and radii r0..r1
 // (shares of the whole radius). f fills the middle circle and the levels below it share the rings; whatever lies
 // outside f closes up to nothing at the top, whatever lies inside the circle (f's ancestors) shrinks to the middle, and
-// whatever lies past the rings waits at the edge.
+// whatever lies past the rings waits at the edge. A slice with nothing drawn outside it (tune.sunTeeth) reaches out
+// to the edge too: rn is where its own ring ends, and step how deep a ring is, to mark the rings it crosses.
 function layout(n, f, rings) {
   const span = f.x1 - f.x0 || 1;
   const ang = (x) => Math.min(1, Math.max(0, (x - f.x0) / span)) * TAU;
@@ -214,12 +237,14 @@ function layout(n, f, rings) {
   let r0, r1;
   if (n.depth < f.depth) r0 = r1 = 0;
   else if (n.depth === f.depth) [r0, r1] = [0, HOLE];
-  else if (n.depth - f.depth > rings) r0 = r1 = 1; // (Everyone else's last level, until it's gone into)
+  else if (n.depth - f.depth > rings) r0 = r1 = 1; // (the levels past the rings, until they're gone into)
   else {
     r0 = HOLE + (n.depth - f.depth - 1) * step;
     r1 = r0 + step;
   }
-  return { a0: ang(n.x0), a1: ang(n.x1), r0, r1 };
+  const rn = r1;
+  if (tune.sunTeeth && n.depth > f.depth && !n.kids.length) r1 = 1;
+  return { a0: ang(n.x0), a1: ang(n.x1), r0, r1, rn, step };
 }
 
 // What a slice stands for in any view but Genres, which adds a genre to the same artists and albums: the key a slice
@@ -245,9 +270,9 @@ function retarget(first, swap = false) {
   let f = null;
   for (let id = focusId; !f; id = id.includes(SEP) ? id.slice(0, id.lastIndexOf(SEP)) : "") f = id ? find(id) : root;
   focusId = f.id;
-  // (the rings are shared out over the levels below the middle, the same number whatever the item: one with no
-  // albums still leaves room for them; Everyone else has one more level)
-  const rings = LEVELS[state.dim].length + 1 - f.depth + (f.inOther ? 1 : 0);
+  // (the rings are shared out over the levels below the middle, up to TIERS, the same number whatever the item: one
+  // with no albums still leaves room for them; Everyone else has one more level)
+  const rings = Math.min(TIERS, LEVELS[state.dim].length + 1 - f.depth + (f.inOther ? 1 : 0));
   ring.to = 1 - (1 - HOLE) / rings;
   ring.from = first || ring.now == null ? ring.to : ring.now;
   const seen = new Set(), born = new Set();
@@ -291,7 +316,7 @@ function retarget(first, swap = false) {
       if (next) { at = next.to.a0; break; }
       if (sib && seen.has(sib.id)) { at = sib.to.a1; break; }
     }
-    n.to = { a0: at, a1: at, r0: n.cur.r0, r1: n.cur.r1 };
+    n.to = { ...n.cur, a0: at, a1: at };
   }
   return f;
 }
@@ -334,7 +359,9 @@ function measure(W) {
   const card = $("sunburst-card").getBoundingClientRect(), me = $("sunburst").getBoundingClientRect();
   const m = tune.sunMargin, cx = me.left + me.width / 2, cy = me.top + R + 1;
   const e = { W, l: Math.max(R, cx - card.left - m), r: Math.max(R, card.right - m - cx), t: R + 1 };
-  e.b = Math.max(e.t, card.bottom - m - cy);
+  // (stopping above the card's Visual tweaks while they show)
+  const row = $("sunburst-card").querySelector(".tune-row"), bottom = row?.offsetHeight ? row.getBoundingClientRect().top : card.bottom;
+  e.b = Math.max(e.t, bottom - m - cy);
   e.corners = [[e.r, -e.t], [e.r, e.b], [-e.l, e.b], [-e.l, -e.t]].map(([x, y]) => (Math.atan2(x, -y) + TAU) % TAU);
   return e;
 }
@@ -357,7 +384,7 @@ function samples(b0, b1) {
   const n = Math.max(1, Math.ceil((b1 - b0) / 0.03));
   const out = [];
   for (let i = 0; i <= n; i++) out.push(b0 + ((b1 - b0) * i) / n);
-  for (const c of edge.corners) if (c > b0 && c < b1) out.push(c);
+  for (const c of edge?.corners ?? []) if (c > b0 && c < b1) out.push(c);
   return out.sort((x, y) => x - y);
 }
 
@@ -402,6 +429,32 @@ function arc(a0, a1, r0, r1, gap) {
     inner = `L${pt(c1, ri)}A${ri},${ri} 0 ${c1 - c0 > Math.PI ? 1 : 0} 0 ${pt(c0, ri)}`;
   } else inner = `L0,0`;
   return `M${pt(b0, ro)}A${ro},${ro} 0 ${large} 1 ${pt(b1, ro)}${inner}Z`;
+}
+
+// A slice's shape, and what marks where its own ring ends when it reaches past it to the edge (tune.sunTeeth): a
+// light line along each ring's edge it crosses (ext), its rings cut apart as the others are, or what's past its
+// ring lighter (ext). Also the part its label sits in.
+function shapes(g) {
+  const rn = Math.min(g.rn ?? g.r1, g.r1);
+  const mode = g.r1 - rn > 1e-4 ? tune.sunTeeth : 1;
+  const step = g.step > 1e-4 ? g.step : Infinity;
+  if (mode === 3) {
+    let d = "";
+    for (let r = g.r0, to = rn; r < g.r1 - 1e-4; r = to, to = Math.min(g.r1, to + step)) d += slice(g.a0, g.a1, r, to, GAP);
+    return [d, "", { ...g, r1: rn }];
+  }
+  if (mode === 4) return [slice(g.a0, g.a1, g.r0, rn, GAP), slice(g.a0, g.a1, rn, g.r1, GAP), { ...g, r1: rn }];
+  const d = slice(g.a0, g.a1, g.r0, g.r1, GAP);
+  let seams = "";
+  if (mode === 2 && d) {
+    const whole = g.a1 - g.a0 >= TAU - 1e-6;
+    for (let r = rn; r < g.r1 - 1e-4; r += step) {
+      const px = rad(r, g.a0);
+      const b0 = whole ? 0 : g.a0 + GAP / px, b1 = whole ? TAU : g.a1 - GAP / rad(r, g.a1);
+      if (b1 > b0) seams += "M" + samples(b0, b1).map((a) => pt(a, rad(r, a))).join("L") + (whole ? "Z" : "");
+    }
+  }
+  return [d, seams, g];
 }
 
 // Text widths, measured once each in the label's own font
@@ -459,15 +512,17 @@ function els(n) {
   if (!n.path) {
     n.path = make("path", "sun-slice");
     n.path.__node = n;
+    n.ext = make("path", "sun-slice sun-ext");
+    n.ext.__node = n;
     n.label = make("g", "sun-label");
     n.pctEl = make("text", "sun-pct");
     n.nameEl = make("text", "sun-name");
     n.subEl = make("text", "sun-sub");
     n.label.append(n.nameEl, n.pctEl, n.subEl);
-    layers.slices.append(n.path);
+    layers.slices.append(n.path, n.ext);
     layers.labels.append(n.label);
   }
-  for (let d = 0; d <= 3; d++) n.path.classList.toggle("d" + d, d === Math.min(n.depth, 3));
+  for (let d = 0; d <= 3; d++) for (const e of [n.path, n.ext]) e.classList.toggle("d" + d, d === Math.min(n.depth, 3));
   if (n.depth === 1 && !n.outline) {
     n.outline = make("path", "sun-outline");
     layers.outlines.append(n.outline);
@@ -484,7 +539,7 @@ function els(n) {
 }
 
 function drop(n) {
-  for (const el of [n.path, n.label, n.outline]) el?.remove();
+  for (const el of [n.path, n.ext, n.label, n.outline]) el?.remove();
 }
 
 // Puts every slice, outline and label where its cur says, and shows the labels that fit
@@ -503,19 +558,21 @@ function draw() {
   for (const n of nodes.values()) {
     const g = n.cur;
     const middle = n.id === focusId;
-    const d = n.depth === 0 && !middle ? "" : slice(g.a0, g.a1, g.r0, g.r1, GAP);
+    const [d, ext, at] = n.depth === 0 && !middle ? ["", "", g] : shapes(g);
     // The share of the middle, and once gone in, of everything (all the middle shows)
     const pct = n.depth === 0 || middle ? "" : fmtShare(n.share.p);
     const sub = n.depth === 0 || !zoomed ? "" : fmtShare(n.share.s);
     // (a slice that hasn't moved, or stays at nothing, is left alone)
-    const key = `${d}|${pct}|${sub}|${middle}|${n.leaving}|${n.shown}`;
+    const key = `${d}|${ext}|${pct}|${sub}|${middle}|${n.leaving}|${n.shown}`;
     if (key === n.key) continue;
     n.key = key;
     els(n);
     n.path.setAttribute("d", d);
+    n.ext.setAttribute("d", ext);
+    n.ext.classList.toggle("seam", tune.sunTeeth === 2);
     // A pinned item's outline runs round all of it, out to the edge
     if (n.outline) n.outline.setAttribute("d", d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75));
-    label(n, g, d, pct, sub, middle);
+    label(n, at, d, pct, sub, middle);
   }
 }
 
@@ -554,7 +611,11 @@ function label(n, g, d, pct, sub, middle) {
 function frame(p) {
   for (const n of nodes.values()) {
     const { from: a, to: b, was, will } = n;
-    n.cur = { a0: a.a0 + (b.a0 - a.a0) * p, a1: a.a1 + (b.a1 - a.a1) * p, r0: a.r0 + (b.r0 - a.r0) * p, r1: a.r1 + (b.r1 - a.r1) * p };
+    const lerp = (x, y) => x + (y - x) * p;
+    n.cur = {
+      a0: lerp(a.a0, b.a0), a1: lerp(a.a1, b.a1), r0: lerp(a.r0, b.r0), r1: lerp(a.r1, b.r1),
+      rn: lerp(a.rn ?? a.r1, b.rn ?? b.r1), step: lerp(a.step ?? b.step ?? 0, b.step ?? a.step ?? 0),
+    };
     n.share = { p: was.p + (will.p - was.p) * p, s: was.s + (will.s - was.s) * p };
   }
   ring.now = ring.from + (ring.to - ring.from) * p;
@@ -602,9 +663,11 @@ function restyle() {
     if (!n.path) continue;
     let look = n.depth === 0 ? "rest" : litLook(pinned, lit, n.item);
     if ((look === "hover" || look === "pinHover") && hoverNode?.item === n.item && !related(n, hoverNode)) look = pinned.has(n.item) ? "pin" : "rest";
-    if (n.path.dataset.look !== look) n.path.dataset.look = n.label.dataset.look = look;
+    if (n.path.dataset.look !== look) n.path.dataset.look = n.ext.dataset.look = n.label.dataset.look = look;
     n.outline?.classList.toggle("on", pinned.has(n.item));
-    n.path.classList.toggle("go", n.kids.length > 0 || (n.id === focusId && !!n.parent) || opens(n));
+    const go = n.kids.length > 0 || (n.id === focusId && !!n.parent) || opens(n) || pinnable(n);
+    n.path.classList.toggle("go", go);
+    n.ext.classList.toggle("go", go);
   }
 }
 
@@ -651,7 +714,8 @@ function fillTip(n) {
     num(`${fmtHours(n.value)} · ${fmtShare(f.value ? n.value / f.value : 0)} of ${f.shown}`);
     num(all);
   }
-  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in" : opens(n) ? "Click to pin it in Tracks" : "";
+  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in" : opens(n) ? "Click to pin it in Tracks"
+    : pinnable(n) ? (pins?.has(pinName(n)) ? "Click to unpin it" : "Click to pin it") : "";
   if (how) {
     const hint = document.createElement("div");
     hint.className = "hint";
@@ -667,7 +731,7 @@ function colorAll() {
     els(n);
     const slot = n.item != null && n.item !== OTHER ? state.colorSlots.get(n.item) : undefined;
     const c = slot === undefined ? "var(--other)" : `var(--series-${slot + 1})`;
-    for (const e of [n.path, n.label, n.outline]) e?.style.setProperty("--c", c);
+    for (const e of [n.path, n.ext, n.label, n.outline]) e?.style.setProperty("--c", c);
   }
 }
 
@@ -695,11 +759,10 @@ export function focusSunburst(name) {
   restyle();
 }
 
-// Follows the chart's artists (the mix bar's), their colors, pins and hidden ones, and the period. Hidden in the
-// tracks view, which has nothing inside its items.
+// Follows the chart's artists (the mix bar's), their colors, pins and hidden ones, and the period
 export function paintSunburst(plays) {
   const card = $("sunburst-card");
-  card.hidden = state.dim === "track" || !LEVELS[state.dim];
+  card.hidden = !LEVELS[state.dim];
   if (card.hidden || !state.mixArgs || putOff(card, () => paintSunburst())) return;
   if (!svg) setup();
   plays ??= shownPlays();
@@ -708,7 +771,8 @@ export function paintSunburst(plays) {
   const off = new Set(state.hidden);
   const items = artists.filter((a) => !off.has(a));
   $("sunburst-title").textContent = `Inside your top ${noun().many}`;
-  $("sunburst-sub").textContent = `${NOTES[state.dim]}, sized by hours. Click a slice to go in; click the middle to come back out.`;
+  $("sunburst-sub").textContent = `${NOTES[state.dim]}, sized by hours. ` +
+    (state.dim === "track" ? "Click one to pin it." : "Click a slice to go in; click the middle to come back out.");
   const first = nodes.size === 0;
   root = build(plays, items, $("sunburst-other").checked);
   edge = null; // (the card may have moved)

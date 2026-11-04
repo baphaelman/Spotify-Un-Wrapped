@@ -7,6 +7,7 @@
 #   HOVER_SEL="css selector"  hover the element's center   HOVER="x,y"  hover a page point
 #   EVAL="js expression"  evaluate (promises awaited) and print the value
 # OFFLINE=1 cuts the page off from Supabase: no picture lookups (each costs Spotify calls), genres or community
+# NOPICS=1 blocks only the picture lookups, so genres and community still load
 # The browser profile persists in dev/site/.profile (IndexedDB = remembered data); delete it for a
 # clean first visit. Add ?v=$RANDOM to URLs, or the profile's cache serves stale pages.
 # Needs: pip3 install websocket-client
@@ -55,6 +56,7 @@ try:
     # ?v= only refreshes the page itself; its modules would still come from the profile's cache
     call("Network.enable")
     call("Network.setCacheDisabled", cacheDisabled=True)
+    if os.environ.get("NOPICS"): call("Network.setBlockedURLs", urls=["*smooth-endpoint*"])
     call("Emulation.setDeviceMetricsOverride", width=w, height=h, deviceScaleFactor=1, mobile=False)
     call("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": "dark" if dark else "light"}])
     call("Page.navigate", url=url)

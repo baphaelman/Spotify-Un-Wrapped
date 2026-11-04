@@ -1378,6 +1378,9 @@ dialog pre {
 .sun-slice.d3 { --rest: 9%; --tint: 15%; }
 .sun-slice.d0 { fill: color-mix(in srgb, var(--text-primary) 5%, transparent); }
 .sun-slice.go { cursor: pointer; }
+/* Past its own ring, a slice reaching out to the edge (sunburst.js, tune.sunTeeth): lighter, or a light line */
+.sun-slice.sun-ext { fill: color-mix(in srgb, var(--c) calc(var(--t) * 0.65), var(--surface)); }
+.sun-slice.sun-ext.seam { fill: none; stroke: color-mix(in srgb, var(--surface) 70%, transparent); stroke-width: 1; pointer-events: none; }
 .sun-slice[data-look="hover"] { --t: var(--tint); }
 .sun-slice[data-look="pin"] { --t: calc(var(--tint) * var(--lit-pin)); }
 .sun-slice[data-look="pinHover"] { --t: calc(var(--tint) * var(--lit-pin-hover)); }
