@@ -186,7 +186,8 @@ export function updateMix(next) {
       entries.set(name, e);
       bar.append(e.seg);
       const t = target.get(name);
-      Object.assign(e, { x: t.x, w: 0 }); // grows from nothing where it will sit
+      // grows from nothing where it will sit; everyone else comes in from the bar's right end (and leaves back to it)
+      Object.assign(e, { x: hasOther && i === names.length - 1 && !first ? 1 : t.x, w: 0 });
     }
     e.leaving = false;
     e.from = { x: e.x, w: e.w };
