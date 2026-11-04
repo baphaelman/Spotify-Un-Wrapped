@@ -14,7 +14,7 @@
 // A slice is also known by its key, counted from year 0, the same in any period. A pan (state.js) to a period of the
 // same slice size slides the chart there rather than redrawing it (see slideStart).
 import * as agg from "./aggregate.js";
-import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
+import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, isPinLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
 import { $, state, putOff, rangePlays, shownName, pan, onPan } from "./state.js";
 import { tune, setTune } from "./tune.js";
 import { focusArtist } from "./charts.js";
@@ -327,9 +327,9 @@ const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
 // The lane above #1 ("Timeline"), from LANE_TOP down, is as tall whatever the positions: the height it has when
 // LANE_RANKS ranks keep REF_RANKS' spacing (at least the room for #1's names and the word). The ranks spread or
 // close up to fill the rest.
-const REF_RANKS = 20, LANE_RANKS = 16, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
+const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
 function plotTop() {
-  const H = $("chart-rank").clientHeight || 520;
+  const H = $("chart-rank").clientHeight || 472;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
   const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (LANE_RANKS + 0.4 - 1);
   return PLOT_TOP + Math.max(lane, headroom() + 20 + TL_LABEL - PLOT_TOP);
@@ -340,15 +340,20 @@ const laneY = () => (LANE_TOP + TL_LABEL + plotTop() - headroom()) / 2; // (the 
 // The chart's pinned items that are drawn
 const pinnedSet = () => new Set(state.pinned.filter((n) => st.names.includes(n)));
 
+// How much a lit item's circles and line thicken: a hover lightly, a pin more, a hovered pin most
+const GROW = { rest: { dot: 1, line: 1 }, hover: { dot: 1.15, line: 1.2 }, pin: { dot: 1.3, line: 1.45 }, pinHover: { dot: 1.45, line: 1.7 } };
+
 // How an item shows, by the page's lit looks: its color, how much it dims, whether it's lit, its line's opacity and
 // its circle's size
 function lookOf(a, pinned) {
   const col = st.colors.get(a), gone = st.leaving.has(a);
   const look = litLook(pinned, st.hovered, a);
-  const lit = isLitLook(look), dimmed = look === "dim" || look === "dimHover";
-  const k = gone ? 0 : dimmed ? tune.rankDim : 1;
+  const lit = isLitLook(look), pin = isPinLook(look);
+  // A hover dims the rest a little, a pin by the whole tweak (hover's share is the page's --fade-dim-hover to --fade-dim)
+  const k = gone ? 0 : look === "dim" ? tune.rankDim : look === "dimHover" ? 1 - (1 - tune.rankDim) * 0.6 : 1;
   const lineOp = (col ? 1 : tune.rankGrayOpacity) * k;
-  return { col, gone, lit, k, base: col ?? st.t.other, lineOp, size: (col ? tune.rankDot : tune.rankGrayDot) * (lit ? 1.25 : 1) };
+  const g = GROW[look] ?? GROW.rest;
+  return { col, gone, lit, pin, k, base: col ?? st.t.other, lineOp, size: (col ? tune.rankDot : tune.rankGrayDot) * g.dot, width: g.line };
 }
 const nameStyle = (L) => ({
   fontSize: L.col ? tune.rankText + 2 : tune.rankText, fontWeight: L.col ? 700 : 500,
@@ -418,8 +423,8 @@ function seriesOf(ms = MORPH_MS) {
       symbol: "circle", symbolSize: L.size, showSymbol: true,
       silent: true,
       data, animationDurationUpdate: dur(ms),
-      lineStyle: { width: (L.col ? tune.rankWidth : tune.rankGrayWidth) * (L.lit ? 1.4 : 1), color: L.base, opacity: L.lineOp },
-      itemStyle: { color: L.base, opacity: Math.min(1, L.lineOp + (L.gone ? 0 : 0.3)), borderColor: st.t.surface, borderWidth: L.col ? 1.5 : 1 },
+      lineStyle: { width: (L.col ? tune.rankWidth : tune.rankGrayWidth) * L.width, color: L.base, opacity: L.lineOp },
+      itemStyle: { color: L.base, opacity: Math.min(1, L.lineOp + (L.gone ? 0 : 0.3)), borderColor: L.pin ? st.t.primary : st.t.surface, borderWidth: L.pin ? 2 : L.col ? 1.5 : 1 },
       emphasis: { disabled: true },
     };
   });
@@ -524,7 +529,9 @@ function clickAt(x, y) {
   if (!st || !pointer) return;
   const rect = gridRect();
   if (!inLane(y, rect)) {
-    if (st.hovered != null) state.mixArgs?.[3]?.toggle(st.hovered);
+    // (whoever's nearest, not st.hovered: a pin's re-render can clear the hover, and a second click must unpin)
+    const who = nearestAt(colPin ?? colAt(x), y, rect) ?? st.hovered;
+    if (who != null) state.mixArgs?.[3]?.toggle(who);
     return;
   }
   const k = colAt(x);
@@ -887,7 +894,7 @@ function draw() {
     }
     const L = lookOf(a, pinned), y = lineY(a, x, rect);
     const out = pointer || colPin != null ? 1 : shown; // (leaving, they fade with the rest)
-    r.dot.attr({ shape: { cx: x, cy: y, r: L.size / 2 }, style: { fill: L.base, stroke: st.t.surface, lineWidth: L.col ? 1.5 : 1, opacity: Math.min(1, L.lineOp + 0.3) * out }, z: L.col ? (L.lit ? 13 : 12) : L.lit ? 12 : 10 });
+    r.dot.attr({ shape: { cx: x, cy: y, r: L.size / 2 }, style: { fill: L.base, stroke: L.pin ? st.t.primary : st.t.surface, lineWidth: L.pin ? 2 : L.col ? 1.5 : 1, opacity: Math.min(1, L.lineOp + 0.3) * out }, z: L.col ? (L.lit ? 13 : 12) : L.lit ? 12 : 10 });
     const named = L.col || pinned.has(a) || a === hovered;
     // (a name eases in or out over FADE_MS rather than switching, e.g. a gray one as it's lit)
     r.nm = r.nm == null ? +named : r.nm + (+named - r.nm) * ease;
