@@ -17,6 +17,8 @@ const SUN_REACH = ["A circle", "Out to the card"];
 const SUN_TEETH = ["Left empty", "One piece", "Light line", "Ring gaps", "Lighter"];
 const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
+const PLAY_LOOKS = ["Bare", "Filled circle", "Ring", "Soft circle"];
+const PLAY_CHANGES = ["Morph", "Morph and turn", "Shrink and grow"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
   { key: "hoverTint", card: "rolling-card", label: "Lit band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -45,6 +47,8 @@ export const TUNES = [
   { key: "discoveryDot", card: "discovery-card", label: "Dot size", def: 5, min: 2, max: 12, step: 0.5, fmt: px },
   { key: "discoveryNameGap", card: "discovery-card", label: "Room around gray names", def: 18, min: 0, max: 60, step: 2, fmt: px },
   { key: "densityLook", card: "race-card", label: "Strip color", def: 0, options: DENSITY_LOOKS, fmt: (v) => DENSITY_LOOKS[v] },
+  { key: "playLook", card: "race-card", label: "Play button", def: 0, options: PLAY_LOOKS, fmt: (v) => PLAY_LOOKS[v] },
+  { key: "playChange", card: "race-card", label: "Play ↔ pause", def: 0, options: PLAY_CHANGES, fmt: (v) => PLAY_CHANGES[v] },
   { key: "raceRate", card: "race-card", label: "1× speed", def: 7, min: 1, max: 30, step: 0.5, fmt: (v) => `${v} days/s` },
   // (also set by the card's Positions slider, which goes to 20)
   { key: "rankMax", card: "rank-card", label: "Positions", def: 16, min: 4, max: 40, step: 1, live: true, fmt: (v) => `${v}` },

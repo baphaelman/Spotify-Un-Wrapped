@@ -1580,14 +1580,38 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* The day shown, large and quiet just above the speed, as a video's caption */
 .race-date { position: absolute; right: 0; bottom: 100%; margin-bottom: 2px; white-space: nowrap; font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; color: var(--text-muted); opacity: 0.6; pointer-events: none; font-variant-numeric: tabular-nums; }
 /* Play, the time slider (running with the video) and the speed */
-.race-controls { display: flex; align-items: flex-start; gap: 14px; margin-top: 12px; }
+.race-controls { display: flex; align-items: flex-end; gap: 14px; margin-top: 12px; }
+.slider.race-time { flex: 1; min-width: 0; }
 .race-controls { --race-density: 22px; }
 /* Play and pause: a bare icon at the card's top, its whole row a button */
-.race-play { display: grid; place-items: center; width: 100%; height: 34px; margin: -6px 0 6px; padding: 0; border: 0; background: none; color: var(--text-muted); cursor: pointer; transition: color var(--motion-fade) var(--ease-out); }
+/* Play or pause, at the strip's left. The glyph is two halves of the triangle (clip-path polygons of 4 points each),
+   which become the pause's two bars: data-look is the button around it, data-change how it changes (tune.js). */
+.race-play { --size: 40px; --glyph: 22px; flex: none; align-self: flex-end; display: grid; place-items: center; width: var(--size); height: var(--size); margin-bottom: 8px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-muted); cursor: pointer; transition: color var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out), box-shadow var(--motion-fade) var(--ease-out), transform var(--motion-fade) var(--ease-out); }
 .race-play:hover, .race-play:focus-visible { color: var(--text-primary); }
-.race-play svg { width: 20px; height: 20px; fill: currentColor; }
-.race-play .i-pause, .playing .race-play .i-play { display: none; }
-.playing .race-play .i-pause { display: inline; }
+.race-play:active { transform: scale(0.92); }
+.race-play[data-look="0"] { --glyph: 28px; }
+.race-play[data-look="1"] { background: var(--accent); color: var(--surface); }
+.race-play[data-look="1"]:hover, .race-play[data-look="1"]:focus-visible { background: color-mix(in srgb, var(--accent) 85%, var(--text-primary)); color: var(--surface); }
+.race-play[data-look="2"] { --glyph: 18px; box-shadow: inset 0 0 0 1.5px currentColor; }
+.race-play[data-look="3"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.race-play[data-look="3"]:hover, .race-play[data-look="3"]:focus-visible { background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--accent); }
+.race-glyph { position: relative; width: var(--glyph); height: var(--glyph); transition: transform var(--motion-grow) var(--ease-out); }
+.race-glyph i { position: absolute; inset: 0; background: currentColor; transition: clip-path var(--motion-grow) var(--ease-out); }
+/* The triangle sits a little right of center, where it looks centered */
+.race-glyph i:first-child { clip-path: polygon(12% 0%, 57% 25.6%, 57% 74.4%, 12% 100%); }
+.race-glyph i:last-child { clip-path: polygon(56% 25%, 100% 50%, 100% 50%, 56% 75%); }
+.playing .race-glyph i:first-child { clip-path: polygon(14% 4%, 40% 4%, 40% 96%, 14% 96%); }
+.playing .race-glyph i:last-child { clip-path: polygon(60% 4%, 86% 4%, 86% 96%, 60% 96%); }
+/* Morph and turn: the glyph turns half a circle as it changes (the bars look the same either way up) */
+[data-change="1"] .race-glyph { transition-duration: var(--motion-enter); transition-timing-function: var(--ease-in-out); }
+[data-change="1"] .race-glyph i { transition-duration: var(--motion-enter); transition-timing-function: var(--ease-in-out); }
+.playing [data-change="1"] .race-glyph { transform: rotate(180deg); }
+/* Shrink and grow: out to nothing, the shape changes while it's gone, back in */
+[data-change="2"] .race-glyph i { transition: clip-path 0s linear calc(var(--motion-grow) / 2); }
+[data-change="2"] .race-glyph { animation: race-pop-a var(--motion-grow) var(--ease-out); }
+.playing [data-change="2"] .race-glyph { animation-name: race-pop-b; }
+@keyframes race-pop-a { 50% { transform: scale(0.3); opacity: 0; } }
+@keyframes race-pop-b { 50% { transform: scale(0.3); opacity: 0; } }
 /* The density strip spans the thumb's travel (5px in from each end), as the ticks do */
 .race-density { cursor: pointer; display: block; width: calc(100% - 10px); height: var(--race-density); margin: 0 5px; overflow: visible; }
 /* The colors: "Strip color" under Visual tweaks sets data-look (0, the default, is "Played bright"; see DENSITY_LOOKS) */
@@ -1606,14 +1630,14 @@ button:not(:disabled):active { transform: scale(0.96); }
 .race-density-line { fill: none; stroke: var(--dl-line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .race-ticks { position: relative; height: 16px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
 .race-ticks span { position: absolute; left: calc(5px + (100% - 10px) * var(--p, 0)); transform: translateX(-50%); white-space: nowrap; }
-.race-speed-box { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: calc(var(--race-density) - 7px); }
+.race-speed-box { position: relative; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .race-speed { flex: none; }
 .race-rate { font-family: var(--mono); font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .race-speed button { padding: 3px 9px; font-size: 12px; }
 @media (max-width: 600px) {
   .race-rows li, .race-scale { grid-template-columns: 2ch minmax(0, 110px) 1fr; gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .race-stage, .race-rows li, .race-bar, .race-play { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .race-stage, .race-rows li, .race-bar, .race-play, .race-glyph, .race-glyph i { transition: none; animation: none; } }
 @media (max-width: 600px) {
   .race-controls { flex-wrap: wrap; }
   .slider.race-time { flex-basis: 100%; }

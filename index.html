@@ -349,10 +349,6 @@
 
       <!-- Who was on top, played as a video over the period: the bars race, and the time slider runs with them (race.js) -->
       <article class="card" id="race-card">
-        <!-- Play or pause; the whole row is the button (race.js) -->
-        <button id="race-play" type="button" class="race-play" aria-label="Play">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
-        </button>
         <div class="race-head">
           <div>
             <h2 id="race-title">Top Artists over time</h2>
@@ -383,6 +379,8 @@
           <ol id="race-rows" class="race-rows"></ol>
         </div>
         <div class="race-controls">
+          <!-- Play or pause: two halves of the triangle that become the two bars (race.js; its look and change are tweaks) -->
+          <button id="race-play" type="button" class="race-play" aria-label="Play"><span class="race-glyph" aria-hidden="true"><i></i><i></i></span></button>
           <div class="slider race-time">
             <!-- When the plays bunch up: hours in the "Days" window up to each day, deeper where already played (race.js) -->
             <svg id="race-density" class="race-density" preserveAspectRatio="none" aria-hidden="true">
