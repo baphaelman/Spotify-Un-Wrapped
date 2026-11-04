@@ -12,6 +12,7 @@ const h = (v) => `${+v} h`;
 // A spec with `live` is also set from the graph itself, so its value applies with the switch off too.
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
 // A spec with `idle(values)` shows dimmed while another value leaves it with little to do.
+const SKIPS_SHADES = ["Picked and skipped full", "Fading left to right"];
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
 const SUN_REACH = ["A circle", "Out to the card"];
 const SUN_TEETH = ["Left empty", "One piece", "Light line", "Ring gaps", "Lighter"];
@@ -72,6 +73,7 @@ export const TUNES = [
   { key: "sunTeeth", card: "sunburst-card", label: "Slices with nothing outside", def: 2, options: SUN_TEETH, fmt: (v) => SUN_TEETH[v] },
   { key: "sunMargin", card: "sunburst-card", label: "Margin to the card", def: 12, min: 0, max: 48, step: 2, fmt: px, idle: (v) => !v.sunReach },
   { key: "skipsLook", card: "skips-card", label: "Bars", def: 0, options: SKIPS_LOOKS, fmt: (v) => SKIPS_LOOKS[v] },
+  { key: "skipsShades", card: "skips-card", label: "Shades", def: 0, options: SKIPS_SHADES, fmt: (v) => SKIPS_SHADES[v] },
   { key: "skipsBar", card: "skips-card", label: "Bar thickness", def: 18, min: 4, max: 40, step: 1, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },
 ];

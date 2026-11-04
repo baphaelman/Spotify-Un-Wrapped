@@ -72,8 +72,9 @@ export function updateSkips(next) {
   $("skips-note").hidden = !ctx.reasonsLost;
   $("skips-head").hidden = !ctx.reasons;
   $("skips-sub").textContent = ctx.periodLabel;
-  // The look is a visual tweak: horizontal or vertical bars, and how thick
+  // The look is a visual tweak: horizontal or vertical bars, their shades, and how thick
   card.dataset.look = tune.skipsLook;
+  card.dataset.shades = tune.skipsShades;
   card.style.setProperty("--skips-bar", `${tune.skipsBar}px`);
   const list = $("skips-list");
   const totals = new Map(ctx.reasons ?? []);
