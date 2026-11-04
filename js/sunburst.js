@@ -98,6 +98,7 @@ function setup() {
     if (n.id === focusId) {
       if (n.parent) zoomTo(n.parent.id);
     } else if (n.kids.length) zoomTo(n.id);
+    else if (opensUp(n)) zoomTo(n.parent.id);
     else if (opens(n)) hooks.openPart(itemOf(n), "track", n.name);
     else if (pinnable(n)) {
       pins?.toggle(pinName(n));
@@ -198,7 +199,7 @@ function fold(f) {
       const name = n.level < 0 ? `Other ${noun().many}` : LEVELS[state.dim][n.level][1];
       c.kids.push({
         id: n.id + REST, name, shown: name, parent: c, depth: n.depth + 1, item: n.item, level: n.level + 1,
-        inOther: n.inOther, means: n.means, other: true, value: rest.reduce((a, k) => a + k.value, 0),
+        inOther: n.inOther, means: n.means, other: true, value: rest.reduce((a, k) => a + k.value, 0), folded: rest,
         x0: rest[0].x0, x1: n.x1, kids: [],
       });
     }
@@ -213,6 +214,8 @@ const itemOf = (n) => {
   for (let p = n; p; p = p.parent) if (p.level === 0) return p.name;
   return null;
 };
+// An "Other …" opens as the smallest slice that holds all it folds: its parent, unless that's in the middle already
+const opensUp = (n) => n.other && !!n.parent && n.parent.id !== focusId;
 const opens = (n) => !n.other && !n.kids.length && kindOf(n) === "track";
 // In Tracks, a track itself (or one of Everyone else's), which a click pins
 const pinnable = (n) => state.dim === "track" && !n.other && !n.kids.length && n.level === 0;
@@ -666,7 +669,7 @@ function restyle() {
     if ((look === "hover" || look === "pinHover") && hoverNode?.item === n.item && !related(n, hoverNode)) look = pinned.has(n.item) ? "pin" : "rest";
     if (n.path.dataset.look !== look) n.path.dataset.look = n.ext.dataset.look = n.label.dataset.look = look;
     n.outline?.classList.toggle("on", pinned.has(n.item));
-    const go = n.kids.length > 0 || (n.id === focusId && !!n.parent) || opens(n) || pinnable(n);
+    const go = n.kids.length > 0 || (n.id === focusId && !!n.parent) || opensUp(n) || opens(n) || pinnable(n);
     n.path.classList.toggle("go", go);
     n.ext.classList.toggle("go", go);
   }
@@ -715,7 +718,23 @@ function fillTip(n) {
     num(`${fmtHours(n.value)} · ${fmtShare(f.value ? n.value / f.value : 0)} of ${f.shown}`);
     num(all);
   }
-  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in" : opens(n) ? "Click to pin it in Tracks"
+  // What an "Other …" holds, biggest first
+  const MAX_FOLDED = 8;
+  const folded = n.folded ?? [];
+  folded.slice(0, MAX_FOLDED).forEach((k, i) => {
+    const row = document.createElement("div");
+    row.className = i ? "folded" : "folded first";
+    row.textContent = `${k.shown} · ${fmtHours(k.value)}`; // from the user's files
+    rows.push(row);
+  });
+  if (folded.length > MAX_FOLDED) {
+    const more = document.createElement("div");
+    more.className = "folded";
+    more.textContent = `and ${folded.length - MAX_FOLDED} more`;
+    rows.push(more);
+  }
+  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in"
+    : opensUp(n) ? `Click to see inside ${n.parent.shown}` : opens(n) ? "Click to pin it in Tracks"
     : pinnable(n) ? (pins?.has(pinName(n)) ? "Click to unpin it" : "Click to pin it") : "";
   if (how) {
     const hint = document.createElement("div");

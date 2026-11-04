@@ -1412,6 +1412,8 @@ dialog pre {
 .sun-tip .up { color: var(--text-muted); }
 .sun-tip .here { font-weight: 600; }
 .sun-tip .num { margin-top: 2px; font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
+.sun-tip .folded { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-secondary); }
+.sun-tip .folded.first { margin-top: 4px; }
 .sun-tip .hint { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
 @media (prefers-reduced-motion: reduce) { .sun-slice, .sun-outline, .sun-label, .sun-label text, .sun-tip { transition: none; } }
 
