@@ -565,7 +565,7 @@ function morphPoints(apply, ms) {
     const named = shownText(el), t = el.getTextContent();
     // (the name's alignment ECharts keeps among its defaults: without it, the copy would drop by its own height)
     const def = t?._defaultStyle;
-    before.set(k, { sx: el.scaleX, sy: el.scaleY, look: lookStyle(el), named, name: named && { style: { align: def?.align, verticalAlign: def?.verticalAlign, ...t.style }, m: t.getComputedTransform()?.slice() } });
+    before.set(k, { sx: el.scaleX, sy: el.scaleY, look: lookStyle(el), named, name: named && { style: { ...t.style, align: t.style.align ?? def?.align, verticalAlign: t.style.verticalAlign ?? def?.verticalAlign }, m: t.getComputedTransform()?.slice() } });
   }
   apply();
   if (!ms) return;
