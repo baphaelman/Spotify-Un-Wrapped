@@ -762,8 +762,8 @@ function timelineEls(rect) {
   const extra = [];
   // A soft wash over the lane, around the line and its dates
   if (look === 1) extra.push(new Rect({ silent: true, z: 0, shape: { x: rect.x - 12, y: 0, width: rect.width + 24, height: ry - 4, r: 10 }, style: { fill: alpha(t.primary, 0.05) } }));
-  // A strip across the card, from the top to the rule, its top corners rounded
-  if (strip) extra.push(new Rect({ silent: true, z: 0, shape: { x: sx, y: 0, width: c.getWidth() - sx, height: ry, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03) } }));
+  // A strip across the card, from the hover's column's top (LANE_TOP) to the rule, its top corners rounded as the column's
+  if (strip) extra.push(new Rect({ silent: true, z: 0, shape: { x: sx, y: LANE_TOP, width: c.getWidth() - sx, height: ry - LANE_TOP, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03) } }));
   const root = new Group(), dotG = clipped(TL_END_R + 1), textG = clipped(Math.ceil(half) + 1);
   dots.forEach((e) => dotG.add(e));
   texts.forEach((e) => textG.add(e));
@@ -1005,13 +1005,11 @@ function draw() {
   tip.classList.add("on");
   tip.classList.toggle("held", colPin != null);
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
-  // (a column stays inside the chart, and inside the framed strip: at either end it's cut to fit, and as it nears a
-  // side its top rises to the strip's, so touching one it touches both)
-  const strip = tune.rankLane === 5, lo = ox + (strip ? stripLeft(rect) : 0), hi = ox + c.getWidth();
+  // (a column stays inside the chart, and inside the framed strip: at either end it's cut to fit. Its top is the
+  // strip's.)
+  const lo = ox + (tune.rankLane === 5 ? stripLeft(rect) : 0), hi = ox + c.getWidth();
   const a = Math.max(cx - slice / 2, lo), b = Math.min(cx + slice / 2, hi);
-  const gap = Math.max(0, Math.min(cx - slice / 2 - lo, hi - cx - slice / 2));
-  const inset = strip ? LANE_TOP * Math.min(1, gap / LANE_TOP) : LANE_TOP;
-  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - inset : 0; // (the column runs up through the lane)
+  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
   cursor.style.setProperty("--x", `${column ? (a + b) / 2 : !pointer || colPin != null ? cx : ox + pointer[0]}px`);
   cursor.classList.toggle("pinned", colPin != null);
