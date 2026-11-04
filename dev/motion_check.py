@@ -8,6 +8,7 @@
 #   frames   median / p95 / max frame time and the frames over 50 ms; "blocked" is the long tasks' total
 #   jump     the biggest one-frame change as a share of the whole change, and when it came (ms after the action).
 #            Over ~30% with a frame time near the median is a cut; check that moment with shot.py CLICK_JS/CLICK_TIMES.
+#   --scroll <card id>  scrolls that card into view instead of the rolling chart's (cards well off screen aren't drawn)
 #   --profile  also samples the CPU through each action and prints the functions with the most self time, and the
 #              share spent in native code ("(program)": mostly drawing the charts' canvases)
 # Headless Brave draws in software, so frame times run slower than a real browser: compare before against after.
@@ -63,6 +64,7 @@ ap.add_argument("--action", default="")
 ap.add_argument("--seconds", type=float, default=3)
 ap.add_argument("--charts", default="chart-rolling,chart-rolling-hours")
 ap.add_argument("--profile", action="store_true")
+ap.add_argument("--scroll", default="rolling-card", help="the card scrolled to near the top (200 px down) before each scenario")
 args = ap.parse_args()
 names = args.scenarios or list(SCENARIOS)
 if "custom" in names:
@@ -109,7 +111,7 @@ try:
 
     for name in names:
         sc = SCENARIOS[name]
-        js("window.scrollTo(0, document.getElementById('rolling-card').offsetTop - 200)")
+        js(f"window.scrollTo(0, document.getElementById('{args.scroll}').offsetTop - 200)")
         if sc["setup"]:
             js(sc["setup"])
         time.sleep(3)  # long enough for any setup morph (scaledMs tops out at 2.2 s) to settle
