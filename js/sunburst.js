@@ -5,7 +5,8 @@
 // brings the next one in at the edge. Slices show their share of the middle circle where it fits, the name where both fit, and once
 // gone in, their share of everything (of the items the mix bar shows, so the two agree) small below; the middle
 // shows only that. Clicking a slice goes in: it opens out into the middle circle and its insides fill the rings;
-// clicking the middle circle goes back out, and clicking a song opens it in Tracks, pinned (in Tracks, pins it).
+// clicking the middle circle goes back to where the reader was (out a ring, or several, or to the view a song was
+// opened from), and clicking a song opens it in Tracks, pinned (in Tracks, pins it).
 // A slice with nothing drawn outside it reaches out to the edge, marked as tune.sunTeeth says. A slice under
 // tune.sunMinShare of the middle folds into its parent's "Other …", so going in brings out what was too small
 // before (out of that slice). Every move (going in or out, a new period, items coming and going) is one morph of
@@ -14,7 +15,7 @@
 // the item (the chart's palette slots); a slice under an item takes its color, lighter the deeper it lies. Hovering
 // lights the item everywhere on the page, pins show as in every graph (litLook), and the hidden ones are left out.
 
-import { $, state, noun, shownPlays, putOff, hooks, OTHER, otherLabel } from "./state.js";
+import { $, state, noun, NOUN, shownPlays, putOff, hooks, OTHER, otherLabel } from "./state.js";
 import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, easeOut, litLook } from "./motion.js";
@@ -67,6 +68,8 @@ let focusId = ""; // the node in the middle circle, by id ("" is the root)
 // looks again, until the reader opens something else
 let focusMeans = {};
 let lastDim = null;
+// Where the reader came from, latest last: { dim, id } the middle before going in, or { dim, to } a view left for `to`
+let trail = [];
 let seeking = false;
 let total = 0;
 let pins = null;
@@ -96,10 +99,18 @@ function setup() {
     const n = ev.target.__node;
     if (!n) return;
     if (n.id === focusId) {
-      if (n.parent) zoomTo(n.parent.id);
+      const t = back();
+      if (t) {
+        trail.pop();
+        if (t.to) $("view-back").click();
+        else zoomTo(t.id, false);
+      } else if (n.parent) zoomTo(n.parent.id, false);
     } else if (n.kids.length) zoomTo(n.id);
     else if (opensUp(n)) zoomTo(n.parent.id);
-    else if (opens(n)) hooks.openPart(itemOf(n), "track", n.name);
+    else if (opens(n)) {
+      trail.push({ dim: state.dim, to: "track" });
+      hooks.openPart(itemOf(n), "track", n.name);
+    }
     else if (pinnable(n)) {
       pins?.toggle(pinName(n));
       tip.__node = null;
@@ -214,6 +225,15 @@ const itemOf = (n) => {
   for (let p = n; p; p = p.parent) if (p.level === 0) return p.name;
   return null;
 };
+// Where the middle circle goes back to, if the trail still leads from here (a tab picked since leaves it behind)
+function back() {
+  const t = trail.at(-1);
+  if (t && (t.to ? t.to === state.dim && !$("view-back").disabled : t.dim === state.dim && (t.id === "" || find(t.id)))) return t;
+  trail = [];
+  return null;
+}
+const backName = (t) => (t?.to ? NOUN[t.dim].Many : "");
+
 // An "Other …" opens as the smallest slice that holds all it folds: its parent, unless that's in the middle already
 const opensUp = (n) => n.other && !!n.parent && n.parent.id !== focusId;
 const opens = (n) => !n.other && !n.kids.length && kindOf(n) === "track";
@@ -563,10 +583,12 @@ function draw() {
     const middle = n.id === focusId;
     const [d, ext, at] = n.depth === 0 && !middle ? ["", "", g] : shapes(g);
     // The share of the middle, and once gone in, of everything (all the middle shows)
+    // (the whole in the middle has no name, but leads back to the view a song was opened from)
+    const backTo = middle && n.depth === 0 ? backName(back()) : "";
     const pct = n.depth === 0 || middle ? "" : fmtShare(n.share.p);
     const sub = n.depth === 0 || !zoomed ? "" : fmtShare(n.share.s);
     // (a slice that hasn't moved, or stays at nothing, is left alone)
-    const key = `${d}|${ext}|${pct}|${sub}|${middle}|${n.leaving}|${n.shown}`;
+    const key = `${d}|${ext}|${pct}|${sub}|${middle}|${n.leaving}|${n.shown}|${backTo}`;
     if (key === n.key) continue;
     n.key = key;
     els(n);
@@ -575,21 +597,21 @@ function draw() {
     n.ext.classList.toggle("seam", tune.sunTeeth === 2);
     // A pinned item's outline runs round all of it, out to the edge
     if (n.outline) n.outline.setAttribute("d", d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75));
-    label(n, at, d, pct, sub, middle);
+    label(n, at, d, pct, sub, middle, backTo);
   }
 }
 
 // A slice's lines, the ones that fit: its name, its share of the middle, and below, small, its share of everything
 // (the middle circle: its name and that)
-function label(n, g, d, pct, sub, middle) {
+function label(n, g, d, pct, sub, middle, backTo) {
   const at = spot(g);
   const lh = fonts.line;
   const pctW = textWidth(pct, fonts.pct), subW = textWidth(sub, fonts.sub);
   let name = null, showPct = false, showSub = false;
-  if (d && !n.leaving && n.depth > 0) {
+  if (d && !n.leaving && (n.depth > 0 || backTo)) {
     if (middle) {
       showSub = !!sub && fits(at, subW, lh);
-      name = fitName("‹ " + n.shown, at, showSub ? subW : 0);
+      name = fitName("‹ " + (n.depth ? n.shown : backTo), at, showSub ? subW : 0);
     } else if ((showPct = fits(at, pctW, lh))) {
       // (an "Other …" too long for its slice is just "Other": its ring says what of)
       name = fitName(n.shown, at, pctW) ?? (n.other ? fitName("Other", at, pctW) : null);
@@ -669,7 +691,7 @@ function restyle() {
     if ((look === "hover" || look === "pinHover") && hoverNode?.item === n.item && !related(n, hoverNode)) look = pinned.has(n.item) ? "pin" : "rest";
     if (n.path.dataset.look !== look) n.path.dataset.look = n.ext.dataset.look = n.label.dataset.look = look;
     n.outline?.classList.toggle("on", pinned.has(n.item));
-    const go = n.kids.length > 0 || (n.id === focusId && !!n.parent) || opensUp(n) || opens(n) || pinnable(n);
+    const go = n.kids.length > 0 || (n.id === focusId && (!!n.parent || !!back())) || opensUp(n) || opens(n) || pinnable(n);
     n.path.classList.toggle("go", go);
     n.ext.classList.toggle("go", go);
   }
@@ -677,7 +699,7 @@ function restyle() {
 
 // The slice under the pointer: lights its item everywhere (focusArtist), and its readout follows the pointer
 function pointAt(n, ev) {
-  if (n && n.depth === 0) n = null;
+  if (n && n.depth === 0 && !(n.id === focusId && back())) n = null;
   if (n !== hoverNode) {
     hoverNode = n;
     focusArtist($("chart-rolling"), n && n.item !== OTHER ? n.item : null);
@@ -700,6 +722,12 @@ function fillTip(n) {
   const rows = [];
   const path = [];
   for (let p = n; p && p.depth > 0; p = p.parent) path.unshift(p);
+  if (n.depth === 0) {
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = `Click to go back to ${backName(back())}`;
+    return void tip.replaceChildren(hint);
+  }
   path.forEach((p, i) => {
     const row = document.createElement("div");
     row.className = i === path.length - 1 ? "here" : "up";
@@ -733,7 +761,8 @@ function fillTip(n) {
     more.textContent = `and ${folded.length - MAX_FOLDED} more`;
     rows.push(more);
   }
-  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in"
+  const t = n.id === focusId && back();
+  const how = n.id === focusId ? (t?.to ? `Click to go back to ${backName(t)}` : t ? "Click to go back" : "Click to go back out") : n.kids.length ? "Click to go in"
     : opensUp(n) ? `Click to see inside ${n.parent.shown}` : opens(n) ? "Click to pin it in Tracks"
     : pinnable(n) ? (pins?.has(pinName(n)) ? "Click to unpin it" : "Click to pin it") : "";
   if (how) {
@@ -755,7 +784,9 @@ function colorAll() {
   }
 }
 
-function zoomTo(id) {
+// remember: whether the middle circle should come back here (not when going back)
+function zoomTo(id, remember = true) {
+  if (remember) trail.push({ dim: state.dim, id: focusId });
   focusId = id;
   focusMeans = id ? find(id).means : {};
   seeking = false;
