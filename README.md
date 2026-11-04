@@ -29,7 +29,7 @@ All the stats generated throughout the page depend on the period you select in t
 
 ### Listening mix
 
-How your listening time split between your top artists in the period, with pictures. Click to pin
+How your listening time split between your top artists in the period, with pictures. Click to pin. Toggle **Everyone else** to add the rest of your listening as a gray segment that grows in from the right, with the total shown in the middle of the header.
 
 ### Inside your top artists
 
