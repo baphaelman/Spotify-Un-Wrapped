@@ -111,11 +111,18 @@ function retarget(v, targets, ms, ease) {
   }
   animate(v);
 }
+// Every play's gray layer's opacity as it fades with the Everyone else toggle
+function otherAlpha(v) {
+  const f = v.otherFade;
+  if (!f) return { a: 1, done: true };
+  const t = f.ms ? Math.min(1, (performance.now() - f.at) / f.ms) : 1;
+  return { a: f.from + (f.to - f.from) * EASE_IN_OUT.js(t), done: t >= 1 };
+}
 function animate(v) {
   cancelAnimationFrame(v.raf);
   const frame = () => {
     v.draw(v);
-    if ([...v.looks.keys()].some((n) => !lookOf(v, n).done)) v.raf = requestAnimationFrame(frame);
+    if ([...v.looks.keys()].some((n) => !lookOf(v, n).done) || !otherAlpha(v).done) v.raf = requestAnimationFrame(frame);
   };
   frame();
 }
@@ -259,14 +266,19 @@ function playRuns(plays) {
   return runs;
 }
 
-// With `other` off, only the named artists' plays are drawn
+// With `other` off, only the named artists' plays are drawn: the gray layer is always laid out, and fades out or in
+// (v.otherFade) where it is
 export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, { other = true } = {}) {
   const v = setup(el, drawRaster, pickRaster);
-  const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface, other];
+  const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
   const key = [...data, tune.rasterHeight];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
+  if (v.other !== other) {
+    const from = v.otherFade ? otherAlpha(v).a : +other;
+    v.otherFade = { from, to: +other, at: performance.now(), ms: v.key ? dur(MORPH_MS) : 0 };
+  }
   refresh(v, data, key, { plays, lo, hi, other }, () => layoutRaster(v), relaid);
 }
 
@@ -333,7 +345,6 @@ function layoutRaster(v) {
   for (const run of playRuns(plays)) {
     const s = new Date(run.start), hour = s.getHours() + s.getMinutes() / 60 + s.getSeconds() / 3600;
     const layer = known.has(run.item) ? run.item : OTHER;
-    if (layer === OTHER && !v.other) continue;
     let day = agg.dayIndex(run.start) - lo, from = hour, left = (run.end - run.start) / HOUR;
     for (; left > 0 && day < days; day++, from = 0) {
       const y0 = GRID.top + from * pph, y1 = GRID.top + Math.min(24, from + left) * pph;
@@ -466,9 +477,12 @@ function drawRaster(v) {
     const look = lookOf(v, n);
     const path = v.paths.get(n);
     if (!look || !path) continue;
+    ctx.globalAlpha = n === OTHER ? otherAlpha(v).a : 1;
+    if (!ctx.globalAlpha) continue;
     ctx.fillStyle = mix(t.surface, v.colorOf.get(n), look.s);
     ctx.fill(path);
   }
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -480,6 +494,7 @@ function pickRaster(v, x, y) {
   let best = null, bestD = Infinity;
   for (let d = Math.max(0, day - (v.dw < 1 ? reach : 0)); d <= Math.min(v.byDay.length - 1, day + (v.dw < 1 ? reach : 0)); d++) {
     for (const m of v.byDay[d]) {
+      if (m.layer === OTHER && !v.other) continue; // (faded out: nothing to hover)
       const dy = y < m.y0 ? m.y0 - y : y > m.y1 ? y - m.y1 : 0;
       const dd = dy + Math.abs(d - day) * v.dw;
       if (dy <= 2 && dd < bestD) (best = m), (bestD = dd);
