@@ -111,9 +111,10 @@ function retarget(v, targets, ms, ease) {
   }
   animate(v);
 }
-// Every play's gray layer's opacity as it fades with the Everyone else toggle
-function otherAlpha(v) {
-  const f = v.otherFade;
+// Every play's layers' opacities as they fade (v.fades: name -> { from, to, at, ms }): the gray one with the
+// Everyone else toggle, an artist's as it joins while the gray is out
+function alphaOf(v, name) {
+  const f = v.fades?.get(name);
   if (!f) return { a: 1, done: true };
   const t = f.ms ? Math.min(1, (performance.now() - f.at) / f.ms) : 1;
   return { a: f.from + (f.to - f.from) * EASE_IN_OUT.js(t), done: t >= 1 };
@@ -122,7 +123,7 @@ function animate(v) {
   cancelAnimationFrame(v.raf);
   const frame = () => {
     v.draw(v);
-    if ([...v.looks.keys()].some((n) => !lookOf(v, n).done) || !otherAlpha(v).done) v.raf = requestAnimationFrame(frame);
+    if ([...v.looks.keys()].some((n) => !lookOf(v, n).done) || [...(v.fades?.keys() ?? [])].some((n) => !alphaOf(v, n).done)) v.raf = requestAnimationFrame(frame);
   };
   frame();
 }
@@ -267,7 +268,7 @@ function playRuns(plays) {
 }
 
 // With `other` off, only the named artists' plays are drawn: the gray layer is always laid out, and fades out or in
-// (v.otherFade) where it is
+// (v.fades) where it is
 export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, { other = true } = {}) {
   const v = setup(el, drawRaster, pickRaster);
   const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
@@ -275,10 +276,8 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
-  if (v.other !== other) {
-    const from = v.otherFade ? otherAlpha(v).a : +other;
-    v.otherFade = { from, to: +other, at: performance.now(), ms: v.key ? dur(MORPH_MS) : 0 };
-  }
+  v.fades ??= new Map();
+  if (v.other !== other) v.fades.set(OTHER, { from: v.key ? alphaOf(v, OTHER).a : +other, to: +other, at: performance.now(), ms: v.key ? dur(MORPH_MS) : 0 });
   refresh(v, data, key, { plays, lo, hi, other }, () => layoutRaster(v), relaid);
 }
 
@@ -329,6 +328,11 @@ function layoutRaster(v) {
   const dw = plotW / days, pph = plotH / 24;
   const dpr = devicePixelRatio || 1;
   const known = new Set(names);
+  // An artist new to the frame was in the gray, so it fades in from as much of the gray as showed
+  const gray = alphaOf(v, OTHER).a;
+  if (v.drawn && gray < 1)
+    for (const n of names) if (!v.drawn.has(n)) v.fades.set(n, { from: gray, to: 1, at: performance.now(), ms: dur(MORPH_MS) });
+  v.drawn = known;
   // Per layer, per device-pixel column, the marks' [y0, y1] runs; and per day, the plays for the pointer
   const cols = new Map([[OTHER, new Map()], ...names.map((n) => [n, new Map()])]);
   v.byDay = Array.from({ length: days }, () => []);
@@ -477,7 +481,7 @@ function drawRaster(v) {
     const look = lookOf(v, n);
     const path = v.paths.get(n);
     if (!look || !path) continue;
-    ctx.globalAlpha = n === OTHER ? otherAlpha(v).a : 1;
+    ctx.globalAlpha = alphaOf(v, n).a;
     if (!ctx.globalAlpha) continue;
     ctx.fillStyle = mix(t.surface, v.colorOf.get(n), look.s);
     ctx.fill(path);
