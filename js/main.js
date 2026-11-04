@@ -284,6 +284,7 @@ function retune(card) {
   else if (card === "mix-card") placeMix();
   else if (card === "skips-card" && state.mixArgs) renderMix(...state.mixArgs);
   else if (card === "race-card") paintRate();
+  else if (card === "sunburst-card") paintSunburst();
 }
 function syncEverything() {
   $("see-everything").setAttribute("aria-checked", everything);
@@ -344,7 +345,7 @@ function applyDim() {
   $("artist-search").placeholder = `Pin ${w.a}…`;
   $("artist-search").setAttribute("aria-label", `Search ${w.many} to pin to the chart`);
   $("rolling-title").textContent = `Top ${w.Many} View`;
-  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = $("skips-other-label").textContent = $("rank-other-label").textContent = otherLabel();
+  $("other-label").textContent = $("monthly-other-label").textContent = $("race-other-label").textContent = $("clock-other-label").textContent = $("skips-other-label").textContent = $("rank-other-label").textContent = $("sunburst-other-label").textContent = otherLabel();
   $("clock-note").textContent = `${w.who} you listen to through the day, as a share of that time, in your local time zone`;
   // The older account-data export has no albums
   $("view-tabs").querySelector('[data-dim="album"]').hidden = !state.raw.some((p) => p.album);

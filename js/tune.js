@@ -13,6 +13,7 @@ const h = (v) => `${+v} h`;
 // A spec with `options` is a dropdown of named choices rather than a slider; its value is the chosen index.
 // A spec with `idle(values)` shows dimmed while another value leaves it with little to do.
 const SKIPS_LOOKS = ["Horizontal bars", "Vertical bars"];
+const SUN_REACH = ["A circle", "Out to the card"];
 const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column and line", "Glowing line"];
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 export const TUNES = [
@@ -57,6 +58,10 @@ export const TUNES = [
   { key: "rankCursor", card: "rank-card", label: "Where you are", def: 2, options: CURSOR_LOOKS, fmt: (v) => CURSOR_LOOKS[v] },
   { key: "rankDive", card: "rank-card", label: "How far lines dive below the chart", def: 1.6, min: 0.2, max: 4, step: 0.1, fmt: x },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
+  // (smaller slices fold into their parent's "Other …" until it's gone into)
+  { key: "sunMinShare", card: "sunburst-card", label: "Smallest slice", def: 1, min: 0.25, max: 5, step: 0.25, fmt: (v) => `${v}% of the middle` },
+  { key: "sunReach", card: "sunburst-card", label: "Outer ring", def: 0, options: SUN_REACH, fmt: (v) => SUN_REACH[v] },
+  { key: "sunMargin", card: "sunburst-card", label: "Margin to the card", def: 12, min: 0, max: 48, step: 2, fmt: px, idle: (v) => !v.sunReach },
   { key: "skipsLook", card: "skips-card", label: "Bars", def: 0, options: SKIPS_LOOKS, fmt: (v) => SKIPS_LOOKS[v] },
   { key: "skipsBar", card: "skips-card", label: "Bar thickness", def: 18, min: 4, max: 40, step: 1, fmt: px },
   { key: "hoursPx", card: "mix-card", label: "Shows hours from", def: 48, min: 0, max: 200, step: 2, fmt: px },

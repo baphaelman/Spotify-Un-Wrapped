@@ -1,14 +1,19 @@
 // "Inside your top …": the listening mix's items opened up, as rings around a middle circle. Artists, then their
 // albums, then their songs (albums: their songs; genres: their artists, then those artists' albums), each slice
-// as wide as its hours. Slices show their share of the period (of the items the mix bar shows, so the two agree)
-// where it fits, and the name where both fit. Clicking a slice goes in: it opens out into the middle circle and its
-// insides fill the rings; clicking the middle circle goes back out. Every move (going in or out, a new period, items
-// coming and going) is one morph of every slice from where it is on screen.
+// as wide as its hours, with "Everyone else" (the rest of the period, opening into the view's other items) last when
+// its toggle is on. Slices show their share of the middle circle where it fits, the name where both fit, and once
+// gone in, their share of everything (of the items the mix bar shows, so the two agree) small below; the middle
+// shows only that. Clicking a slice goes in: it opens out into the middle circle and its insides fill the rings;
+// clicking the middle circle goes back out, and clicking a song opens it in Tracks, pinned. A slice under
+// tune.sunMinShare of the middle folds into its parent's "Other …", so going in brings out what was too small
+// before (out of that slice). Every move (going in or out, a new period, items coming and going) is one morph of
+// every slice from where it is on screen, the shares counting along with it.
 // Drawn by hand in SVG rather than with ECharts' sunburst, which drops slices without animating them. Colors follow
 // the item (the chart's palette slots); a slice under an item takes its color, lighter the deeper it lies. Hovering
 // lights the item everywhere on the page, pins show as in every graph (litLook), and the hidden ones are left out.
 
-import { $, state, noun, shownPlays, putOff } from "./state.js";
+import { $, state, noun, shownPlays, putOff, hooks, OTHER, otherLabel } from "./state.js";
+import { tune } from "./tune.js";
 import { focusArtist } from "./charts.js";
 import { ENTER_MS, MORPH_MS, dur, easeInOut, easeOut, litLook } from "./motion.js";
 import { fmtHours } from "./format.js";
@@ -17,17 +22,18 @@ import { HOUR } from "./aggregate.js";
 const SVGNS = "http://www.w3.org/2000/svg";
 const TAU = Math.PI * 2;
 const SEP = "\u0000"; // between the names in a node's id, its path from the root
+const REST = SEP + "\u0001"; // after a parent's id, its "Other …"
 const MAX_SIZE = 560; // px, the circle's widest
 const HOLE = 0.22; // the middle circle's radius, as a share of the whole
 const GAP = 1; // px of surface on each side of a slice
 const PAD = 4; // px a label keeps from its slice's edges
 
-// What each view's items open into: how to name a play at each level below the item, how many to keep before the
-// rest are folded into one "Other …" slice, and what that slice is called
+// What each view's items open into: how to name a play at each level below the item, what the "Other …" slice that
+// holds the level's smallest is called, and what kind of thing the level is (a song opens in Tracks)
 const LEVELS = {
-  artist: [[(p) => p.album || "Unknown album", 6, "Other albums"], [(p) => p.track, 8, "Other songs"]],
-  album: [[(p) => p.track, 12, "Other songs"]],
-  genre: [[(p) => p.by, 8, "Other artists"], [(p) => p.album || "Unknown album", 5, "Other albums"]],
+  artist: [[(p) => p.album || "Unknown album", "Other albums", "album"], [(p) => p.track, "Other songs", "track"]],
+  album: [[(p) => p.track, "Other songs", "track"]],
+  genre: [[(p) => p.by, "Other artists", "artist"], [(p) => p.album || "Unknown album", "Other albums", "album"]],
 };
 // What a node at each level stands for, whatever view it's in ({ genre, artist, album }), so a tab change can keep
 // the same thing in the middle: means(name, the parent's meaning) per level below the root
@@ -46,7 +52,7 @@ const fmtShare = (s) => (s >= 0.005 ? Math.round(s * 100) + "%" : "<1%");
 
 let svg, layers, tip;
 const nodes = new Map(); // id -> node, as on screen (including those leaving)
-let root = null;
+let root = null; // the whole tree
 let focusId = ""; // the node in the middle circle, by id ("" is the root)
 // What the reader last opened stands for (see MEANS). A tab change opens the same thing in the new view; until it's
 // there (genres still arriving, or it isn't among the view's top items), the middle waits at the root and each paint
@@ -84,47 +90,58 @@ function setup() {
     if (n.id === focusId) {
       if (n.parent) zoomTo(n.parent.id);
     } else if (n.kids.length) zoomTo(n.id);
+    else if (opens(n)) hooks.openPart(itemOf(n), "track", n.name);
   });
-  new ResizeObserver(() => !raf && draw()).observe(el);
+  // (out to the card, the card's size matters too: its row of sliders, say)
+  const resized = new ResizeObserver(() => {
+    edge = null;
+    if (!raf) draw();
+  });
+  resized.observe(el);
+  resized.observe($("sunburst-card"));
 }
 
 // ---------- the tree ----------
 
-// The period's plays of the shown items, as a tree: the root, the items (in the mix bar's order), and below each
-// the levels its view opens into, every node with its hours, and x0..x1 its place around the circle (0..1)
-function build(plays, items) {
-  const levels = LEVELS[state.dim];
+// The period's plays of the shown items, as a tree: the root, the items (in the mix bar's order, Everyone else last),
+// and below each the levels its view opens into, every node with its hours, and x0..x1 its place around the circle
+// (0..1). Everything is in it; `fold` picks what's drawn.
+function build(plays, items, withOther) {
+  const levels = LEVELS[state.dim].map((l) => l[0]);
+  const below = [(p) => p.artist, ...levels]; // Everyone else's: the view's other items, then their insides
   const want = new Set(items);
   const top = new Map(items.map((a) => [a, new Map()]));
+  if (withOther) top.set(OTHER, new Map());
   for (const p of plays) {
-    if (!want.has(p.artist)) continue;
-    let m = top.get(p.artist);
-    for (let i = 0; i < levels.length; i++) {
-      const k = levels[i][0](p);
-      if (i === levels.length - 1) m.set(k, (m.get(k) ?? 0) + p.ms / HOUR);
+    const mine = want.has(p.artist);
+    if (!mine && !withOther) continue;
+    const keys = mine ? levels : below;
+    let m = top.get(mine ? p.artist : OTHER);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i](p);
+      if (i === keys.length - 1) m.set(k, (m.get(k) ?? 0) + p.ms / HOUR);
       else {
         if (!m.has(k)) m.set(k, new Map());
         m = m.get(k);
       }
     }
   }
+  const titles = state.titles;
   const sum = (x) => (typeof x === "number" ? x : [...x.values()].reduce((a, y) => a + sum(y), 0));
-  const node = (parent, name, x, depth, item) => {
+  // level: 0 for one of the view's items, 1.. for the levels below it (Everyone else's are one further out)
+  const node = (parent, name, x, depth, item, inOther) => {
     const id = parent ? (parent.id ? parent.id + SEP : "") + name : "";
-    const means = depth === 0 ? {} : MEANS[state.dim][depth - 1]?.(name, parent.means) ?? parent.means;
-    const n = { id, name, parent, depth, item, means, value: sum(x), kids: [] };
+    const level = depth - 1 - (inOther ? 1 : 0);
+    const means = depth === 0 ? {} : MEANS[state.dim][level]?.(name, parent.means) ?? parent.means;
+    const shown = depth === 1 && inOther ? otherLabel() : level === 0 && titles ? titles.get(name) ?? name : name;
+    const n = { id, name, shown, parent, depth, item, level, inOther, means, value: sum(x), kids: [] };
     if (typeof x === "number" || !x.size) return n;
-    const level = levels[depth - 1] ?? [null, Infinity];
-    let kids = [...x].map(([k, y]) => [k, y, sum(y)]);
+    const kids = [...x].map(([k, y]) => [k, y, sum(y)]).filter((k) => k[2] > 0);
     if (depth > 0) kids.sort((a, b) => b[2] - a[2]); // the items keep the mix bar's order
-    const [, cap, rest] = level;
-    const restH = kids.slice(cap).reduce((a, k) => a + k[2], 0);
-    kids = kids.slice(0, cap);
-    n.kids = kids.filter((k) => k[2] > 0).map(([k, y]) => node(n, k, y, depth + 1, item ?? k));
-    if (restH > 0) n.kids.push({ ...node(n, rest, restH, depth + 1, item), means: n.means, other: true });
+    n.kids = kids.map(([k, y]) => node(n, k, y, depth + 1, item ?? k, inOther || (depth === 0 && k === OTHER)));
     return n;
   };
-  const r = node(null, "", top, 0, null);
+  const r = node(null, "", top, 0, null, false);
   // Places around the circle
   const place = (n, x0) => {
     n.x0 = x0;
@@ -138,6 +155,47 @@ function build(plays, items) {
   return r;
 }
 
+// What's drawn with f in the middle: in f, the slices of at least tune.sunMinShare of f; in what f lies in, as when
+// that was in the middle (and f's way down); elsewhere (closed up at the top, but on their way there or back), that
+// share of everything. The rest of a parent's (its smallest, so the end of its span) fold into one "Other …"; the
+// items themselves never do.
+function fold(f) {
+  const min = tune.sunMinShare / 100;
+  const path = new Map(); // what f lies in -> the one of its kids on the way to f
+  for (let p = f; p.parent; p = p.parent) path.set(p.parent, p);
+  const inside = (n) => {
+    for (let p = n; p; p = p.parent) if (p === f) return true;
+    return false;
+  };
+  const copy = (n, parent) => {
+    const c = { ...n, parent, kids: [] };
+    const floor = (path.has(n) ? n.value : inside(n) ? f.value : root.value) * min;
+    let i = n.depth ? n.kids.findIndex((k) => k.value < floor) : -1;
+    if (i >= 0 && path.has(n)) i = Math.max(i, n.kids.indexOf(path.get(n)) + 1);
+    if (i < 0 || i >= n.kids.length - 1) i = n.kids.length; // (one alone is shown as itself)
+    c.kids = n.kids.slice(0, i).map((k) => copy(k, c));
+    const rest = n.kids.slice(i);
+    if (rest.length) {
+      const name = n.level < 0 ? `Other ${noun().many}` : LEVELS[state.dim][n.level][1];
+      c.kids.push({
+        id: n.id + REST, name, shown: name, parent: c, depth: n.depth + 1, item: n.item, level: n.level + 1,
+        inOther: n.inOther, means: n.means, other: true, value: rest.reduce((a, k) => a + k.value, 0),
+        x0: rest[0].x0, x1: n.x1, kids: [],
+      });
+    }
+    return c;
+  };
+  return copy(root, null);
+}
+
+// What a node's level is ("album", "track"…), the view's item it lies in, and whether clicking it opens it elsewhere
+const kindOf = (n) => (n.level >= 1 ? LEVELS[state.dim][n.level - 1][2] : null);
+const itemOf = (n) => {
+  for (let p = n; p; p = p.parent) if (p.level === 0) return p.name;
+  return null;
+};
+const opens = (n) => !n.other && !n.kids.length && kindOf(n) === "track";
+
 const eachNode = (n, fn) => {
   fn(n);
   for (const k of n.kids) eachNode(k, fn);
@@ -147,7 +205,8 @@ const eachNode = (n, fn) => {
 
 // Where every node sits with `f` in the middle: its angles a0..a1 (from 12 o'clock, clockwise) and radii r0..r1
 // (shares of the whole radius). f fills the middle circle and the levels below it share the rings; whatever lies
-// outside f closes up to nothing at the top, and whatever lies inside the circle (f's ancestors) shrinks to the middle.
+// outside f closes up to nothing at the top, whatever lies inside the circle (f's ancestors) shrinks to the middle, and
+// whatever lies past the rings waits at the edge.
 function layout(n, f, rings) {
   const span = f.x1 - f.x0 || 1;
   const ang = (x) => Math.min(1, Math.max(0, (x - f.x0) / span)) * TAU;
@@ -155,6 +214,7 @@ function layout(n, f, rings) {
   let r0, r1;
   if (n.depth < f.depth) r0 = r1 = 0;
   else if (n.depth === f.depth) [r0, r1] = [0, HOLE];
+  else if (n.depth - f.depth > rings) r0 = r1 = 1; // (Everyone else's last level, until it's gone into)
   else {
     r0 = HOLE + (n.depth - f.depth - 1) * step;
     r1 = r0 + step;
@@ -162,8 +222,6 @@ function layout(n, f, rings) {
   return { a0: ang(n.x0), a1: ang(n.x1), r0, r1 };
 }
 
-// Every node's place now, and where it's going: nodes new to the tree grow from nothing where they'll sit, and
-// those leaving it close up into the place of the next one that stays (or their parent's end)
 // What a slice stands for in any view but Genres, which adds a genre to the same artists and albums: the key a slice
 // keeps through a tab change. None for a genre itself, or an "Other …" slice
 const meaningOf = (n) => {
@@ -171,6 +229,9 @@ const meaningOf = (n) => {
   return !n.other && m?.artist != null ? [m.artist, m.album ?? "", m.track ?? ""].join(SEP) : null;
 };
 
+// Every node's place now, and where it's going: nodes new to the tree grow from nothing where they'll sit (or, coming
+// out of their parent's "Other …", from its start, so they open it up; or from their new parent's start), and those
+// leaving it close up into the place of the next one that stays (or their parent's end), which folds them into it.
 // swap: the view changed, so the slices of the old view's tree that stand for the same thing as one of the new
 // view's (an artist's album and that album in Albums, the same song in both) become that slice: it moves to its new
 // place and takes its new color on the same morph, rather than one shrinking away while the other grows
@@ -185,12 +246,15 @@ function retarget(first, swap = false) {
   for (let id = focusId; !f; id = id.includes(SEP) ? id.slice(0, id.lastIndexOf(SEP)) : "") f = id ? find(id) : root;
   focusId = f.id;
   // (the rings are shared out over the levels below the middle, the same number whatever the item: one with no
-  // albums still leaves room for them)
-  const rings = LEVELS[state.dim].length + 1 - f.depth;
-  const seen = new Set();
-  eachNode(root, (n) => {
+  // albums still leaves room for them; Everyone else has one more level)
+  const rings = LEVELS[state.dim].length + 1 - f.depth + (f.inOther ? 1 : 0);
+  ring.to = 1 - (1 - HOLE) / rings;
+  ring.from = first || ring.now == null ? ring.to : ring.now;
+  const seen = new Set(), born = new Set();
+  eachNode(fold(f), (n) => {
     seen.add(n.id);
     const to = layout(n, f, rings);
+    const share = { p: f.value ? n.value / f.value : 0, s: total ? n.value / total : 0 };
     let kept = nodes.get(n.id);
     const k = swap && !kept && meaningOf(n);
     if (k && was.has(k)) {
@@ -200,11 +264,17 @@ function retarget(first, swap = false) {
       nodes.set(n.id, kept);
     }
     if (kept) {
-      Object.assign(kept, { ...n, kids: n.kids, from: { ...kept.cur }, to, leaving: false });
+      Object.assign(kept, { ...n, kids: n.kids, from: { ...kept.cur }, to, leaving: false, was: { ...kept.share }, will: share });
       kept.kids = n.kids.map((k) => k.id);
     } else {
-      const grow = first ? { ...to, r1: to.r0 } : { ...to, a1: to.a0 };
-      nodes.set(n.id, { ...n, kids: n.kids.map((k) => k.id), from: grow, cur: { ...grow }, to, leaving: false });
+      const up = n.parent && nodes.get(n.parent.id), rest = n.parent && nodes.get(n.parent.id + REST);
+      let grow;
+      if (first) grow = { ...to, r1: to.r0 };
+      else if (up && born.has(up.id)) grow = { a0: up.from.a0, a1: up.from.a0, r0: up.from.r1, r1: up.from.r1 };
+      else if (rest && !n.other) grow = { ...rest.cur, a1: rest.cur.a0 };
+      else grow = { ...to, a1: to.a0 };
+      born.add(n.id);
+      nodes.set(n.id, { ...n, kids: n.kids.map((k) => k.id), from: grow, cur: { ...grow }, to, leaving: false, share, was: share, will: share });
     }
   });
   // Parents are rebuilt as stored nodes, so point them at the stored ones
@@ -213,6 +283,7 @@ function retarget(first, swap = false) {
   for (const n of order) {
     n.leaving = true;
     n.from = { ...n.cur };
+    n.was = n.will = { ...n.share };
     let at = 0;
     for (let p = n; p; p = p.parent) {
       const sib = p.parent && nodes.get(p.parent.id);
@@ -232,7 +303,7 @@ function retarget(first, swap = false) {
 function carried(tree) {
   let best = null, most = 0;
   eachNode(tree, (n) => {
-    if (!n.kids.length || n.other || !n.depth) return;
+    if (!n.kids.length || n.inOther || !n.depth) return;
     const keys = Object.keys(n.means);
     if (keys.some((k) => n.means[k] !== focusMeans[k] && !(k === "genre" && focusMeans[k] === undefined))) return;
     const score = keys.filter((k) => focusMeans[k] !== undefined).length;
@@ -241,15 +312,76 @@ function carried(tree) {
   return best;
 }
 
+// A node of the whole tree by its id, down its path
 const find = (id) => {
-  let hit = null;
-  eachNode(root, (n) => hit == null && n.id === id && (hit = n));
-  return hit;
+  let n = root;
+  for (const name of id.split(SEP)) if (!(n = n?.kids.find((k) => k.name === name))) return null;
+  return n;
 };
 
 // ---------- drawing ----------
 
 const pt = (a, r) => `${(r * Math.sin(a)).toFixed(2)},${(-r * Math.cos(a)).toFixed(2)}`;
+
+// Out to the card (tune.sunReach): the outer ring stretches to a box tune.sunMargin inside the card's sides and
+// bottom, and level with the circle's top (so the title stays clear). Each radius r (a share of the whole) is warped
+// at angle a: a circle up to the outer ring's inside (ring.now, which moves with the rings), and from there out to the
+// box. Off, edge is null and everything is round.
+let R = 0;
+let edge = null; // { W, l, r, t, b, corners }: px from the middle to the box's sides, and its corners' angles
+const ring = { from: null, to: null, now: null };
+function measure(W) {
+  const card = $("sunburst-card").getBoundingClientRect(), me = $("sunburst").getBoundingClientRect();
+  const m = tune.sunMargin, cx = me.left + me.width / 2, cy = me.top + R + 1;
+  const e = { W, l: Math.max(R, cx - card.left - m), r: Math.max(R, card.right - m - cx), t: R + 1 };
+  e.b = Math.max(e.t, card.bottom - m - cy);
+  e.corners = [[e.r, -e.t], [e.r, e.b], [-e.l, e.b], [-e.l, -e.t]].map(([x, y]) => (Math.atan2(x, -y) + TAU) % TAU);
+  return e;
+}
+function boxDist(a) {
+  const s = Math.sin(a), c = -Math.cos(a);
+  let d = Infinity;
+  if (s > 1e-9) d = Math.min(d, edge.r / s);
+  if (s < -1e-9) d = Math.min(d, edge.l / -s);
+  if (c > 1e-9) d = Math.min(d, edge.b / c);
+  if (c < -1e-9) d = Math.min(d, edge.t / -c);
+  return d;
+}
+const inner = () => ring.now ?? 1;
+const rad = (r, a) => {
+  const k = inner();
+  return !edge || r <= k ? r * R : k * R + ((r - k) / (1 - k)) * (boxDist(a) - k * R);
+};
+// Angles from b0 to b1, close enough for a curve, with the box's corners on the way
+function samples(b0, b1) {
+  const n = Math.max(1, Math.ceil((b1 - b0) / 0.03));
+  const out = [];
+  for (let i = 0; i <= n; i++) out.push(b0 + ((b1 - b0) * i) / n);
+  for (const c of edge.corners) if (c > b0 && c < b1) out.push(c);
+  return out.sort((x, y) => x - y);
+}
+
+// A slice from angle a0 to a1 and radius r0 to r1 (shares of the whole), `gap` px inside its edges: an arc, or out
+// to the card, its warped outline
+function slice(a0, a1, r0, r1, gap) {
+  if (!edge || r1 <= inner()) return arc(a0, a1, r0 * R, r1 * R, gap);
+  const out = (a) => rad(r1, a) - gap, inn = (a) => rad(r0, a) + gap, mid = (a0 + a1) / 2;
+  if (out(mid) - (r0 > 0 ? inn(mid) : 0) <= 0.5) return "";
+  const line = (as, f) => as.map((a) => pt(a, f(a))).join("L");
+  if (a1 - a0 >= TAU - 1e-6) {
+    const outside = "M" + line(samples(0, TAU), out) + "Z";
+    return outside + (r0 > 0 ? "M" + line(samples(0, TAU).reverse(), inn) + "Z" : "");
+  }
+  const b0 = a0 + gap / out(a0), b1 = a1 - gap / out(a1);
+  if (b1 - b0 <= 0.5 / out(mid)) return "";
+  let d = "M" + line(samples(b0, b1), out);
+  if (r0 > 0) {
+    let c0 = a0 + gap / inn(a0), c1 = a1 - gap / inn(a1);
+    if (c1 < c0) c0 = c1 = mid;
+    d += "L" + line(samples(c0, c1).reverse(), inn);
+  } else d += "L0,0";
+  return d + "Z";
+}
 
 // The outline of a slice from angle a0 to a1 and radius r0 to r1 (px), drawn `gap` px inside its edges. A whole
 // turn is a disc or a ring; a slice too thin for its gaps is nothing.
@@ -287,11 +419,17 @@ function textWidth(s, font) {
   return w;
 }
 
-// Whether a w × h box, set level at the middle of a slice, stays PAD inside it
-function fits(g, R, w, h) {
-  const r0 = g.r0 * R, r1 = g.r1 * R, da = g.a1 - g.a0;
-  if (da >= TAU - 1e-6 && r0 <= 0) return w <= 1.7 * r1 - 2 * PAD && h <= 1.4 * r1 - 2 * PAD; // the middle circle
-  const mid = (g.a0 + g.a1) / 2, rm = (r0 + r1) / 2;
+// Where a slice's label sits: its angles, and its radii in px across its middle
+function spot(g) {
+  const mid = (g.a0 + g.a1) / 2;
+  return { a0: g.a0, a1: g.a1, mid, r0: rad(g.r0, mid), r1: rad(g.r1, mid), full: g.a1 - g.a0 >= TAU - 1e-6 && g.r0 <= 0 };
+}
+
+// Whether a w × h box, set level at the middle of a slice (its spot), stays PAD inside it
+function fits(g, w, h) {
+  const { r0, r1, mid } = g, da = g.a1 - g.a0;
+  if (g.full) return w <= 1.7 * r1 - 2 * PAD && h <= 1.4 * r1 - 2 * PAD; // the middle circle
+  const rm = (r0 + r1) / 2;
   const radial = w * Math.abs(Math.sin(mid)) + h * Math.abs(Math.cos(mid));
   const across = w * Math.abs(Math.cos(mid)) + h * Math.abs(Math.sin(mid));
   if (radial > r1 - r0 - 2 * PAD) return false;
@@ -299,17 +437,17 @@ function fits(g, R, w, h) {
   return across <= 2 * inner * Math.sin(Math.min(da, Math.PI) / 2) - 2 * PAD;
 }
 
-// The name cut short to fit beside the share, or null when not even a few letters would
-function fitName(name, g, R, pctW) {
+// The name cut short to fit above the share, or null when not even a few letters would
+function fitName(name, g, pctW) {
   const { name: font, line } = fonts;
   const h = line * 2;
-  if (fits(g, R, Math.max(pctW, textWidth(name, font)), h)) return name;
+  if (fits(g, Math.max(pctW, textWidth(name, font)), h)) return name;
   // The longest cut that fits, found by halving
   const cut = (n) => name.slice(0, n).trimEnd() + "…";
   let lo = 3, hi = name.length - 1; // lo: known not to be wanted; hi: the longest to try
   while (lo < hi) {
     const m = Math.ceil((lo + hi) / 2);
-    if (fits(g, R, Math.max(pctW, textWidth(cut(m), font)), h)) lo = m;
+    if (fits(g, Math.max(pctW, textWidth(cut(m), font)), h)) lo = m;
     else hi = m - 1;
   }
   return lo >= 4 ? cut(lo) : null;
@@ -324,7 +462,8 @@ function els(n) {
     n.label = make("g", "sun-label");
     n.pctEl = make("text", "sun-pct");
     n.nameEl = make("text", "sun-name");
-    n.label.append(n.nameEl, n.pctEl);
+    n.subEl = make("text", "sun-sub");
+    n.label.append(n.nameEl, n.pctEl, n.subEl);
     layers.slices.append(n.path);
     layers.labels.append(n.label);
   }
@@ -338,8 +477,9 @@ function els(n) {
   }
   if (!fonts) {
     const css = (el) => getComputedStyle(el);
-    const p = css(n.pctEl), m = css(n.nameEl);
-    fonts = { pct: `${p.fontWeight} ${p.fontSize} ${p.fontFamily}`, name: `${m.fontWeight} ${m.fontSize} ${m.fontFamily}`, line: parseFloat(p.fontSize) * 1.25 };
+    const font = (s) => `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+    const p = css(n.pctEl);
+    fonts = { pct: font(p), name: font(css(n.nameEl)), sub: font(css(n.subEl)), line: parseFloat(p.fontSize) * 1.25 };
   }
 }
 
@@ -356,51 +496,68 @@ function draw() {
   svg.setAttribute("viewBox", `${-W / 2} ${-H / 2} ${W} ${H}`);
   svg.setAttribute("width", W);
   svg.setAttribute("height", H);
-  const R = H / 2 - 1;
+  R = H / 2 - 1;
+  if (!tune.sunReach) edge = null;
+  else if (edge?.W !== W) edge = measure(W);
+  const zoomed = focusId !== "";
   for (const n of nodes.values()) {
     const g = n.cur;
-    const d = n.depth === 0 && n.id !== focusId ? "" : arc(g.a0, g.a1, g.r0 * R, g.r1 * R, GAP);
+    const middle = n.id === focusId;
+    const d = n.depth === 0 && !middle ? "" : slice(g.a0, g.a1, g.r0, g.r1, GAP);
+    // The share of the middle, and once gone in, of everything (all the middle shows)
+    const pct = n.depth === 0 || middle ? "" : fmtShare(n.share.p);
+    const sub = n.depth === 0 || !zoomed ? "" : fmtShare(n.share.s);
     // (a slice that hasn't moved, or stays at nothing, is left alone)
-    const key = `${d}|${n.value}|${n.id === focusId}`;
+    const key = `${d}|${pct}|${sub}|${middle}|${n.leaving}|${n.shown}`;
     if (key === n.key) continue;
     n.key = key;
     els(n);
     n.path.setAttribute("d", d);
-    if (n.outline) {
-      // A pinned item's outline runs round all of it, out to the edge
-      n.outline.setAttribute("d", d && arc(g.a0, g.a1, g.r0 * R, R, GAP + 0.75));
-    }
-    label(n, g, R, d);
+    // A pinned item's outline runs round all of it, out to the edge
+    if (n.outline) n.outline.setAttribute("d", d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75));
+    label(n, g, d, pct, sub, middle);
   }
 }
 
-function label(n, g, R, d) {
-  const share = total ? n.value / total : 0;
-  const middle = n.id === focusId;
-  const pct = n.depth === 0 ? "" : fmtShare(share);
-  const pctW = textWidth(pct, fonts.pct);
-  let showPct = !!d && !!pct && !n.leaving && fits(g, R, pctW, fonts.line);
-  let name = showPct ? fitName((middle ? "‹ " : "") + n.shown, g, R, pctW) : null;
-  if (n.depth === 0) [showPct, name] = [false, null];
-  const full = g.a1 - g.a0 >= TAU - 1e-6 && g.r0 <= 0;
-  const mid = (g.a0 + g.a1) / 2, rm = full ? 0 : ((g.r0 + g.r1) / 2) * R;
-  const x = rm * Math.sin(mid), y = -rm * Math.cos(mid);
+// A slice's lines, the ones that fit: its name, its share of the middle, and below, small, its share of everything
+// (the middle circle: its name and that)
+function label(n, g, d, pct, sub, middle) {
+  const at = spot(g);
   const lh = fonts.line;
-  n.pctEl.setAttribute("x", x.toFixed(1));
-  n.pctEl.setAttribute("y", (name ? y + lh / 2 : y).toFixed(1));
-  n.nameEl.setAttribute("x", x.toFixed(1));
-  n.nameEl.setAttribute("y", (y - lh / 2).toFixed(1));
+  const pctW = textWidth(pct, fonts.pct), subW = textWidth(sub, fonts.sub);
+  let name = null, showPct = false, showSub = false;
+  if (d && !n.leaving && n.depth > 0) {
+    if (middle) {
+      showSub = !!sub && fits(at, subW, lh);
+      name = fitName("‹ " + n.shown, at, showSub ? subW : 0);
+    } else if ((showPct = fits(at, pctW, lh))) {
+      name = fitName(n.shown, at, pctW);
+      const w = Math.max(pctW, subW, name ? textWidth(name, fonts.name) : 0);
+      showSub = !!sub && fits(at, w, lh * (name ? 3 : 2));
+    }
+  }
+  const lines = [[n.nameEl, !!name], [n.pctEl, showPct], [n.subEl, showSub]].filter(([, on]) => on);
+  const rm = at.full ? 0 : (at.r0 + at.r1) / 2;
+  const x = rm * Math.sin(at.mid), y = -rm * Math.cos(at.mid);
+  lines.forEach(([el], i) => {
+    el.setAttribute("x", x.toFixed(1));
+    el.setAttribute("y", (y + (i - (lines.length - 1) / 2) * lh).toFixed(1));
+  });
   if (n.pctEl.textContent !== pct) n.pctEl.textContent = pct;
+  if (sub && n.subEl.textContent !== sub) n.subEl.textContent = sub;
   if (name && n.nameEl.textContent !== name) n.nameEl.textContent = name; // from the user's files
   n.pctEl.classList.toggle("fits", showPct);
+  n.subEl.classList.toggle("fits", showSub);
   n.nameEl.classList.toggle("fits", !!name);
 }
 
 function frame(p) {
   for (const n of nodes.values()) {
-    const { from: a, to: b } = n;
+    const { from: a, to: b, was, will } = n;
     n.cur = { a0: a.a0 + (b.a0 - a.a0) * p, a1: a.a1 + (b.a1 - a.a1) * p, r0: a.r0 + (b.r0 - a.r0) * p, r1: a.r1 + (b.r1 - a.r1) * p };
+    n.share = { p: was.p + (will.p - was.p) * p, s: was.s + (will.s - was.s) * p };
   }
+  ring.now = ring.from + (ring.to - ring.from) * p;
   draw();
 }
 
@@ -437,15 +594,17 @@ const related = (n, h) => {
   for (let p = n; p; p = p.parent) if (p.id === h.id) return true;
   return false;
 };
+// (Everyone else lights only here, as an item of its own)
 function restyle() {
   const pinned = new Set([...nodes.values()].filter((n) => n.depth === 1 && !n.leaving && pins?.has(n.item)).map((n) => n.item));
+  const lit = hoverNode?.item === OTHER ? OTHER : hoveredItem;
   for (const n of nodes.values()) {
     if (!n.path) continue;
-    let look = n.depth === 0 ? "rest" : litLook(pinned, hoveredItem, n.item);
+    let look = n.depth === 0 ? "rest" : litLook(pinned, lit, n.item);
     if ((look === "hover" || look === "pinHover") && hoverNode?.item === n.item && !related(n, hoverNode)) look = pinned.has(n.item) ? "pin" : "rest";
     if (n.path.dataset.look !== look) n.path.dataset.look = n.label.dataset.look = look;
     n.outline?.classList.toggle("on", pinned.has(n.item));
-    n.path.classList.toggle("go", n.kids.length > 0 || (n.id === focusId && !!n.parent));
+    n.path.classList.toggle("go", n.kids.length > 0 || (n.id === focusId && !!n.parent) || opens(n));
   }
 }
 
@@ -454,7 +613,7 @@ function pointAt(n, ev) {
   if (n && n.depth === 0) n = null;
   if (n !== hoverNode) {
     hoverNode = n;
-    focusArtist($("chart-rolling"), n?.item ?? null);
+    focusArtist($("chart-rolling"), n && n.item !== OTHER ? n.item : null);
     restyle();
   }
   if (!n) return void tip.classList.remove("on");
@@ -480,11 +639,19 @@ function fillTip(n) {
     row.textContent = p.shown; // from the user's files
     rows.push(row);
   });
-  const num = document.createElement("div");
-  num.className = "num";
-  num.textContent = `${fmtHours(n.value)} · ${fmtShare(total ? n.value / total : 0)} of the period`;
-  rows.push(num);
-  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in" : "";
+  const num = (text) => {
+    const el = document.createElement("div");
+    el.className = "num";
+    el.textContent = text; // (the middle's name is from the user's files)
+    rows.push(el);
+  };
+  const f = nodes.get(focusId), all = `${fmtShare(total ? n.value / total : 0)} of the period`;
+  if (!focusId || n.id === focusId) num(`${fmtHours(n.value)} · ${all}`);
+  else {
+    num(`${fmtHours(n.value)} · ${fmtShare(f.value ? n.value / f.value : 0)} of ${f.shown}`);
+    num(all);
+  }
+  const how = n.id === focusId ? "Click to go back out" : n.kids.length ? "Click to go in" : opens(n) ? "Click to pin it in Tracks" : "";
   if (how) {
     const hint = document.createElement("div");
     hint.className = "hint";
@@ -494,11 +661,22 @@ function fillTip(n) {
   tip.replaceChildren(...rows);
 }
 
+// Every slice in its item's color (and the ones going in brings out)
+function colorAll() {
+  for (const n of nodes.values()) {
+    els(n);
+    const slot = n.item != null && n.item !== OTHER ? state.colorSlots.get(n.item) : undefined;
+    const c = slot === undefined ? "var(--other)" : `var(--series-${slot + 1})`;
+    for (const e of [n.path, n.label, n.outline]) e?.style.setProperty("--c", c);
+  }
+}
+
 function zoomTo(id) {
   focusId = id;
   focusMeans = id ? find(id).means : {};
   seeking = false;
   retarget(false);
+  colorAll();
   hoverNode = null;
   tip.classList.remove("on");
   tip.__node = null;
@@ -512,7 +690,8 @@ function zoomTo(id) {
 export function focusSunburst(name) {
   if (!svg) return;
   hoveredItem = name;
-  if (hoverNode && hoverNode.item !== name) hoverNode = null;
+  // (hovering Everyone else here lights nothing elsewhere)
+  if (hoverNode && hoverNode.item !== name && !(hoverNode.item === OTHER && name == null)) hoverNode = null;
   restyle();
 }
 
@@ -531,7 +710,8 @@ export function paintSunburst(plays) {
   $("sunburst-title").textContent = `Inside your top ${noun().many}`;
   $("sunburst-sub").textContent = `${NOTES[state.dim]}, sized by hours. Click a slice to go in; click the middle to come back out.`;
   const first = nodes.size === 0;
-  root = build(plays, items);
+  root = build(plays, items, $("sunburst-other").checked);
+  edge = null; // (the card may have moved)
   const swap = !!lastDim && lastDim !== state.dim;
   if (lastDim && (swap || seeking)) {
     const n = carried(root);
@@ -540,20 +720,15 @@ export function paintSunburst(plays) {
   }
   lastDim = state.dim;
   total = root.value;
-  const titles = state.titles;
-  eachNode(root, (n) => (n.shown = n.depth === 1 && titles ? titles.get(n.name) ?? n.name : n.name));
   retarget(first, swap);
   // Colors cross-fade with the morph that carries slices into the new view (the class goes when it ends)
   if (swap) svg.classList.add("swapping");
-  for (const n of nodes.values()) {
-    els(n);
-    const slot = n.item != null ? state.colorSlots.get(n.item) : undefined;
-    const c = slot === undefined ? "var(--other)" : `var(--series-${slot + 1})`;
-    for (const e of [n.path, n.label, n.outline]) e?.style.setProperty("--c", c);
-  }
+  colorAll();
   $("sunburst").classList.toggle("empty", !total);
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", `Inside your top ${noun().many}: ` + root.kids.map((k) => `${k.shown} ${fmtShare(k.value / (total || 1))}`).join(", "));
   restyle();
   glide(first ? dur(ENTER_MS) : dur(MORPH_MS), first ? easeOut : easeInOut);
 }
+
+$("sunburst-other").addEventListener("change", () => paintSunburst());

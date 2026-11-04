@@ -1392,6 +1392,8 @@ dialog pre {
 .sun-label text.fits { opacity: 1; }
 .sun-pct { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--c); }
 .sun-name { font-size: 11px; font-weight: 500; fill: color-mix(in srgb, var(--text-primary) 80%, var(--c)); }
+/* A slice's share of everything, under its share of the middle (and all the middle circle shows) */
+.sun-sub { font-family: var(--mono); font-size: 10px; font-weight: 500; fill: var(--text-muted); }
 .sunburst.empty::after {
   content: "No listening in this span"; position: absolute; inset: 0; display: grid; place-items: center;
   font-size: 12px; color: var(--text-muted); pointer-events: none;

@@ -236,8 +236,14 @@
       <!-- The mix's items opened up into rings: click a slice to go in, the middle to come back out (sunburst.js).
            Hidden for tracks -->
       <article class="card" id="sunburst-card">
-        <h2 id="sunburst-title">Inside your top artists</h2>
-        <p class="muted" id="sunburst-sub"></p>
+        <div class="monthly-head">
+          <div>
+            <h2 id="sunburst-title">Inside your top artists</h2>
+            <p class="muted" id="sunburst-sub"></p>
+          </div>
+          <!-- This graph's own, apart from the others' (off by default) -->
+          <label class="other-toggle"><input id="sunburst-other" type="checkbox"><span class="swatch"></span><span id="sunburst-other-label">Everyone else</span></label>
+        </div>
         <div id="sunburst" class="sunburst"></div>
       </article>
 
