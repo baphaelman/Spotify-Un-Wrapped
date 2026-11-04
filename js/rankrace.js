@@ -327,7 +327,7 @@ const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
 // The lane above #1 ("Timeline"), from LANE_TOP down, is as tall whatever the positions: the height it has when
 // LANE_RANKS ranks keep REF_RANKS' spacing (at least the room for #1's names and the word). The ranks spread or
 // close up to fill the rest.
-const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64; // (room for "Timeline")
+const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 72; // (room for "Timeline")
 function plotTop() {
   const H = $("chart-rank").clientHeight || 472;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
@@ -443,8 +443,8 @@ function option(ms = MORPH_MS, animate = true) {
     grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
     // The lane above #1, named like a rank (its line and dots are paintTimeline's); between it and #1 is the room
     // for #1's names
-    graphic: [{ type: "text", id: "lane", silent: true, x: PLOT_LEFT - 8, y: laneY(),
-      style: { text: "Timeline", align: "right", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
+    graphic: [{ type: "text", id: "lane", silent: true, x: 0, y: laneY(),
+      style: { text: "Timeline", align: "left", verticalAlign: "middle", fill: t.muted, font: "500 12px Inter, sans-serif" } }],
     // (by the slice's place in st.rows, so a period's lines morph point by point into another's; its labels are
     // paintTimeline's, so they slide with it)
     xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },
@@ -707,7 +707,7 @@ function paintTimeline(drop = false, now = false) {
     return;
   }
   const rect = gridRect();
-  const key = [st.k0, st.rows.length, st.iv, rect.x, rect.y, rect.width, rect.height, laneY(), c.getWidth()].join();
+  const key = [tune.rankLane, st.k0, st.rows.length, st.iv, rect.x, rect.y, rect.width, rect.height, laneY(), c.getWidth()].join();
   if (old?.key === key) return;
   drop0();
   tl = { key, ...timelineEls(rect) };
@@ -727,8 +727,19 @@ function timelineEls(rect) {
     g.setClipPath(new Rect({ shape: { x: rect.x - pad, y: 0, width: rect.width + 2 * pad, height: H } }));
     return g;
   };
+  // The look, by the "The timeline" tweak: 0 dots on a line, 1 the lane shaded, 2 a ruler's ticks, 3 a thick track with
+  // holes for dots, 4 dots alone over a dashed rule, 5 the lane framed across the card
+  const look = tune.rankLane, ry = Math.round(laneFloor(rect)) + 0.5;
   const ends = new Set(segs.flat());
-  const dots = rows.map((_, i) => Object.assign(new Circle({ silent: true, z: 2, shape: { cy: y, r: ends.has(k0 + i) ? TL_END_R : TL_R }, style: { fill: t.muted } }), { _k: k0 + i }));
+  const dots = rows.map((_, i) => {
+    const end = ends.has(k0 + i);
+    if (look === 2) {
+      const h = end ? 14 : 8;
+      return Object.assign(new Rect({ silent: true, z: 2, shape: { y: y - h / 2, width: end ? 2 : 1.5, height: h, r: 1 }, style: { fill: end ? t.secondary : t.muted } }), { _k: k0 + i });
+    }
+    const r = look === 3 ? (end ? 3.5 : 2) : end ? TL_END_R : TL_R;
+    return Object.assign(new Circle({ silent: true, z: 2, shape: { cy: y, r }, style: { fill: look === 3 ? t.surface : t.muted } }), { _k: k0 + i });
+  });
   const texts = [];
   let half = 0;
   rows.forEach((_, i) => {
@@ -739,14 +750,20 @@ function timelineEls(rect) {
       Object.assign(new Text({ silent: true, z: 2, style: { text: labels[i], y: floor + 8, align: "center", verticalAlign: "top", fill: t.muted, font: LABEL_FONT } }), { _k: k0 + i }),
     );
   });
-  const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: { stroke: t.axis, lineWidth: 1.5 } });
-  const ry = Math.round(laneFloor(rect)) + 0.5;
-  const rule = new Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry }, style: { stroke: t.axis, lineWidth: 1 } });
+  const track = look === 3 ? { stroke: alpha(t.primary, 0.16), lineWidth: 9, lineCap: "round" } : look === 4 ? { stroke: "transparent", lineWidth: 0 } : { stroke: t.axis, lineWidth: look === 2 ? 1 : 1.5 };
+  const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: track });
+  const rule = new Line({ silent: true, z: 1, shape: { x1: 8, y1: ry, x2: c.getWidth() - 8, y2: ry },
+    style: { stroke: t.axis, lineWidth: 1, lineDash: look === 4 ? [3, 4] : null, opacity: look === 1 || look === 5 ? 0 : 1 } });
+  const extra = [];
+  // A soft wash over the lane, around the line and its dates
+  if (look === 1) extra.push(new Rect({ silent: true, z: 0, shape: { x: rect.x - 12, y: 0, width: rect.width + 24, height: ry - 4, r: 10 }, style: { fill: alpha(t.primary, 0.05) } }));
+  // A strip across the card, from the top to the rule, its edge a hairline
+  if (look === 5) extra.push(new Rect({ silent: true, z: 0, shape: { x: 0.5, y: 0.5, width: c.getWidth() - 1, height: ry - 0.5, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03), stroke: t.grid, lineWidth: 1 } }));
   const root = new Group(), dotG = clipped(TL_END_R + 1), textG = clipped(Math.ceil(half) + 1);
   dots.forEach((e) => dotG.add(e));
   texts.forEach((e) => textG.add(e));
-  [line, rule, dotG, textG].forEach((e) => root.add(e));
-  return { root, els: [line, rule, ...dots, ...texts] };
+  [...extra, line, rule, dotG, textG].forEach((e) => root.add(e));
+  return { root, els: [...extra, line, rule, ...dots, ...texts] };
 }
 // Places the timeline's slices for the keys the axis shows (st.view). Sliding, a label fades as it passes either end,
 // gone half a slice past it, so what's past the ends is never seen at rest
@@ -756,6 +773,7 @@ function placeTimeline() {
     if (e._k == null) continue;
     const x = rect.x + (e._k - lo) * per;
     if (e.type === "circle") e.attr({ shape: { cx: x } });
+    else if (e.type === "rect") e.attr({ shape: { x: x - e.shape.width / 2 } });
     else e.attr({ style: st.slide ? { x, opacity: Math.max(0, 1 - 2 * Math.max(0, lo - e._k, e._k - hi)) } : { x } });
   }
 }
