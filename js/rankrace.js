@@ -329,11 +329,13 @@ const headroom = () => Math.ceil(tune.rankDot / 2 + 8 + tune.rankText + 2 + 4);
 // close up to fill the rest.
 const REF_RANKS = 18, LANE_RANKS = 14, LANE_TOP = 6, PLOT_TOP = 30, PLOT_BOTTOM = 30, PLOT_LEFT = 64;
 function plotTop() {
-  const H = $("chart-rank").clientHeight || 472;
+  const H = $("chart-rank").clientHeight || 400;
   const per = (H - PLOT_TOP - PLOT_BOTTOM) / (REF_RANKS + 0.4 - 1);
   const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (LANE_RANKS + 0.4 - 1);
   return PLOT_TOP + Math.max(lane, headroom() + 20 + TL_LABEL - PLOT_TOP);
 }
+// Room right of the last slice for its whole column (half a slice), so the column keeps its width at that end
+const plotRight = ([lo, hi]) => Math.max(28, Math.ceil(($("chart-rank").clientWidth - PLOT_LEFT) / (2 * Math.max(1, hi - lo) + 1)));
 const TL_LABEL = 14; // room over the timeline for its stops' dates
 const laneY = () => (LANE_TOP + TL_LABEL + plotTop() - headroom()) / 2; // (the timeline's height)
 
@@ -440,7 +442,7 @@ function option(ms = MORPH_MS, animate = true) {
     animationDuration: animate ? dur(MORPH_MS) : 0, animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: animate ? dur(ms) : 0, animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
-    grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: 28 },
+    grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: plotRight(view) },
     // (by the slice's place in st.rows, so a period's lines morph point by point into another's; its labels are
     // paintTimeline's, so they slide with it)
     xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },

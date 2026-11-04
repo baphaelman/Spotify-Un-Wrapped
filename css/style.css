@@ -604,7 +604,7 @@ button.ghost:hover { background: var(--border); }
    each after a dash of its color, in the period bar's order. 152px is FOUND_KEY_W (168) less a gap; its top is the
    chart's margin and its grid's top. */
 .found-frame { position: relative; }
-.rank-chart { height: 472px; }
+.rank-chart { height: 400px; }
 /* "Everyone else" and "Positions", at the top right */
 #rank-card .monthly-head { flex-wrap: wrap; }
 #rank-card .monthly-head > div:first-child { flex: 1 1 320px; }
