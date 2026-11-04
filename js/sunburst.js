@@ -433,7 +433,7 @@ function arc(a0, a1, r0, r1, gap) {
 
 // A slice's shape, and what marks where its own ring ends when it reaches past it to the edge (tune.sunTeeth): a
 // light line along each ring's edge it crosses (ext), its rings cut apart as the others are, or what's past its
-// ring lighter (ext). Also the part its label sits in.
+// ring lighter (ext). Also the part its label sits in: its own ring, so it reads as that level wherever it reaches.
 function shapes(g) {
   const rn = Math.min(g.rn ?? g.r1, g.r1);
   const mode = g.r1 - rn > 1e-4 ? tune.sunTeeth : 1;
@@ -454,7 +454,7 @@ function shapes(g) {
       if (b1 > b0) seams += "M" + samples(b0, b1).map((a) => pt(a, rad(r, a))).join("L") + (whole ? "Z" : "");
     }
   }
-  return [d, seams, g];
+  return [d, seams, { ...g, r1: rn }];
 }
 
 // Text widths, measured once each in the label's own font
@@ -588,7 +588,8 @@ function label(n, g, d, pct, sub, middle) {
       showSub = !!sub && fits(at, subW, lh);
       name = fitName("‹ " + n.shown, at, showSub ? subW : 0);
     } else if ((showPct = fits(at, pctW, lh))) {
-      name = fitName(n.shown, at, pctW);
+      // (an "Other …" too long for its slice is just "Other": its ring says what of)
+      name = fitName(n.shown, at, pctW) ?? (n.other ? fitName("Other", at, pctW) : null);
       const w = Math.max(pctW, subW, name ? textWidth(name, fonts.name) : 0);
       showSub = !!sub && fits(at, w, lh * (name ? 3 : 2));
     }
