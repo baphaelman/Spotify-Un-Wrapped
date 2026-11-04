@@ -53,7 +53,7 @@ Where everything that ever reached your top 16 stood, month by month. The **Posi
 
 ### Top Artists over time
 
-Your top artists day by day through the period, played like a video: bars race past each other as one artist overtakes another. Rank them by the **last few days** (the *Days* slider sets how far back) or by everything **so far** in the period. Press play, pick a speed, or drag the slider to scrub through time. Click a bar to pin. With **Everyone else** off, only your selected artists race, all starting from zero. Faint lines behind the bars mark round numbers of hours, sliding along as the leaders grow. Above the slider, a strip like a video's most-replayed graph shows when your listening bunched up (summed over the same *Days* window), filling in as the video plays.
+Your top artists day by day through the period, played like a video: bars race past each other as one artist overtakes another. Rank them by everything **so far** in the period (the default) or by the **last few days** (the *Days* slider sets how far back). The video waits at the start: press the play icon at the top of the card (the whole row is the button), pick a speed, or drag the slider to scrub through time. Click a bar to pin. With **Everyone else** off, only your selected artists race, all starting from zero. Faint lines behind the bars mark round numbers of hours, sliding along as the leaders grow. Above the slider, a strip like a video's most-replayed graph shows when your listening bunched up (summed over the same *Days* window), filling in as the video plays. Click or drag on it to jump to that day.
 
 ### Top [Tab] Every [Month]
 
