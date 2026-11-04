@@ -541,7 +541,8 @@ function els(n) {
     n.pctEl = make("text", "sun-pct");
     n.nameEl = make("text", "sun-name");
     n.subEl = make("text", "sun-sub");
-    n.label.append(n.nameEl, n.pctEl, n.subEl);
+    n.backEl = make("text", "sun-back");
+    n.label.append(n.backEl, n.nameEl, n.pctEl, n.subEl);
     layers.slices.append(n.path, n.ext);
     layers.labels.append(n.label);
   }
@@ -557,7 +558,7 @@ function els(n) {
     const css = (el) => getComputedStyle(el);
     const font = (s) => `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
     const p = css(n.pctEl);
-    fonts = { pct: font(p), name: font(css(n.nameEl)), sub: font(css(n.subEl)), line: parseFloat(p.fontSize) * 1.25 };
+    fonts = { pct: font(p), name: font(css(n.nameEl)), sub: font(css(n.subEl)), back: font(css(n.backEl)), line: parseFloat(p.fontSize) * 1.25 };
   }
 }
 
@@ -583,8 +584,9 @@ function draw() {
     const middle = n.id === focusId;
     const [d, ext, at] = n.depth === 0 && !middle ? ["", "", g] : shapes(g);
     // The share of the middle, and once gone in, of everything (all the middle shows)
-    // (the whole in the middle has no name, but leads back to the view a song was opened from)
-    const backTo = middle && n.depth === 0 ? backName(back()) : "";
+    // The middle's way back, apart from its name (it goes where the reader was, not always to what holds it); the
+    // whole has no name, but can lead back to the view a song was opened from
+    const backTo = !middle ? "" : n.depth ? "‹ back" : back() ? "‹ " + backName(back()) : "";
     const pct = n.depth === 0 || middle ? "" : fmtShare(n.share.p);
     const sub = n.depth === 0 || !zoomed ? "" : fmtShare(n.share.s);
     // (a slice that hasn't moved, or stays at nothing, is left alone)
@@ -602,16 +604,18 @@ function draw() {
 }
 
 // A slice's lines, the ones that fit: its name, its share of the middle, and below, small, its share of everything
-// (the middle circle: its name and that)
+// (the middle circle: the way back, its name and that)
 function label(n, g, d, pct, sub, middle, backTo) {
   const at = spot(g);
   const lh = fonts.line;
   const pctW = textWidth(pct, fonts.pct), subW = textWidth(sub, fonts.sub);
-  let name = null, showPct = false, showSub = false;
+  let name = null, showPct = false, showSub = false, showBack = false;
   if (d && !n.leaving && (n.depth > 0 || backTo)) {
     if (middle) {
-      showSub = !!sub && fits(at, subW, lh);
-      name = fitName("‹ " + (n.depth ? n.shown : backTo), at, showSub ? subW : 0);
+      const backW = textWidth(backTo, fonts.back);
+      showBack = !!backTo && fits(at, backW, lh);
+      showSub = !!sub && fits(at, subW, lh * (showBack ? 2 : 1));
+      name = n.depth ? fitName(n.shown, at, Math.max(showSub ? subW : 0, showBack ? backW : 0)) : null;
     } else if ((showPct = fits(at, pctW, lh))) {
       // (an "Other …" too long for its slice is just "Other": its ring says what of)
       name = fitName(n.shown, at, pctW) ?? (n.other ? fitName("Other", at, pctW) : null);
@@ -619,7 +623,7 @@ function label(n, g, d, pct, sub, middle, backTo) {
       showSub = !!sub && fits(at, w, lh * (name ? 3 : 2));
     }
   }
-  const lines = [[n.nameEl, !!name], [n.pctEl, showPct], [n.subEl, showSub]].filter(([, on]) => on);
+  const lines = [[n.backEl, showBack], [n.nameEl, !!name], [n.pctEl, showPct], [n.subEl, showSub]].filter(([, on]) => on);
   const rm = at.full ? 0 : (at.r0 + at.r1) / 2;
   const x = rm * Math.sin(at.mid), y = -rm * Math.cos(at.mid);
   lines.forEach(([el], i) => {
@@ -628,9 +632,12 @@ function label(n, g, d, pct, sub, middle, backTo) {
   });
   if (n.pctEl.textContent !== pct) n.pctEl.textContent = pct;
   if (sub && n.subEl.textContent !== sub) n.subEl.textContent = sub;
+  if (backTo && n.backEl.textContent !== backTo) n.backEl.textContent = backTo;
+  n.label.classList.toggle("other", !!n.other);
   if (name && n.nameEl.textContent !== name) n.nameEl.textContent = name; // from the user's files
   n.pctEl.classList.toggle("fits", showPct);
   n.subEl.classList.toggle("fits", showSub);
+  n.backEl.classList.toggle("fits", showBack);
   n.nameEl.classList.toggle("fits", !!name);
 }
 
