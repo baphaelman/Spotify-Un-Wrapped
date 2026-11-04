@@ -612,6 +612,7 @@ button.ghost:hover { background: var(--border); }
 .slider.rank-max { flex: none; grid-template-columns: auto 120px 2.5ch; column-gap: 10px; align-items: center; width: auto; }
 .rank-max .slider-label { font-size: 13px; color: var(--text-secondary); }
 .rank-max output { font-size: 13px; color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }
+.slider.rank-window { grid-template-columns: auto 56px 4.5ch; }
 .slider.rank-max { transition: opacity var(--motion-fade) var(--ease-out); }
 .rank-max:has(input:disabled) { opacity: 0.55; }
 .rank-max input:disabled { cursor: default; }

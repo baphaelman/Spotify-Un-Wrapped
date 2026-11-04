@@ -1,8 +1,8 @@
 // "Rank race": where each item stood over the period, as a bump chart. The period is cut into months, or into
 // 3 months, 6 months, a year or 2 years as Top [Tab] Every [Month] does (agg.monthSpan), at most one slice more than its bars.
 // Every item that reached the top `positions` (the slider at its top right) in the period gets a line; the chart's artists keep their colors
-// and the rest are gray, behind them. By the month, a rank is taken over the months around each one, so a phase
-// reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them
+// and the rest are gray, behind them. A rank is taken over the months around each slice (1, 3 or 6, the slider
+// beside it), so a phase reads as a line rather than dots. Circles sit only where an item is on the chart, and are the data; between them
 // a line dives below the floor, the deeper the further down the item really was, and comes back. Every line is
 // named at its best point (the chart's and pinned artists; grays aren't named). Hovering marks the slice nearest the
 // pointer with a column and reads it in a card beside it; there the circles ride their lines while the rest shrink
@@ -67,11 +67,26 @@ maxInput.addEventListener("input", () => {
   paintMax();
   setTune("rankMax", maxTo);
 });
+// How many months each rank is taken over (the slider beside it, 1, 3 or 6): the months around each slice. Slices of
+// half a year or more are ranked on their own, so it's disabled for them
+const WINDOWS = [1, 3, 6], winInput = $("rank-window");
+let months = WINDOWS[+winInput.value];
+const paintWindow = () => {
+  winInput.style.setProperty("--p", +winInput.value / 2);
+  $("rank-window-out").textContent = `${months} mo`;
+};
+paintWindow();
+winInput.addEventListener("input", () => {
+  months = WINDOWS[+winInput.value];
+  paintWindow();
+  paintRankRace();
+});
 otherInput.addEventListener("change", () => {
   maxInput.disabled = !otherInput.checked;
   paintRankRace();
 });
-// What the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, hovered, col, k0: rows[0]'s key, span,
+// What the last paint drew: { names, leaving, rows, labels, colors, MAX, t, unit, around: the months ranked over (0 for
+// a slice alone), hovered, col, k0: rows[0]'s key, span,
 // segs: the periods drawn, [first key, last key] each (two while sliding), view: the keys the axis shows, [lo, hi],
 // iv: the slices between labels, slide: whether it's sliding }
 let st = null;
@@ -119,9 +134,9 @@ function labelOf(k, span) {
 }
 
 // The period's ranks: for each slice of `span` months (empty ones too), a Map item -> { r: rank, h: the hours it's
-// ranked by (by the month, the month and those either side). who: the item a play counts for (null for none).
-// k0: the first slice's key
-function ranksOf(plays, span, who = (p) => p.artist) {
+// ranked by (over the `months` around the slice: whole slices either side, and half of the next ones when that's an
+// even number of slices). who: the item a play counts for (null for none). k0: the first slice's key
+function ranksOf(plays, span, months, who = (p) => p.artist) {
   const keyOf = (t) => { const d = new Date(t); return Math.floor((d.getFullYear() * 12 + d.getMonth()) / span); };
   const buckets = new Map();
   for (const p of plays) {
@@ -133,11 +148,13 @@ function ranksOf(plays, span, who = (p) => p.artist) {
   }
   const keys = [];
   if (plays.length) for (let k = keyOf(plays[0].t); k <= keyOf(plays.at(-1).t); k++) keys.push(k);
-  const reach = span === 1 ? 1 : 0;
-  const rows = keys.map((k, i) => {
+  const ws = Math.max(1, months / span), reach = Math.ceil((ws - 1) / 2);
+  const rows = keys.map((k) => {
     const m = new Map();
-    for (const kk of keys.slice(Math.max(0, i - reach), i + reach + 1))
-      for (const [a, h] of buckets.get(kk) ?? []) m.set(a, (m.get(a) ?? 0) + h);
+    for (let d = -reach; d <= reach; d++) {
+      const w = Math.min(1, (ws + 1) / 2 - Math.abs(d));
+      for (const [a, h] of buckets.get(k + d) ?? []) m.set(a, (m.get(a) ?? 0) + h * w);
+    }
     return new Map([...m].sort((a, b) => b[1] - a[1]).map(([a, h], j) => [a, { r: j + 1, h }]));
   });
   return { rows, labels: keys.map((k) => labelOf(k, span)), k0: keys[0] };
@@ -161,16 +178,19 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const t = tokens();
   const plays = rangePlays();
   const span = agg.monthSpan(plays, tune.maxBars + 1);
-  // With Everyone else off: only the key's shown artists, ranked among themselves
+  // Hidden artists aren't ranked, so the rest close up. With Everyone else off: only the key's shown artists, ranked
+  // among themselves
   const hidden = new Set(state.hidden);
   const other = otherInput.checked;
   const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
   const inKey = new Set(keyed);
   glideMax(other ? tune.rankMax : Math.max(1, keyed.length));
-  const { rows, labels, k0 } = other ? ranksOf(plays, span) : ranksOf(plays, span, (p) => (inKey.has(p.artist) ? p.artist : null));
+  const { rows, labels, k0 } = ranksOf(plays, span, months, other ? (p) => (hidden.has(p.artist) ? null : p.artist) : (p) => (inKey.has(p.artist) ? p.artist : null));
   const [unit, steps] = SPANS[span];
+  winInput.disabled = span >= 6;
+  const around = months > span ? months : 0;
   $("rank-note").textContent = (other ? `Where everything that reached the top ${positions()} stood, ${steps}` : `Where the key's ${keyed.length} stood among themselves, ${steps}`) +
-    (span === 1 ? ", ranked over the months around each month" : "") + ". Circles are where it was on the chart.";
+    (around ? `, ranked over the ${around} months around each ${unit}` : "") + ". Circles are where it was on the chart.";
   // A pan starting at the same slice size: the chart slides there, from what's on screen (the pan's end draws it as
   // usual). A slide whose pan was taken over by one it can't follow lands at once.
   const follow = pan && !pan.done && !pan.e && slid?.pan !== pan && st && c && !c.isDisposed() && st.span === span && rows.length > 1;
@@ -188,7 +208,7 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
   const k1 = k0 + rows.length - 1;
-  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, hovered: st?.hovered ?? null, col: null, k0, span, segs: [[k0, k1]], view: [k0, k1], iv: 1, slide: false };
+  st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, around, hovered: st?.hovered ?? null, col: null, k0, span, segs: [[k0, k1]], view: [k0, k1], iv: 1, slide: false };
   // A new period unpins the column: its slices are other months now
   const period = `${state.range.lo}:${state.range.hi}`;
   const unpinned = period !== pinPeriod && colPin != null;
@@ -760,7 +780,7 @@ function slideEnd(paint) {
 function draw() {
   if (!st || !c || c.isDisposed()) return;
   const el = $("chart-rank"), frame = el.parentElement, tip = frame.querySelector(".rank-tip"), cursor = frame.querySelector(".rank-cursor");
-  const rect = gridRect(), { rows, labels, colors, MAX, unit, hovered, names } = st;
+  const rect = gridRect(), { rows, labels, colors, MAX, unit, around, hovered, names } = st;
   const n = rows.length, slice = rect.width / (n - 1), x = rect.x + at * slice;
   const pinned = pinnedSet();
   const floor = rect.y + rect.height;
@@ -852,7 +872,7 @@ function draw() {
     }
   for (const [a, li] of rowEls) if (!seen.has(a)) { li.remove(); rowEls.delete(a); }
   const head = tip.querySelector(".rank-tip-head");
-  head.replaceChildren(labels[Math.round(at)], Object.assign(document.createElement("small"), { textContent: `hours ${unit === "month" ? "over the 3 months around it" : `that ${unit}`}` }));
+  head.replaceChildren(labels[Math.round(at)], Object.assign(document.createElement("small"), { textContent: `hours ${around ? `over the ${around} months around it` : `that ${unit}`}` }));
   if (!pointer && colPin == null) return; // (leaving: the card and column fade where they are)
 
   // The card beside the column, clear of its names, to its left where there's room
