@@ -349,26 +349,30 @@
 
       <!-- Who was on top, played as a video over the period: the bars race, and the time slider runs with them (race.js) -->
       <article class="card" id="race-card">
+        <!-- Play or pause; the whole row is the button (race.js) -->
+        <button id="race-play" type="button" class="race-play" aria-label="Play">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
+        </button>
         <div class="race-head">
           <div>
             <h2 id="race-title">Top Artists over time</h2>
             <p class="muted" id="race-sub"></p>
           </div>
           <div class="race-opts">
-            <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
-              <button type="button" data-measure="total" aria-pressed="true">So far</button>
-              <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
-            </div>
             <div class="race-pick">
               <!-- Off, only the rolling chart's artists race (race.js) -->
               <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
-              <!-- How many days "Last … days" looks back: set to fit each new period, then the reader's (race.js) -->
-              <div class="slider tav-window race-window">
-                <label class="slider-label" for="race-window">Days</label>
-                <input id="race-window" type="range" min="0" max="6" step="1" value="2" aria-valuetext="30 days">
-                <div class="ticks" aria-hidden="true">
-                  <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
-                </div>
+              <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
+                <button type="button" data-measure="total" aria-pressed="true">So far</button>
+                <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
+              </div>
+            </div>
+            <!-- How many days "Last … days" looks back: set to fit each new period, then the reader's (race.js) -->
+            <div class="slider tav-window race-window">
+              <label class="slider-label" for="race-window">Days</label>
+              <input id="race-window" type="range" min="0" max="6" step="1" value="2" aria-valuetext="30 days">
+              <div class="ticks" aria-hidden="true">
+                <span data-v="0">7</span><span data-v="1">15</span><span data-v="2">30</span><span data-v="3">45</span><span data-v="4">75</span><span data-v="5">90</span><span data-v="6">180</span>
               </div>
             </div>
           </div>
@@ -377,10 +381,6 @@
           <!-- Scale lines at round hours behind the bars, sliding with the widest one (race.js) -->
           <div class="race-scale" aria-hidden="true"><div id="race-scale" class="race-scale-track"></div></div>
           <ol id="race-rows" class="race-rows"></ol>
-          <!-- Play while paused; while playing, pause shows for a moment as the pointer moves over the video (race.js) -->
-          <button id="race-play" type="button" class="race-play" aria-label="Play">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
-          </button>
         </div>
         <div class="race-controls">
           <div class="slider race-time">

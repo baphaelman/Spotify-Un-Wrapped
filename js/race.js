@@ -410,7 +410,6 @@ function paintTime() {
 
 // The speed as days of the period a second, under its buttons
 export function paintRate() {
-  $("race-play").dataset.look = tune.playLook;
   $("race-density").dataset.look = tune.densityLook; // (the colors are a visual tweak, so they're set where the tweaks land)
   const rate = tune.raceRate * speed;
   $("race-rate").textContent = `${rate < 10 ? +rate.toFixed(1) : Math.round(rate)} days/s`;
@@ -501,17 +500,7 @@ function play() {
   setPlaying(true);
 }
 
-// A click anywhere on the video plays or pauses it (a row still pins its item); while it plays, the pause button
-// shows for a moment as the pointer moves over it
-let nudge = 0;
-$("race-stage").addEventListener("click", (e) => {
-  if (!e.target.closest("li")) play();
-});
-$("race-stage").addEventListener("pointermove", () => {
-  $("race-card").classList.add("nudge");
-  clearTimeout(nudge);
-  nudge = setTimeout(() => $("race-card").classList.remove("nudge"), 1800);
-});
+$("race-play").addEventListener("click", play);
 
 // A scrub: the playhead goes where the slider is, and playing carries on from there once it's let go
 let resume = false;
