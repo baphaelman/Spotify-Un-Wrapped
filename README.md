@@ -68,11 +68,11 @@ Similar data as the stack graph, but compressed by day. Maybe you have a sleep p
 
 ### Every play
 
-Every single play in the period as a little mark: across is the day, down is the time of day (midnight at the top), and each mark is as tall as the song lasted. Plays of the same artist back to back (or track, album or genre, whichever tab you're on) join into one mark, so a long stretch of one artist reads as one bar. Your selected artists are in their colors, everyone else in gray, so you can spot the late-night binges and the weeks one artist took over. Hover a mark for when it started, how long you kept going and how many plays that was, with the song under your pointer; click to pin.
+Every single play in the period as a little mark: across is the day, down is the time of day (midnight at the top), and each mark is as tall as the song lasted. Plays of the same artist back to back (or track, album or genre, whichever tab you're on) join into one mark, so a long stretch of one artist reads as one bar. Your selected artists are in their colors, everyone else in gray, so you can spot the late-night binges and the weeks one artist took over; switch off "Everyone else" to see only your selected artists' plays. Hover a mark for when it started, how long you kept going and how many plays that was, with the song under your pointer; click to pin.
 
 ### Every day
 
-A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to a year it's a single strip of days, up to two a strip per calendar year, and longer than that a box per week, a row per year, always in the same height. When the period changes, the days slide along with it, grow in or shrink away at its ends, and regroup into the new layout (a week's days gathering into its box). Hover a day for its hours and who topped it; click to pin.
+A calendar of the period, each day tinted by its top artist and darker the more you listened. Up to a year it's a single strip of days, up to two a strip per calendar year, and longer than that a box per week, a row per year, always in the same height. When the period changes, the days slide along with it, grow in or shrink away at its ends, and regroup into the new layout (a week's days gathering into its box). With "Everyone else" off, each day goes to whichever of your selected artists you played most that day, and only days with none of them stay gray. Hover a day for its hours and who topped it; click to pin.
 
 ### Artist discovery
 

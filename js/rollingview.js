@@ -277,7 +277,7 @@ export function paintEvery(plays) {
     $("calendar-title").textContent = `Every ${u}`;
     $("calendar-note").textContent = `Each ${u} is tinted by its top ${noun().one}, darker the more you listened`;
   };
-  for (const [id, render] of [["chart-raster", renderRaster], ["chart-calendar", renderCalendar]]) {
+  for (const [id, render, otherId] of [["chart-raster", renderRaster, "raster-other"], ["chart-calendar", renderCalendar, "calendar-other"]]) {
     if (putOff($(id).closest(".card"), () => paintEvery())) continue;
     if (pan && !pan.done) {
       if (sliding.get(id) === pan) continue; // (sliding: the pan's end draws it)
@@ -291,9 +291,10 @@ export function paintEvery(plays) {
         continue;
       }
     }
-    render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover, unit);
+    render($(id), plays ?? shownPlays(), lo, hi, keyed, slots, pins, hover, { other: $(otherId).checked, onUnit: unit });
   }
 }
+for (const id of ["raster-other", "calendar-other"]) $(id).addEventListener("change", () => paintEvery());
 
 // "Top [Artists] Every [Month]": total hours per month (or longer blocks over a long period, see agg.monthSpan) with the chart's artists picked
 // out (same colors, pins and hover), each bar's top artist on top. Its own "Everyone else" toggle

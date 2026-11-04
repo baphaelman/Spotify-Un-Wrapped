@@ -259,14 +259,15 @@ function playRuns(plays) {
   return runs;
 }
 
-export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}) {
+// With `other` off, only the named artists' plays are drawn
+export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, { other = true } = {}) {
   const v = setup(el, drawRaster, pickRaster);
-  const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface];
+  const data = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface, other];
   const key = [...data, tune.rasterHeight];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
-  refresh(v, data, key, { plays, lo, hi }, () => layoutRaster(v), relaid);
+  refresh(v, data, key, { plays, lo, hi, other }, () => layoutRaster(v), relaid);
 }
 
 // After a render's artists are adopted: new data (a period window dragged or travelling) dims the graph a little
@@ -332,6 +333,7 @@ function layoutRaster(v) {
   for (const run of playRuns(plays)) {
     const s = new Date(run.start), hour = s.getHours() + s.getMinutes() / 60 + s.getSeconds() / 3600;
     const layer = known.has(run.item) ? run.item : OTHER;
+    if (layer === OTHER && !v.other) continue;
     let day = agg.dayIndex(run.start) - lo, from = hour, left = (run.end - run.start) / HOUR;
     for (; left > 0 && day < days; day++, from = 0) {
       const y0 = GRID.top + from * pph, y1 = GRID.top + Math.min(24, from + left) * pph;
@@ -508,29 +510,33 @@ function pickRaster(v, x, y) {
 // are gray.
 const DAY_MODE_MAX = 731;
 
-// onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note)
-export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, onUnit = null) {
+// onUnit("day" | "week") is told which it draws, as it draws it (for the card's title and note). With `other` off,
+// a day is tinted by its top of the named artists (and as dark as their hours), gray if it had none of them.
+export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins = null, hover = () => {}, { other = true, onUnit = null } = {}) {
   const v = setup(el, drawCalendar, pickCalendar);
-  const key = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface, tune.calendarHeight];
+  const key = [playsKey(plays), lo, hi, names.join("\u0000"), slots.join(), tokens().surface, other, tune.calendarHeight];
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, DAY_FACTOR);
   v.table = DAY_FACTOR;
   v.onUnit = onUnit;
-  refresh(v, key, key, { plays, lo, hi }, () => {
-    if (v.cells?.plays !== v.plays || v.cells.lo !== v.lo || v.cells.hi !== v.hi) v.cells = calendarCells(v.plays, v.lo, v.hi);
+  const keep = other ? null : names.join("\u0000");
+  refresh(v, key, key, { plays, lo, hi, keep }, () => {
+    if (v.cells?.plays !== v.plays || v.cells.lo !== v.lo || v.cells.hi !== v.hi || v.cells.keep !== v.keep) v.cells = calendarCells(v.plays, v.lo, v.hi, v.keep);
     v.onUnit?.(v.cells.weeks ? "week" : "day");
     layoutCalendar(v);
   }, relaid);
 }
 
-// Each day's (or week's) hours and top artist, and the scale for the tint
-function calendarCells(plays, lo, hi, weeks = hi - lo + 1 > DAY_MODE_MAX) {
+// Each day's (or week's) hours and top artist, and the scale for the tint. `keep` (the names joined by \0, or null
+// for everyone) leaves only those artists in the hours and the pick; a day that played none of them has best null.
+function calendarCells(plays, lo, hi, keep = null, weeks = hi - lo + 1 > DAY_MODE_MAX) {
+  const kept = keep == null ? null : new Set(keep ? keep.split("\u0000") : []);
   const by = new Map();
   for (const p of plays) {
     const k = agg.dayIndex(p.t), key = weeks ? weekKey(k) : k;
     let m = by.get(key);
     if (!m) by.set(key, (m = new Map()));
-    m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
+    if (!kept || kept.has(p.artist)) m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
   }
   const cells = new Map();
   for (const [key, m] of by) {
@@ -541,8 +547,8 @@ function calendarCells(plays, lo, hi, weeks = hi - lo + 1 > DAY_MODE_MAX) {
     }
     cells.set(key, { h, best, bh });
   }
-  const sorted = [...cells.values()].map((c) => c.h).sort((a, b) => a - b);
-  return { plays, lo, hi, weeks, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
+  const sorted = [...cells.values()].filter((c) => c.best).map((c) => c.h).sort((a, b) => a - b);
+  return { plays, lo, hi, keep, weeks, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
 }
 
 const CAL = { top: 22, bottom: 6, left: 52, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
@@ -665,7 +671,7 @@ function layoutCalendar(v) {
 
 // A box's fill, from its cell (none: nothing played) at the tint's scale `top`, and the artist a pin rings it for
 function tintOf(v, c, top) {
-  if (!c) return { fill: mix(v.t.surface, v.t.grid, 0.6), name: null };
+  if (!c?.best) return { fill: mix(v.t.surface, v.t.grid, 0.6), name: null };
   const name = v.colorOf.has(c.best) ? c.best : OTHER;
   const look = lookOf(v, name) ?? { s: 1, o: 0 };
   const share = Math.min(1, (0.15 + 0.6 * Math.min(1, Math.sqrt(c.h / top))) * look.s) * (name === OTHER ? 0.75 : 1);
@@ -695,11 +701,11 @@ export function panCalendar(el, plays, lo, hi, p) {
   hideTip();
   // (a resize, the two lengths differing, grows and shrinks the boxes at its ends instead of fading them)
   const grow = Math.abs(p.to.hi - p.to.lo - (p.from.hi - p.from.lo)) > 0.5 ? { from: p.from, to: p.to } : null;
-  const cellsOf = (r, weeks) => calendarCells(agg.filterRange(plays, r.lo, r.hi), r.lo, r.hi, weeks);
+  const cellsOf = (r, weeks) => calendarCells(agg.filterRange(plays, r.lo, r.hi), r.lo, r.hi, v.keep, weeks);
   const toCells = cellsOf(p.to, mt.kind === "weeks");
   const fromTop = v.cells.top;
   Object.assign(v, { plays, lo, hi });
-  v.cells = calendarCells(plays, lo, hi, mt.kind === "weeks");
+  v.cells = calendarCells(plays, lo, hi, v.keep, mt.kind === "weeks");
   size(v, tune.calendarHeight);
   if (mf.kind === mt.kind && !was?.days) {
     v.calPan = { p, mf, mt, grow, topFrom: fromTop, topTo: toCells.top, now: mf };
@@ -820,6 +826,7 @@ function pickCalendar(v, x, y) {
     ? `Week of ${d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`
     : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   if (!c) return { name: null, html: `<b>${esc(title)}</b>${tipMuted("Nothing played")}` };
+  if (!c.best) return { name: null, html: `<b>${esc(title)}</b>${tipMuted("None of the shown artists")}` };
   const name = v.colorOf.has(c.best) ? c.best : OTHER;
   return {
     name: name === OTHER ? OTHER : c.best,

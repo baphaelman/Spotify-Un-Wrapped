@@ -436,14 +436,26 @@
       </article>
 
       <article class="card" id="raster-card">
-        <h2>Every play</h2>
-        <p class="muted" id="raster-note">Each play is a mark at the day and time it started, as tall as it lasted; plays of the same one back to back join up</p>
+        <div class="monthly-head">
+          <div>
+            <h2>Every play</h2>
+            <p class="muted" id="raster-note">Each play is a mark at the day and time it started, as tall as it lasted; plays of the same one back to back join up</p>
+          </div>
+          <!-- This graph's own: off, only the key's artists' plays are drawn -->
+          <label class="other-toggle"><input id="raster-other" type="checkbox" checked><span class="swatch"></span><span id="raster-other-label">Everyone else</span></label>
+        </div>
         <div id="chart-raster" class="chart grid-chart"></div>
       </article>
 
       <article class="card" id="calendar-card">
-        <h2 id="calendar-title">Every day</h2>
-        <p class="muted" id="calendar-note">Each day is tinted by its top artist, darker the more you listened</p>
+        <div class="monthly-head">
+          <div>
+            <h2 id="calendar-title">Every day</h2>
+            <p class="muted" id="calendar-note">Each day is tinted by its top artist, darker the more you listened</p>
+          </div>
+          <!-- This graph's own: off, a day is tinted by its top of the key's artists, gray only if it had none of them -->
+          <label class="other-toggle"><input id="calendar-other" type="checkbox" checked><span class="swatch"></span><span id="calendar-other-label">Everyone else</span></label>
+        </div>
         <div id="chart-calendar" class="chart grid-chart"></div>
       </article>
 
