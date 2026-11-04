@@ -322,18 +322,20 @@
           </div>
           <!-- How many positions it shows; with Everyone else off, only the key's artists (rankrace.js) -->
           <div class="rank-tools">
+            <div class="rank-sliders">
+              <div class="slider rank-max">
+                <label class="slider-label" for="rank-max">Positions</label>
+                <input id="rank-max" type="range" min="4" max="20" step="1" value="16">
+                <output id="rank-max-out" for="rank-max">16</output>
+              </div>
+              <!-- The months each rank is taken over: 1, 3 or 6 (rankrace.js) -->
+              <div class="slider rank-max rank-window">
+                <label class="slider-label" for="rank-window">Ranked over</label>
+                <input id="rank-window" type="range" min="0" max="2" step="1" value="1">
+                <output id="rank-window-out" for="rank-window">3 mo</output>
+              </div>
+            </div>
             <label class="other-toggle"><input id="rank-other" type="checkbox" checked><span class="swatch"></span><span id="rank-other-label">Everyone else</span></label>
-            <div class="slider rank-max">
-              <label class="slider-label" for="rank-max">Positions</label>
-              <input id="rank-max" type="range" min="4" max="20" step="1" value="16">
-              <output id="rank-max-out" for="rank-max">16</output>
-            </div>
-            <!-- The months each rank is taken over: 1, 3 or 6 (rankrace.js) -->
-            <div class="slider rank-max rank-window">
-              <label class="slider-label" for="rank-window">Ranked over</label>
-              <input id="rank-window" type="range" min="0" max="2" step="1" value="1">
-              <output id="rank-window-out" for="rank-window">3 mo</output>
-            </div>
           </div>
         </div>
         <!-- The readout and the pointer's marker are drawn over the chart, scrubbing with the pointer (rankrace.js) -->

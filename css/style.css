@@ -608,7 +608,8 @@ button.ghost:hover { background: var(--border); }
 /* "Everyone else" and "Positions", at the top right */
 #rank-card .monthly-head { flex-wrap: wrap; }
 #rank-card .monthly-head > div:first-child { flex: 1 1 320px; }
-.rank-tools { flex: none; display: flex; align-items: center; gap: 20px; margin-left: auto; }
+.rank-tools { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-left: auto; }
+.rank-sliders { display: flex; align-items: center; gap: 20px; }
 .slider.rank-max { flex: none; grid-template-columns: auto 120px 2.5ch; column-gap: 10px; align-items: center; width: auto; }
 .rank-max .slider-label { font-size: 13px; color: var(--text-secondary); }
 .rank-max output { font-size: 13px; color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }

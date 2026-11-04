@@ -8,7 +8,8 @@
 // pointer with a column and reads it in a card beside it; there the circles ride their lines while the rest shrink
 // into them, and moving to another slice glides the column, the circles (along the lines, through the floor) and the
 // card's rows (overtaking each other like the bars of a race) together, on one tick (see glide).
-// Lines that leave (a new period, a deselected artist) dive away and fade before they're dropped.
+// New lines draw in along their length at one speed (see drawIn); lines that leave (a new period, a deselected
+// artist) dive away and fade before they're dropped.
 // Lit looks follow the page: hover (anywhere) and pins.
 // A slice is also known by its key, counted from year 0, the same in any period. A pan (state.js) to a period of the
 // same slice size slides the chart there rather than redrawing it (see slideStart).
@@ -208,6 +209,7 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
   const k1 = k0 + rows.length - 1;
+  const prev = st;
   st = { names: [...names], leaving, rows, labels, colors, MAX, t, unit, around, hovered: st?.hovered ?? null, col: null, k0, span, segs: [[k0, k1]], view: [k0, k1], iv: 1, slide: false };
   // A new period unpins the column: its slices are other months now
   const period = `${state.range.lo}:${state.range.hi}`;
@@ -221,8 +223,10 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   st.iv = labelStep(labels, span);
   el.parentElement.dataset.look = tune.rankCursor;
   clearTimeout(dropTimer);
+  const before = new Set(fresh ? [] : [...prev.names, ...prev.leaving]);
   if (fresh) cc.setOption(option(), { notMerge: true });
   else morphPoints(() => setOptionFaded(cc, option(ms), { replaceMerge: ["series"] }, dur(ms), (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts), dur(ms));
+  drawIn(st.names.filter((a) => !before.has(a)));
   paintTimeline();
   // The card and circles follow at once (a pin's color, new ranks)
   if (pointer) draw();
@@ -236,6 +240,80 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
     st.leaving = new Set();
     cc.setOption({ series: seriesOf() }, { replaceMerge: ["series"] });
   }, dur(MORPH_MS) + 50);
+}
+
+// New lines draw in along their length at one speed over MORPH_MS, their circles and name appearing as the stroke
+// reaches them. (ECharts sweeps them in from left to right, under which a climb races and a level stretch crawls.)
+// The parts under the floor, unseen, take no time.
+const drawing = new Map(); // item -> its draw-in's frame
+function drawIn(items) {
+  const total = dur(MORPH_MS);
+  for (const m of c.getModel().getSeries()) {
+    if (!items.includes(m.id)) continue;
+    const view = c.getViewOfSeriesModel(m), line = view?._polyline;
+    if (!line) continue;
+    view._lineGroup?.getClipPath()?.stopAnimation(null, true);
+    const { L, V, at } = drawPlan(m.getData().mapArray("y", (y) => y));
+    const Lt = L.at(-1), Vt = V.at(-1);
+    const data = m.getData();
+    data.each((i) => {
+      const sym = data.getItemGraphicEl(i);
+      if (!sym) return;
+      const delay = Vt ? (total * V[at[i]]) / Vt : 0;
+      sym.stopAnimation(null, true);
+      sym.attr({ scaleX: 0, scaleY: 0 });
+      sym.animateTo({ scaleX: 1, scaleY: 1 }, { duration: dur(FADE_MS), delay, easing: EASE_OUT.echarts, setToFinal: true });
+      const text = sym.getSymbolPath?.().getTextContent();
+      if (text) {
+        text.stopAnimation(null, true);
+        text.animateFrom({ style: { opacity: 0 } }, { duration: dur(FADE_MS), delay, easing: EASE_OUT.echarts });
+      }
+    });
+    // (how much of the stroke shows once u of the seen length is drawn)
+    const percent = (u) => {
+      if (!Vt || !Lt) return 1;
+      const v = u * Vt;
+      let j = 1;
+      while (j < V.length - 1 && V[j] < v) j++;
+      const f = V[j] > V[j - 1] ? (v - V[j - 1]) / (V[j] - V[j - 1]) : 1;
+      return (L[j - 1] + (L[j] - L[j - 1]) * f) / Lt;
+    };
+    cancelAnimationFrame(drawing.get(m.id));
+    line.setStyle({ strokePercent: total ? 0 : 1 });
+    if (!total) continue;
+    const start = performance.now();
+    const tick = (now) => {
+      const u = Math.max(0, Math.min(1, (now - start) / total));
+      line.setStyle({ strokePercent: u < 1 ? percent(u) : 1 });
+      if (u < 1) drawing.set(m.id, requestAnimationFrame(tick));
+      else drawing.delete(m.id);
+    };
+    drawing.set(m.id, requestAnimationFrame(tick));
+  }
+}
+// A line's length as drawn, sampled along its curves (as lineY has them): L, the length to each sample, V, the part of
+// it above the floor, and at, each point's sample
+function drawPlan(ys) {
+  const n = ys.length, top = plotTop(), H = c.getHeight() - PLOT_BOTTOM - top, floor = top + H;
+  const [lo, hi] = st.view, per = (c.getWidth() - PLOT_LEFT - 28) / Math.max(1, hi - lo);
+  const px = (i) => PLOT_LEFT + (i + st.k0 - lo) * per, py = (v) => top + ((v - 1) / (st.MAX + 0.4 - 1)) * H;
+  const L = [0], V = [0], at = [0];
+  let x = px(0), y = py(ys[0]);
+  for (let i = 0; i + 1 < n; i++) {
+    const x0 = px(i), x3 = px(i + 1), y0 = py(ys[i]), y3 = py(ys[i + 1]);
+    const x1 = i === 0 ? x0 : x0 + SMOOTH * per, x2 = i + 1 === n - 1 ? x3 : x3 - SMOOTH * per;
+    for (let s = 1; s <= 16; s++) {
+      const t = s / 16, u = 1 - t;
+      const nx = u ** 3 * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3, ny = (u ** 3 + 3 * u * u * t) * y0 + (3 * u * t * t + t ** 3) * y3;
+      const d = Math.hypot(nx - x, ny - y);
+      L.push(L.at(-1) + d);
+      V.push(V.at(-1) + (Math.max(y, ny) <= floor ? d : 0));
+      x = nx;
+      y = ny;
+    }
+    at.push(L.length - 1);
+  }
+  return { L, V, at };
 }
 
 const yOf = (m, a, MAX) => {
@@ -485,7 +563,9 @@ function morphPoints(apply, ms) {
     el.stopAnimation("size");
     el.stopAnimation("look");
     const named = shownText(el), t = el.getTextContent();
-    before.set(k, { sx: el.scaleX, sy: el.scaleY, look: lookStyle(el), named, name: named && { style: { ...t.style }, m: t.getComputedTransform()?.slice() } });
+    // (the name's alignment ECharts keeps among its defaults: without it, the copy would drop by its own height)
+    const def = t?._defaultStyle;
+    before.set(k, { sx: el.scaleX, sy: el.scaleY, look: lookStyle(el), named, name: named && { style: { align: def?.align, verticalAlign: def?.verticalAlign, ...t.style }, m: t.getComputedTransform()?.slice() } });
   }
   apply();
   if (!ms) return;
