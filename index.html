@@ -455,6 +455,11 @@
             <p class="muted" id="discovery-note"></p>
           </div>
           <div class="found-side">
+          <!-- Where each find's dot sits: the day it was first played, or the day it reached the threshold (paintDiscovery) -->
+          <div id="discovery-by" class="segmented solid" role="group" aria-label="Place each find at">
+            <button type="button" data-by="first" aria-pressed="true">First listen</button>
+            <button type="button" data-by="reach" aria-pressed="false">Reached threshold</button>
+          </div>
           <!-- Finds with fewer minutes all time aren't drawn (paintDiscovery); in-between values are the Visual tweaks slider -->
           <div class="slider tav-window found-floor">
             <label class="slider-label" for="discovery-floor">Listening Threshold</label>
@@ -462,11 +467,6 @@
             <div class="ticks" aria-hidden="true">
               <span data-v="0">1m</span><span data-v="1">3m</span><span data-v="2">5m</span><span data-v="3">10m</span><span data-v="4">30m</span><span data-v="5">1h</span>
             </div>
-          </div>
-          <!-- Where each find's dot sits: the day it was first played, or the day it reached the threshold (paintDiscovery) -->
-          <div id="discovery-by" class="segmented solid" role="group" aria-label="Place each find at">
-            <button type="button" data-by="first" aria-pressed="true">First listen</button>
-            <button type="button" data-by="reach" aria-pressed="false">Reached threshold</button>
           </div>
           </div>
         </div>
