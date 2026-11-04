@@ -1206,6 +1206,8 @@ dialog pre {
 .mix-seg.fits-share .mix-pct, .mix-seg.fits-hours .mix-hours { opacity: 1; }
 .mix-hours { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mix-pct { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+/* A row's color, registered so it can glide when the row passes from a leaving artist to a newcomer (skips.js) */
+@property --skips-c { syntax: "<color>"; inherits: true; initial-value: transparent; }
 /* Skips and picks (skips.js): a row per artist, its name, a thick bar of its plays split into picked / played through /
    skipped in shades of its color, and its pick and skip rates. Rows light and pin like the mix's cards. */
 .skips-head[hidden], #skips-card[hidden] { display: none; }
@@ -1222,7 +1224,7 @@ dialog pre {
 .skips-head { margin-top: 12px; padding: 0 10px 4px; }
 .skips-head > .num { font-size: 12px; }
 .skips-list li {
-  --tint: 14%;
+  --tint: 14%; --c: var(--skips-c);
   padding: 3px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; position: relative;
   transition: opacity var(--motion-fade) var(--ease-out), background-color var(--motion-fade) var(--ease-out);
 }

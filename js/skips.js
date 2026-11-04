@@ -3,7 +3,9 @@
 // button), in shades of its color. A picked song you skipped counts as skipped. See aggregate.isPick, isSkip.
 // Drawn from the same artists, colors and period as the listening mix (rollingview.renderMix); hovering a row lights
 // the artist everywhere, clicking pins them. Rows are kept per artist: their parts glide to new sizes, the list keeps
-// one height and rows share it, gliding to their new place and size; newcomers open and leavers close where they are.
+// one height and rows share it, gliding to their new place and size. A newcomer takes over a leaver's row, in order,
+// so the row morphs from one artist to the other (its parts glide, its color fades, its name crossfades); the rest
+// open and close where they are.
 
 import { flip, tweenNumber, dur, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { tune } from "./tune.js";
@@ -17,7 +19,7 @@ const $ = (id) => document.getElementById(id);
 
 let ctx = null; // { names, slots, reasons, hidden, pins, ... } from the last updateSkips
 let hover = () => {};
-const rows = new Map(); // name -> { row, parts, pickEl, skipEl }
+const rows = new Map(); // name -> { name, row, who, parts, pickEl, skipEl }
 let under = null; // the artist whose row the pointer is on
 let focusName = null;
 
@@ -31,6 +33,7 @@ const span = (cls, text = "") => {
 };
 
 function makeRow(name) {
+  const r = { name };
   const row = document.createElement("li");
   row.tabIndex = 0;
   row.setAttribute("role", "button");
@@ -45,15 +48,16 @@ function makeRow(name) {
   const pickEl = span("num pick");
   const skipEl = span("num skip");
   row.append(who, bar, pickEl, skipEl);
-  row.addEventListener("pointerenter", () => hover((under = name)));
+  // r.name, not name: the row passes to a newcomer when its artist leaves
+  row.addEventListener("pointerenter", () => hover((under = r.name)));
   row.addEventListener("pointerleave", () => hover((under = null)));
   // Everyone else lights and pins nothing (as in the mix)
-  const pin = () => name !== OTHER && ctx.pins.toggle(name);
+  const pin = () => r.name !== OTHER && ctx.pins.toggle(r.name);
   row.addEventListener("click", pin);
   row.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pin(); }
   });
-  return { row, who, parts, pickEl, skipEl };
+  return Object.assign(r, { row, who, parts, pickEl, skipEl });
 }
 
 // next: names, slots (the chart's artists and palette slots), hidden, pins ({has, toggle}), title (name -> shown
@@ -83,24 +87,37 @@ export function updateSkips(next) {
   const h = names.length ? H / names.length : 0;
   const oldNames = [...rows.keys()];
   const before = new Map([...rows].map(([n, r]) => [n, r.row.getBoundingClientRect()]));
+  // Each newcomer, in order, takes the next leaver's row (Everyone else is always itself)
+  const gone = oldNames.filter((n) => n !== OTHER && !names.includes(n));
+  const handed = new Map(); // newcomer -> the row it takes over
+  for (const n of names) if (n !== OTHER && !rows.has(n) && gone.length) {
+    const from = gone.shift();
+    const r = rows.get(from);
+    rows.delete(from);
+    if (before.has(from)) before.set(n, before.get(from));
+    if (under === from) under = n;
+    r.name = n;
+    handed.set(n, r);
+  }
   const leaving = [];
   for (const [n, r] of rows) if (!names.includes(n)) { rows.delete(n); horizontal || n === OTHER ? leaving.push([n, r.row]) : r.row.remove(); }
+  for (const [n, r] of handed) rows.set(n, r);
   const entering = [];
   names.forEach((name) => {
     let r = rows.get(name);
     if (!r) { rows.set(name, (r = makeRow(name))); entering.push(name); }
     const i = ctx.names.indexOf(name);
-    r.row.style.setProperty("--c", name === OTHER ? "var(--other)" : `var(--series-${(ctx.slots?.[i] ?? i) + 1})`);
+    recolor(r.row, name === OTHER ? "var(--other)" : `var(--series-${(ctx.slots?.[i] ?? i) + 1})`, handed.has(name));
     const { plays: n, skip, pick, both, hours } = totals.get(name);
     // picked (and not skipped) / played through / skipped
     [pick - both, n - skip - pick + both, skip].forEach((v, k) => (r.parts[k].style.flexGrow = v / n));
     tweenNumber(r.pickEl, (pick / n) * 100, { format: (v) => pct(v / 100) });
     tweenNumber(r.skipEl, (skip / n) * 100, { format: (v) => pct(v / 100) });
-    r.who.textContent = name === OTHER ? OTHER : ctx.title?.(name) ?? name; // from the user's files
+    retitle(r, name === OTHER ? OTHER : ctx.title?.(name) ?? name, handed.has(name)); // from the user's files
     const pinned = ctx.pins.has(name);
     r.row.classList.toggle("pinned", pinned);
     r.row.classList.toggle("other", name === OTHER);
-    r.row.title = `${name === OTHER ? "" : pinned ? "Click to unpin · " : "Click to pin · "}${r.who.textContent} · ${fmtHours(hours)} · ${Math.round(n).toLocaleString()} plays · skipped ${pct(skip / n)} · picked ${pct(pick / n)}`;
+    r.row.title = `${name === OTHER ? "" : pinned ? "Click to unpin · " : "Click to pin · "}${r.shown} · ${fmtHours(hours)} · ${Math.round(n).toLocaleString()} plays · skipped ${pct(skip / n)} · picked ${pct(pick / n)}`;
   });
   list.replaceChildren(...names.map((n) => rows.get(n).row));
   if (horizontal) {
@@ -135,6 +152,25 @@ export function updateSkips(next) {
   dim();
   // Clicking to pin re-renders the chart, which drops its hover; while the pointer is still here, light them again
   if (under && rows.has(under) && focusName !== under) hover(under);
+}
+
+// A row's color; a row handed to a newcomer fades from the leaver's color to its own on the morph tier
+function recolor(el, color, glide) {
+  const was = getComputedStyle(el).getPropertyValue("--skips-c");
+  el.style.setProperty("--skips-c", color);
+  if (!glide || !was) return;
+  const now = getComputedStyle(el).getPropertyValue("--skips-c");
+  if (now !== was) el.animate({ "--skips-c": [was, now] }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css });
+}
+
+// A row's name; a row handed to a newcomer crossfades it, the new name coming in halfway
+function retitle(r, text, glide) {
+  clearTimeout(r.swap);
+  r.shown = text;
+  if (!glide || r.who.textContent === text || !dur(MORPH_MS)) { r.who.textContent = text; return; }
+  // From the opacity on screen, so a crossfade cut short carries on
+  r.who.animate({ opacity: [getComputedStyle(r.who).opacity, 0, 1] }, { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css });
+  r.swap = setTimeout(() => (r.who.textContent = text), dur(MORPH_MS) / 2);
 }
 
 // A horizontal row's place in the list; its top and height glide there (CSS)
