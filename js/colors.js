@@ -26,6 +26,8 @@ export function tokens() {
     ),
     line: { hover: +v("--shade-line"), pin: +v("--shade-line-pin"), pinHover: +v("--shade-line-pin-hover") },
     fade: { rest: 1, hover: 1, pin: 1, pinHover: 1, dim: +v("--fade-dim"), dimHover: +v("--fade-dim-hover") },
+    // how strongly a dimmed item shows (the --dim-item tokens), for marks that fade as a whole
+    dimItem: { rest: 1, hover: 1, pin: 1, pinHover: 1, dim: +v("--dim-item"), dimHover: +v("--dim-item-hover") },
     font: css.fontFamily,
   };
 }

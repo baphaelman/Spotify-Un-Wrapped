@@ -1608,3 +1608,4 @@ button:not(:disabled):active { transform: scale(0.96); }
 
 .found-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .found-head .found-floor { margin-top: 0; }
+.found-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }

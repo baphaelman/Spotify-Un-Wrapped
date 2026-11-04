@@ -1,5 +1,5 @@
 // The ECharts renderers, one file per graph in charts/: core.js (instances, axes, hover cards), rolling.js (Top
-// Artists View and Hours per week), monthly.js, clock.js, discovery.js (First listen) and community.js. Colors come
+// Artists View and Hours per week), monthly.js, clock.js, discovery.js (Discovery) and community.js. Colors come
 // from the CSS tokens (colors.js), so light and dark stay in one place (style.css). The page imports them from here.
 
 export { disposeAll } from "./charts/core.js";

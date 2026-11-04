@@ -322,7 +322,8 @@ export function paintMonthly(plays) {
 }
 $("monthly-other").addEventListener("change", () => paintMonthly());
 
-// What the period found: the items first heard in it, across it, each as high as its hours all time.
+// What the period found: the items first heard in it (or, with "Reached threshold", whose hours all time reached
+// tune.discoveryFloor in it), across it, each as high as its hours all time.
 // The chart's artists among them take their colors (same pins and hover); deselected ones are left out. In the genres
 // view the finds are tracks, each in its genre's color when that's one of the chart's. Those under
 // tune.discoveryFloor minutes all time aren't drawn, but count.
@@ -398,7 +399,15 @@ function paintFloor() {
   glideFloor(at, input.matches(":active") ? CHASE_MS : MORPH_MS); // a drag's thumb chases the pointer rather than lagging it
 }
 let heardMemo = null;
-// During a pan (state.js) First listen slides: it's drawn once with the finds of both periods, still with the
+let foundBy = "first"; // "first" or "reach", the toggle under the slider
+$("discovery-by").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || b.getAttribute("aria-pressed") === "true") return;
+  for (const o of $("discovery-by").children) o.setAttribute("aria-pressed", o === b);
+  foundBy = b.dataset.by;
+  paintDiscovery();
+});
+// During a pan (state.js) Discovery slides: it's drawn once with the finds of both periods, still with the
 // artists it had, and each frame moves its axes (the times on the clock's range, the hours' top along with them).
 // The pan's end draws it as usual, with the new artists.
 let discoveryPan = null; // { pan, top: [from, to] } while one slides
@@ -416,12 +425,14 @@ export function paintDiscovery() {
   if (!state.mixArgs || putOff($("chart-discovery").closest(".card"), () => paintDiscovery())) return;
   // (the genres view finds tracks, each in its genre's color)
   const genre = state.dim === "genre";
-  if (heardMemo?.plays !== state.plays)
-    heardMemo = { plays: state.plays, items: genre ? agg.firstHeardTracks(state.plays) : agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album") };
+  const floor = tune.discoveryFloor / 60, reach = foundBy === "reach" ? floor : 0;
+  $("discovery-title").textContent = `${NOUN[state.dim].Many.slice(0, -1)} Discovery`;
+  if (heardMemo?.plays !== state.plays || heardMemo.reach !== reach)
+    heardMemo = { plays: state.plays, reach, items: genre ? agg.firstHeardTracks(state.plays, reach) : agg.firstHeard(state.plays, state.dim !== "track", state.dim !== "album", reach) };
   const all = heardMemo.items;
   const [artists, , , pins] = state.mixArgs;
   const keyed = artists.filter((a) => state.colorSlots.has(a));
-  const hidden = new Set(state.hidden), floor = tune.discoveryFloor / 60;
+  const hidden = new Set(state.hidden);
   const finds = ({ lo, hi }) => {
     const start = agg.dayToDate(lo).getTime(), end = agg.dayToDate(hi + 1).getTime();
     return all.filter((e) => e.t >= start && e.t < end && e.hours >= floor && !hidden.has(e.group ?? e.name));
@@ -431,7 +442,13 @@ export function paintDiscovery() {
   paintFloor();
   const { one, many } = genre ? NOUN.track : noun();
   const shown = finds(state.range);
-  tweenNumber($("discovery-note"), shown.length, { format: (n) => `You discovered ${Math.round(n).toLocaleString()} ${Math.round(n) === 1 ? one : many} over this period` });
+  const mins = tune.discoveryFloor >= 60 ? "1 hour" : `${+tune.discoveryFloor.toFixed(2)} min`;
+  tweenNumber($("discovery-note"), shown.length, {
+    format: (n) => {
+      const k = `${Math.round(n).toLocaleString()} ${Math.round(n) === 1 ? one : many}`;
+      return reach ? `${k} reached ${mins} over this period` : `You discovered ${k} over this period`;
+    },
+  });
   const hover = (name) => focusArtist($("chart-rolling"), name);
   const el = $("chart-discovery");
   const span = ({ lo, hi }) => [agg.dayToDate(lo).getTime(), agg.dayToDate(hi + 1).getTime()];

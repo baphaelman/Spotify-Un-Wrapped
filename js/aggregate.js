@@ -75,27 +75,33 @@ export function itemTotals(plays) {
 
 // Every item with the time it was first played, the song it was first heard through (with `songs`), that play's album
 // (with `albums`), and its hours across all the plays, in order of first play
-export function firstHeard(plays, songs = true, albums = true) {
+export function firstHeard(plays, songs = true, albums = true, reach = 0) {
   const m = new Map();
   for (const p of plays) {
     let e = m.get(p.artist);
     if (!e) m.set(p.artist, (e = { name: p.artist, t: p.t, first: songs ? p.track : null, album: (albums && p.album) || null, hours: 0 }));
     e.hours += p.ms / HOUR;
+    if (reach && e.reached == null && e.hours >= reach) e.reached = p.t;
   }
-  return [...m.values()];
+  return reached([...m.values()], reach);
 }
+// With `reach` (hours), each find is placed at the time its hours all time first reached it instead (`heard` keeps
+// when it was first played); finds that never got there are left out
+const reached = (items, reach) =>
+  reach ? items.filter((e) => e.reached != null).map(({ reached: t, ...e }) => ({ ...e, heard: e.t, t })) : items;
 
 // The genres view's finds: every track (as the tracks view calls it) with the time it was first played, its album and
 // hours, and `group`, the genre it counts most toward (its artist's biggest family)
-export function firstHeardTracks(plays) {
+export function firstHeardTracks(plays, reach = 0) {
   const m = new Map();
   for (const p of plays) {
     let e = m.get(p.trackKey);
     if (!e) m.set(p.trackKey, (e = { name: p.trackKey, t: p.t, first: null, album: p.album || null, hours: 0, by: new Map() }));
     e.hours += p.ms / HOUR;
     e.by.set(p.artist, (e.by.get(p.artist) ?? 0) + p.ms);
+    if (reach && e.reached == null && e.hours >= reach) e.reached = p.t;
   }
-  return [...m.values()].map(({ by, ...e }) => ({ ...e, group: [...by].reduce((a, b) => (b[1] > a[1] ? b : a))[0] }));
+  return reached([...m.values()].map(({ by, ...e }) => ({ ...e, group: [...by].reduce((a, b) => (b[1] > a[1] ? b : a))[0] })), reach);
 }
 
 export function topArtists(plays, n) {

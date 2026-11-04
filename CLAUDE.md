@@ -57,7 +57,7 @@ All in `js/` unless noted; each file's own comments have the details.
 - `aggregate.js`: pure functions: top lists, monthly totals, the 7×24 clock, `rolling()`.
 - `charts.js`: re-exports the ECharts renderers in `charts/`: `core.js` (instances, axes, hover cards), `rolling.js`
   (`renderRolling`, where most of the complexity is, and Hours per week), `monthly.js`, `clock.js`, `discovery.js`
-  (First listen), `community.js`. Import them from `charts.js`.
+  (Discovery), `community.js`. Import them from `charts.js`.
 - `colors.js`: `tokens()`, `mix`, `alpha`. `format.js`: `esc`, `fmtDay`, the hours formats, `MON`. Use these rather than
   a local copy.
 - `motion.js`: timing tiers and easings, `setOptionFaded`, `sweep`, `travel`, `tweenNumber`, `flip`, `dur`, `litLook`.

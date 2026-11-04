@@ -1,4 +1,4 @@
-// First listen (renderDiscovery): a dot per item first heard in the period, and its key.
+// Discovery (renderDiscovery): a dot per item first heard in the period, and its key.
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, setOptionFaded, dur, litLook, isLitLook, isPinLook } from "../motion.js";
 import { shownName } from "../state.js";
@@ -7,7 +7,7 @@ import { esc, fmtHoursRound } from "../format.js";
 import { baseAxis, chart, instances, tooltipBase } from "./core.js";
 import { tune } from "../tune.js";
 
-// The items first heard in the period, across it: each a dot at the day it was first played and as high as its
+// The items found in the period, across it: each a dot at the day it was first played (or reached the threshold) and as high as its
 // hours across everything (a log scale from `floor` hours up to `top`). The
 // chart's artists among them (names, in their palette slots) take their colors and follow the hover/pin rule, and are
 // named beside their dots, or, when two names would overlap, in a key right of the plot (.found-key, beside the
@@ -57,7 +57,8 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
     const e = byName.get(name);
     const from = e.album ? `<div style="color:${t.muted}">${e.first ? "from " : "From "}<span style="color:${t.primary}">${esc(e.album)}</span></div>` : "";
     const genre = e.group != null ? `<div style="color:${t.muted}">Genre: <span style="color:${t.primary}">${esc(e.group)}</span></div>` : "";
-    return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.t)}</div>` + genre +
+    const reached = e.heard != null ? `<div style="color:${t.muted}">Reached ${fmtSpent(floor)} ${fmtDay(e.t)}</div>` : "";
+    return `<b>${esc(name)}</b><div style="color:${t.muted}">First heard ${fmtDay(e.heard ?? e.t)}</div>` + reached + genre +
       (e.first ? `<div style="color:${t.muted}">First song: <span style="color:${t.primary}">${esc(e.first)}</span></div>` : "") +
       from + `${fmtSpent(e.hours)} all time`;
   };
@@ -338,14 +339,14 @@ function pointAt(st, near) {
 }
 
 // The lit dots by the hover/pin rule: a light shade of the color at rest, deeper hovered, the color in full with a
-// thicker edge pinned, and faded while another is lit
+// thicker edge pinned, and faded while another is lit (by the --dim-item tokens, so they stay easy to make out)
 // (series k, the k-th of the chart's artists: its look, set on the series as a whole)
 function discoveryLit(st, k) {
   const { t } = st, name = st.names[k];
   if (k >= st.litBy.length) return { id: `lit${k}` };
   const col = t.series[st.slotOf.get(name)];
   const look = litLook(st.pinned, st.hovered, name);
-  const fill = isLitLook(look) ? col : mix(t.surface, col, 0.8 * t.fade[look]);
+  const fill = isLitLook(look) ? col : mix(t.surface, col, t.dimItem[look]);
   return {
     id: `lit${k}`,
     // named in the ink, faded as the dot is, unless the key names them
@@ -355,21 +356,21 @@ function discoveryLit(st, k) {
       formatter: ({ name }) => name,
       fontSize: FOUND_LABEL.size,
       fontWeight: FOUND_LABEL.weight,
-      color: mix(t.surface, t.primary, t.fade[look]),
+      color: mix(t.surface, t.primary, t.dimItem[look]),
       opacity: st.keyed ? 0 : 1,
     },
-    itemStyle: { color: fill, borderColor: mix(t.surface, col, t.fade[look]), borderWidth: isPinLook(look) ? 3 : 1 },
+    itemStyle: { color: fill, borderColor: mix(t.surface, col, t.dimItem[look]), borderWidth: isPinLook(look) ? 3 : 1 },
   };
 }
 
-// The neutral dots' layer fades as a whole: a little while one of the chart's artists is hovered, more while one is
-// pinned
+// The neutral dots' layer fades as a whole (by the --dim-item tokens): a little while one of the chart's artists is
+// hovered, more while one is pinned
 function dimRest(c, st, ms) {
   const layer = c.getZr().painter.getLayer?.(NEUTRAL_Z)?.dom;
   if (!layer) return;
   const look = st.pinned.size ? "dim" : st.hovered != null ? "dimHover" : "rest";
   layer.style.transition = `opacity ${ms}ms ${EASE_OUT.css}`;
-  layer.style.opacity = st.t.fade[look];
+  layer.style.opacity = st.t.dimItem[look];
 }
 
 // Light one artist (and dim the rest) from a hover elsewhere on the page; null clears
