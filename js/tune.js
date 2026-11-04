@@ -60,7 +60,7 @@ export const TUNES = [
   { key: "rankDive", card: "rank-card", label: "How far lines dive below the chart", def: 1.6, min: 0.2, max: 4, step: 0.1, fmt: x },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },
   // (smaller slices fold into their parent's "Other …" until it's gone into)
-  { key: "sunMinShare", card: "sunburst-card", label: "Smallest slice", def: 1, min: 0.25, max: 5, step: 0.25, fmt: (v) => `${v}% of the middle` },
+  { key: "sunMinShare", card: "sunburst-card", label: "Smallest slice", def: 1.5, min: 0.25, max: 5, step: 0.25, fmt: (v) => `${v}% of the middle` },
   { key: "sunReach", card: "sunburst-card", label: "Outer ring", def: 1, options: SUN_REACH, fmt: (v) => SUN_REACH[v] },
   // (a slice with nothing drawn outside it: its rings left empty, or it reaching out to the edge, marked or not)
   { key: "sunTeeth", card: "sunburst-card", label: "Slices with nothing outside", def: 2, options: SUN_TEETH, fmt: (v) => SUN_TEETH[v] },

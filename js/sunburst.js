@@ -586,7 +586,7 @@ function draw() {
     // The share of the middle, and once gone in, of everything (all the middle shows)
     // The middle's way back, apart from its name (it goes where the reader was, not always to what holds it); the
     // whole has no name, but can lead back to the view a song was opened from
-    const backTo = !middle ? "" : n.depth ? "‹ back" : back() ? "‹ " + backName(back()) : "";
+    const backTo = !middle ? "" : n.depth ? "‹" : back() ? "‹ " + backName(back()) : "";
     const pct = n.depth === 0 || middle ? "" : fmtShare(n.share.p);
     const sub = n.depth === 0 || !zoomed ? "" : fmtShare(n.share.s);
     // (a slice that hasn't moved, or stays at nothing, is left alone)
