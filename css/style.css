@@ -1521,8 +1521,9 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* The window's slider under the measure it sets, faded while "So far" leaves it unused */
 .race-opts { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .race-pick { display: flex; align-items: center; gap: 12px; }
-.slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 0; transition: opacity var(--motion-fade) var(--ease-out); }
-.race-window.off { opacity: 0.4; }
+.slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 0; transition: opacity var(--motion-grow) var(--ease-out), transform var(--motion-grow) var(--ease-out), visibility 0s; }
+/* Under "So far" it isn't used: it lifts away to nothing, keeping its room so the bars below stay put */
+.slider.tav-window.race-window.off { opacity: 0; transform: translateY(-6px); visibility: hidden; pointer-events: none; transition: opacity var(--motion-grow) var(--ease-out), transform var(--motion-grow) var(--ease-out), visibility 0s var(--motion-grow); }
 @media (prefers-reduced-motion: reduce) { .race-window { transition: none; } }
 .race-stage { --race-row: 34px; --race-val: 64px; --race-axis: 16px; position: relative; margin-top: 4px; padding-top: var(--race-axis); height: calc(var(--n, 8) * var(--race-row) + var(--race-axis)); overflow: hidden; transition: height var(--motion-morph) var(--ease-in-out); }
 .race-rows { list-style: none; margin: 0; padding: 0; position: relative; height: 100%; overflow: hidden; }
