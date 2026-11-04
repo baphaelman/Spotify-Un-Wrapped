@@ -355,13 +355,13 @@
             <p class="muted" id="race-sub"></p>
           </div>
           <div class="race-opts">
-            <!-- Off, only the rolling chart's artists race (race.js) -->
-            <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
+            <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
+              <button type="button" data-measure="total" aria-pressed="true">So far</button>
+              <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
+            </div>
             <div class="race-pick">
-              <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
-                <button type="button" data-measure="total" aria-pressed="true">So far</button>
-                <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
-              </div>
+              <!-- Off, only the rolling chart's artists race (race.js) -->
+              <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
               <!-- How many days "Last … days" looks back: set to fit each new period, then the reader's (race.js) -->
               <div class="slider tav-window race-window">
                 <label class="slider-label" for="race-window">Days</label>
@@ -377,11 +377,12 @@
           <!-- Scale lines at round hours behind the bars, sliding with the widest one (race.js) -->
           <div class="race-scale" aria-hidden="true"><div id="race-scale" class="race-scale-track"></div></div>
           <ol id="race-rows" class="race-rows"></ol>
-        </div>
-        <div class="race-controls">
+          <!-- Play while paused; while playing, pause shows for a moment as the pointer moves over the video (race.js) -->
           <button id="race-play" type="button" class="race-play" aria-label="Play">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.8v10.4L13 8z"/><path class="i-pause" d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
           </button>
+        </div>
+        <div class="race-controls">
           <div class="slider race-time">
             <!-- When the plays bunch up: hours in the "Days" window up to each day, deeper where already played (race.js) -->
             <svg id="race-density" class="race-density" preserveAspectRatio="none" aria-hidden="true">

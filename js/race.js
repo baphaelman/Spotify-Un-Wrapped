@@ -496,6 +496,14 @@ function play() {
 
 $("race-play").addEventListener("click", play);
 
+// Pause shows for a moment as the pointer moves over the video
+let nudge = 0;
+$("race-stage").addEventListener("pointermove", () => {
+  $("race-card").classList.add("nudge");
+  clearTimeout(nudge);
+  nudge = setTimeout(() => $("race-card").classList.remove("nudge"), 1800);
+});
+
 // A scrub: the playhead goes where the slider is, and playing carries on from there once it's let go
 let resume = false;
 const time = $("race-time");

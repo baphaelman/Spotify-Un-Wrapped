@@ -1519,9 +1519,8 @@ button:not(:disabled):active { transform: scale(0.96); }
    its bar's width as --f of the track), so the rows have no transitions of their own beyond the hover/pin rule's */
 .race-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 /* The window's slider under the measure it sets, faded while "So far" leaves it unused */
-.race-opts { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.race-opts > .other-toggle { margin-top: 6px; }
-.race-pick { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.race-opts { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.race-pick { display: flex; align-items: center; gap: 10px; }
 .slider.tav-window.race-window { grid-template-columns: auto 160px; margin-top: 0; transition: opacity var(--motion-fade) var(--ease-out); }
 .race-window.off { opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .race-window { transition: none; } }
@@ -1583,10 +1582,13 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* Play, the time slider (running with the video) and the speed */
 .race-controls { display: flex; align-items: flex-start; gap: 14px; margin-top: 12px; }
 .race-controls { --race-density: 22px; }
-.race-play { flex: none; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 50%; margin-top: calc(var(--race-density) - 9px); }
-.race-play svg { width: 14px; height: 14px; fill: currentColor; }
+.race-play { position: absolute; left: 50%; top: 50%; z-index: 2; width: 84px; height: 84px; padding: 0; display: grid; place-items: center; border-radius: 50%; translate: -50% -50%; color: var(--text-primary); background: color-mix(in srgb, var(--page) 74%, transparent); border: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent); box-shadow: 0 6px 24px color-mix(in srgb, var(--text-primary) 18%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: opacity var(--motion-fade) var(--ease-out), scale var(--motion-fade) var(--ease-out); }
+.race-play:hover { scale: 1.06; }
+.race-play svg { width: 40px; height: 40px; fill: currentColor; }
 .race-play .i-pause, .playing .race-play .i-play { display: none; }
 .playing .race-play .i-pause { display: inline; }
+/* Playing, it hides, and comes back for a moment while the pointer moves over the video */
+.playing:not(.nudge) .race-play:not(:focus-visible) { opacity: 0; pointer-events: none; }
 .slider.race-time { flex: 1; width: auto; min-width: 0; }
 /* The density strip spans the thumb's travel (5px in from each end), as the ticks do */
 .race-density { display: block; width: calc(100% - 10px); height: var(--race-density); margin: 0 5px; overflow: visible; }
@@ -1613,10 +1615,10 @@ button:not(:disabled):active { transform: scale(0.96); }
 @media (max-width: 600px) {
   .race-rows li, .race-scale { grid-template-columns: 2ch minmax(0, 110px) 1fr; gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .race-stage, .race-rows li, .race-bar { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .race-stage, .race-rows li, .race-bar, .race-play { transition: none; } }
 @media (max-width: 600px) {
   .race-controls { flex-wrap: wrap; }
-  .slider.race-time { flex-basis: calc(100% - 46px); }
+  .slider.race-time { flex-basis: 100%; }
   .race-speed-box { margin: 0 auto; }
 }
 
