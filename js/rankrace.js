@@ -703,7 +703,7 @@ function paintTimeline(drop = false, now = false) {
     return;
   }
   const rect = gridRect();
-  const key = [tune.rankLane, st.k0, st.rows.length, st.iv, rect.x, rect.y, rect.width, rect.height, laneY(), c.getWidth()].join();
+  const key = [tune.rankLane, st.MAX, st.k0, st.rows.length, st.iv, rect.x, rect.y, rect.width, rect.height, laneY(), c.getWidth()].join();
   if (old?.key === key) return;
   drop0();
   tl = { key, ...timelineEls(rect) };
@@ -748,15 +748,16 @@ function timelineEls(rect) {
   });
   const track = look === 3 ? { stroke: alpha(t.primary, 0.16), lineWidth: 9, lineCap: "round" } : look === 4 ? { stroke: "transparent", lineWidth: 0 } : { stroke: t.axis, lineWidth: look === 2 ? 1 : 1.5 };
   const line = new Line({ silent: true, z: 1, shape: { x1: rect.x, y1: y, x2: rect.x + rect.width, y2: y }, style: track });
-  // (the framed strip's is its lower edge, the card's full width)
-  const strip = look === 5;
-  const rule = new Line({ silent: true, z: 1, shape: { x1: strip ? 0 : 8, y1: ry, x2: c.getWidth() - (strip ? 0 : 8), y2: ry },
+  // (the framed strip's is its lower edge; it starts a little left of the ranks' labels, the widest's width and 8px
+  // past the axis's own 8px gap, and runs to the card's right edge)
+  const strip = look === 5, sx = Math.floor(rect.x - 16 - textWidth(`#${st.MAX}`, "12px Inter, sans-serif"));
+  const rule = new Line({ silent: true, z: 1, shape: { x1: strip ? sx : 8, y1: ry, x2: c.getWidth() - (strip ? 0 : 8), y2: ry },
     style: { stroke: strip ? t.grid : t.axis, lineWidth: 1, lineDash: look === 4 ? [3, 4] : null, opacity: look === 1 ? 0 : 1 } });
   const extra = [];
   // A soft wash over the lane, around the line and its dates
   if (look === 1) extra.push(new Rect({ silent: true, z: 0, shape: { x: rect.x - 12, y: 0, width: rect.width + 24, height: ry - 4, r: 10 }, style: { fill: alpha(t.primary, 0.05) } }));
   // A strip across the card, from the top to the rule, its top corners rounded
-  if (strip) extra.push(new Rect({ silent: true, z: 0, shape: { x: 0, y: 0, width: c.getWidth(), height: ry, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03) } }));
+  if (strip) extra.push(new Rect({ silent: true, z: 0, shape: { x: sx, y: 0, width: c.getWidth() - sx, height: ry, r: [8, 8, 0, 0] }, style: { fill: alpha(t.primary, 0.03) } }));
   const root = new Group(), dotG = clipped(TL_END_R + 1), textG = clipped(Math.ceil(half) + 1);
   dots.forEach((e) => dotG.add(e));
   texts.forEach((e) => textG.add(e));
