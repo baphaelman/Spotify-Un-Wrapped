@@ -22,7 +22,9 @@ https://baphaelman.github.io/Spotify-Un-Wrapped/, deployed from `main` by `.gith
 - **Big jobs near the limit:** when proposing work that looks too big for what's left of the session's context or
   the owner's usage, say so, recommend a model and effort for it (e.g. Sonnet for mechanical edits, Opus for chart
   logic and motion), and give a ready-to-paste prompt for a fresh session in a code block: the task, the worktree
-  and branch, what's done, what's measured, and what's next.
+  and branch, what's done, what's measured, and what's next. The fresh session starts in this same environment (this
+  file, the repo, memory, skills), so write only what it can't already see: don't restate rules from here or tell it to
+  read this file.
 - **Commit when a change seems to work,** without asking: small commits, clear messages. **Don't push unless asked:**
   pushing `main` deploys the live site.
 - **Options the owner passes over stay under "Visual tweaks"** when they need little code of their own: a number goes
