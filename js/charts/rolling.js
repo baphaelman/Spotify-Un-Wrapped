@@ -851,8 +851,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     // Where an artist without a row will stand: in the artist change's next step, or once shown. (Baselines count up
     // from the floor, which moves by as much as the plot's height changes.)
     const next = artistCtx?.el === el && artistCtx.next;
-    const nextLay = next && ridgeLayout(next.rows.filter((n) => names.includes(n) && visible(names.indexOf(n))),
-      peaksOf(next.data, Number.isFinite(next.zoom?.[0]) ? next.zoom : inRange), LINES_H);
+    const nextLay = next ? ridgeLayout(next.rows.filter((n) => names.includes(n) && visible(names.indexOf(n))),
+      peaksOf(next.data, Number.isFinite(next.zoom?.[0]) ? next.zoom : inRange), LINES_H) : null;
     const landing = (n, s) => {
       if (s === otherIdx) return null;
       if (nextLay?.at.has(n)) return nextLay.at.get(n) - (nextLay.h - plotH);
