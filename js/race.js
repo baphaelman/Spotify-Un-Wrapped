@@ -406,7 +406,7 @@ function paintTime() {
 export function paintRate() {
   $("race-density").dataset.look = tune.densityLook; // (the colors are a visual tweak, so they're set where the tweaks land)
   const rate = tune.raceRate * speed;
-  $("race-rate").textContent = `${rate < 10 ? rate.toFixed(1) : Math.round(rate)} days/s`;
+  $("race-rate").textContent = `${rate < 10 ? +rate.toFixed(1) : Math.round(rate)} days/s`;
 }
 
 function setPlaying(on) {
@@ -477,8 +477,8 @@ export function paintRace() {
     const input = $("race-time");
     input.min = lo;
     input.max = hi;
-    // A period changed while playing plays on from the same day, if it's in the new one; otherwise it shows the end
-    if (!playing || t < lo || t > hi) t = hi;
+    // A period changed while playing plays on from the same day, if it's in the new one; otherwise it waits at the start
+    if (!playing || t < lo || t > hi) t = built.start;
     paintTicks();
     paintRate();
     paintDensity();
