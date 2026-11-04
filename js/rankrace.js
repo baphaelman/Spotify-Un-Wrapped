@@ -1005,10 +1005,14 @@ function draw() {
   tip.classList.add("on");
   tip.classList.toggle("held", colPin != null);
   // The column is at the slice (gliding with the rest), reaching up over #1's name; a line is at the pointer
-  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - LANE_TOP : 0; // (the column runs up through the lane)
+  // (a column stays inside the chart, and inside the framed strip: at either end it's cut to fit, and as it nears a
+  // side its top rises to the strip's, so touching one it touches both)
+  const strip = tune.rankLane === 5, lo = ox + (strip ? stripLeft(rect) : 0), hi = ox + c.getWidth();
+  const a = Math.max(cx - slice / 2, lo), b = Math.min(cx + slice / 2, hi);
+  const gap = Math.max(0, Math.min(cx - slice / 2 - lo, hi - cx - slice / 2));
+  const inset = strip ? LANE_TOP * Math.min(1, gap / LANE_TOP) : LANE_TOP;
+  const column = tune.rankCursor === 2 || tune.rankCursor === 3, room = column ? rect.y - inset : 0; // (the column runs up through the lane)
   frame.dataset.look = tune.rankCursor;
-  // (a column stays inside the chart, and inside the framed strip: at either end it's cut to fit)
-  const a = Math.max(cx - slice / 2, ox + (tune.rankLane === 5 ? stripLeft(rect) : 0)), b = Math.min(cx + slice / 2, ox + c.getWidth());
   cursor.style.setProperty("--x", `${column ? (a + b) / 2 : !pointer || colPin != null ? cx : ox + pointer[0]}px`);
   cursor.classList.toggle("pinned", colPin != null);
   cursor.style.setProperty("--slice", `${b - a}px`);
