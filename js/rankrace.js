@@ -334,8 +334,9 @@ function plotTop() {
   const lane = H - PLOT_TOP - PLOT_BOTTOM - per * (LANE_RANKS + 0.4 - 1);
   return PLOT_TOP + Math.max(lane, headroom() + 20 + TL_LABEL - PLOT_TOP);
 }
-// Room right of the last slice for its whole column (half a slice), so the column keeps its width at that end
-const plotRight = ([lo, hi]) => Math.max(28, Math.ceil(($("chart-rank").clientWidth - PLOT_LEFT) / (2 * Math.max(1, hi - lo) + 1)));
+// Room right of the plot for the ranks' labels there, and for the last slice's whole column (half a slice), so the
+// column keeps its width at that end
+const plotRight = ([lo, hi], MAX) => Math.ceil(Math.max(16 + textWidth(`#${MAX}`, "12px Inter, sans-serif"), ($("chart-rank").clientWidth - PLOT_LEFT) / (2 * Math.max(1, hi - lo) + 1)));
 const TL_LABEL = 14; // room over the timeline for its stops' dates
 const laneY = () => (LANE_TOP + TL_LABEL + plotTop() - headroom()) / 2; // (the timeline's height)
 
@@ -442,11 +443,12 @@ function option(ms = MORPH_MS, animate = true) {
     animationDuration: animate ? dur(MORPH_MS) : 0, animationEasing: EASE_IN_OUT.echarts, animationDurationUpdate: animate ? dur(ms) : 0, animationEasingUpdate: (ms === CHASE_MS ? EASE_OUT : EASE_IN_OUT).echarts,
     textStyle: { fontFamily: "inherit", color: t.secondary },
     tooltip: { show: false }, // (the hover draws its own card)
-    grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: plotRight(view) },
+    grid: { top: plotTop(), bottom: PLOT_BOTTOM, left: PLOT_LEFT, right: plotRight(view, MAX) },
     // (by the slice's place in st.rows, so a period's lines morph point by point into another's; its labels are
     // paintTimeline's, so they slide with it)
     xAxis: { type: "value", min: view[0] - k0, max: view[1] - k0, ...axis, axisLabel: { show: false }, splitLine: { show: false } },
-    yAxis: { type: "value", inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } },
+    // (the ranks on both sides, the right's without grid lines of its own)
+    yAxis: ["left", "right"].map((position, i) => ({ type: "value", position, inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { show: !i, lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } })),
     series: seriesOf(animate ? ms : 0),
   };
 }
