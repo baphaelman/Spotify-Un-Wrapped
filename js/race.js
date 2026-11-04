@@ -38,7 +38,7 @@ let t = 0; // the playhead, a fractional day index in [lo, hi]
 let playing = false;
 let raf = 0, last = 0;
 let scale = 0; // the hours the widest bar stands for, chased like the rows
-const rows = new Map(); // item -> { el, bar, val, rank, pos, op, v, shown }
+const rows = new Map(); // item -> { el, bar, val, rank, pos, op, v, f, shown }
 let hovered = null;
 
 // ---------- Each day's top list ----------
@@ -139,7 +139,7 @@ function makeRow(key) {
   const c = chartColor(key);
   if (c) li.style.setProperty("--c", c);
   $("race-rows").append(li);
-  return { el: li, bar, val, rankEl: rank, rank: -1, pos: n(), op: 0, v: 0, text: "", shown: false };
+  return { el: li, bar, val, rankEl: rank, rank: -1, pos: n(), op: 0, v: 0, f: 0, text: "", shown: false };
 }
 
 const n = () => Number($("n-artists").value);
@@ -201,14 +201,18 @@ function frame(now) {
   let settled = true;
   const chase = (r, k, to) => {
     r[k] += (to - r[k]) * a;
-    if (Math.abs(to - r[k]) > SETTLED * (k === "v" ? Math.max(1, to) : 1)) settled = false;
+    // (a value's text settles to within half a minute, so a fall to nothing doesn't take seconds to finish)
+    if (Math.abs(to - r[k]) > (k === "v" ? Math.max(30_000, SETTLED * to) : SETTLED)) settled = false;
     else r[k] = to;
   };
   const top = ranked[0]?.[1] ?? 0;
-  if (!scale) scale = top;
-  scale += (top - scale) * a;
-  if (Math.abs(top - scale) > SETTLED * Math.max(1, top)) settled = false;
-  else scale = top;
+  // The scale lines follow the widest bar in ratio, so a change of a hundredfold takes no longer than a small one
+  if (!scale || !top) scale = top;
+  else {
+    scale *= Math.exp(Math.log(top / scale) * a);
+    if (Math.abs(Math.log(top / scale)) > SETTLED) settled = false;
+    else scale = top;
+  }
 
   const here = new Set();
   ranked.forEach(([key, v], i) => {
@@ -218,12 +222,14 @@ function frame(now) {
       // A newcomer starts below the last bar, faded out, at its value
       rows.set(key, (r = makeRow(key)));
       r.v = v;
+      r.f = top > 0 ? v / top : 0;
       markRows();
     }
     const shown = i < count;
     chase(r, "pos", shown ? i : count);
     chase(r, "op", shown ? 1 : 0);
     chase(r, "v", v);
+    chase(r, "f", top > 0 ? v / top : 0);
     if (shown && r.rank !== i) {
       r.rank = i;
       r.rankEl.textContent = i + 1;
@@ -244,7 +250,7 @@ function frame(now) {
     r.el.style.transform = `translateY(calc(${r.pos} * var(--race-row)))`;
     r.el.style.opacity = r.op;
     r.el.style.visibility = r.op < 0.01 ? "hidden" : "";
-    r.el.style.setProperty("--f", scale > 0 ? Math.max(0, r.v / scale) : 0);
+    r.el.style.setProperty("--f", Math.max(0, r.f));
     const text = hoursText(r.v, 0);
     if (text !== r.text) r.val.textContent = r.text = text;
   }
@@ -404,6 +410,7 @@ function paintTime() {
 
 // The speed as days of the period a second, under its buttons
 export function paintRate() {
+  $("race-play").dataset.look = tune.playLook;
   $("race-density").dataset.look = tune.densityLook; // (the colors are a visual tweak, so they're set where the tweaks land)
   const rate = tune.raceRate * speed;
   $("race-rate").textContent = `${rate < 10 ? +rate.toFixed(1) : Math.round(rate)} days/s`;
@@ -494,10 +501,12 @@ function play() {
   setPlaying(true);
 }
 
-$("race-play").addEventListener("click", play);
-
-// Pause shows for a moment as the pointer moves over the video
+// A click anywhere on the video plays or pauses it (a row still pins its item); while it plays, the pause button
+// shows for a moment as the pointer moves over it
 let nudge = 0;
+$("race-stage").addEventListener("click", (e) => {
+  if (!e.target.closest("li")) play();
+});
 $("race-stage").addEventListener("pointermove", () => {
   $("race-card").classList.add("nudge");
   clearTimeout(nudge);
@@ -521,6 +530,28 @@ time.addEventListener("change", () => {
     resume = false;
     if (t < built.hi) setPlaying(true);
   }
+});
+
+// A press on the strip takes the playhead to that day, and a drag carries it along; playing resumes when it's let go
+const strip = $("race-density");
+const seek = (e) => {
+  if (!built) return;
+  const b = strip.getBoundingClientRect();
+  t = built.lo + Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)) * span();
+  kick();
+};
+strip.addEventListener("pointerdown", (e) => {
+  resume = playing;
+  setPlaying(false);
+  strip.setPointerCapture(e.pointerId);
+  seek(e);
+});
+strip.addEventListener("pointermove", (e) => {
+  if (strip.hasPointerCapture(e.pointerId)) seek(e);
+});
+strip.addEventListener("pointerup", () => {
+  if (resume && built && t < built.hi) setPlaying(true);
+  resume = false;
 });
 
 for (const [group, set] of [["race-measure", (b) => (measure = b.dataset.measure)], ["race-speed", (b) => (speed = Number(b.dataset.speed))]]) {

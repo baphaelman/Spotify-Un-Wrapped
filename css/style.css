@@ -1583,7 +1583,22 @@ button:not(:disabled):active { transform: scale(0.96); }
 .race-controls { display: flex; align-items: flex-start; gap: 14px; margin-top: 12px; }
 .race-controls { --race-density: 22px; }
 .race-play { position: absolute; left: 50%; top: 50%; z-index: 2; width: 84px; height: 84px; padding: 0; display: grid; place-items: center; border-radius: 50%; translate: -50% -50%; color: var(--text-primary); background: color-mix(in srgb, var(--page) 74%, transparent); border: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent); box-shadow: 0 6px 24px color-mix(in srgb, var(--text-primary) 18%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: opacity var(--motion-fade) var(--ease-out), scale var(--motion-fade) var(--ease-out); }
-.race-play:hover { scale: 1.06; }
+.race-stage { cursor: pointer; }
+.race-stage:hover .race-play, .race-play:focus-visible { scale: 1.08; background: color-mix(in srgb, var(--page) 88%, transparent); }
+/* While its button shows, the rest of the video dims */
+.race-rows, .race-scale { transition: filter var(--motion-fade) var(--ease-out); }
+#race-card:not(.playing) .race-rows, #race-card:not(.playing) .race-scale, #race-card.nudge .race-rows, #race-card.nudge .race-scale { filter: opacity(var(--dim-item)); }
+/* The button's looks (a visual tweak, "Play button"; 0 is the frosted disc above) */
+.race-play[data-look="1"] { background: transparent; backdrop-filter: none; box-shadow: none; border: 2px solid var(--text-primary); }
+.race-play[data-look="2"] { background: color-mix(in srgb, var(--page) 60%, transparent); box-shadow: none; border: 4px solid var(--accent); color: var(--accent); }
+.race-play[data-look="3"] { background: var(--accent); color: var(--page); border-color: transparent; }
+.race-play[data-look="4"] { background: transparent; backdrop-filter: none; border: 0; box-shadow: none; color: var(--text-primary); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 70%, transparent)); }
+.race-play[data-look="4"] svg { width: 64px; height: 64px; }
+.race-play[data-look="5"] { border-radius: 22px; }
+.race-play[data-look="6"] { border-radius: 22px; background: transparent; backdrop-filter: none; box-shadow: none; border: 2px solid var(--text-primary); }
+.race-play[data-look="7"] { border-radius: 22px; background: var(--accent); color: var(--page); border-color: transparent; }
+.race-stage:hover .race-play[data-look="1"], .race-stage:hover .race-play[data-look="6"], .race-stage:hover .race-play[data-look="2"], .race-stage:hover .race-play[data-look="4"] { background: transparent; }
+.race-stage:hover .race-play[data-look="3"], .race-stage:hover .race-play[data-look="7"] { background: var(--accent); }
 .race-play svg { width: 40px; height: 40px; fill: currentColor; }
 .race-play .i-pause, .playing .race-play .i-play { display: none; }
 .playing .race-play .i-pause { display: inline; }
