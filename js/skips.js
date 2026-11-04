@@ -10,7 +10,8 @@ import { tune } from "./tune.js";
 import { fmtHours } from "./format.js";
 
 const OTHER = "Everyone else";
-const ROOM = 11; // rows the horizontal list has room for at the set thickness: the most artists and Everyone else
+const ROOM = 11; // rows the horizontal list has room for: the most artists and Everyone else
+const ROOM_BAR = 14; // the bar thickness its height is measured at, whatever the set thickness
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,9 +76,9 @@ export function updateSkips(next) {
   if (ctx.reasons && ctx.other) totals.set(OTHER, othersOf(ctx.reasons, new Set(ctx.names)));
   const names = ctx.reasons ? [...ctx.names, ...(ctx.other ? [OTHER] : [])].filter((n) => !ctx.hidden.has(n) && totals.get(n)?.plays) : [];
   const horizontal = tune.skipsLook !== 1;
-  // Horizontal, the list keeps one height (room for 10 artists and Everyone else at the set thickness): rows share it,
+  // Horizontal, the list keeps one height (room for 10 artists and Everyone else at 14px bars): rows share it,
   // gliding to their new place and size, so the card never moves the page
-  const H = ctx.reasons ? ROOM * (tune.skipsBar + 6) : 0;
+  const H = ctx.reasons ? ROOM * (ROOM_BAR + 6) : 0;
   list.style.height = horizontal ? `${H}px` : "";
   const h = names.length ? H / names.length : 0;
   const oldNames = [...rows.keys()];
