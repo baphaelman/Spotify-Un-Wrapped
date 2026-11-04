@@ -30,7 +30,7 @@ let fittedSpan = null; // the period length the window was last fitted to
 const TAU = CHASE_MS / 3;
 const SETTLED = 1e-3;
 
-let measure = "recent";
+let measure = "total";
 const SPEED = 1; // the default; the buttons go from a quarter as fast to four times as fast (more under "Visual tweaks")
 let speed = SPEED;
 let built = null; // { key, lo, hi, frames: [{ map, list, floor }] }

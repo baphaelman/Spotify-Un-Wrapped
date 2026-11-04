@@ -365,8 +365,8 @@
             </div>
             <div class="race-pick">
               <div id="race-measure" class="segmented solid" role="group" aria-label="Rank by">
-                <button type="button" data-measure="recent" aria-pressed="true">Last 30 days</button>
-                <button type="button" data-measure="total" aria-pressed="false">So far</button>
+                <button type="button" data-measure="total" aria-pressed="true">So far</button>
+                <button type="button" data-measure="recent" aria-pressed="false">Last 30 days</button>
               </div>
               <!-- Off, only the rolling chart's artists race (race.js) -->
               <label class="other-toggle"><input id="race-other" type="checkbox"><span class="swatch"></span><span id="race-other-label">Everyone else</span></label>
@@ -377,7 +377,6 @@
           <!-- Scale lines at round hours behind the bars, sliding with the widest one (race.js) -->
           <div class="race-scale" aria-hidden="true"><div id="race-scale" class="race-scale-track"></div></div>
           <ol id="race-rows" class="race-rows"></ol>
-          <div id="race-date" class="race-date" aria-live="off"></div>
         </div>
         <div class="race-controls">
           <button id="race-play" type="button" class="race-play" aria-label="Play">
@@ -395,6 +394,7 @@
             <div id="race-ticks" class="race-ticks" aria-hidden="true"></div>
           </div>
           <div class="race-speed-box">
+            <div id="race-date" class="race-date" aria-live="off"></div>
             <div id="race-speed" class="segmented solid race-speed" role="group" aria-label="Speed">
               <button type="button" data-speed="0.25" aria-pressed="false">0.25×</button>
               <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
