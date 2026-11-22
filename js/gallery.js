@@ -249,7 +249,29 @@ const rise = (el, delay = 0) => el.animate(
   { duration: dur(ENTER_MS), delay: dur(delay), easing: EASE_OUT.css, fill: "backwards" }
 );
 // the open card starts just under the bar, its header above it
-const scrollToOpen = () => scrollTo({ top: gallery.getBoundingClientRect().top + scrollY - barBottom() - 8, behavior: "instant" });
+const openTop = () => Math.round(gallery.getBoundingClientRect().top + scrollY - barBottom() - 8);
+const scrollToOpen = (top = openTop()) => scrollTo({ top, behavior: "instant" });
+// The top of the page (its title line and the period bar) moving as it would with the page scrolled from `g` (the
+// grid's scroll) to `o` (the open card's), on the flight's clock, while the page stays where it is now (at one of the
+// two): the real scroll jumps once the flight lands (opening) or as it starts (closing), when nothing on screen moves
+// for it. The tile stays put meanwhile, so the flight's start holds. (the bar is stuck to the top past where it would
+// scroll by: its keyframes bend there, in eased time as the card's are)
+const topbar = document.querySelector(".topbar");
+function scrollAnims(g, o, opts) {
+  if (g === o) return [];
+  const at = scrollY, ty = (y) => ({ transform: `translateY(${y}px)` });
+  const stuck = parseFloat(getComputedStyle(bar).top), barH = bar.getBoundingClientRect().height;
+  // (where the bar's top would be in the page, not stuck: just above the gallery)
+  const N = gallery.getBoundingClientRect().top + at - parseFloat(getComputedStyle(bar).marginBottom) - barH;
+  const barAt = (x) => Math.max(stuck, N - x) - Math.max(stuck, N - at);
+  const out = [];
+  const u = (N - stuck - g) / (o - g);
+  const bend = u > 0 && u < 1 ? [{ ...ty(barAt(N - stuck)), offset: u }] : [];
+  if (barAt(g) || barAt(o)) out.push(bar.animate([ty(barAt(g)), ...bend, ty(barAt(o))], opts));
+  const hb = topbar.getBoundingClientRect().bottom + at; // (its bottom in the page)
+  if (hb > Math.min(g, o)) out.push(topbar.animate([ty(at - g), ty(at - o)], opts));
+  return out;
+}
 
 // ---------- The flight between a tile and its card ----------
 // The thumbnail is the shared element: it flies from its place in the tile to the card's plot, while the card, scaled
@@ -278,8 +300,9 @@ function plotBox(card, C) {
 // The keyframes of a flight open (played in reverse to close): T the tile's box, Th its thumbnail's, C the card's in
 // its place, P its plot's. solid: the card's plot is the thumbnail all the way (its arrival morphs it), so the card
 // draws over the tile and never fades as a whole: its frame and everything but the plot fade in around it, and the
-// thumbnail under it fades out early, over bars that match it.
-function flightAnims(entry, T, Th, C, P, direction, solid) {
+// thumbnail under it fades out early, over bars that match it. gTop, oTop: the page's scroll on the grid and with the
+// card open (scrollAnims).
+function flightAnims(entry, T, Th, C, P, direction, solid, gTop, oTop) {
   const { card, tile } = entry;
   const thumb = tile.querySelector(".gal-thumb");
   const s = Th.width / P.width;
@@ -324,6 +347,8 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
     head.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], o),
     // everything else in the gallery fades where it is
     ...others(tile).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], o)),
+    // the top of the page scrolls with the flight
+    ...scrollAnims(gTop, oTop, o),
   ];
 }
 // Where a thumbnail's shapes stand on screen: an ECharts one's grid bottom, else the element's bottom
@@ -437,28 +462,31 @@ const toGrid = (entry, anims, solid) => () => {
   settle(entry, anims);
   entry.tile.focus({ preventScroll: true });
 };
-const toCard = (entry, anims) => () => {
+// (top: where the page scrolls to, as the top of the page was flown to it: the card's place, or where it was left
+// when a close is turned back)
+const toCard = (entry, anims, top) => () => {
   gallery.classList.add("open");
   settle(entry, anims);
-  scrollToOpen();
+  scrollToOpen(top);
 };
 
 function flyOpen(entry) {
   const { card, tile } = entry;
   const T = tile.getBoundingClientRect(), Th = tile.querySelector(".gal-thumb").getBoundingClientRect();
   const left = gallery.getBoundingClientRect().left;
-  const top = barBottom() + 8;
+  const y = barBottom() + 8;
   head.style.display = "flex";
-  pin(head, { left, top }, galW());
+  pin(head, { left, top: y }, galW());
   // (pinned before it joins the slot, so the page never lays out with the card in the flow above the grid)
-  pin(card, { left, top: top + head.offsetHeight + 12 });
+  pin(card, { left, top: y + head.offsetHeight + 12 });
   slot.append(card);
   bringBack(card);
   const C = card.getBoundingClientRect();
   const solid = arrive(entry, "thumb", 0) && arrive(entry, "card", dur(MORPH_MS));
-  const anims = flightAnims(entry, T, Th, C, plotBox(card, C), "normal", solid);
+  const top = openTop();
+  const anims = flightAnims(entry, T, Th, C, plotBox(card, C), "normal", solid, scrollY, top);
   if (solid) fadeCanvas(card, true, dur(MORPH_MS));
-  launch(entry, true, anims, toCard(entry, anims), toGrid(entry, anims, solid), solid);
+  launch(entry, true, anims, toCard(entry, anims, top), toGrid(entry, anims, solid), solid);
 }
 
 function flyClose(entry) {
@@ -468,6 +496,7 @@ function flyClose(entry) {
   pin(head, H, galW());
   head.style.display = "flex";
   pin(card, C);
+  const was = scrollY;
   gallery.classList.remove("open");
   scrollTo({ top: gridScroll, behavior: "instant" });
   // the tile it closes into, on screen (it may not be where the grid was left, after ‹ ›)
@@ -480,9 +509,9 @@ function flyClose(entry) {
   paintThumb(card.id); // (now, so the arrival morphs to the thumbnail as it will show)
   paintThumbs();
   const solid = arrive(entry, "thumb", dur(MORPH_MS));
-  const anims = flightAnims(entry, T, tile.querySelector(".gal-thumb").getBoundingClientRect(), C, P, "reverse", solid);
+  const anims = flightAnims(entry, T, tile.querySelector(".gal-thumb").getBoundingClientRect(), C, P, "reverse", solid, scrollY, was);
   if (solid) fadeCanvas(card, false, dur(MORPH_MS));
-  launch(entry, false, anims, toGrid(entry, anims, solid), toCard(entry, anims), solid);
+  launch(entry, false, anims, toGrid(entry, anims, solid), toCard(entry, anims, was), solid);
 }
 
 function setCrumb(entry) {
