@@ -124,6 +124,11 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   `restack`, `pins.waits`). The Top … View and Hours per week thumbnails repaint only when the chart's data changes,
   not after its hover fades. A thumbnail whose last paint took longer than a frame (Top … View's draws the chart
   off screen first; Every play's) waits for the change's morph, so its long frame doesn't land in it.
+- **Nothing animates off screen.** A card drawn while it's away (an idle paint, a neighbour's) draws at once, as
+  under reduced motion (motion.js `drawStill`: `dur` is 0 meanwhile), and whatever it still set moving ends at its
+  end at once (state.js `settleNow`: its elements' animations finished, its charts' zrender clocks run past each
+  clip). So does a thumbnail that isn't on screen. Before, each graph you couldn't see ran its whole morph about a
+  second after every change (All your … slid 57 rows), several at once.
 - **Closing goes back to where you were** when you opened the graph, even with its tile partly off screen. After ‹ ›
   to a tile that isn't on screen there, the page scrolls only as far as brings it in.
 - **The card takes no pointer events while it flies**, or a cursor left on the tile hovers the card flying under it.

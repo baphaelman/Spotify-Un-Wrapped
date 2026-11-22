@@ -13,7 +13,7 @@ import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
-import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, litLook, setOptionFaded } from "./motion.js";
+import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, litLook, setOptionFaded, drawStill } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb } from "./every.js";
@@ -753,9 +753,9 @@ function paint() {
   if (!state.plays || !state.range || !state.mixArgs) return;
   for (const id of els.keys()) queue(id);
 }
-// (one that took longer than a frame to draw last time waits for the change's own morph, so it doesn't hold up one
-// of its frames: Top … View's, which draws the chart off screen first, Every play's)
-const cost = new Map(); // thumbnail -> ms its last paint took
+// (one that has taken longer than a frame to draw waits for the change's own morph, so it doesn't hold up one of its
+// frames: Top … View's, which draws the chart off screen first when it owes a paint, Every play's)
+const cost = new Map(); // thumbnail -> the most ms a paint of it has taken
 function queue(id) {
   const el = els.get(id);
   if (!el) return;
@@ -763,10 +763,14 @@ function queue(id) {
   if (near.has(el) && el.offsetParent) soon(el, () => paintThumb(id), 1, (cost.get(el) ?? 0) > 16 ? dur(MORPH_MS) : 0);
   else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
 }
-// One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js)
+// One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js); at once
+// when it isn't on screen (near it, or in the grid an open graph hides), where no one sees it move
 export function paintThumb(id) {
   const el = els.get(id);
-  if (el?.offsetParent && state.plays && state.range && state.mixArgs) paintOne(id, el, tokens());
+  if (!el?.offsetParent || !state.plays || !state.range || !state.mixArgs) return;
+  const r = el.getBoundingClientRect(), seen = r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+  if (seen) paintOne(id, el, tokens());
+  else drawStill(() => paintOne(id, el, tokens()));
 }
 // (fade: a change of look, a hover, faded over that many ms, shapes and words, rather than morphed on CHASE_MS)
 function paintOne(id, el, t, fade = 0) {
@@ -785,7 +789,7 @@ function paintOne(id, el, t, fade = 0) {
   if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
   else c.setOption(option, opts);
   OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
-  cost.set(el, performance.now() - start);
+  cost.set(el, Math.max(cost.get(el) ?? 0, performance.now() - start));
 }
 // setOptionFaded fades shapes, not the words on them: those fade from what they showed to their new opacity too
 function fadeWords(c, apply, ms) {

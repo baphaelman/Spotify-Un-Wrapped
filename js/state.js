@@ -2,7 +2,7 @@
 // presets, and the words for the current view (genres, artists, albums or tracks).
 // hooks: functions main.js registers at startup, so the modules under it can call back up without importing it.
 import * as agg from "./aggregate.js";
-import { easeInOut, travel, MORPH_MS, dur } from "./motion.js";
+import { easeInOut, travel, MORPH_MS, dur, drawStill } from "./motion.js";
 
 export const $ = (id) => document.getElementById(id);
 
@@ -292,13 +292,41 @@ function pay(card) {
   for (const c of paid) owed.delete(c);
   idling = true;
   try {
-    paint();
+    drawStill(paint); // (at once: no one sees it)
   } finally {
     idling = false;
   }
+  for (const c of paid) settleNow(c);
   for (const c of were) away.add(c);
   for (const c of paid) paidAt.set(c, changes);
   for (const c of paid) owedChanged(c);
+}
+// Whatever a card drawn off screen still set moving (an ECharts option's own duration, a CSS transition) ends now,
+// at its end: its elements' animations finish, and its charts' clocks run past each animation's end, so each ends
+// as it would, its last frame drawn and its done called (zrender's clips, private API, on the pinned 5.6.0)
+function settleNow(card) {
+  for (const a of card.getAnimations({ subtree: true })) {
+    try {
+      a.finish();
+    } catch {} // (an endless one can't)
+  }
+  for (const el of card.querySelectorAll("[_echarts_instance_]")) {
+    const zr = echarts.getInstanceByDom(el)?.getZr(), clock = zr?.animation;
+    if (!clock) continue;
+    const now = performance.now();
+    for (let clip = clock._head; clip; ) {
+      const next = clip.next;
+      if (!clip.loop && !clip._paused) {
+        if (!clip._inited) clip.step(now, 0);
+        if (clip.step(clip._startTime + clip._pausedTime + clip._life + 1, 0)) {
+          clip.ondestroy?.();
+          clock.removeClip(clip);
+        }
+      }
+      clip = next;
+    }
+    zr.refresh();
+  }
 }
 export function prefer(card) {
   if (!owed.has(card)) return;

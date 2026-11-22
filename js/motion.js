@@ -178,7 +178,18 @@ export function sweep(apply, ms = MORPH_MS, steps = 8, ease = EASE_GENTLE.js) {
 
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 // A duration, or 0 when the visitor asked for less motion
-export const dur = (ms) => (reduced.matches ? 0 : ms);
+export const dur = (ms) => (reduced.matches || still ? 0 : ms);
+// A card drawn off screen (state.js pay), which no one sees move: every duration is 0 while it draws, as under
+// reduced motion
+let still = 0;
+export function drawStill(fn) {
+  still++;
+  try {
+    return fn();
+  } finally {
+    still--;
+  }
+}
 
 // Counts a number up or down inside `el`. Remembers where it got to (el._num), so an interrupted count
 // carries on from what's showing; pass `from` for an element that was just rebuilt.
