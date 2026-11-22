@@ -516,11 +516,12 @@ function flyClose(entry) {
   const was = scrollY;
   gallery.classList.remove("open");
   scrollTo({ top: gridScroll, behavior: "instant" });
-  // the tile it closes into, on screen (it may not be where the grid was left, after ‹ ›)
+  // the grid as it was left, where you were when you opened a graph; the tile it closes into is there unless ‹ › went
+  // to one that isn't on screen: then only as far as brings it in
   let T = tile.getBoundingClientRect();
   const lo = barBottom() + 8;
-  if (T.top < lo || T.bottom > innerHeight) {
-    scrollBy({ top: T.top - lo - Math.max(0, (innerHeight - lo - T.height) / 2), behavior: "instant" });
+  if (T.bottom <= lo || T.top >= innerHeight) {
+    scrollBy({ top: T.top < lo ? T.top - lo : T.bottom - innerHeight, behavior: "instant" });
     T = tile.getBoundingClientRect();
   }
   paintThumb(card.id); // (now, so the arrival morphs to the thumbnail as it will show)
