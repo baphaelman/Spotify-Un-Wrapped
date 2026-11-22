@@ -4,7 +4,7 @@ import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, setOptionFaded, dur, litLook,
 import { tune } from "../tune.js";
 import { tokens, mix } from "../colors.js";
 import { fmtHoursRound } from "../format.js";
-import { baseAxis, chart, instances, row, tooltipBase } from "./core.js";
+import { baseAxis, chart, instances, row, tooltipBase, morphShapes, part } from "./core.js";
 
 // Total hours per month (or per `span` months), stacked: the month's top artist on top of each bar, filled in strongly and captioned
 // above it where there's room; below them the chart's other artists in a lighter tint; and at the base everyone
@@ -622,36 +622,49 @@ function restyleMonthly(el, st, c) {
 // scaled rather than the axis, so the axes, captions and lines are the same in both and only fade (gallery.js).
 // look: { max (the thumbnail's y-axis top), stretch (how much taller its bars stand, for its plot's shape), gap (its
 // barCategoryGap), rest (its gray), tops[i] (each bar's top color) }. Bars may stand above the plot meanwhile.
-// Morphs from what's on screen to the thumbnail's form (toThumb) or its own over ms, or draws it at once (ms 0).
-// Returns false when the thumbnail's bars aren't the chart's (another bar size), and the flight crossfades instead.
+// The drawn bars move themselves (morphShapes): each rect's place, size, corners, edge and fill, stacked as ECharts
+// stacks the series. Morphs from what's on screen to the thumbnail's form (toThumb) or its own over ms, or draws it
+// at once (ms 0). Returns false when the thumbnail's bars aren't the chart's (another bar size), and the flight
+// crossfades instead.
 export function morphMonthly(el, look, toThumb, ms) {
   const st = monthlyState.get(el);
   const c = instances.get(el);
   const y = c?.getModel()?.getComponent("yAxis")?.axis?.scale;
   if (!st || !y || !look || look.tops.length !== st.rows.length || !(look.max > 0)) return false;
   c.dispatchAction({ type: "hideTip" });
-  const [lo, max] = y.getExtent();
-  const k = (max / look.max) * (look.stretch || 1);
-  const flat = { borderWidth: 0, borderRadius: 0 };
-  const views = st.rows.map((r) => barView(st, r));
-  // Each series' share of the thumbnail's bars: the gray under the top item, the top item in its own series
-  const part = (id, i) => {
-    const { hours, top: [first] } = views[i];
-    if (id === "rest") return hours - (first?.hours ?? 0);
-    if (id === "top") return first && !st.names.includes(first.name) ? first.hours : 0;
-    return id[0] === "t" && first?.name === st.names[+id.slice(1)] ? first.hours : 0;
-  };
-  const series = toThumb
-    ? st.dress(monthlySeries(st)).map((s) => ({
-        ...s, clip: false, barCategoryGap: look.gap, itemStyle: { ...s.itemStyle, ...flat },
-        data: st.rows.map((_, i) => ({ value: part(s.id, i) * k, itemStyle: { ...flat, color: s.id === "rest" ? look.rest : look.tops[i] } })),
-      }))
-    : st.dress(monthlySeries(st)).map((s) => ({ ...s, clip: false }));
-  // (the thumbnail's form holds the axis where it is, so its scaled bars don't move it)
-  const yAxis = toThumb ? { min: lo, max, interval: y.getInterval() } : { min: null, max: null, interval: null };
   st.busyUntil = performance.now() + ms; // (a hover's restyle waits for the morph, see focusMonthly)
-  // (the colors on the bars' beat, so the crowns deepen as the bars turn into the card's)
-  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, yAxis, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  if (!ms) c.setOption({ animation: true });
-  return true;
+  return morphShapes(c, st, toThumb, ms, () => {
+    const [lo, max] = y.getExtent();
+    const k = (max / look.max) * (look.stretch || 1);
+    const r = c.getModel().getComponent("grid").coordinateSystem.getRect(), px = r.height / (max - lo);
+    const at = (v) => r.y + r.height - (v - lo) * px;
+    // (the thumbnail's bars, as wide as its gap leaves them in the card's columns)
+    const w = (r.width / st.rows.length) * (1 - parseFloat(look.gap) / 100);
+    const views = st.rows.map((row) => barView(st, row));
+    // Each series' share of the thumbnail's bars: the gray under the top item, the top item in its own series
+    const share = (id, i) => {
+      const { hours, top: [first] } = views[i];
+      if (id === "rest") return hours - (first?.hours ?? 0);
+      if (id === "top") return first && !st.names.includes(first.name) ? first.hours : 0;
+      return id[0] === "t" && first?.name === st.names[+id.slice(1)] ? first.hours : 0;
+    };
+    const below = st.rows.map(() => lo); // (each column's stack so far, bottom to top as ECharts stacks the series)
+    const parts = [];
+    for (const m of c.getModel().getSeries()) {
+      const data = m.getData();
+      for (let i = 0; i < data.count(); i++) {
+        const v = share(m.id, i) * k, bar = data.getItemGraphicEl(i), L = data.getItemLayout(i);
+        if (bar && L) {
+          const { shape, style } = bar, flat = Array.isArray(shape.r) ? shape.r.map(() => 0) : 0;
+          parts.push(
+            part(bar, shape, "x", L.x + L.width / 2 - w / 2), part(bar, shape, "width", w),
+            part(bar, shape, "y", at(below[i])), part(bar, shape, "height", at(below[i] + v) - at(below[i])), part(bar, shape, "r", flat),
+            part(bar, style, "lineWidth", 0), part(bar, style, "fill", m.id === "rest" ? look.rest : look.tops[i])
+          );
+        }
+        below[i] += v;
+      }
+    }
+    return parts;
+  });
 }
