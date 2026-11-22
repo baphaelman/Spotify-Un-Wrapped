@@ -9,6 +9,6 @@ export {
   hiddenIn, setHidden, toggleArtist, showArtists, focusArtist, holdFocus,
 } from "./charts/rolling.js";
 export { renderMonthly, focusMonthly, morphMonthly } from "./charts/monthly.js";
-export { renderClock, focusClock, clockShares, clockSmoothing, morphClock } from "./charts/clock.js";
+export { renderClock, focusClock, clockShares, clockSmoothing, morphClock, stopLines } from "./charts/clock.js";
 export { renderDiscovery, focusDiscovery, panDiscovery, morphDiscovery } from "./charts/discovery.js";
 export { renderHistogram, renderHourLines } from "./charts/community.js";

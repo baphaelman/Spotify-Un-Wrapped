@@ -404,13 +404,20 @@ export const THUMBS = {
   },
   // When you listened: the card's own bands (clockShares, its smoothing and its Everyone else), each artist's share
   // of the hour through the day under a line in its color, everyone else's gray on top, stacked by hand as the card
-  // stacks them, so its arrival only grows them to the card's height (morphClock)
-  "clock-card": (d, t) => {
+  // stacks them, so its arrival only grows them to the card's height (morphClock). They stand only as tall as the
+  // card's plot is for its width (the flight can't draw them taller than the card's canvas), the guides going on
+  // above. Visual tweaks' tune.clockThumb 1 fills the tile instead (that one crossfades).
+  "clock-card": (d, t, box) => {
     const { curve, all, data } = clockBands(d);
     const hidden = new Set(state.hidden);
+    const plot = document.getElementById("chart-clock");
+    const g = echarts.getInstanceByDom(plot)?.getModel()?.getComponent("grid")?.coordinateSystem?.getRect();
+    // (before the card has drawn, its grid from its element: renderClock's margins, 16 at the sides, 8 over, 28 under)
+    const aspect = g?.width > 0 ? g.height / g.width : plot?.clientWidth > 32 ? (plot.clientHeight - 36) / (plot.clientWidth - 32) : 0;
+    const top = 1, H = box.h - top, max = tune.clockThumb || !aspect ? 1 : Math.max(1, H / (box.w * aspect));
     return {
-      grid: { left: 0, right: 0, top: 1, bottom: 0 }, xAxis: axis("value", { min: 0, max: 24 }),
-      yAxis: guides(t, { min: 0, max: 1, interval: 0.25 }),
+      grid: { left: 0, right: 0, top, bottom: 0 }, xAxis: axis("value", { min: 0, max: 24 }),
+      yAxis: guides(t, { min: 0, max, interval: 0.25 }),
       series: all.map((n, k) => {
         const col = n === OTHER ? t.other : colorOf(t, n);
         return {

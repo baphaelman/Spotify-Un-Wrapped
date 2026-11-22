@@ -40,6 +40,7 @@ export const TUNES = [
   { key: "clockReach", card: "clock-card", label: "Blur reach", def: 4, min: 0, max: 12, step: 0.5, fmt: h },
   { key: "clockMinBlur", card: "clock-card", label: "Least blur", def: 0.5, min: 0, max: 4, step: 0.25, fmt: h },
   { key: "clockCurve", card: "clock-card", label: "Least curve rounding", def: 0.3, min: 0, max: 1, step: 0.05, fmt: (v) => `${v}` },
+  { key: "clockThumb", card: "clock-card", label: "Gallery thumbnail", def: 0, options: ["The card's shape", "The whole tile"], fmt: (v) => ["The card's shape", "The whole tile"][v] },
   { key: "rasterHeight", card: "raster-card", label: "Height", def: 400, min: 260, max: 1100, step: 10, fmt: px },
   // (Every day's too)
   { key: "waitFade", card: "raster-card", label: "Shown while the period moves", def: 0.6, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },

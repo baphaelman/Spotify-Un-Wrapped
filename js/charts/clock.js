@@ -219,6 +219,9 @@ export function morphClock(el, look, toThumb, ms) {
   const st = clockState.get(el), c = instances.get(el);
   if (!st?.data || !c || !look || look.n !== st.all.length) return false;
   c.dispatchAction({ type: "hideTip" });
+  // (drawn at once: a paint's morph still running, as the card's just before a flight, ends first, or ECharts, seeing
+  // the data it was already given, leaves its shapes partway)
+  if (!ms) stopLines(c);
   const series = st.all.map((n, k) => {
     const base = { id: `c${k}`, ...clockLook(st, k) };
     if (!toThumb) return { ...base, data: st.data[k] };
@@ -230,4 +233,13 @@ export function morphClock(el, look, toThumb, ms) {
   setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
   if (!ms) c.setOption({ animation: true });
   return true;
+}
+
+// Ends the line series' running morphs at once, each at its end
+export function stopLines(c) {
+  for (const m of c.getModel().getSeries()) {
+    const v = c.getViewOfSeriesModel(m);
+    v?._polyline?.stopAnimation(null, true);
+    v?._polygon?.stopAnimation(null, true);
+  }
 }

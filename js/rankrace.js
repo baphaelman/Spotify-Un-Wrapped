@@ -17,7 +17,7 @@ import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, isPinLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
 import { $, state, putOff, rangePlays, shownName, pan, onPan } from "./state.js";
 import { tune, setTune } from "./tune.js";
-import { focusArtist } from "./charts.js";
+import { focusArtist, stopLines } from "./charts.js";
 import { tokens, alpha } from "./colors.js";
 import { esc, fmtH, MON } from "./format.js";
 import { HOUR } from "./aggregate.js";
@@ -481,6 +481,7 @@ function option(ms = MORPH_MS, animate = true) {
 export function morphRankRace(look, toThumb, ms) {
   if (!st || !c || c.isDisposed() || st.slide || !look || look.n !== st.rows.length || look.MAX !== st.MAX) return false;
   if (look.lines.size !== st.names.length || st.names.some((a) => !look.lines.has(a))) return false;
+  if (!ms) stopLines(c); // (drawn at once: a paint's morph still running ends first, as in morphClock)
   const top = st.MAX + 0.4, h = top - 1, last = Math.max(1, st.rows.length - 1);
   const at = ([x, y]) => [last * (look.x[0] + look.x[1] * (x / last)), top - h * (look.y[0] + look.y[1] * ((top - y) / h))];
   // (clipped only under the floor and at the sides while it flies, as a slide is: the thumbnail's form can stand taller

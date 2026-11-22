@@ -99,13 +99,17 @@ export const ARRIVALS = {
     return morphDiscovery($("chart-discovery"), { ...landing(el, thumb, plot), dots, span: [x.min, x.max], floor: y.min, top: y.max }, to === "thumb", ms);
   },
 
-  // … When you listened: the thumbnail draws the card's own bands, so the card's start as them, squashed to its height
-  // with its thin outlines, and grow to the card's
+  // … When you listened: the thumbnail draws the card's own bands at its plot's shape, so the card's start as them,
+  // with its thin outlines, and grow to the card's (its full-tile design, a Visual tweak, crossfades)
   "clock-card": (card, el, to, ms) => {
     const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($("chart-clock"));
-    const series = thumb?.getOption()?.series?.filter(Boolean); // (a series replaced away leaves a hole)
-    if (!series?.length || !plot) return false;
-    return morphClock($("chart-clock"), { ...landing(el, thumb, plot), n: series.length, edges: series.map((s) => s.data) }, to === "thumb", ms);
+    const opt = thumb?.getOption(), series = opt?.series?.filter(Boolean); // (a series replaced away leaves a hole)
+    if (tune.clockThumb || !series?.length || !plot) return false;
+    const max = opt.yAxis[0].max; // (the bands' tops in the thumbnail's grid, as a share of it)
+    const look = landing(el, thumb, plot), b = gridOf(plot);
+    // (bands that would stand taller than the card's canvas reaches would be cut: then it crossfades)
+    if ((look.y[0] + look.y[1] / max) * b.height > b.y + b.height + 0.5) return false;
+    return morphClock($("chart-clock"), { ...look, n: series.length, edges: series.map((s) => s.data.map(([h, y]) => [h, y / max])) }, to === "thumb", ms);
   },
 
   // Top … over time, All your …, Skips and picks: the card's rows, each bar, name and number from where the thumbnail
