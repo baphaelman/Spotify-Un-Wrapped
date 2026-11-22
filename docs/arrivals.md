@@ -53,6 +53,21 @@ What the solid flight does for you (gallery.js):
   and a toggle's change redraws the thumbnails. Without that, Every Month with Everyone else off flew from
   everyone's months to only the chart's artists. Apply the same to any setting that changes what the card shows.
 
+## Lists of rows: Top … over time, All your …, Skips and picks
+
+- **Placement.** A list hangs from its top, so the flight sets these plots' top on the thumbnail's (gallery.js `HANG`),
+  not their baseline.
+- **Thumbnails are the card's rows** in its columns at 96px: Top … over time at its playhead (the card waits halfway
+  through the period, `raceNow`), All your … from the card's own totals, Skips and picks from its last data
+  (`skipsNow`), each following its Everyone else.
+- **`flyRows`** (`js/rowfly.js`, imports only motion.js): each bar, name and number the thumbnail also draws starts on
+  the thumbnail's shape (read by `thumbShapes` from its ECharts bars and labels) and glides to its own place, through
+  the CSS `translate` and `scale` properties, so a card's own `transform` keeps working. Bars stretch; text scales
+  evenly, anchored at its edge, clipped to the thumbnail's room. Ranks and rows the thumbnail lacks fade with the
+  chrome, moving with their row (`row`). The card's own entrance animations are finished first, and clipping boxes
+  between the parts and the card open for the flight.
+- **An overlaid ECharts bar lines up by its top edge**, so a clear bar carrying a label is as thick as the bar it rides on.
+
 ## Measuring
 
 **`dev/flight_check.js`** prints a flight in numbers:
@@ -77,6 +92,18 @@ Under zsh, pass the card and selector as literal words, not through an unquoted 
   3px. The close lands within 1px.
 - **Per column:** a finer check of each column's top and top color found all 10 columns within 1px and one RGB
   unit, with Everyone else on and off. Write the equivalent for your graph (bars, rows, lines, cells).
+
+**Per row** (`dev/rows_check.js`, for a list): every animation paused and sought to 20 and 120 ms of an open and 650
+and 745 ms of a close, each card bar's left, width and top against the thumbnail's (in order, top to bottom):
+
+```sh
+EVAL="$(sed -e s/__CARD__/skips-card/ -e 's/__BAR__/#skips-list .skips-bar/' dev/rows_check.js)" OFFLINE=1 \
+  python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM" /tmp/x.png 1280 1000
+```
+
+The three lists: within 0.4px at 20 ms and exact at 745 ms, with Everyone else on and off. In between they travel by
+design. Their frames: median 16.7 ms, at most one slow frame on a close (as Every Month). motion_check samples
+canvases, so pass the thumbnail's (`--charts thumb-race-card`).
 
 **`motion_check custom`** gives frame times and cuts, for open and close:
 

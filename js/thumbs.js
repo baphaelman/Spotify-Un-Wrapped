@@ -174,7 +174,8 @@ export const STRETCH = {
   // over time, ECharts
   "rank-card": 0.6, "discovery-card": 0.5, "clock-card": 0.7,
   // rows
-  "race-card": 0.55, "ranking-card": 0.2, "skips-card": 0.3,
+  // (rows across: wider only lengthens the bars and the name column; the text keeps its size)
+  "race-card": 0.75, "ranking-card": 0.6, "skips-card": 0.65,
   // your top
   "mix-card": 0.7, "sunburst-card": 0.1,
   // every.js
@@ -265,7 +266,8 @@ export const THUMBS = {
         },
       }, {
         // the hours, just past the bar's end
-        type: "bar", id: "val", barWidth: 1, barGap: "-100%", z: 0, itemStyle: { color: "transparent" },
+        // (as wide as the bar it rides on: overlaid bars line up by their top edge)
+        type: "bar", id: "val", barWidth: Math.round(pitch * 0.53), barGap: "-100%", z: 0, itemStyle: { color: "transparent" },
         data: rows.map(([k, v]) => ({ name: k, value: v })),
         label: { show: true, position: "right", distance: 4, color: t.secondary, fontSize: font - 1, fontFamily: mono(), formatter: (p) => hoursText(rows[p.dataIndex][1], 0) },
       }],
@@ -354,8 +356,10 @@ export const THUMBS = {
     const shade = tune.skipsShades === 1 ? 0.18 : 1;
     const col = (r) => (r.slot == null ? t.other : t.series[r.slot]);
     const label = (x, o) => ({ show: true, position: [x - left, "50%"], align: "left", verticalAlign: "middle", fontSize: pitch < 11 ? 8 : 9, ...o });
+    const thick = Math.max(2, Math.round(Math.min(pitch - 3, pitch * 0.7)));
+    // (each label rides a clear bar as thick as the row's: overlaid bars line up by their top edge)
     const words = (id, x, o) => ({
-      type: "bar", id, barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
+      type: "bar", id, barWidth: thick, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
       data: rows.map((r) => ({ name: r.name, value: 1 })), label: label(x, o),
     });
     return {
@@ -363,7 +367,7 @@ export const THUMBS = {
       yAxis: axis("category", { data: rows.map((r) => r.name), inverse: true }),
       series: [
         ...[["bar", 1], ["bar-on", 0.5], ["bar-skip", shade]].map(([id, k], s) => ({
-          type: "bar", id, stack: "a", barWidth: Math.max(2, Math.round(Math.min(pitch - 3, pitch * 0.7))),
+          type: "bar", id, stack: "a", barWidth: thick,
           data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k) } })),
         })),
         words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * 0.155), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
