@@ -29,6 +29,7 @@ import { morphMonthly } from "./charts.js";
 
 // Listening mix, Inside your top …
 import { morphMix } from "./mix.js";
+import { arriveSunburst } from "./sunburst.js";
 
 // Every play, Every day
 
@@ -91,6 +92,20 @@ export const ARRIVALS = {
       });
     }
     return morphMix({ blocks, faces }, to === "thumb", ms);
+  },
+  // … Inside your top: the thumbnail is the card's own rings (sunLayout), round; the circle grows from the
+  // thumbnail's radius and place to the card's, reaching out to the card's edges as its labels fade in
+  "sunburst-card": (card, el, to, ms) => {
+    const svg = el.querySelector(".thumb-sun"), plot = $("sunburst");
+    if (!svg?.ids?.length || !plot.offsetWidth || !el.clientWidth) return false;
+    // the thumbnail's px in the card's: as wide, on the plot's baseline (gallery.js plotBox: at most 16px above the
+    // card's bottom), and the circle in the middle of the plot's svg
+    const s = el.clientWidth / plot.offsetWidth;
+    const r = plot.getBoundingClientRect(), k = r.width / plot.offsetWidth || 1;
+    const bottom = (Math.min(r.bottom, card.getBoundingClientRect().bottom - 16) - r.top) / k;
+    const H = plot.querySelector(".sun-svg")?.getAttribute("height") ?? plot.offsetHeight;
+    const dy = bottom - el.clientHeight / 2 / s - H / 2;
+    return arriveSunburst({ R: svg.R / s, dy, gap: 1 / s }, svg.ids, to === "thumb", ms);
   },
 
   // Every play, Every day

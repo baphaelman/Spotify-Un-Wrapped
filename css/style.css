@@ -1404,13 +1404,13 @@ dialog pre {
 .sun-slice.go { cursor: pointer; }
 /* Past its own ring, a slice reaching out to the edge (sunburst.js, tune.sunTeeth): lighter, or a light line */
 .sun-slice.sun-ext { fill: color-mix(in srgb, var(--c) calc(var(--t) * 0.65), var(--surface)); }
-.sun-slice.sun-ext.seam { fill: none; stroke: color-mix(in srgb, var(--surface) 70%, transparent); stroke-width: 1; pointer-events: none; }
+.sun-slice.sun-ext.seam { fill: none; stroke: color-mix(in srgb, var(--surface) 70%, transparent); stroke-width: calc(1px * var(--sun-px, 1)); pointer-events: none; }
 .sun-slice[data-look="hover"] { --t: var(--tint); }
 .sun-slice[data-look="pin"] { --t: calc(var(--tint) * var(--lit-pin)); }
 .sun-slice[data-look="pinHover"] { --t: calc(var(--tint) * var(--lit-pin-hover)); }
 :is(.sun-slice, .sun-label)[data-look="dim"] { opacity: var(--dim-item); }
 :is(.sun-slice, .sun-label)[data-look="dimHover"] { opacity: var(--dim-item-hover); }
-.sun-outline { fill: none; stroke: var(--c); stroke-width: 1.5; opacity: 0; pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
+.sun-outline { fill: none; stroke: var(--c); stroke-width: calc(1.5px * var(--sun-px, 1)); opacity: 0; pointer-events: none; transition: opacity var(--motion-fade) var(--ease-out); }
 .sun-outline.on { opacity: 1; }
 /* A tab change carries slices into the new view: their colors and shades change on the morph's time and curve */
 .sun-svg.swapping :is(.sun-slice, .sun-outline, .sun-label, .sun-label text) { transition-duration: var(--motion-morph); transition-timing-function: var(--ease-in-out); }
@@ -1692,6 +1692,7 @@ button:not(:disabled):active { transform: scale(0.96); }
 .thumb-faces.square .thumb-face { border-radius: 3px; }
 .thumb-face img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
 .thumb-face img.shown { opacity: 1; }
+.thumb-sun { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .thumb-face, .thumb-face img { transition: none; } }
 
 /* "Missing something?", once above the sections (not while a card is open) */

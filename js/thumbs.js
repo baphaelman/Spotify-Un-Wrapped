@@ -12,8 +12,9 @@ import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan } from "./aggregate.js";
 import { tune } from "./tune.js";
-import { CHASE_MS, ENTER_MS, EASE_OUT, dur } from "./motion.js";
+import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
 import { fmtH } from "./format.js";
+import { sunLayout, sunShape } from "./sunburst.js";
 
 const BUCKETS = 40; // time slices across the period
 const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
@@ -163,7 +164,7 @@ export const STRETCH = {
   // rows
   "race-card": 0.55, "ranking-card": 0.2, "skips-card": 0.3,
   // your top
-  "mix-card": 0.4, "sunburst-card": 0.1,
+  "mix-card": 0.7, "sunburst-card": 0.1,
   // every.js
   "raster-card": 0.8, "calendar-card": 0.85,
   // done
@@ -191,21 +192,8 @@ export const THUMBS = {
       }),
     };
   },
-  // Inside your top: the chart's artists, their albums (or songs) around them
-  "sunburst-card": (d, t) => ({
-    series: [{
-      type: "sunburst", radius: ["18%", "98%"], center: ["50%", "50%"], sort: null, label: hide, nodeClick: false,
-      itemStyle: { borderColor: t.surface, borderWidth: 1 },
-      data: d.artists.map((n, i) => {
-        const col = colorOf(t, n);
-        const kids = [...d.parts[i]].sort((a, b) => b[1] - a[1]).slice(0, 6);
-        return {
-          name: n, value: r1(d.total.get(n) ?? 0), itemStyle: { color: mix(t.surface, col, 0.7) },
-          children: kids.map(([p, h]) => ({ name: p, value: r1(h), itemStyle: { color: mix(t.surface, col, 0.4) } })),
-        };
-      }),
-    }],
-  }),
+  // Inside your top: the card's own rings, round, drawn over this empty chart (OVERLAYS: rings)
+  "sunburst-card": () => ({ series: [] }),
   // All your …: the list, a name over a thin line as long as its hours
   // (rows keep their height and run on past the bottom, faded out there, as the card's list goes on)
   "ranking-card": (d, t, box) => {
@@ -422,7 +410,90 @@ function faces(el, d, t, box) {
     f.gone = setTimeout(() => f.remove(), dur(CHASE_MS));
   }
 }
-const OVERLAYS = { "mix-card": faces };
+// Inside your top's thumbnail: the card's slices as it draws them (sunLayout), round at the tile's height, in the
+// card's own classes (so its colors and looks), without labels; a change glides each slice from where it is
+const SVGNS = "http://www.w3.org/2000/svg";
+function rings(el, d, t, box) {
+  let svg = el.querySelector(".thumb-sun");
+  if (!svg) {
+    svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("class", "thumb-sun");
+    svg.shapes = new Map(); // id -> { path, ext, outline, g (on screen) }
+    el.append(svg);
+  }
+  const lay = sunLayout();
+  const R = box.h / 2 - 1;
+  svg.setAttribute("viewBox", `${-box.w / 2} ${-box.h / 2} ${box.w} ${box.h}`);
+  svg.R = R;
+  svg.ids = lay ? lay.slices.map((x) => x.id) : [];
+  if (!lay) return;
+  const pins = state.mixArgs?.[3];
+  const pinned = new Set(lay.slices.filter((x) => x.depth === 1 && pins?.has(x.item)).map((x) => x.item));
+  const first = !svg.shapes.size;
+  const want = new Map(lay.slices.map((x) => [x.id, x]));
+  const moves = [];
+  for (const x of lay.slices) {
+    let sh = svg.shapes.get(x.id);
+    if (!sh) {
+      const make = (cls) => {
+        const p = document.createElementNS(SVGNS, "path");
+        p.setAttribute("class", cls);
+        return p;
+      };
+      sh = { path: make("sun-slice"), ext: make("sun-slice sun-ext"), outline: make("sun-outline") };
+      svg.append(sh.path, sh.ext);
+      svg.shapes.set(x.id, sh);
+      // (comes in from nothing: growing out of its ring on the first paint, opening from its start after)
+      sh.g = first ? { ...x.g, r1: x.g.r0, rn: x.g.r0 } : { ...x.g, a1: x.g.a0 };
+    }
+    sh.leaving = false;
+    const dd = Math.min(x.depth, 3);
+    for (const e of [sh.path, sh.ext]) for (let k = 0; k <= 3; k++) e.classList.toggle("d" + k, k === dd);
+    sh.ext.classList.toggle("seam", tune.sunTeeth === 2);
+    const slot = x.item != null && x.item !== OTHER ? state.colorSlots?.get(x.item) : undefined;
+    const c = slot === undefined ? "var(--other)" : `var(--series-${slot + 1})`;
+    for (const e of [sh.path, sh.ext, sh.outline]) e.style.setProperty("--c", c);
+    const look = x.depth === 0 ? "rest" : litLook(pinned, null, x.item);
+    sh.path.dataset.look = sh.ext.dataset.look = look;
+    const on = x.depth === 1 && pinned.has(x.item);
+    if (on && !sh.outline.isConnected) svg.append(sh.outline);
+    sh.outline.classList.toggle("on", on);
+    moves.push([sh, sh.g, x.g]);
+  }
+  // Whoever left closes up where they were
+  for (const [id, sh] of svg.shapes) {
+    if (want.has(id)) continue;
+    if (!sh.leaving) moves.push([sh, sh.g, { ...sh.g, a0: sh.g.a0, a1: sh.g.a0 }]);
+    sh.leaving = true;
+  }
+  const put = (sh) => {
+    const [dd, ext, outline] = sunShape(sh.g, R);
+    sh.path.setAttribute("d", dd);
+    sh.ext.setAttribute("d", ext);
+    sh.outline.setAttribute("d", sh.outline.classList.contains("on") ? outline : "");
+  };
+  const lerp = (a, b, p) => Object.fromEntries(Object.keys(b).map((k) => [k, (a[k] ?? b[k]) + (b[k] - (a[k] ?? b[k])) * p]));
+  cancelAnimationFrame(svg.raf);
+  const ms = dur(first ? ENTER_MS : CHASE_MS);
+  const t0 = performance.now();
+  const tick = (now) => {
+    const p = ms ? Math.min(1, (now - t0) / ms) : 1;
+    for (const [sh, a, b] of moves) {
+      sh.g = lerp(a, b, easeOut(p));
+      put(sh);
+    }
+    if (p < 1) return void (svg.raf = requestAnimationFrame(tick));
+    for (const [id, sh] of svg.shapes) {
+      if (!sh.leaving) continue;
+      sh.path.remove();
+      sh.ext.remove();
+      sh.outline.remove();
+      svg.shapes.delete(id);
+    }
+  };
+  tick(ms ? t0 : t0 + 1);
+}
+const OVERLAYS = { "mix-card": faces, "sunburst-card": rings };
 
 // ---------- Painting ----------
 // els: card id -> thumbnail element. Thumbnails off screen (or out of the open view) wait, and paint as they return.

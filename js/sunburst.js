@@ -29,6 +29,7 @@ const REST = SEP + "\u0001"; // after a parent's id, its "Other …"
 const MAX_SIZE = 560; // px, the circle's widest
 const HOLE = 0.22; // the middle circle's radius, as a share of the whole
 const GAP = 1; // px of surface on each side of a slice
+let gap = GAP; // (its thumbnail's, in the gallery's flight: a pixel there, wider here)
 const PAD = 4; // px a label keeps from its slice's edges
 const TIERS = 3; // the most rings shown at once
 
@@ -190,7 +191,7 @@ function build(plays, items, withOther) {
 // that was in the middle (and f's way down); elsewhere (closed up at the top, but on their way there or back), that
 // share of everything. The rest of a parent's (its smallest, so the end of its span) fold into one "Other …"; the
 // items themselves never do.
-function fold(f) {
+function fold(f, top = root) {
   const min = tune.sunMinShare / 100;
   const path = new Map(); // what f lies in -> the one of its kids on the way to f
   for (let p = f; p.parent; p = p.parent) path.set(p.parent, p);
@@ -200,7 +201,7 @@ function fold(f) {
   };
   const copy = (n, parent) => {
     const c = { ...n, parent, kids: [] };
-    const floor = (path.has(n) ? n.value : inside(n) ? f.value : root.value) * min;
+    const floor = (path.has(n) ? n.value : inside(n) ? f.value : top.value) * min;
     let i = n.depth ? n.kids.findIndex((k) => k.value < floor) : -1;
     if (i >= 0 && path.has(n)) i = Math.max(i, n.kids.indexOf(path.get(n)) + 1);
     if (i < 0 || i >= n.kids.length - 1) i = n.kids.length; // (one alone is shown as itself)
@@ -216,7 +217,7 @@ function fold(f) {
     }
     return c;
   };
-  return copy(root, null);
+  return copy(top, null);
 }
 
 // What a node's level is ("album", "track"…), the view's item it lies in, and whether clicking it opens it elsewhere
@@ -283,19 +284,24 @@ const meaningOf = (n) => {
 // swap: the view changed, so the slices of the old view's tree that stand for the same thing as one of the new
 // view's (an artist's album and that album in Albums, the same song in both) become that slice: it moves to its new
 // place and takes its new color on the same morph, rather than one shrinking away while the other grows
+const ringsFor = (f) => Math.min(TIERS, LEVELS[state.dim].length + 1 - f.depth + (f.inOther ? 1 : 0));
+// The node in the middle, or the nearest of its parents still in the tree
+function middleOf(top) {
+  let f = null;
+  for (let id = focusId; !f; id = id.includes(SEP) ? id.slice(0, id.lastIndexOf(SEP)) : "") f = id ? find(id, top) : top;
+  return f;
+}
 function retarget(first, swap = false) {
   const was = new Map();
   if (swap) for (const n of nodes.values()) {
     const k = !n.leaving && meaningOf(n);
     if (k && !was.has(k)) was.set(k, n);
   }
-  // The node in the middle, or the nearest of its parents still in the tree
-  let f = null;
-  for (let id = focusId; !f; id = id.includes(SEP) ? id.slice(0, id.lastIndexOf(SEP)) : "") f = id ? find(id) : root;
+  const f = middleOf(root);
   focusId = f.id;
   // (the rings are shared out over the levels below the middle, up to TIERS, the same number whatever the item: one
   // with no albums still leaves room for them; Everyone else has one more level)
-  const rings = Math.min(TIERS, LEVELS[state.dim].length + 1 - f.depth + (f.inOther ? 1 : 0));
+  const rings = ringsFor(f);
   ring.to = 1 - (1 - HOLE) / rings;
   ring.from = first || ring.now == null ? ring.to : ring.now;
   const seen = new Set(), born = new Set();
@@ -361,8 +367,8 @@ function carried(tree) {
 }
 
 // A node of the whole tree by its id, down its path
-const find = (id) => {
-  let n = root;
+const find = (id, top = root) => {
+  let n = top;
   for (const name of id.split(SEP)) if (!(n = n?.kids.find((k) => k.name === name))) return null;
   return n;
 };
@@ -400,7 +406,9 @@ function boxDist(a) {
 const inner = () => ring.now ?? 1;
 const rad = (r, a) => {
   const k = inner();
-  return !edge || r <= k ? r * R : k * R + ((r - k) / (1 - k)) * (boxDist(a) - k * R);
+  if (!edge || r <= k) return r * R;
+  const out = k * R + ((r - k) / (1 - k)) * (boxDist(a) - k * R);
+  return fly ? r * R + (out - r * R) * fly.c : out; // (the gallery's flight reaches out to the card as it grows)
 };
 // Angles from b0 to b1, close enough for a curve, with the box's corners on the way
 function samples(b0, b1) {
@@ -463,17 +471,17 @@ function shapes(g) {
   const step = g.step > 1e-4 ? g.step : Infinity;
   if (mode === 3) {
     let d = "";
-    for (let r = g.r0, to = rn; r < g.r1 - 1e-4; r = to, to = Math.min(g.r1, to + step)) d += slice(g.a0, g.a1, r, to, GAP);
+    for (let r = g.r0, to = rn; r < g.r1 - 1e-4; r = to, to = Math.min(g.r1, to + step)) d += slice(g.a0, g.a1, r, to, gap);
     return [d, "", { ...g, r1: rn }];
   }
-  if (mode === 4) return [slice(g.a0, g.a1, g.r0, rn, GAP), slice(g.a0, g.a1, rn, g.r1, GAP), { ...g, r1: rn }];
-  const d = slice(g.a0, g.a1, g.r0, g.r1, GAP);
+  if (mode === 4) return [slice(g.a0, g.a1, g.r0, rn, gap), slice(g.a0, g.a1, rn, g.r1, gap), { ...g, r1: rn }];
+  const d = slice(g.a0, g.a1, g.r0, g.r1, gap);
   let seams = "";
   if (mode === 2 && d) {
     const whole = g.a1 - g.a0 >= TAU - 1e-6;
     for (let r = rn; r < g.r1 - 1e-4; r += step) {
       const px = rad(r, g.a0);
-      const b0 = whole ? 0 : g.a0 + GAP / px, b1 = whole ? TAU : g.a1 - GAP / rad(r, g.a1);
+      const b0 = whole ? 0 : g.a0 + gap / px, b1 = whole ? TAU : g.a1 - gap / rad(r, g.a1);
       if (b1 > b0) seams += "M" + samples(b0, b1).map((a) => pt(a, rad(r, a))).join("L") + (whole ? "Z" : "");
     }
   }
@@ -572,12 +580,20 @@ function draw() {
   const W = el.clientWidth;
   if (!W || !svg) return;
   const H = Math.min(W, MAX_SIZE);
-  svg.setAttribute("viewBox", `${-W / 2} ${-H / 2} ${W} ${H}`);
+  // (in the gallery's flight, the circle is the thumbnail's, lower down: fly, from arriveSunburst)
+  const c = fly?.c ?? 1;
+  svg.setAttribute("viewBox", `${-W / 2} ${(-H / 2 - (fly ? fly.dy * (1 - c) : 0)).toFixed(2)} ${W} ${H}`);
   svg.setAttribute("width", W);
   svg.setAttribute("height", H);
   R = H / 2 - 1;
   if (!tune.sunReach) edge = null;
   else if (edge?.W !== W) edge = measure(W);
+  gap = fly ? fly.gap + (GAP - fly.gap) * c : GAP;
+  svg.style.setProperty("--sun-px", gap / GAP);
+  if (fly) {
+    R = fly.R + (R - fly.R) * c;
+    layers.labels.style.opacity = Math.min(1, c / 0.4).toFixed(3);
+  }
   const zoomed = focusId !== "";
   for (const n of nodes.values()) {
     const g = n.cur;
@@ -598,7 +614,7 @@ function draw() {
     n.ext.setAttribute("d", ext);
     n.ext.classList.toggle("seam", tune.sunTeeth === 2);
     // A pinned item's outline runs round all of it, out to the edge
-    if (n.outline) n.outline.setAttribute("d", d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75));
+    if (n.outline) n.outline.setAttribute("d", d && slice(g.a0, g.a1, g.r0, 1, gap + 0.75 * gap / GAP));
     label(n, at, d, pct, sub, middle, backTo);
   }
 }
@@ -677,6 +693,85 @@ function glide(ms, ease = easeInOut) {
     raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
+}
+
+// ---------- The gallery (thumbs.js, arrivals.js) ----------
+
+// The card's slices as it draws them at rest, round and without labels, from the period's plays rather than what's
+// on screen (the card's paint waits while it's away): its thumbnail draws these, so the two always match. Null when
+// the card isn't shown. { key, slices: [{ id, depth, item, g }] } (g: layout's)
+let thumbMemo = null;
+export function sunLayout() {
+  if (!LEVELS[state.dim] || !state.mixArgs || !state.range) return null;
+  const off = new Set(state.hidden);
+  const items = state.mixArgs[0].filter((a) => !off.has(a));
+  const other = $("sunburst-other").checked;
+  const key = [state.plays?.length, state.range.lo, state.range.hi, state.dim, items.join(SEP), other, tune.sunMinShare, tune.sunTeeth, focusId, state.titles?.size].join("|");
+  if (thumbMemo?.key === key) return thumbMemo;
+  const top = build(shownPlays(), items, other);
+  const f = middleOf(top), rings = ringsFor(f);
+  const slices = [];
+  eachNode(fold(f, top), (n) => {
+    if (n.depth === 0 && n.id !== f.id) return; // (the whole is drawn only as the middle)
+    slices.push({ id: n.id, depth: n.depth, item: n.item, g: layout(n, f, rings) });
+  });
+  return (thumbMemo = { key, slices });
+}
+// A slice's shapes, round, at radius r px: [slice, its seams or what's past its ring (shapes), a pin's outline]
+export function sunShape(g, r) {
+  const keep = [R, edge, gap];
+  [R, edge, gap] = [r, null, GAP];
+  try {
+    const [d, ext] = shapes(g);
+    return [d, ext, d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75)];
+  } finally {
+    [R, edge, gap] = keep;
+  }
+}
+
+// The flight: the card's plot as the thumbnail (to "thumb": the circle at the thumbnail's radius and place, round,
+// no labels) or as itself, morphed from what's on screen over ms. look: { R, dy } the thumbnail's radius and how far
+// below the card's middle its middle is, in the card's px; ids: the thumbnail's slices. False when they aren't the
+// card's (it then crossfades).
+let fly = null; // { c (0: the thumbnail, 1: the card), R, dy, raf }
+export function arriveSunburst(look, ids, toThumb, ms) {
+  if (!svg || !$("sunburst").clientWidth) return false;
+  // (the card's own paint, if it's still moving, lands first: the flight starts from its shapes at rest)
+  if (raf) {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    frame(1);
+    svg.classList.remove("swapping");
+    for (const [id, n] of nodes) if (n.leaving) { drop(n); nodes.delete(id); }
+  }
+  const mine = [...nodes.values()].filter((n) => n.depth > 0 || n.id === focusId).map((n) => n.id);
+  if (mine.length !== ids.length || mine.some((id) => !ids.includes(id))) return false;
+  if (!toThumb && !fly) return true; // (already itself)
+  fly ??= { c: 1, raf: 0 };
+  Object.assign(fly, look);
+  cancelAnimationFrame(fly.raf);
+  const from = fly.c, to = toThumb ? 0 : 1;
+  const end = () => {
+    fly.c = to;
+    if (!toThumb) {
+      fly = null;
+      layers.labels.style.opacity = "";
+      for (const n of nodes.values()) n.key = null; // (redrawn as itself)
+    } else for (const n of nodes.values()) n.key = null;
+    draw();
+  };
+  if (!ms) return end(), true;
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    if (t === 1) return end();
+    fly.c = from + (to - from) * easeInOut(t);
+    for (const n of nodes.values()) n.key = null;
+    draw();
+    fly.raf = requestAnimationFrame(tick);
+  };
+  fly.raf = requestAnimationFrame(tick);
+  return true;
 }
 
 // ---------- looks ----------
