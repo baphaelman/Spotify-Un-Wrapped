@@ -64,6 +64,9 @@ export const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t +
 export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 export const EASE_IN_OUT = { js: easeInOut, echarts: "cubicInOut", css: "cubic-bezier(.65,0,.35,1)" };
 export const EASE_OUT = { js: easeOut, echarts: "cubicOut", css: "cubic-bezier(.2,.7,.2,1)" };
+// A gentler in-out, smoothstep (its CSS curve is exactly it), at most 1.5× its average speed where the cubic reaches 3×:
+// sweep's keyframes, and the top of the page travelling with a gallery flight, a short move the cubic makes abrupt
+export const EASE_GENTLE = { js: (t) => t * t * (3 - 2 * t), css: "cubic-bezier(.3333,0,.6667,1)" };
 
 // ECharts applies style changes instantly, and re-rendering every frame is too slow (~20ms) to tween
 // them, so fades animate the drawn shapes directly: note each series' fill and line as drawn, apply the
@@ -150,7 +153,7 @@ export const cancelSweep = () => void sweepToken++;
 // machine more than half a segment (a long period's chart), the sweep skips ahead to the keyframe that leaves as long
 // again for drawing the tween to it, rather than queueing every keyframe and stretching out: fewer, longer segments,
 // and the sweep keeps its length.
-export function sweep(apply, ms = MORPH_MS, steps = 8, ease = (t) => t * t * (3 - 2 * t)) {
+export function sweep(apply, ms = MORPH_MS, steps = 8, ease = EASE_GENTLE.js) {
   const token = ++sweepToken;
   const segMs = ms / steps;
   const start = performance.now();

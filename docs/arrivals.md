@@ -4,9 +4,9 @@ Opening a gallery tile is one flight (`MORPH_MS`, in-out; gallery.js "The flight
 card is pinned in its place, scaled down over the tile and clipped to the tile's frame, and grows. Closing plays the
 same keyframes in reverse. Esc or Back midway reverses from wherever it is. The page's title line and period bar
 travel with it as if the page scrolled (gallery.js `scrollAnims`: compositor transforms in the flight's own list, the
-bar's keyframes bending where it sticks), over `PAN_MS`, a little longer than the card (Visual tweaks: "Top of page
-travels"); the flight lands once every part has, the card held in its place meanwhile. The real scroll jumps when
-nothing on screen moves for it, as an open lands and as a close starts. The tile never moves meanwhile, so the flight's start holds.
+bar's keyframes bending where it sticks), on the flight's clock but the gentler `EASE_GENTLE` (smoothstep: on the
+cubic, a move that short reads as abrupt; Visual tweaks puts it back on the card's curve to compare). The real scroll
+jumps when nothing on screen moves for it, as an open lands and as a close starts. The tile never moves meanwhile, so the flight's start holds.
 
 A card **crossfades** by default: it fades in over the flying thumbnail (0–40%), and the thumbnail fades out (40–70%).
 The two are different drawings.

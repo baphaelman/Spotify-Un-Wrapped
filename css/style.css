@@ -12,6 +12,7 @@
   --motion-theme: 350ms;
   --ease-in-out: cubic-bezier(.65,0,.35,1);
   --ease-out: cubic-bezier(.2,.7,.2,1);
+  --ease-gentle: cubic-bezier(.3333,0,.6667,1);
   --page: #0a0c0e;
   --surface: #101316;
   --surface-2: #161a1e;

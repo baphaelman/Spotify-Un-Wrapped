@@ -14,7 +14,7 @@
 // it is.
 
 import { $, bringBack, owes, prefer, holdIdle, onOwedChange, unloadAll } from "./state.js";
-import { ENTER_MS, MORPH_MS, PAN_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
+import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, EASE_GENTLE, dur, flip } from "./motion.js";
 import { addThumb, paintThumbs, paintThumb, STRETCH } from "./thumbs.js";
 import { ARRIVALS } from "./arrivals.js";
 
@@ -96,13 +96,11 @@ layoutPick.append(sel);
 const clipPick = make("label", "", "Clip flights ");
 const clipBox = Object.assign(make("input"), { type: "checkbox", checked: true });
 clipPick.append(clipBox);
-// (how long the top of the page takes to travel with a flight: longer than the card's, as the view travelling)
-const navPick = make("label", "", "Top of page travels ");
-const navIn = Object.assign(make("input"), { type: "range", min: MORPH_MS, max: 2 * PAN_MS, step: 50, value: PAN_MS });
-const navOut = make("span", "", `${PAN_MS} ms`);
-navIn.addEventListener("input", () => (navOut.textContent = `${navIn.value} ms`));
-navPick.append(navIn, navOut);
-const navMs = () => (pick.hidden ? PAN_MS : +navIn.value);
+// (the top of the page on the card's own curve, the abrupter one passed over, to compare)
+const navPick = make("label", "", "Top of page on the card's curve ");
+const navBox = Object.assign(make("input"), { type: "checkbox" });
+navPick.append(navBox);
+const navEase = () => (!pick.hidden && navBox.checked ? EASE_IN_OUT : EASE_GENTLE).css;
 const unload = make("button", "ghost", "Unload cards");
 unload.type = "button";
 unload.title = "Every card off screen owes its paint again; the idle paints draw them back one by one";
@@ -266,9 +264,9 @@ const scrollToOpen = (top = openTop()) => scrollTo({ top, behavior: "instant" })
 // The top of the page (its title line and the period bar) moving as it would with the page scrolled from `g` (the
 // grid's scroll) to `o` (the open card's), on the flight's clock, while the page stays where it is now (at one of the
 // two): the real scroll jumps once the flight lands (opening) or as it starts (closing), when nothing on screen moves
-// for it. The tile stays put meanwhile, so the flight's start holds. It takes PAN_MS (the view travelling), a little
-// longer than the card: the flight lands once it's done, the card held in its place meanwhile. (the bar is stuck to
-// the top past where it would scroll by: its keyframes bend there, in eased time)
+// for it. The tile stays put meanwhile, so the flight's start holds. Its curve is the gentler smoothstep: on the
+// cubic, a move this short reads as abrupt. (the bar is stuck to the top past where it would scroll by: its keyframes
+// bend there, in eased time)
 const topbar = document.querySelector(".topbar");
 function scrollAnims(g, o, opts) {
   if (g === o) return [];
@@ -280,7 +278,7 @@ function scrollAnims(g, o, opts) {
   const out = [];
   const u = (N - stuck - g) / (o - g);
   const bend = u > 0 && u < 1 ? [{ ...ty(barAt(N - stuck)), offset: u }] : [];
-  opts = { ...opts, duration: dur(navMs()) };
+  opts = { ...opts, easing: navEase() };
   if (barAt(g) || barAt(o)) out.push(bar.animate([ty(barAt(g)), ...bend, ty(barAt(o))], opts));
   const hb = topbar.getBoundingClientRect().bottom + at; // (its bottom in the page)
   if (hb > Math.min(g, o)) out.push(topbar.animate([ty(at - g), ty(at - o)], opts));
@@ -435,7 +433,7 @@ function launch(entry, opening, anims, done, undo, solid) {
   entry.card.style.pointerEvents = "none";
   holdIdle(true); // (no other card's paint mid-flight)
   flight = f;
-  // (it lands once every part has, either way: the top of the page takes longer than the card)
+  // (it lands once every part has, either way)
   const landed = () => {
     if (flight !== f || anims.some((a) => a.playState !== "finished")) return;
     flight = null;
