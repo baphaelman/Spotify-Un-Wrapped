@@ -11,7 +11,7 @@ import { coverFor, knownCover } from "./covers.js";
 import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick } from "./aggregate.js";
-import { CHASE_MS, ENTER_MS, dur } from "./motion.js";
+import { CHASE_MS, ENTER_MS, EASE_OUT, dur } from "./motion.js";
 import { fmtH } from "./format.js";
 
 const BUCKETS = 40; // time slices across the period
@@ -407,8 +407,8 @@ function paint() {
     const first = !c.getOption()?.series?.length;
     c.setOption({
       // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
-      animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: "cubicOut",
-      animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: "cubicOut",
+      animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
+      animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
       tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
     }, { replaceMerge: first ? [] : ["series"] });
     OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });

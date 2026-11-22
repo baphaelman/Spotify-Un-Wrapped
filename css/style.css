@@ -1714,6 +1714,13 @@ button:not(:disabled):active { transform: scale(0.96); }
 
 /* The open view: one card at full size under its header */
 .gal-head { display: none; align-items: center; gap: 12px; margin: 0 0 12px; font-size: 13px; }
+/* (tall enough that the open card can always be scrolled up under the bar, where its flight lands it) */
+.gallery.open .gal-open { min-height: 100vh; }
+/* The hero layout's Top … View, across the page: a taller thumbnail */
+.gal-tile.hero .gal-thumb { flex-basis: 180px; }
+/* The layout choice (a Visual tweak) */
+.gal-layout:not([hidden]) { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -8px 0 12px; font-size: 12px; color: var(--text-secondary); }
+.gallery.open .gal-layout { display: none; }
 .gallery.open .gal-head { display: flex; }
 .gal-steps { margin-left: auto; display: flex; gap: 4px; }
 .gal-back, .gal-step { padding: 5px 10px; }
