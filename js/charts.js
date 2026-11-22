@@ -2,7 +2,7 @@
 // Artists View and Hours per week), monthly.js, clock.js, discovery.js (Discovery) and community.js. Colors come
 // from the CSS tokens (colors.js), so light and dark stay in one place (style.css). The page imports them from here.
 
-export { disposeAll } from "./charts/core.js";
+export { disposeAll, chart } from "./charts/core.js";
 export {
   currentZoom, setZoom, renderRolling, linkStrip, setRidges,
   onFocusChange, onZoomChange, onSelectionChange,

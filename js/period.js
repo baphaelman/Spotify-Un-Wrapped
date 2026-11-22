@@ -4,7 +4,7 @@ import * as agg from "./aggregate.js";
 import { currentZoom, setZoom } from "./charts.js";
 import { setupBrush, setBrushRange } from "./brush.js";
 import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from "./motion.js";
-import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS, endPan } from "./state.js";
+import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS, endPan, putOff } from "./state.js";
 import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph, dragEvery, endDragEvery } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
 import { fmtDay } from "./format.js";
@@ -269,7 +269,9 @@ let liveDeps = 0;
 let liveTail = null; // the chart's own followers (the mix bar and the bar's backdrop), put off to the next frame
 function liveRender() {
   if (!state.plays || !state.range) return;
-  setZoom($("chart-rolling"), clampZoom(periodZoom(), rawMemo?.raw.dates));
+  // (off screen, as in the gallery's stage, the chart takes the zoom as it comes back rather than redrawing each frame)
+  const zoom = () => setZoom($("chart-rolling"), clampZoom(periodZoom(), rawMemo?.raw.dates));
+  if (!putOff($("rolling-card"), zoom)) zoom();
   dragEvery(state.range); // (Every play and Every day follow it each frame too)
   clearTimeout(liveTimer);
   const wait = liveAt + Math.max(LIVE_MS, liveCost * 3) - performance.now();

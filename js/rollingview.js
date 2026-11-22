@@ -135,7 +135,11 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   };
   // The chart's "Everyone else" is its own: the mix bar and the graphs below leave the rest out
   state.mixArgs = [artists, slots, false, pins]; // fresh before renderRolling, which can report a new selection
-  renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
+  // With both its cards off screen (the gallery's stage), the chart itself waits, its artists and colors set above
+  // for everything that follows them; it's drawn afresh, at the period, as either card comes back
+  const later = () => renderRollingChart(periodZoom(), false, null, false);
+  const away = putOff($("rolling-card"), later) && putOff($("hours-card"), later);
+  if (!away) renderRolling($("chart-rolling"), data, names, window, zoom, "share", includeOther, morph, pins, slots, curve);
   if (followers) {
     // the steps of a sweep change neither the artists nor their colors
     renderMix(artists, slots, false, pins);
@@ -510,6 +514,7 @@ let mixMemo = null;
 let reasonsMemo = null; // whether the loaded plays carry their reasons (aggregate.hasReasons), per loaded plays
 export function renderMix(artists, slots, chartOther, pins) {
   state.mixArgs = [artists, slots, chartOther, pins];
+  hooks.paintThumbs?.(); // the gallery's thumbnails follow the same artists (coalesced to one paint a frame)
   const includeOther = $("mix-other").checked; // the bar's own toggle
   const key = [state.dim, state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };

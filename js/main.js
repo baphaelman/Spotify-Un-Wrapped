@@ -17,6 +17,7 @@ import { $, state, startPan, onPan, noun, NOUN, START_WINDOW, RESIZES, extent, s
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
 import "./gallery.js"; // moves the graph cards into the gallery's tiles before anything draws
+import { paintThumbs } from "./thumbs.js";
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, renderMix, setBrushMorph, setBrushFocus, syncSplit } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
@@ -28,7 +29,7 @@ import { loadSample } from "./sample.js";
 import { paintSunburst, focusSunburst } from "./sunburst.js";
 
 // The modules under this one call these back through hooks (state.js)
-Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintSunburst: () => paintSunburst(), paintRankRace: () => paintRankRace() });
+Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintThumbs,paintSunburst: () => paintSunburst(), paintRankRace: () => paintRankRace() });
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];
@@ -507,6 +508,7 @@ function renderDependents(charts = true) {
   paintRanking();
   paintRace();
   paintFocus();
+  paintThumbs();
 }
 
 // Deselecting artists in the legend removes them from the other graphs too
