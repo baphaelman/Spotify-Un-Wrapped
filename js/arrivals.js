@@ -80,6 +80,19 @@ export const ARRIVALS = {
       return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.val, at: text(a.val) }, { el: r.rank, at: null, row }] : [{ el: r.li, at: null, row }];
     }), to, ms);
   },
+  // All your …: the thumbnail is the list's first rows; the rest of the list fades in below them
+  "ranking-card": (card, el, to, ms) => {
+    const plot = $("ranking-list");
+    const sh = thumbShapes(el, plot.offsetWidth / el.offsetWidth);
+    const vals = sh.get("val") ?? [];
+    const at = new Map((sh.get("bar") ?? []).map((b, i) => [b.name, { bar: b.bar, name: b.label, val: vals[i]?.label }]));
+    const rows = [...plot.children].map((li) => ({ key: li._key, li, rank: li.querySelector(".rank"), name: li.querySelector(".name"), bar: li._bar, val: li._val }));
+    if (to === "thumb" && !matches(rows, at)) return false;
+    return flyRows(card, plot, rows.flatMap((r, row) => {
+      const a = at.get(r.key);
+      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.val, at: text(a.val, "right") }, { el: r.rank, at: null, row }] : [{ el: r.li, at: null, row }];
+    }), to, ms);
+  },
 
   // Listening mix, Inside your top …
   // … Listening mix: each block of the thumbnail becomes its segment (place, height, corners, tint, labels), and its

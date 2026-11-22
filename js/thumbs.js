@@ -205,22 +205,27 @@ export const THUMBS = {
   },
   // Inside your top: the card's own rings, round, drawn over this empty chart (OVERLAYS: rings)
   "sunburst-card": () => ({ series: [] }),
-  // All your …: the list, a name over a thin line as long as its hours
+  // All your …: the list, a name over a thin line as long as its hours, the hours at the right, from the card's own
+  // totals (the period's, less what's hidden), past an empty column where the card's ranks go
   // (rows keep their height and run on past the bottom, faded out there, as the card's list goes on)
   "ranking-card": (d, t, box) => {
-    const ROW = 19, TOP = 12;
+    const ROW = 19, TOP = 12, RANK = Math.round(box.w * 0.044);
     const n = Math.ceil((box.h - TOP) / ROW) + 1;
-    const top = [...d.total].sort((a, b) => b[1] - a[1]).slice(0, n);
+    const hidden = new Set(state.hidden);
+    const top = [...rangeTotals().items].filter(([k, e]) => !hidden.has(k) && e.ms > 0).sort((a, b) => b[1].ms - a[1].ms).slice(0, n)
+      .map(([k, e]) => [k, e.ms]);
+    const own = (k) => (state.chartNames?.includes(k) ? colorOf(t, k) : t.other); // (as the card's chartColor)
     return {
-      grid: { left: 0, right: 34, top: TOP, bottom: box.h - TOP - n * ROW }, xAxis: axis("value", { max: top[0]?.[1] || 1 }),
+      grid: { left: RANK, right: 34, top: TOP, bottom: box.h - TOP - n * ROW }, xAxis: axis("value", { max: top[0]?.[1] || 1 }),
       yAxis: axis("category", { data: top.map((x) => x[0]), inverse: true }),
       series: [{
-        type: "bar", barWidth: 1.5, data: top.map(([n, h]) => ({ value: r1(h), itemStyle: { color: colorOf(t, n) } })),
-        label: { show: true, position: [0, -12], color: t.primary, fontSize: 10, formatter: (p) => top[p.dataIndex][0], width: 220, overflow: "truncate" },
+        type: "bar", id: "bar", barWidth: 1.5, data: top.map(([k, ms]) => ({ name: k, value: ms, itemStyle: { color: own(k) } })),
+        label: { show: true, position: [0, -12], color: t.primary, fontSize: 10, formatter: (p) => state.titles?.get(top[p.dataIndex][0]) ?? top[p.dataIndex][0], width: 220, overflow: "truncate" },
       }, {
         // the hours, at the right as the card has them
-        type: "bar", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" }, data: top.map(() => top[0][1]),
-        label: { show: true, position: "right", distance: 6, color: t.muted, fontSize: 9, formatter: (p) => fmtH(top[p.dataIndex][1]) },
+        type: "bar", id: "val", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
+        data: top.map(([k]) => ({ name: k, value: top[0][1] })),
+        label: { show: true, position: "right", distance: 6, color: t.muted, fontSize: 9, formatter: (p) => fmtH(top[p.dataIndex][1] / HOUR) },
       }],
     };
   },
