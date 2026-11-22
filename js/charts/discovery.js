@@ -159,17 +159,27 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
 }
 
 // Where each item's name would sit beside its dot, as [x0, x1, y0, y1], on the plot as `rect` lays it out
-let measureCtx = null;
-function nameBoxes(st, rect, list, { size, weight, h }, dot) {
-  measureCtx ??= document.createElement("canvas").getContext("2d");
-  measureCtx.font = `${weight} ${size}px sans-serif`; // (ECharts' default family)
-  return list.map((e) => {
-    const [x, y] = foundPixel(st, rect, e);
-    const w = measureCtx.measureText(e.name).width, off = dot / 2 + FOUND_LABEL.gap;
-    const x0 = foundOnLeft(st, e) ? x - off - w : x + off;
-    return [x0, x0 + w, y - h / 2, y + h / 2];
-  });
+// (each name's width is measured once per font and kept: a paint places names among up to a thousand dots)
+let measureCtx = null, measureFont = "";
+const widths = new Map(); // font -> name -> px
+function nameWidth({ size, weight }, name) {
+  const font = `${weight} ${size}px sans-serif`; // (ECharts' default family)
+  const known = widths.get(font) ?? widths.set(font, new Map()).get(font);
+  let w = known.get(name);
+  if (w === undefined) {
+    measureCtx ??= document.createElement("canvas").getContext("2d");
+    if (measureFont !== font) measureCtx.font = measureFont = font; // (setting a font parses it: only when it changes)
+    known.set(name, (w = measureCtx.measureText(name).width));
+  }
+  return w;
 }
+// Where an item's name `w` px wide would sit beside its dot (w 0: the edge it starts from, by the dot)
+function nameBox(st, rect, e, { h }, dot, w) {
+  const [x, y] = foundPixel(st, rect, e), off = dot / 2 + FOUND_LABEL.gap;
+  const x0 = foundOnLeft(st, e) ? x - off - w : x + off;
+  return [x0, x0 + w, y - h / 2, y + h / 2];
+}
+const nameBoxes = (st, rect, list, label, dot) => list.map((e) => nameBox(st, rect, e, label, dot, nameWidth(label, e.name)));
 const plotRect = (el, keyed) => {
   const { left, right, top, bottom } = FOUND_GRID;
   return { x: left, y: top, width: el.clientWidth - left - (keyed ? FOUND_KEY_W : right), height: el.clientHeight - top - bottom };
@@ -205,13 +215,17 @@ function nameRest(el, st) {
   st.rest.forEach((e) => take(dotBox(e, st.dot)));
   if (!st.keyed && !st.grouped) nameBoxes(st, rect, st.lit, FOUND_LABEL, st.litSize).forEach(take);
   const order = [...st.rest].sort((a, b) => b.hours - a.hours);
-  const boxes = nameBoxes(st, rect, order, REST_LABEL, st.dot);
   const named = new Set();
   // (each name keeps tune.discoveryNameGap of room around it, so they stay sparse enough to read)
   const gap = tune.discoveryNameGap / 2;
-  order.forEach((e, i) => {
-    const b = boxes[i];
-    if (b[0] < rect.x || b[1] > rect.x + rect.width || b[2] < rect.y || b[3] > rect.y + rect.height || !clear(b)) return;
+  const out = (b) => b[0] < rect.x || b[1] > rect.x + rect.width || b[2] < rect.y || b[3] > rect.y + rect.height;
+  order.forEach((e) => {
+    // (the edge it starts from first: a name whose start is off the plot or taken can't fit, whatever its width, so
+    // most names in a crowded plot are never measured)
+    const start = nameBox(st, rect, e, REST_LABEL, st.dot, 0);
+    if (out(start) || !clear(start)) return;
+    const b = nameBox(st, rect, e, REST_LABEL, st.dot, nameWidth(REST_LABEL, e.name));
+    if (out(b) || !clear(b)) return;
     take([b[0] - gap, b[1] + gap, b[2] - gap, b[3] + gap]);
     named.add(e.name);
   });
