@@ -30,17 +30,18 @@ function rollingArrival(card, el, id, classic, to, ms) {
   const ids = (c) => c?.getModel().getSeries().map((s) => s.id).sort().join() ?? ""; // (a merge appends newcomers: z orders them)
   if (classic || !plot || !ids(thumb) || ids(thumb) !== ids(plot)) return false;
   // The flight scales the card by s, from the tile's width to its own (the tiles' plots fill their width), and the
-  // flying thumbnail's height goes from the tile's to the plot's on the same progress p. The plot keeps to it: its
-  // height over the card's scale at p, read from the card as it flies, so a flight turned back keeps to it too.
+  // thumbnail rides on it, scaled evenly: in the card's pixels its height stays the tile's, h / s of the plot's. The
+  // plot keeps to that while the thumbnail shows (the flight's ends) and grows to its own height between, on p² of the
+  // card's progress p, read from the card as it flies, so a flight turned back keeps to it too.
   const box = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
   const a = box(thumb), b = box(plot);
-  const s = a.width / b.width, h = a.height / b.height; // (h = s × k: the tile's height in the plot's)
+  const s = a.width / b.width, k0 = a.height / b.height / s; // (the tile's height in the plot's, in the card's pixels)
   const at = () => {
     const scale = new DOMMatrix(getComputedStyle(card).transform).a;
     const p = Math.min(1, Math.max(0, (scale - s) / (1 - s)));
-    return { k: (h + (1 - h) * p) / scale, p, scale };
+    return { k: k0 + (1 - k0) * p * p, p, scale };
   };
-  return arriveHeight($(id), ms, at, to === "thumb" ? { k: h / s, p: 0, scale: s } : { k: 1, p: 1, scale: 1 });
+  return arriveHeight($(id), ms, at, to === "thumb" ? { k: k0, p: 0, scale: s } : { k: 1, p: 1, scale: 1 });
 }
 
 // Rank race, Discovery, When you listened
