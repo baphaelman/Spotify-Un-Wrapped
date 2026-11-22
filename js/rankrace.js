@@ -495,15 +495,21 @@ export function morphRankRace(look, toThumb, ms) {
     };
   });
   setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  clipSeries(gridRect());
+  clipSeries(gridRect(), { toCard: !toThumb, ms });
   if (!ms) c.setOption({ animation: true });
-  // (as itself again, clipped to the plot as usual once it lands)
+  // (as itself again, clipped as usual once it lands and its morph is done: the lines keep the flight's clip, which
+  // ECharts takes for its own. Without animation, as a line given a clip without one of its own gets ECharts' first-draw
+  // clip, which wipes the lines away and draws them in again from the left)
   clearTimeout(st.unclip);
-  if (!toThumb) st.unclip = setTimeout(() => {
+  const until = performance.now() + ms + dur(MORPH_MS);
+  const unclip = () => {
     if (!c || c.isDisposed() || st.slide) return;
+    if (!c.getZr().animation.isFinished() && performance.now() < until) return void (st.unclip = setTimeout(unclip, 50));
     clipSeries(null);
-    c.setOption({ series: st.names.concat([...st.leaving]).map((id) => ({ id, clip: true })) });
-  }, ms + 50);
+    c.setOption({ animation: false, series: st.names.concat([...st.leaving]).map((id) => ({ id, clip: true })) });
+    c.setOption({ animation: true });
+  };
+  if (!toThumb) st.unclip = setTimeout(unclip, ms + 50);
   return true;
 }
 
@@ -924,14 +930,36 @@ function slideStart(rows, labels, k0) {
 
 // Sliding, each line's group is clipped a circle's width past the plot's ends (none to clear it). ECharts' own clip
 // of the line, which would move with it (moveSeries), goes; each layout puts it back.
-function clipSeries(rect) {
+const flightClips = new Map(); // series id -> the clip a gallery flight gave its lines
+function clipSeries(rect, flight) {
   const pad = Math.max(tune.rankDot, tune.rankGrayDot) * 0.625 + 1.5; // (a lit circle's radius and its border)
+  if (!rect) flightClips.clear();
   for (const m of c.getModel().getSeries()) {
-    const g = c.getViewOfSeriesModel(m)?.group;
+    const view = c.getViewOfSeriesModel(m), g = view?.group;
     if (!g) continue;
     if (!rect) { g.removeClipPath(); continue; }
-    g.setClipPath(new echarts.graphic.Rect({ shape: { x: rect.x - pad, y: 0, width: rect.width + 2 * pad, height: rect.y + rect.height } }));
+    // ECharts' own clip on a series' lines: the plot and half a line's width around it (its createGridClipPath)
+    const lw = m.get(["lineStyle", "width"]) || 2;
+    let x = rect.x - lw / 2, width = Math.ceil(rect.width + lw);
+    if (x !== Math.floor(x)) { x = Math.floor(x); width++; }
+    const own = { x, y: rect.y - lw / 2, width, height: rect.height + lw }, bottom = own.y + own.height;
+    // (its bottom where ECharts' clip has it, so a line diving under the floor shows as much as it does at rest; in a
+    // flight the lines' own clip cuts them there, and this one stands a circle lower, or the two edges would blend)
+    g.setClipPath(new echarts.graphic.Rect({ shape: { x: rect.x - pad, y: 0, width: rect.width + 2 * pad, height: bottom + (flight ? pad : 0) } }));
     for (const part of g.children()) part.removeClipPath();
+    const lines = view._lineGroup;
+    if (!flight || !lines) continue;
+    // flight: { toCard, ms }, a gallery flight's morph: the lines alone also get ECharts' clip, its top travelling
+    // with them on their curve between open (the thumbnail's form can stand above the plot) and its own, so the card
+    // lands as it is at rest and giving the clip back changes nothing. (both move linearly in the same eased time, so it
+    // never cuts a line on the way; turned back midway, from where its top is)
+    const was = flightClips.get(m.id), to = flight.toCard ? own.y : 0;
+    was?.stopAnimation();
+    const y = flight.ms ? was?.shape.y ?? (flight.toCard ? 0 : own.y) : to;
+    const clip = new echarts.graphic.Rect({ shape: { ...own, y, height: bottom - y } });
+    lines.setClipPath(clip);
+    flightClips.set(m.id, clip);
+    if (y !== to) clip.animateTo({ shape: { y: to, height: bottom - to } }, { duration: flight.ms, easing: EASE_IN_OUT.echarts });
   }
 }
 

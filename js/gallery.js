@@ -377,8 +377,8 @@ function chromeOf(card) {
 }
 // The chart's drawn shapes that aren't a series' (axes, guides, labels), faded in the canvas with the chrome: opening,
 // from nothing to whole by 40% of the flight as the chrome does (keyframes in eased time, as the animations' are);
-// closing, the same played back (the in-out cubic is symmetric). from: turned back midway, from that opacity to the
-// end over ms.
+// closing, the same played back (the in-out cubic is symmetric). from: turned back midway, from that share of each
+// shape's opacity to the end over ms.
 function fadeCanvas(card, opening, ms, from) {
   const c = plotChart(card);
   if (!c) return;
@@ -387,14 +387,17 @@ function fadeCanvas(card, opening, ms, from) {
   for (const e of c.getZr().storage.getDisplayList(true)) {
     if (own.has(e)) continue;
     e.stopAnimation();
+    // (each to its own opacity, read as a flight starts: a guide drawn faint stays faint, rather than ending the flight
+    // strong and dropping back at the chart's next redraw)
+    const op = from == null && ms ? (e.__restOpacity = e.style.opacity ?? 1) : e.__restOpacity ?? e.style.opacity ?? 1;
     if (!ms) {
-      e.setStyle({ opacity: 1 });
+      e.setStyle({ opacity: op });
       continue;
     }
     const a = e.animate("style", false);
-    if (from != null) a.when(0, { opacity: from }).when(ms, { opacity: opening ? 1 : 0 }).start(EASE_IN_OUT.echarts);
-    else if (opening) a.when(0, { opacity: 0 }).when(0.4 * ms, { opacity: 1 }).when(ms, { opacity: 1 }).start(EASE_IN_OUT.echarts);
-    else a.when(0, { opacity: 1 }).when(0.6 * ms, { opacity: 1 }).when(ms, { opacity: 0 }).start(EASE_IN_OUT.echarts);
+    if (from != null) a.when(0, { opacity: from * op }).when(ms, { opacity: opening ? op : 0 }).start(EASE_IN_OUT.echarts);
+    else if (opening) a.when(0, { opacity: 0 }).when(0.4 * ms, { opacity: op }).when(ms, { opacity: op }).start(EASE_IN_OUT.echarts);
+    else a.when(0, { opacity: op }).when(0.6 * ms, { opacity: op }).when(ms, { opacity: 0 }).start(EASE_IN_OUT.echarts);
   }
 }
 // The card's arrival (arrivals.js), with its thumbnail as drawn: true when it ran
