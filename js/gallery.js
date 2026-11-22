@@ -13,9 +13,9 @@
 // Closing is the same in reverse, into the tile. A flight turned back midway (Esc while it opens) reverses from where
 // it is.
 
-import { $, bringBack, owes, prefer, holdIdle, onOwedChange, unloadAll } from "./state.js";
+import { $, bringBack, owes, prefer, holdIdle, onOwedChange, unloadAll, hooks } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, EASE_GENTLE, dur, flip } from "./motion.js";
-import { addThumb, paintThumbs, paintThumb, STRETCH } from "./thumbs.js";
+import { addThumb, paintThumbs, paintThumb, comingBack, STRETCH } from "./thumbs.js";
 import { ARRIVALS } from "./arrivals.js";
 
 // card id -> its address (#every-play)
@@ -250,6 +250,11 @@ new ResizeObserver(fit).observe(gallery.closest("main"));
 
 // ---------- Opening and closing ----------
 let current = null;
+// The open graph's neighbours (‹ ›) draw what a change left them sooner than the rest (state.js soon)
+hooks.paintRank = (card) => {
+  const list = current && order(), i = list ? list.indexOf(current) : -1;
+  return i >= 0 && (list[i - 1]?.card === card || list[i + 1]?.card === card) ? 2 : null;
+};
 let gridScroll = 0;
 // Where the bar ends once it's pinned to the top, as it is with a card open
 const barBottom = () => parseFloat(getComputedStyle(bar).top) + bar.getBoundingClientRect().height;
@@ -551,7 +556,12 @@ function open(entry, { step = false, push = true } = {}) {
   }
   if (current === entry) return;
   const fromGrid = !current;
-  if (fromGrid) gridScroll = scrollY;
+  if (fromGrid) {
+    gridScroll = scrollY;
+    // (the tiles on screen now are on screen as it closes: their thumbnails redraw first while it's open)
+    const lo = barBottom(), on = (r) => r.bottom > lo && r.top < innerHeight;
+    comingBack(order().filter((x) => on(x.tile.getBoundingClientRect())).map((x) => x.tile.querySelector(".gal-thumb")));
+  }
   if (current) stage.append(current.card);
   current = entry;
   setCrumb(entry);

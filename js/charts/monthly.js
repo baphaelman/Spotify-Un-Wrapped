@@ -256,7 +256,7 @@ function litSet(st) {
 }
 // How much of an artist's color fills their slices in each look of the hover/pin rule (litLook): deeper than the
 // rolling chart's tints, since a slice is small
-const MONTH_SHADE = { rest: 0.25, hover: 0.38, pin: 0.5, pinHover: 0.62, dim: 0.1, dimHover: 0.16 };
+export const MONTH_SHADE = { rest: 0.25, hover: 0.38, pin: 0.5, pinHover: 0.62, dim: 0.1, dimHover: 0.16 };
 
 // A bar's total and its top five, [{ name, hours }]: of everyone, or only of the chart's artists when everyone
 // else is left out
@@ -621,7 +621,8 @@ function restyleMonthly(el, st, c) {
 // its top item over one gray, in the thumbnail's colors and bar gap, as tall as the thumbnail draws it: the values are
 // scaled rather than the axis, so the axes, captions and lines are the same in both and only fade (gallery.js).
 // look: { max (the thumbnail's y-axis top), stretch (how much taller its bars stand, for its plot's shape), gap (its
-// barCategoryGap), rest (its gray), tops[i] (each bar's top color) }. Bars may stand above the plot meanwhile.
+// barCategoryGap), rest (its gray), tops[i] (each bar's top color), slices (m{k} -> color: the lit artists' slices
+// it draws out of the gray, thumbs.js) }. Bars may stand above the plot meanwhile.
 // The drawn bars move themselves (morphShapes): each rect's place, size, corners, edge and fill, stacked as ECharts
 // stacks the series. Morphs from what's on screen to the thumbnail's form (toThumb) or its own over ms, or draws it
 // at once (ms 0). Returns false when the thumbnail's bars aren't the chart's (another bar size), and the flight
@@ -641,11 +642,15 @@ export function morphMonthly(el, look, toThumb, ms) {
     // (the thumbnail's bars, as wide as its gap leaves them in the card's columns)
     const w = (r.width / st.rows.length) * (1 - parseFloat(look.gap) / 100);
     const views = st.rows.map((row) => barView(st, row));
-    // Each series' share of the thumbnail's bars: the gray under the top item, the top item in its own series
+    // Each series' share of the thumbnail's bars: the gray under the lit artists' slices and the top item, each
+    // slice and the top item in its own series
+    const slice = (k, i) => (look.slices?.has(`m${k}`) && views[i].top[0]?.name !== st.names[k] ? st.rows[i].by[k] : 0);
+    const sliced = st.rows.map((_, i) => st.names.reduce((s, _n, k) => s + slice(k, i), 0));
     const share = (id, i) => {
       const { hours, top: [first] } = views[i];
-      if (id === "rest") return hours - (first?.hours ?? 0);
+      if (id === "rest") return hours - (first?.hours ?? 0) - sliced[i];
       if (id === "top") return first && !st.names.includes(first.name) ? first.hours : 0;
+      if (id[0] === "m") return slice(+id.slice(1), i);
       return id[0] === "t" && first?.name === st.names[+id.slice(1)] ? first.hours : 0;
     };
     const below = st.rows.map(() => lo); // (each column's stack so far, bottom to top as ECharts stacks the series)
@@ -659,7 +664,7 @@ export function morphMonthly(el, look, toThumb, ms) {
           parts.push(
             part(bar, shape, "x", L.x + L.width / 2 - w / 2), part(bar, shape, "width", w),
             part(bar, shape, "y", at(below[i])), part(bar, shape, "height", at(below[i] + v) - at(below[i])), part(bar, shape, "r", flat),
-            part(bar, style, "lineWidth", 0), part(bar, style, "fill", m.id === "rest" ? look.rest : look.tops[i])
+            part(bar, style, "lineWidth", 0), part(bar, style, "fill", m.id === "rest" ? look.rest : look.slices?.get(m.id) ?? look.tops[i])
           );
         }
         below[i] += v;

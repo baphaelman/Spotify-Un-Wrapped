@@ -10,6 +10,7 @@
 import { flip, tweenNumber, dur, MORPH_MS, EASE_IN_OUT } from "./motion.js";
 import { tune } from "./tune.js";
 import { fmtHours } from "./format.js";
+import { putOff } from "./state.js";
 
 const OTHER = "Everyone else";
 const ROOM = 11; // rows the horizontal list has room for: the most artists and Everyone else
@@ -76,6 +77,8 @@ export function updateSkips(next) {
   card.dataset.look = tune.skipsLook;
   card.dataset.shades = tune.skipsShades;
   card.style.setProperty("--skips-bar", `${tune.skipsBar}px`);
+  // (the list itself waits while the card is away, as every graph does; its data above is the thumbnail's now)
+  if (putOff(card, () => updateSkips(ctx))) return;
   const list = $("skips-list");
   const totals = new Map(ctx.reasons ?? []);
   if (ctx.reasons && ctx.other) totals.set(OTHER, othersOf(ctx.reasons, new Set(ctx.names)));
@@ -162,7 +165,7 @@ export function updateSkips(next) {
 
 // The rows as the card shows them (horizontal, the default look), for its thumbnail (thumbs.js): each name, its
 // palette slot (null: Everyone else), its plays' shares picked / played through / skipped, and the card's two numbers.
-// From the last updateSkips, which runs whether or not the card is on screen.
+// From the last updateSkips, whose data is kept whether or not the card is on screen.
 export function skipsNow() {
   if (!ctx?.reasons) return [];
   const totals = new Map(ctx.reasons);

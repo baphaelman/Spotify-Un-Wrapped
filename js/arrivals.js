@@ -85,14 +85,16 @@ export const ARRIVALS = {
   // slices out of the gray as the colors, gap and heights turn into the card's
   "monthly-card": (card, el, to, ms) => {
     const thumb = echarts.getInstanceByDom(el);
-    const [rest, top] = thumb?.getOption()?.series ?? [];
+    const series = thumb?.getOption()?.series ?? [], rest = series.find((s) => s?.id === "rest"), top = series.find((s) => s?.id === "top");
     if (!rest || !top) return false;
+    // (a lit artist's slices, m{k}: its months' hours where it isn't the top, in its color)
+    const slices = new Map(series.filter((s) => /^m\d+$/.test(s?.id) && s.data.some((v) => v > 0)).map((s) => [s.id, s.itemStyle.color]));
     // (the thumbnail's plot is squatter than the card's: its bars stand this much taller, for the same width)
     const box = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
     const a = box(thumb), b = box(echarts.getInstanceByDom($("chart-monthly")));
     const look = {
       max: thumb.getModel().getComponent("yAxis").axis.scale.getExtent()[1], stretch: (a.height / a.width) / (b.height / b.width),
-      gap: rest.barCategoryGap, rest: rest.itemStyle.color, tops: top.data.map((d) => d.itemStyle.color),
+      gap: rest.barCategoryGap, rest: rest.itemStyle.color, tops: top.data.map((d) => d.itemStyle.color), slices,
     };
     return morphMonthly($("chart-monthly"), look, to === "thumb", ms);
   },

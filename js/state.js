@@ -2,7 +2,7 @@
 // presets, and the words for the current view (genres, artists, albums or tracks).
 // hooks: functions main.js registers at startup, so the modules under it can call back up without importing it.
 import * as agg from "./aggregate.js";
-import { easeInOut, travel } from "./motion.js";
+import { easeInOut, travel, MORPH_MS, dur } from "./motion.js";
 
 export const $ = (id) => document.getElementById(id);
 
@@ -177,6 +177,7 @@ const nearScreen = new IntersectionObserver((entries) => {
     owed.delete(e.target);
     paint?.();
     if (paint) owedChanged(e.target);
+    showLooks(e.target);
   }
 }, { rootMargin: "50% 0px" });
 export function putOff(card, paint) {
@@ -196,8 +197,25 @@ export function putOff(card, paint) {
   const was = owed.has(card);
   owed.set(card, paint);
   if (!was) owedChanged(card);
-  if (!idling) idleSoon();
+  if (!idling) {
+    idleSoon();
+    // (the open graph's neighbours go sooner: once the change's own morph is done, a frame at a time)
+    const rank = hooks.paintRank?.(card);
+    if (rank != null) soon(card, () => pay(card), rank, dur(MORPH_MS));
+  }
   return true;
+}
+// A change of look (a hover) for a card that's away waits until it comes back, after its paint: look(card, key, fn)
+// runs fn now if the card is near the screen, or keeps it (the latest per key) for then
+const looks = new Map(); // card -> key -> fn
+export function look(card, key, fn) {
+  if (!card || !away.has(card)) return fn();
+  (looks.get(card) ?? looks.set(card, new Map()).get(card)).set(key, fn);
+}
+function showLooks(card) {
+  const fns = looks.get(card);
+  looks.delete(card);
+  for (const fn of fns?.values() ?? []) fn();
 }
 // Bring a card back at once, ahead of the observer, its held paint run now (the gallery measures a card's plot as it
 // flies it open, so the plot must be drawn for the period as it is)
@@ -207,6 +225,7 @@ export function bringBack(card) {
   owed.delete(card);
   paint?.();
   if (paint) owedChanged(card);
+  showLooks(card);
 }
 // Run what cards owe now (each different paint once, in turn), leaving them away, so later paints wait again: the
 // gallery's tiles copy the rolling chart's drawing (thumbs.js), which mustn't redraw off screen every frame of a drag
@@ -259,22 +278,27 @@ function idleNext(timeout = 2000) {
     if (idleHeld || !owed.size) return;
     const card = owed.has(preferred) ? preferred : owed.keys().next().value;
     preferred = null;
-    const paint = owed.get(card);
-    // (cards owing the same paint, as Top … View and Hours per week share the rolling chart's, are all paid by it)
-    const paid = [...owed].filter(([, p]) => p === paint).map(([c]) => c);
-    const were = paid.filter((c) => away.delete(c));
-    for (const c of paid) owed.delete(c);
-    idling = true;
-    try {
-      paint();
-    } finally {
-      idling = false;
-    }
-    for (const c of were) away.add(c);
-    for (const c of paid) paidAt.set(c, changes);
-    for (const c of paid) owedChanged(c);
+    pay(card);
     if (owed.size) idleNext();
   }, timeout);
+}
+// A card's held paint, run now, the card left away
+function pay(card) {
+  const paint = owed.get(card);
+  if (!paint) return;
+  // (cards owing the same paint, as Top … View and Hours per week share the rolling chart's, are all paid by it)
+  const paid = [...owed].filter(([, p]) => p === paint).map(([c]) => c);
+  const were = paid.filter((c) => away.delete(c));
+  for (const c of paid) owed.delete(c);
+  idling = true;
+  try {
+    paint();
+  } finally {
+    idling = false;
+  }
+  for (const c of were) away.add(c);
+  for (const c of paid) paidAt.set(c, changes);
+  for (const c of paid) owedChanged(c);
 }
 export function prefer(card) {
   if (!owed.has(card)) return;
@@ -290,5 +314,41 @@ export function holdIdle(on) {
     clearTimeout(settleTimer);
     unidle(idleTask);
     idleTask = 0;
-  } else if (owed.size) idleSoon();
+  } else {
+    if (owed.size) idleSoon();
+    pumpSoon();
+  }
+}
+
+// What a change leaves to draw, in order, a frame at a time: soon(key, paint, rank, wait) runs paint after wait ms,
+// lower ranks first, as many a frame as fit in SOON_MS (at least one), each key once (a newer paint replaces its
+// older one), none mid-flight (holdIdle). The graph you're looking at draws in the change itself; then come the
+// grid's thumbnails on screen (thumbs.js, rank 1), the open graph's neighbours (gallery.js paintRank, 2) and the
+// thumbnails of the grid you'll go back to (3); the rest wait for idle moments, as above.
+const SOON_MS = 8;
+const soonQ = new Map(); // key -> { paint, rank, at }
+let soonTimer = 0;
+export function soon(key, paint, rank = 1, wait = 0) {
+  soonQ.set(key, { paint, rank, at: performance.now() + wait });
+  pumpSoon();
+}
+function pumpSoon() {
+  if (soonTimer || idleHeld || !soonQ.size) return;
+  let at = Infinity;
+  for (const x of soonQ.values()) at = Math.min(at, x.at);
+  // (just after a frame is drawn, so the frame's own work goes first)
+  soonTimer = setTimeout(() => requestAnimationFrame(() => setTimeout(runSoon)), Math.max(0, at - performance.now()));
+}
+function runSoon() {
+  soonTimer = 0;
+  const start = performance.now();
+  while (!idleHeld && performance.now() - start < SOON_MS) {
+    const now = performance.now();
+    let next = null;
+    for (const [key, x] of soonQ) if (x.at <= now && (!next || x.rank < next[1].rank)) next = [key, x];
+    if (!next) break;
+    soonQ.delete(next[0]);
+    next[1].paint();
+  }
+  pumpSoon();
 }

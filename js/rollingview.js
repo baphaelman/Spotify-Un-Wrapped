@@ -511,6 +511,13 @@ let reasonsMemo = null; // whether the loaded plays carry their reasons (aggrega
 export function renderMix(artists, slots, chartOther, pins) {
   state.mixArgs = [artists, slots, chartOther, pins];
   hooks.paintThumbs?.(); // the gallery's thumbnails follow the same artists (coalesced to one paint a frame)
+  paintMixBar();
+  paintSkips();
+}
+// (the bar waits while its card is away, as every graph does: putOff; Skips and picks does the same in updateSkips)
+function paintMixBar() {
+  if (putOff($("mix-card"), paintMixBar)) return;
+  const [artists, slots, , pins] = state.mixArgs;
   const includeOther = $("mix-other").checked; // the bar's own toggle
   const key = [state.dim, state.plays.length, includeOther, ...artists].join("\u0000");
   if (mixMemo?.key !== key) mixMemo = { key, table: agg.dailyTable(state.plays, artists, includeOther) };
@@ -520,12 +527,6 @@ export function renderMix(artists, slots, chartOther, pins) {
   const { items, count } = rangeTotals();
   const plays = new Map(artists.map((n) => [n, items.get(n)?.n ?? 0]));
   if (includeOther) plays.set("Everyone else", count - [...new Set(artists)].reduce((t, n) => t + (items.get(n)?.n ?? 0), 0));
-  // Skips and picks, when the plays say why they began and ended; plays remembered from before parse.js kept that
-  // have it back once the files are read again
-  if (reasonsMemo?.raw !== state.raw) {
-    const has = agg.hasReasons(state.raw);
-    reasonsMemo = { raw: state.raw, has, lost: !has && !state.sample && state.raw.some((p) => p.id) }; // lost: an extended history
-  }
   // A genre's picture is its biggest artist in the period, so it follows the period
   const covers = state.dim === "genre" ? genreCoversIn(rangePlays()) : state.covers;
   updateMix({
@@ -550,6 +551,16 @@ export function renderMix(artists, slots, chartOther, pins) {
     lo: state.range.lo,
     hi: state.range.hi,
   });
+}
+function paintSkips() {
+  const [artists, slots, , pins] = state.mixArgs;
+  const { items } = rangeTotals();
+  // Skips and picks, when the plays say why they began and ended; plays remembered from before parse.js kept that
+  // have it back once the files are read again
+  if (reasonsMemo?.raw !== state.raw) {
+    const has = agg.hasReasons(state.raw);
+    reasonsMemo = { raw: state.raw, has, lost: !has && !state.sample && state.raw.some((p) => p.id) }; // lost: an extended history
+  }
   updateSkips({
     names: artists,
     other: $("skips-other").checked,

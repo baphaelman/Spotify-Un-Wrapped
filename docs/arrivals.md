@@ -68,6 +68,12 @@ What the solid flight does for you (gallery.js):
     corners and edge to nothing, its fill to the thumbnail's, in-out. The axes never change, so they only fade.
   - Rects aren't clipped (a bar series clips its layout, not its drawing), so stretched bars stand above the plot
     meanwhile.
+- **Thumbnails light as their cards do** (thumbs.js "The lit look"): the hovered and pinned artists among what a
+  thumbnail draws, by `litLook`, without the outline a pin adds in the card. Top … over time and Skips and picks wash
+  the lit rows (a full-width bar on a grid of its own) and dim the rest, Rank race and When you listened dim the
+  others' lines and bands, Every Month grows a lit artist's slices out of the gray (`m{k}`, the card's ids, which
+  `morphMonthly` takes into the thumbnail's form). A hover fades the tiles on screen; the words fade with the shapes
+  (`fadeWords`: `setOptionFaded` fades only shapes).
 - **Thumbnails follow their card's choices.** `otherOn(cardId)` (thumbs.js) reads the card's "Everyone else" toggle,
   and a toggle's change redraws the thumbnails. Without that, Every Month with Everyone else off flew from
   everyone's months to only the chart's artists. Apply the same to any setting that changes what the card shows.
@@ -108,6 +114,15 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
 - **The card's move is its own animation** (transform and opacity, run by the compositor even while the page is busy);
   its clip and colors are another beside it, so a busy frame holds only them. Clip flights (Visual tweaks) flies
   without the clip, to compare.
+- **What a change draws first** (a pin, an unpin, showing or hiding an artist): the graph you're looking at and the
+  period bar in the change itself; then, a frame at a time (state.js `soon`, at most 8 ms of paints a frame, none
+  mid-flight), the grid's thumbnails on screen, the open graph's neighbours once the change's morph is done (gallery.js
+  `paintRank`), and the thumbnails of the grid it'll close onto (`comingBack`: the tiles on screen as it opened);
+  everything else waits for idle moments. Every graph's paint goes through `putOff` (the mix bar and Skips and picks
+  did not), and a hover reaches a graph off screen as it comes back (state.js `look`). The Top … View and Hours per
+  week thumbnails repaint only when the chart's data changes, not after its hover fades.
+- **Closing goes back to where you were** when you opened the graph, even with its tile partly off screen. After ‹ ›
+  to a tile that isn't on screen there, the page scrolls only as far as brings it in.
 - **The card takes no pointer events while it flies**, or a cursor left on the tile hovers the card flying under it.
 - **The chrome fades in to each part's own opacity:** a hidden part (Discovery's key while the names fit) stays hidden.
 

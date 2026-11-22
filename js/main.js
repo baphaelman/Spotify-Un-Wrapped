@@ -13,11 +13,11 @@ import * as api from "./api.js";
 import { savePlays, loadPlays, clearPlays } from "./store.js";
 import { forgetCovers } from "./covers.js";
 import { askGenres } from "./genres.js";
-import { $, state, startPan, onPan, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS } from "./state.js";
+import { $, state, startPan, onPan, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS, look } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
 import "./gallery.js"; // moves the graph cards into the gallery's tiles before anything draws
-import { paintThumbs } from "./thumbs.js";
+import { paintThumbs, focusThumbs } from "./thumbs.js";
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, renderMix, setBrushMorph, setBrushFocus, syncSplit } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";
@@ -524,17 +524,20 @@ onSelectionChange($("chart-rolling"), (hidden) => {
 
 setupMix((name) => focusArtist($("chart-rolling"), name));
 setupSkips((name) => focusArtist($("chart-rolling"), name));
+// (a graph off screen takes the hover as it comes back: look)
 onFocusChange($("chart-rolling"), (name) => {
-  highlightMix(name);
-  highlightSkips(name);
+  const on = (id, fn) => look($(id), id, fn);
+  on("mix-card", () => highlightMix(name));
+  on("skips-card", () => highlightSkips(name));
   paintFocus(name);
-  focusMonthly($("chart-monthly"), name);
-  focusClock($("chart-clock"), name);
-  focusEvery($("chart-raster"), name);
-  focusEvery($("chart-calendar"), name);
-  focusDiscovery($("chart-discovery"), name);
-  focusRankRace(name);
-  focusSunburst(name);
+  on("monthly-card", () => focusMonthly($("chart-monthly"), name));
+  on("clock-card", () => focusClock($("chart-clock"), name));
+  on("raster-card", () => focusEvery($("chart-raster"), name));
+  on("calendar-card", () => focusEvery($("chart-calendar"), name));
+  on("discovery-card", () => focusDiscovery($("chart-discovery"), name));
+  on("rank-card", () => focusRankRace(name));
+  on("sunburst-card", () => focusSunburst(name));
+  focusThumbs(name);
   setBrushFocus(name);
   paintBrush(undefined, brushMorph ?? { ms: FADE_MS });
 });

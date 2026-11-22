@@ -6,14 +6,14 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp } from "./state.js";
+import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp, soon } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
-import { chart, clockShares, clockSmoothing, TILE_EDGE, clipBandEdges, EDGE_GAP } from "./charts.js";
+import { chart, clockShares, clockSmoothing, TILE_EDGE, clipBandEdges, EDGE_GAP, MONTH_SHADE } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
-import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
+import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, litLook, setOptionFaded } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb } from "./every.js";
@@ -105,7 +105,7 @@ function digest() {
       own += h;
       if (h > mineH) (mine = n), (mineH = h);
     }
-    Object.assign(mo, { top, topH, own, mine, mineH, each: null });
+    Object.assign(mo, { top, topH, own, mine, mineH, by: artists.map((n) => mo.each.get(n) ?? 0), each: null });
   }
   memo = { key, artists, k, K, nb, per, lo, days, series, total, parts, skip, hours, daily, raster, found: foundShown, months };
   return memo;
@@ -242,15 +242,29 @@ function plotOf(id) {
   if (!c?.getModel()?.getSeries().length) return null;
   if (!watched.has(c)) {
     watched.add(c);
-    c.on("finished", () => paintThumbs());
-    // (an artist change ends on a plain redraw that never reports finished: the tile follows its series instead)
-    c.on("rendered", () => idsOf(c) !== copied.get(c) && paintThumbs());
+    // (only the two tiles that copy it, and only when what it draws changed: a hover's restyle, or one a pin's or a
+    // period's morph chained past, isn't new data. An artist change ends on a plain redraw that never reports
+    // finished: the tiles follow its series instead)
+    const follow = () => {
+      if (sigOf(c) === copied.get(c)) return;
+      paintThumb("rolling-card");
+      paintThumb("hours-card");
+    };
+    c.on("finished", follow);
+    c.on("rendered", () => idsOf(c) !== copiedIds.get(c) && follow());
   }
   return c;
 }
 document.getElementById("brush-track")?.addEventListener("pointerup", () => paintThumbs()); // (a drag let go: see plotOf)
-const copied = new WeakMap(); // chart -> its series' ids as the tile last copied them
+const copied = new WeakMap(), copiedIds = new WeakMap(); // chart -> what the tile last copied, its series' ids
 const idsOf = (c) => c.getModel().getSeries().map((m) => m.id).join();
+// (what it draws: its series, their data and its y extent; a new array of points is new data)
+const dataIds = new WeakMap();
+let nextData = 0;
+const sigOf = (c) => idsOf(c) + "|" + c.getModel().getSeries().map((m) => {
+  const d = m.option.data;
+  return d && typeof d === "object" ? dataIds.get(d) ?? (dataIds.set(d, ++nextData), nextData) : 0;
+}).join() + "|" + c.getModel().getComponent("yAxis")?.axis.scale.getExtent()[1];
 // The chart's series as it draws them at rest (their options as its model holds them, read, never changed), on its
 // own y extent, over the period (rollingview.js periodZoom) and the point past each end. The card draws about a point
 // per pixel; the tile takes every step-th of the same points, about one per pixel of its own. Share's edges (edge:
@@ -261,7 +275,8 @@ function miniature(t, id, box, edge) {
   const c = plotOf(id);
   if (!c) return null;
   const models = c.getModel().getSeries();
-  copied.set(c, idsOf(c));
+  copied.set(c, sigOf(c));
+  copiedIds.set(c, idsOf(c));
   const xs = models[0].option.data; // (flat: x, y, x, y …, the same dates in every series)
   const n = xs.length / 2;
   const x0 = Math.max(dayToDate(state.range.lo).getTime(), xs[0]), x1 = Math.min(dayToDate(state.range.hi + 1).getTime() - 1, xs[2 * n - 2]);
@@ -392,12 +407,14 @@ export const THUMBS = {
     const top = rows[0]?.[1] || 1;
     const { pitch, left, right, font } = rowLook(box, rows.length);
     const own = (k) => (state.chartNames?.includes(k) ? colorOf(t, k) : t.other); // (as the card's chartColor)
+    const lit = litAmong(rows.map((r) => r[0])), dim = (k) => t.dimItem[lit(k)];
+    const w = washes(rows.map((r) => r[0]), pitch, (k) => wash(own(k), 0.12, lit(k)));
     return {
-      grid: { left, right, top: 0, height: pitch * rows.length }, xAxis: axis("value", { max: top }),
-      yAxis: axis("category", { data: rows.map((r) => r[0]), inverse: true }),
-      series: [{
+      grid: [{ left, right, top: 0, height: pitch * rows.length }, w.grid], xAxis: [axis("value", { max: top }), w.xAxis],
+      yAxis: [axis("category", { data: rows.map((r) => r[0]), inverse: true }), w.yAxis],
+      series: [w.series, {
         type: "bar", id: "bar", barWidth: Math.round(pitch * 0.53), animationDurationUpdate: dur(CHASE_MS),
-        data: rows.map(([k, v]) => ({ name: k, value: v, itemStyle: { color: own(k), borderRadius: 2 } })),
+        data: rows.map(([k, v]) => ({ name: k, value: v, itemStyle: { color: own(k), borderRadius: 2, opacity: dim(k) }, label: { opacity: dim(k) } })),
         label: {
           // (right-aligned, ending just before the bar, as the card's names do)
           show: true, position: [-6, "50%"], align: "right", verticalAlign: "middle", color: t.primary, fontSize: font,
@@ -407,7 +424,7 @@ export const THUMBS = {
         // the hours, just past the bar's end
         // (as wide as the bar it rides on: overlaid bars line up by their top edge)
         type: "bar", id: "val", barWidth: Math.round(pitch * 0.53), barGap: "-100%", z: 0, itemStyle: { color: "transparent" },
-        data: rows.map(([k, v]) => ({ name: k, value: v })),
+        data: rows.map(([k, v]) => ({ name: k, value: v, label: { opacity: dim(k) } })),
         label: { show: true, position: "right", distance: 4, color: t.secondary, fontSize: font - 1, fontFamily: mono(), formatter: (p) => hoursText(rows[p.dataIndex][1], 0) },
       }],
     };
@@ -420,12 +437,13 @@ export const THUMBS = {
     if (tune.rankThumb) return rankAmong(d, t);
     const r = rankThumb(d, t);
     if (!r) return { series: [] };
+    const lit = litAmong(r.lines.map((l) => l.a));
     return {
       grid: { left: 0, right: 0, top: 3, bottom: 0 }, xAxis: axis("value", { min: 0, max: Math.max(1, r.n - 1) }),
       yAxis: guides(t, { inverse: true, min: 1, max: r.MAX + 0.4, interval: 1 }),
       series: r.lines.map((l) => ({
         type: "line", id: l.a, symbol: "none", smooth: 0.5, smoothMonotone: "x", z: l.col ? 3 : 1,
-        lineStyle: { width: l.col ? 1.25 : 0.75, color: l.col ?? t.other, opacity: l.col ? 1 : tune.rankGrayOpacity },
+        lineStyle: { width: l.col ? 1.25 : 0.75, color: l.col ?? t.other, opacity: (l.col ? 1 : tune.rankGrayOpacity) * RANK_DIM(lit(l.a)) },
         data: l.ys.map((y, i) => [i, y]),
       })),
     };
@@ -436,10 +454,16 @@ export const THUMBS = {
   "monthly-card": (d, t) => {
     const all = otherOn("monthly-card");
     const bar = (m) => (all ? [m.hours, m.top, m.topH] : [m.own, m.mine, m.mineH]);
+    // (a lit artist's months, where they aren't its top, as a slice of their own out of the gray: m{k}, the card's ids)
+    const lit = litAmong(d.artists), slice = (m, k) => (isLit(lit(d.artists[k])) && bar(m)[1] !== d.artists[k] ? m.by[k] : 0);
+    const slices = d.artists.map((n, k) => ({
+      type: "bar", stack: "a", id: `m${k}`, itemStyle: { color: mix(t.surface, colorOf(t, n), MONTH_SHADE[lit(n)]) }, data: d.months.map((m) => r1(slice(m, k))),
+    }));
     return {
       grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(d.months.length) }), yAxis: guides(t, { splitNumber: 3 }),
       series: [
-        { type: "bar", stack: "a", id: "rest", barCategoryGap: "26%", itemStyle: { color: mix(t.surface, t.other, 0.28) }, data: d.months.map((m) => r1(bar(m)[0] - bar(m)[2])) },
+        { type: "bar", stack: "a", id: "rest", barCategoryGap: "26%", itemStyle: { color: mix(t.surface, t.other, 0.28) }, data: d.months.map((m) => r1(bar(m)[0] - bar(m)[2] - d.artists.reduce((s, _, k) => s + slice(m, k), 0))) },
+        ...slices,
         { type: "bar", stack: "a", id: "top", data: d.months.map((m) => ({ value: r1(bar(m)[2]), itemStyle: { color: crown(t, bar(m)[1]), borderRadius: [2, 2, 0, 0] } })) },
       ],
     };
@@ -490,6 +514,7 @@ export const THUMBS = {
   "clock-card": (d, t, box) => {
     const { curve, all, data } = clockBands(d);
     const hidden = new Set(state.hidden);
+    const lit = litAmong(all.filter((n) => n !== OTHER && !hidden.has(n)));
     const plot = document.getElementById("chart-clock");
     const g = echarts.getInstanceByDom(plot)?.getModel()?.getComponent("grid")?.coordinateSystem?.getRect();
     // (before the card has drawn, its grid from its element: renderClock's margins, 16 at the sides, 8 over, 28 under)
@@ -499,10 +524,10 @@ export const THUMBS = {
       grid: { left: 0, right: 0, top, bottom: 0 }, xAxis: axis("value", { min: 0, max: 24 }),
       yAxis: guides(t, { min: 0, max, interval: 0.25 }),
       series: all.map((n, k) => {
-        const col = n === OTHER ? t.other : colorOf(t, n);
+        const col = n === OTHER ? t.other : colorOf(t, n), look = lit(n === OTHER ? undefined : n);
         return {
           id: `c${k}`, type: "line", symbol: "none", smooth: curve, z: 2 + all.length - k, data: data[k],
-          lineStyle: { width: hidden.has(n) ? 0 : 1, color: mix(t.surface, col, t.fade.rest) }, areaStyle: { color: mix(t.surface, col, t.shade.rest), opacity: 1 },
+          lineStyle: { width: hidden.has(n) ? 0 : 1, color: mix(t.surface, col, t.fade[look]) }, areaStyle: { color: mix(t.surface, col, t.shade[look]), opacity: 1 },
         };
       }),
     };
@@ -523,18 +548,21 @@ export const THUMBS = {
     const col = (r) => (r.slot == null ? t.other : t.series[r.slot]);
     const label = (x, o) => ({ show: true, position: [x - left, "50%"], align: "left", verticalAlign: "middle", fontSize: pitch < 11 ? 8 : 9, ...o });
     const thick = Math.max(2, Math.round(Math.min(pitch - 3, pitch * 0.7)));
+    const lit = litAmong(rows.map((r) => r.name).filter((n) => n !== OTHER)), dim = (r) => t.dimItem[lit(r.name)];
     // (each label rides a clear bar as thick as the row's: overlaid bars line up by their top edge)
     const words = (id, x, o) => ({
       type: "bar", id, barWidth: thick, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
-      data: rows.map((r) => ({ name: r.name, value: 1 })), label: label(x, o),
+      data: rows.map((r) => ({ name: r.name, value: 1, label: { opacity: dim(r) } })), label: label(x, o),
     });
+    const w = washes(rows.map((r) => r.name), pitch, (n, i) => wash(col(rows[i]), 0.14, lit(n)));
     return {
-      grid: { left, right, top: 0, height: pitch * n }, xAxis: axis("value", { max: 1 }),
-      yAxis: axis("category", { data: rows.map((r) => r.name), inverse: true }),
+      grid: [{ left, right, top: 0, height: pitch * n }, w.grid], xAxis: [axis("value", { max: 1 }), w.xAxis],
+      yAxis: [axis("category", { data: rows.map((r) => r.name), inverse: true }), w.yAxis],
       series: [
+        w.series,
         ...[["bar", 1], ["bar-on", 0.5], ["bar-skip", shade]].map(([id, k], s) => ({
           type: "bar", id, stack: "a", barWidth: thick,
-          data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k) } })),
+          data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k), opacity: dim(r) } })),
         })),
         words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * SKIPS_NAME), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
         words("pick", Math.round(W * 0.877), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].pick }),
@@ -711,20 +739,22 @@ export function addThumb(id, el) {
   seen.observe(el);
 }
 
+// Each thumbnail draws a frame at a time (state.js soon), those on screen first; while a graph is open, the ones on
+// screen where the grid was left (comingBack) draw after its neighbours, so it closes onto them drawn. The rest wait
+// until they come near the screen.
 let frame = 0;
 export function paintThumbs() {
   if (!frame) frame = requestAnimationFrame(paint);
 }
+let back = new Set();
+export const comingBack = (thumbs) => void (back = new Set(thumbs));
 function paint() {
   frame = 0;
   if (!state.plays || !state.range || !state.mixArgs) return;
-  const t = tokens();
   for (const [id, el] of els) {
-    if (!near.has(el) || !el.offsetParent) {
-      owed.add(el);
-      continue;
-    }
-    paintOne(id, el, t);
+    owed.add(el);
+    if (near.has(el) && el.offsetParent) soon(el, () => paintThumb(id), 1);
+    else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
   }
 }
 // One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js)
@@ -732,16 +762,90 @@ export function paintThumb(id) {
   const el = els.get(id);
   if (el?.offsetParent && state.plays && state.range && state.mixArgs) paintOne(id, el, tokens());
 }
-function paintOne(id, el, t) {
+// (fade: a change of look, a hover, faded over that many ms, shapes and words, rather than morphed on CHASE_MS)
+function paintOne(id, el, t, fade = 0) {
   owed.delete(el);
   const d = digest();
   const c = chart(el);
   const first = !c.getOption()?.series?.length;
-  c.setOption({
+  const option = {
     // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
     animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
-    animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
+    animationDurationUpdate: fade || dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
     tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
-  }, { replaceMerge: first ? [] : ["series"] });
+  };
+  const opts = { replaceMerge: first ? [] : ["series"] };
+  if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
+  else c.setOption(option, opts);
   OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
+}
+// setOptionFaded fades shapes, not the words on them: those fade from what they showed to their new opacity too
+function fadeWords(c, apply, ms) {
+  const words = () => {
+    const out = new Map();
+    c.getModel().eachSeries((s) => {
+      const data = s.getData();
+      data.each((i) => {
+        const w = data.getItemGraphicEl(i)?.getTextContent?.();
+        if (w) out.set(`${s.id}:${data.getName(i)}`, w);
+      });
+    });
+    return out;
+  };
+  const was = new Map([...words()].map(([k, w]) => [k, w.style.opacity ?? 1]));
+  apply();
+  for (const [k, w] of words()) {
+    const from = was.get(k), to = w.style.opacity ?? 1;
+    if (from == null || from === to) continue;
+    w.stopAnimation();
+    w.setStyle({ opacity: from });
+    w.animateTo({ style: { opacity: to } }, { duration: ms, easing: EASE_OUT.echarts });
+  }
+}
+
+// ---------- The lit look ----------
+// A thumbnail lights its artists as its card does, by the page's hover/pin rule (litLook) among those it draws, but
+// without the outline a pin adds in the card: Top … over time and Skips and picks wash a lit row and dim the rest,
+// Rank race and When you listened dim the others' lines and bands, Every Month grows a lit artist's slices out of
+// the gray. A hover fades the tiles on screen (a frame at a time, state.js soon); the rest take it as they come back,
+// or, while a graph is open, the ones it'll close onto, after it.
+let hovered = null;
+const LIT = ["race-card", "rank-card", "monthly-card", "clock-card", "skips-card"];
+export function focusThumbs(name) {
+  if ((name ?? null) === hovered) return;
+  hovered = name ?? null;
+  for (const id of LIT) {
+    const el = els.get(id);
+    if (!el || !state.mixArgs) continue;
+    owed.add(el);
+    if (near.has(el) && el.offsetParent) soon(el, () => el.offsetParent && paintOne(id, el, tokens(), dur(FADE_MS)), 1);
+    else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
+  }
+}
+function litAmong(names) {
+  const has = new Set(names), pinned = new Set(state.pinned.filter((n) => has.has(n)));
+  const h = has.has(hovered) ? hovered : null;
+  return (n) => litLook(pinned, h, n);
+}
+const isLit = (look) => look === "hover" || look === "pin" || look === "pinHover";
+// Rank race's lines' opacity by look, as the card's (rankrace.js lookOf)
+const RANK_DIM = (look) => (look === "dim" ? tune.rankDim : look === "dimHover" ? 1 - (1 - tune.rankDim) * 0.6 : 1);
+// A row's wash as the card's rows have it: its --tint of the color hovered, times --lit-pin pinned and
+// --lit-pin-hover both; none at rest or dimmed (a clear one, so it fades in rather than appearing)
+function wash(col, tint, look) {
+  const css = (k) => +getComputedStyle(document.documentElement).getPropertyValue(k) || 1;
+  const k = look === "hover" ? 1 : look === "pin" ? css("--lit-pin") : look === "pinHover" ? css("--lit-pin-hover") : 0;
+  return alpha(col, Math.min(1, tint * k));
+}
+// The washes: a full-width bar behind each row, on a grid of its own across the whole tile (names and numbers too)
+function washes(keys, pitch, color) {
+  return {
+    grid: { left: 0, right: 0, top: 0, height: pitch * keys.length },
+    xAxis: axis("value", { gridIndex: 1, max: 1 }),
+    yAxis: axis("category", { gridIndex: 1, data: keys, inverse: true }),
+    series: {
+      type: "bar", id: "wash", xAxisIndex: 1, yAxisIndex: 1, barWidth: Math.max(1, Math.floor(pitch)), z: -1, silent: true,
+      data: keys.map((k, i) => ({ name: k, value: 1, itemStyle: { color: color(k, i) } })),
+    },
+  };
 }

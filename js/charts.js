@@ -8,7 +8,7 @@ export {
   onFocusChange, onZoomChange, onSelectionChange,
   hiddenIn, setHidden, toggleArtist, showArtists, focusArtist, holdFocus, arriveHeight, TILE_EDGE, clipBandEdges, EDGE_GAP,
 } from "./charts/rolling.js";
-export { renderMonthly, focusMonthly, morphMonthly } from "./charts/monthly.js";
+export { renderMonthly, focusMonthly, morphMonthly, MONTH_SHADE } from "./charts/monthly.js";
 export { renderClock, focusClock, clockShares, clockSmoothing, morphClock, stopLines } from "./charts/clock.js";
 export { renderDiscovery, focusDiscovery, panDiscovery, morphDiscovery } from "./charts/discovery.js";
 export { renderHistogram, renderHourLines } from "./charts/community.js";
