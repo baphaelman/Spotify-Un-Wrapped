@@ -3,7 +3,7 @@
 //   EVAL="$(sed -e s/__CARD__/monthly-card/ -e 's/__PLOT__/#chart-monthly/' dev/flight_check.js)" OFFLINE=1 \
 //     python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM" /tmp/x.png 1280 1000
 // Prints, at moments of an open and a close: the thumbnail's and the plot's shapes on screen as one box (left, top,
-// width, height of their series' shapes; an element's own box when it isn't ECharts), the thumbnail's opacity and the
+// width, height of their series' shapes; for a canvas of its own, its drawn pixels' box), the thumbnail's opacity and the
 // card header's. A solid flight's two boxes agree within a few px while the thumbnail shows. Then: an open/close round
 // trip's scroll and tile position (equal), Esc midway through an open and a tile click midway through a close (each
 // lands, the card back to itself), and any errors. Finer checks (per bar, per row) are the graph's own: add them.
@@ -36,8 +36,27 @@
       if (b.width * b.height === 0 && !b.width && !b.height) continue;
       l = Math.min(l, b.x); t = Math.min(t, b.y); R = Math.max(R, b.x + b.width); B = Math.max(B, b.y + b.height);
     }
-    return l > R ? "-" : [r.left + l * sx, r.top + t * sy, (R - l) * sx, (B - t) * sy].map(Math.round).join(",");
+    return l > R ? drawn(el) : [r.left + l * sx, r.top + t * sy, (R - l) * sx, (B - t) * sy].map(Math.round).join(",");
   };
+  // A canvas of its own (every.js's, not ECharts'): the box of its pixels that differ from its corner (the background),
+  // on screen. Otherwise the element's own box.
+  function drawn(el) {
+    const cv = [...el.querySelectorAll("canvas")].filter((x) => !x.hasAttribute("data-zr-dom-id") && x.width && x.height).pop();
+    const box = (x) => { const r = x.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(","); };
+    if (!cv) return box(el);
+    const { width: w, height: h } = cv;
+    const px = cv.getContext("2d").getImageData(0, 0, w, h).data;
+    let l = w, t = h, R = -1, B = -1;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (Math.abs(px[i] - px[0]) + Math.abs(px[i + 1] - px[1]) + Math.abs(px[i + 2] - px[2]) + Math.abs(px[i + 3] - px[3]) < 24) continue;
+        if (x < l) l = x; if (x > R) R = x; if (y < t) t = y; if (y > B) B = y;
+      }
+    if (R < 0) return "-";
+    const r = cv.getBoundingClientRect(), sx = r.width / w, sy = r.height / h;
+    return [r.left + l * sx, r.top + t * sy, (R + 1 - l) * sx, (B + 1 - t) * sy].map(Math.round).join(",");
+  }
   const op = (el) => (+getComputedStyle(el).opacity).toFixed(2);
   const head = card.firstElementChild; // (the header, chrome in a solid flight)
   const take = async (marks) => {
