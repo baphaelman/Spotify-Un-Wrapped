@@ -28,7 +28,7 @@ first one.
   its thumbnail-form value, worked out from the card's own as drawn, and it runs them from what's on screen to either
   form on one tick of zrender's clock, puts the drawn values back exactly once home, and ends a paint's running
   morph first. A `setOption` here costs a render each call (Discovery's two were 42 ms of a click); this costs what
-  the shapes do. Every Month, Rank race and Discovery use it; rolling.js `arriveHeight` is the same idea, tied to the
+  the shapes do. Every Month, Rank race, Discovery and When you listened use it; rolling.js `arriveHeight` is the same idea, tied to the
   card's progress.
 
 The flight calls it like this:
@@ -103,7 +103,7 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
 - **What's left is the flight's own setup:** layout (the card joining the slot), the flight's animations, and the
   arrival. Arrivals that move the drawn shapes (`morphShapes`, `arriveHeight`) or the whole drawing by one transform
   (every.js `fly`) cost a few ms: profiled, a click on Discovery went from 63 to 11 ms (`morphDiscovery` 42 → 3,
-  about 1,000 dots in the Tracks view), Rank race 75 → 8 (28 → 2), Every Month 21 → 8 (14 → 2). Skips and picks'
+  about 1,000 dots in the Tracks view), Rank race 75 → 8 (28 → 2), Every Month 21 → 8 (14 → 2), When you listened 16 → 6 (13 → 1). Skips and picks'
   `flyRows` is about 7.
 - **The card's move is its own animation** (transform and opacity, run by the compositor even while the page is busy);
   its clip and colors are another beside it, so a busy frame holds only them. Clip flights (Visual tweaks) flies
@@ -170,7 +170,8 @@ canvases, so pass the thumbnail's (`--charts thumb-race-card`).
 
 **Per band** (`dev/band_check.js`, for areas and lines): each series' top edge in the thumbnail and in the plot,
 compared at the thumbnail's points, and its fill, at given ms of an open (`__AT__`; `__SETUP__` sets the card's
-choices first). Top … View and Hours per week: within 0.6px through 200 ms, fills equal.
+choices first). Top … View and Hours per week: within 0.6px through 200 ms, fills equal. When you listened: within 0.1px
+through 200 ms, fills equal (its flight_check boxes stand 2–3px apart: they're the strokes' bounds, not the edges).
 
 **Every play, Every day** (`dev/flight_every.js`, `__OTHER__` its Everyone else toggle): the thumbnail's box cut into
 40 bands across, each band's marks compared in the two canvases (height, amount drawn, mean color), with Everyone

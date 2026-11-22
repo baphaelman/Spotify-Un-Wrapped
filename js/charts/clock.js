@@ -4,7 +4,7 @@ import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, setOptionFaded, dur, litLook,
 import { shownName, state } from "../state.js";
 import { tune } from "../tune.js";
 import { tokens, mix } from "../colors.js";
-import { baseAxis, chart, instances, row, tooltipBase } from "./core.js";
+import { baseAxis, chart, instances, row, tooltipBase, morphShapes, part } from "./core.js";
 
 // When you listened: one share stack graph across the hours of the day (every weekday together), drawn like the
 // rolling chart's Share mode (bands bottom up in rank order, a pale tint of each artist's color under an outline). With
@@ -214,25 +214,30 @@ export function focusClock(el, name) {
 // { x, y: [at, k], where a point a fraction f across (or up) the thumbnail's plot is at at + k·f of the card's, s: the
 // card's pixels per thumbnail pixel, n: the thumbnail's bands, edges: their top edges as the thumbnail has them, 0..1 }.
 // The thumbnail draws the card's own shares (clockShares), so its form is the card's squashed to the thumbnail's
-// height, its outlines as thin as the thumbnail's. False when they aren't the same bands.
+// height, its outlines as thin as the thumbnail's. The drawn bands move themselves (morphShapes): each line's and
+// fill's points (the fill's foot on the axis), and the lines' widths. False when they aren't the same bands.
 export function morphClock(el, look, toThumb, ms) {
   const st = clockState.get(el), c = instances.get(el);
   if (!st?.data || !c || !look || look.n !== st.all.length) return false;
   c.dispatchAction({ type: "hideTip" });
-  // (drawn at once: a paint's morph still running, as the card's just before a flight, ends first, or ECharts, seeing
-  // the data it was already given, leaves its shapes partway)
-  if (!ms) stopLines(c);
-  const series = st.all.map((n, k) => {
-    const base = { id: `c${k}`, ...clockLook(st, k) };
-    if (!toThumb) return { ...base, data: st.data[k] };
-    return {
-      ...base, lineStyle: { ...base.lineStyle, width: base.lineStyle.width && look.s },
-      data: look.edges[k].map(([h, y]) => [24 * (look.x[0] + look.x[1] * (h / 24)), look.y[0] + look.y[1] * y]),
+  return morphShapes(c, st, toThumb, ms, () => {
+    const r = c.getModel().getComponent("grid").coordinateSystem.getRect(), floor = r.y + r.height;
+    const at = (edge) => {
+      const out = new Float32Array(edge.length * 2);
+      edge.forEach(([h, y], i) => [out[2 * i], out[2 * i + 1]] = [r.x + r.width * (look.x[0] + look.x[1] * (h / 24)), floor - r.height * (look.y[0] + look.y[1] * y)]);
+      return out;
     };
+    const parts = [];
+    for (const [k, m] of c.getModel().getSeries().entries()) {
+      const v = c.getViewOfSeriesModel(m), edge = look.edges[k];
+      const line = v?._polyline, fill = v?._polygon;
+      if (!edge || line?.shape.points.length !== edge.length * 2) return null;
+      const top = at(edge), foot = at(edge.map(([h]) => [h, 0]));
+      parts.push(part(line, line.shape, "points", top), part(line, line.style, "lineWidth", line.style.lineWidth && look.s));
+      if (fill) parts.push(part(fill, fill.shape, "points", top), part(fill, fill.shape, "stackedOnPoints", foot));
+    }
+    return parts;
   });
-  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  if (!ms) c.setOption({ animation: true });
-  return true;
 }
 
 // Ends the line series' running morphs at once, each at its end
