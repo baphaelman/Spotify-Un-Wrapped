@@ -160,6 +160,29 @@ export function updateSkips(next) {
   if (under && rows.has(under) && focusName !== under) hover(under);
 }
 
+// The rows as the card shows them (horizontal, the default look), for its thumbnail (thumbs.js): each name, its
+// palette slot (null: Everyone else), its plays' shares picked / played through / skipped, and the card's two numbers.
+// From the last updateSkips, which runs whether or not the card is on screen.
+export function skipsNow() {
+  if (!ctx?.reasons) return [];
+  const totals = new Map(ctx.reasons);
+  if (ctx.other) totals.set(OTHER, othersOf(ctx.reasons, new Set(ctx.names)));
+  return [...ctx.names, ...(ctx.other ? [OTHER] : [])].filter((n) => !ctx.hidden.has(n) && totals.get(n)?.plays).map((name) => {
+    const { plays: n, skip, pick, both } = totals.get(name);
+    const i = ctx.names.indexOf(name);
+    return {
+      name, shown: name === OTHER ? OTHER : ctx.title?.(name) ?? name, slot: name === OTHER ? null : ctx.slots?.[i] ?? i,
+      parts: [(pick - both) / n, (n - skip - pick + both) / n, skip / n], pick: pct(pick / n), skip: pct(skip / n),
+    };
+  });
+}
+// The card's rows on show, top to bottom, with their parts (the arrival's); null in the vertical look
+export function skipsRows() {
+  if (tune.skipsLook === 1) return null;
+  return [...rows].sort((a, b) => a[1].row.style.order - b[1].row.style.order)
+    .map(([key, r]) => ({ key, li: r.row, name: r.who, bar: r.row.querySelector(".skips-bar"), pick: r.pickEl, skip: r.skipEl }));
+}
+
 // A row's color; a row handed to a newcomer fades from the leaver's color to its own on the morph tier
 function recolor(el, color, glide) {
   const was = getComputedStyle(el).getPropertyValue("--skips-c");

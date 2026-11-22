@@ -28,6 +28,7 @@ import { morphMonthly } from "./charts.js";
 // Top … over time, All your …, Skips and picks
 import { flyRows, thumbShapes } from "./rowfly.js";
 import { raceRows, settleRace } from "./race.js";
+import { skipsRows } from "./skips.js";
 
 // Listening mix, Inside your top …
 import { morphMix } from "./mix.js";
@@ -94,6 +95,25 @@ export const ARRIVALS = {
     }), to, ms);
   },
 
+  // Skips and picks: the thumbnail is the card's rows in its columns; each whole bar flies (its three parts in it)
+  "skips-card": (card, el, to, ms) => {
+    const plot = $("skips-list"), rows = skipsRows();
+    if (!rows) return false; // (the vertical look crossfades)
+    const sh = thumbShapes(el, plot.offsetWidth / el.offsetWidth);
+    const get = (id, i) => sh.get(id)?.[i];
+    const at = new Map((sh.get("bar") ?? []).map((b, i) => {
+      // the row's bar: its three stacked parts as one box
+      const bs = ["bar", "bar-on", "bar-skip"].map((id) => get(id, i)?.bar).filter((r) => r && r.w > 0);
+      const x = Math.min(...bs.map((r) => r.x)), y = Math.min(...bs.map((r) => r.y));
+      const bar = bs.length ? { x, y, w: Math.max(...bs.map((r) => r.x + r.w)) - x, h: Math.max(...bs.map((r) => r.y + r.h)) - y } : null;
+      return [b.name, { bar, name: get("name", i)?.label, pick: get("pick", i)?.label, skip: get("skip", i)?.label }];
+    }));
+    if (to === "thumb" && !matches(rows, at)) return false;
+    return flyRows(card, plot, rows.flatMap((r, row) => {
+      const a = at.get(r.key);
+      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.pick, at: text(a.pick) }, { el: r.skip, at: text(a.skip) }] : [{ el: r.li, at: null, row }];
+    }), to, ms);
+  },
   // Listening mix, Inside your top …
   // … Listening mix: each block of the thumbnail becomes its segment (place, height, corners, tint, labels), and its
   // faces fly down into their tiles in the list under the bar, the pictures it already shows (no new asks)

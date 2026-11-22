@@ -17,6 +17,7 @@ import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb } from "./every.js";
 import { raceNow } from "./race.js";
+import { skipsNow } from "./skips.js";
 
 const BUCKETS = 40; // time slices across the period
 const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
@@ -342,18 +343,35 @@ export const THUMBS = {
   "raster-card": () => ({ series: [] }),
   // Every day: drawn by every.js, the card's own boxes in miniature (OVERLAYS), over an empty chart
   "calendar-card": () => ({ series: [] }),
-  // Skips and picks: each artist's plays, picked, played through and skipped, in shades of its color
-  "skips-card": (d, t) => ({
-    grid: { left: 0, right: 0, top: 2, bottom: 2 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: d.artists, inverse: true }),
-    series: [1, 0.3, 0.75].map((shade, s) => ({
-      type: "bar", stack: "a", barWidth: "58%",
-      data: d.artists.map((n, i) => {
-        const n3 = d.skip[i][0] + d.skip[i][1] + d.skip[i][2] || 1;
-        const radius = s === 0 ? [2, 0, 0, 2] : s === 2 ? [0, 2, 2, 0] : 0;
-        return { value: r1(d.skip[i][s] / n3), itemStyle: { color: mix(t.surface, colorOf(t, n), shade), borderRadius: radius } };
-      }),
-    })),
-  }),
+  // Skips and picks: the card's rows (skipsNow) in its columns: the name, the bar of plays picked, played through and
+  // skipped in shades of its color, the share picked and the share skipped. The rows share the thumbnail's height, as
+  // the card's share its list's.
+  "skips-card": (d, t, box) => {
+    const rows = skipsNow();
+    const W = box.w, n = Math.max(1, rows.length);
+    // (the card's columns at its usual width: name 1-17%, bar 18-86.5%, then the two numbers)
+    const left = Math.round(W * 0.18), right = Math.round(W * 0.135), pitch = box.h / n;
+    const shade = tune.skipsShades === 1 ? 0.18 : 1;
+    const col = (r) => (r.slot == null ? t.other : t.series[r.slot]);
+    const label = (x, o) => ({ show: true, position: [x - left, "50%"], align: "left", verticalAlign: "middle", fontSize: pitch < 11 ? 8 : 9, ...o });
+    const words = (id, x, o) => ({
+      type: "bar", id, barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
+      data: rows.map((r) => ({ name: r.name, value: 1 })), label: label(x, o),
+    });
+    return {
+      grid: { left, right, top: 0, height: pitch * n }, xAxis: axis("value", { max: 1 }),
+      yAxis: axis("category", { data: rows.map((r) => r.name), inverse: true }),
+      series: [
+        ...[["bar", 1], ["bar-on", 0.5], ["bar-skip", shade]].map(([id, k], s) => ({
+          type: "bar", id, stack: "a", barWidth: Math.max(2, Math.round(Math.min(pitch - 3, pitch * 0.7))),
+          data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k) } })),
+        })),
+        words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * 0.155), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
+        words("pick", Math.round(W * 0.877), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].pick }),
+        words("skip", Math.round(W * 0.941), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].skip }),
+      ],
+    };
+  },
 };
 
 // The mix thumbnail's pictures, a row of round faces centered over the artists' blocks (where a block is wide enough).
