@@ -1623,27 +1623,60 @@ export function holdFocus(el, name) {
 
 // ---------- The gallery's arrival (arrivals.js) ----------
 // Both cards' tiles draw the chart's own series (thumbs.js miniature), so in a flight the plot only changes height:
-// as it starts, the tile's shapes are as wide as the plot's but squatter, by k. The series' groups scale about the
-// plot's floor, from what's on screen, to k (1 is the card's own), at once or over ms; the axes stay at the card's
-// own extent, so they only fade (gallery.js). Every shape of a series, its clip too, scales with its group.
-// follow(): the scale for this frame, so the height keeps to the flying thumbnail's all the way (arrivals.js).
-export function arriveHeight(el, k, ms, follow) {
+// as it starts, the tile's shapes are as wide as the plot's but squatter. Each series' drawn points are squashed
+// toward the plot's floor, from what's on screen, at once or over ms (the clips that cut the edges read their bands'
+// points, so they follow); the axes stay at the card's own extent, so they only fade (gallery.js). The points, not
+// the groups: a squashed group would flatten its strokes too, level lines thinner than steep ones.
+// at(): where the flight is, { k: the height's scale, p: its progress (0 the tile, 1 the card), scale: the card's }.
+// The lines keep the tile's weight on screen and come to their own on p, rather than thinning with the card's scale.
+export const TILE_EDGE = 2 / 3; // share's edges in the tile, of what the card shows of them (thumbs.js miniature)
+export function arriveHeight(el, ms, at, end) {
   const c = instances.get(el);
   const r = c?.getModel().getComponent("grid")?.coordinateSystem?.getRect();
   if (!r) return false;
-  const groups = (c._chartsViews ?? []).map((v) => v.group);
-  const set = (v) => groups.forEach((g) => ((g.scaleY = v), g.markRedraw()));
-  for (const g of groups) {
-    g.stopAnimation();
-    g.originX = 0;
-    g.originY = r.y + r.height;
+  const floor = r.y + r.height;
+  const shapes = [];
+  for (const m of c.getModel().getSeries()) {
+    const ratio = /^[tb]\d/.test(m.id) ? TILE_EDGE : 1;
+    c.getViewOfSeriesModel(m)?.group.traverse((e) => void (e.shape?.points && shapes.push([e, ratio])));
   }
-  // (one group's step keeps zrender's clock on the beat, each frame setting every group's height before it paints)
-  const lead = groups[0];
-  if (!ms || !lead) set(k);
+  // own: the points as the chart drew them (kept while squashed); buf: the squashed ones, reused frame to frame
+  const squash = (e, key, k) => {
+    const own = (e.arrive[key] ??= e.shape[key]);
+    if (!own) return;
+    const buf = (e.arrive[key + "Buf"] ??= new Float32Array(own.length));
+    for (let i = 0; i < own.length; i += 2) {
+      buf[i] = own[i];
+      buf[i + 1] = floor + (own[i + 1] - floor) * k;
+    }
+    e.shape[key] = buf;
+  };
+  const set = ({ k, p, scale }) => {
+    const home = k === 1 && p === 1;
+    for (const [e, ratio] of shapes) {
+      // (a chart redrawn meanwhile has points of its own again: those stay)
+      if (e.arrive && e.shape.points !== e.arrive.pointsBuf) delete e.arrive;
+      e.arrive ??= { width: e.style.lineWidth };
+      if (home) {
+        e.shape.points = e.arrive.points ?? e.shape.points;
+        if (e.arrive.stackedOnPoints) e.shape.stackedOnPoints = e.arrive.stackedOnPoints;
+        e.style.lineWidth = e.arrive.width;
+        delete e.arrive;
+      } else {
+        squash(e, "points", k);
+        squash(e, "stackedOnPoints", k);
+        if (e.type === "ec-polyline") e.style.lineWidth = (e.arrive.width * (ratio + (1 - ratio) * p)) / scale;
+      }
+      e.dirtyShape();
+    }
+  };
+  // (a step of the chart's own keeps zrender's clock on the beat, each frame squashing the points before it paints)
+  const lead = c._chartsViews?.[0]?.group;
+  lead?.stopAnimation();
+  if (!ms || !lead) set(end);
   else {
     lead.arriveStep = 0;
-    lead.animateTo({ arriveStep: 1 }, { duration: ms, during: () => set(follow()), done: () => set(k) });
+    lead.animateTo({ arriveStep: 1 }, { duration: ms, during: () => set(at()), done: () => set(end) });
   }
   return true;
 }

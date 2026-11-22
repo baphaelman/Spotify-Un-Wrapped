@@ -8,7 +8,7 @@
 
 import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
-import { chart, clockShares, clockSmoothing } from "./charts.js";
+import { chart, clockShares, clockSmoothing, TILE_EDGE } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
@@ -255,7 +255,7 @@ const idsOf = (c) => c.getModel().getSeries().map((m) => m.id).join();
 // own y extent, over the period (rollingview.js periodZoom) and the point past each end. The card draws about a point
 // per pixel; the tile takes every step-th of the same points, about one per pixel of its own. Share's edges are drawn
 // twice as wide and half clipped away by their band (rolling.js clipEdges); here they're lines of their own, edge ×
-// what shows.
+// what shows (TILE_EDGE: the arrival brings them from that weight to the card's).
 function miniature(t, id, box, edge) {
   const c = plotOf(id);
   if (!c) return null;
@@ -363,7 +363,7 @@ export const THUMBS = {
   // tile", which crossfades): each artist's share among the chart's artists, stacked (the rest left out), over the
   // card's own window, its days per slice, summed from the days at up to POINTS places, without its smoothing
   "rolling-card": (d, t, box) => {
-    const mini = !tune.rollingThumb && miniature(t, "chart-rolling", box, 2 / 3);
+    const mini = !tune.rollingThumb && miniature(t, "chart-rolling", box, TILE_EDGE);
     if (mini) return mini;
     const W = Math.min(d.days, WINDOWS[document.getElementById("window")?.value] ?? 45);
     const n = Math.min(POINTS, d.days - W + 1);

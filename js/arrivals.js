@@ -35,12 +35,12 @@ function rollingArrival(card, el, id, classic, to, ms) {
   const box = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
   const a = box(thumb), b = box(plot);
   const s = a.width / b.width, h = a.height / b.height; // (h = s × k: the tile's height in the plot's)
-  const follow = () => {
+  const at = () => {
     const scale = new DOMMatrix(getComputedStyle(card).transform).a;
     const p = Math.min(1, Math.max(0, (scale - s) / (1 - s)));
-    return (h + (1 - h) * p) / scale;
+    return { k: (h + (1 - h) * p) / scale, p, scale };
   };
-  return arriveHeight($(id), to === "thumb" ? h / s : 1, ms, follow);
+  return arriveHeight($(id), ms, at, to === "thumb" ? { k: h / s, p: 0, scale: s } : { k: 1, p: 1, scale: 1 });
 }
 
 // Rank race, Discovery, When you listened
