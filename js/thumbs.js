@@ -10,7 +10,7 @@ import { state, shownPlays, rangeTotals, OTHER, WINDOWS } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
-import { DAY, HOUR, isSkip, isPick, monthSpan } from "./aggregate.js";
+import { DAY, HOUR, isSkip, isPick, monthSpan, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
@@ -108,6 +108,30 @@ function digest() {
   }
   memo = { key, artists, k, K, nb, per, lo, days, series, total, parts, skip, hours, daily, raster, found: foundShown, months };
   return memo;
+}
+
+// Discovery's finds as its card has them (rollingview.js paintDiscovery): every item first heard (or, by the card's
+// "Reached threshold", first reaching its Listening Threshold) in the period with at least that much all time, on
+// the card's axes. lit: those of the chart's artists (a genre's tracks by their genre); rest: a sample of the others.
+let heardMemo = null, findsMemo = null;
+function discoveryFinds(d) {
+  const floor = tune.discoveryFloor / 60;
+  const reach = document.querySelector("#discovery-by [aria-pressed=true]")?.dataset.by === "reach" ? floor : 0;
+  const key = [d.key, floor, reach].join("|");
+  if (findsMemo?.key === key) return findsMemo;
+  if (heardMemo?.plays !== state.plays || heardMemo.reach !== reach) {
+    const items = state.dim === "genre" ? firstHeardTracks(state.plays, reach) : firstHeard(state.plays, state.dim !== "track", state.dim !== "album", reach);
+    heardMemo = { plays: state.plays, reach, items };
+  }
+  const span = [dayToDate(d.lo).getTime(), dayToDate(d.lo + d.days).getTime()];
+  const hidden = new Set(state.hidden);
+  const shown = heardMemo.items.filter((e) => e.t >= span[0] && e.t < span[1] && e.hours >= floor && !hidden.has(e.group ?? e.name));
+  const keyed = new Set(d.artists.filter((n) => state.colorSlots?.has(n)));
+  const lit = shown.filter((e) => keyed.has(e.group ?? e.name)), rest = shown.filter((e) => !keyed.has(e.group ?? e.name));
+  const step = Math.max(1, Math.ceil(rest.length / FOUND_MAX));
+  const top = Math.max(1, shown.reduce((m, x) => Math.max(m, x.hours), floor) * 1.6);
+  findsMemo = { key, span, floor, top, lit, rest: rest.filter((_, i) => i % step === 0) };
+  return findsMemo;
 }
 
 // ---------- Drawing ----------
@@ -303,18 +327,23 @@ export const THUMBS = {
       ],
     };
   },
-  // Discovery: everything first heard in the period, a dot by when and (on a log scale) how much since
-  "discovery-card": (d, t) => ({
-    grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: 0, max: d.days }),
-    yAxis: { ...guides(t), type: "log", min: 1 / 60, splitLine: hide },
-    series: [0, 1].map((mine) => ({
-      type: "scatter", symbolSize: mine ? 7 : 3.5, z: mine ? 2 : 1,
-      itemStyle: mine ? { borderColor: t.surface, borderWidth: 1 } : { color: alpha(t.other, 0.75) },
-      data: d.found.filter((x) => (x[2] < d.k) === !!mine).map(([day, h, a]) => ({
-        value: [day, Math.max(h, 1 / 60)], ...(mine ? { itemStyle: { color: colorAt(t, d, a) } } : {}),
-      })),
-    })),
-  }),
+  // Discovery: the card's finds (its threshold and its First listen / Reached choice), a dot by when and (on its log
+  // scale, from the threshold up) how much all time, in the card's colors: the chart's artists over a sample of the
+  // rest. Each dot is named, so the card's arrival grows its own dots from these (morphDiscovery).
+  "discovery-card": (d, t) => {
+    const f = discoveryFinds(d);
+    return {
+      grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: f.span[0], max: f.span[1] }),
+      yAxis: { ...guides(t), type: "log", min: f.floor, max: f.top, splitLine: hide },
+      series: [
+        { id: "rest", type: "scatter", symbolSize: 3.5, z: 1, itemStyle: { color: mix(t.surface, t.other, 0.8) }, data: f.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)] })) },
+        {
+          id: "mine", type: "scatter", symbolSize: 7, z: 2, itemStyle: { borderColor: t.surface, borderWidth: 1 },
+          data: f.lit.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)], itemStyle: { color: colorOf(t, e.group ?? e.name) } })),
+        },
+      ],
+    };
+  },
   // Hours per week: a ridge per artist, its hours rising from its own baseline, each over the next
   "hours-card": (d, t) => {
     const sm = d.artists.map((_, i) => smooth(d.series[i], 1));

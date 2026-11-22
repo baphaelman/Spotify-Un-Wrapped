@@ -24,6 +24,16 @@ import { morphMonthly } from "./charts.js";
 // Top … View, Hours per week
 
 // Rank race, Discovery, When you listened
+import { morphDiscovery } from "./charts.js";
+// Where a thumbnail's plot lands on its card's in a solid flight (gallery.js: the card's grid as wide as the
+// thumbnail, on its baseline): a point a fraction f across (or up) the thumbnail's grid is at at + k·f of the card's.
+// s: the card's pixels per thumbnail pixel.
+const gridOf = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
+function landing(thumbEl, thumb, plot) {
+  const a = gridOf(thumb), b = gridOf(plot), W = thumbEl.offsetWidth, H = thumbEl.offsetHeight;
+  const s = b.width / W; // (the card's grid is as wide as the whole thumbnail)
+  return { s, x: [a.x / W, a.width / W], y: [((H - a.y - a.height) * s) / b.height, (a.height * s) / b.height] };
+}
 
 // Top … over time, All your …, Skips and picks
 import { flyRows, thumbShapes } from "./rowfly.js";
@@ -66,6 +76,17 @@ export const ARRIVALS = {
   // Top … View, Hours per week
 
   // Rank race, Discovery, When you listened
+  // … Discovery: the card's own dots start as the thumbnail's, the same finds on the same axes squashed to its
+  // height, and grow to the card's sizes as the dots the thumbnail left out grow from nothing and the names fade in
+  "discovery-card": (card, el, to, ms) => {
+    const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($("chart-discovery"));
+    const opt = thumb?.getOption();
+    if (!opt?.series?.length || !plot) return false;
+    const dots = new Map();
+    for (const s of opt.series) for (const p of s.data) dots.set(p.name, s.id === "mine" ? { size: s.symbolSize, color: p.itemStyle.color, border: s.itemStyle.borderColor } : { size: s.symbolSize });
+    const [x] = opt.xAxis, [y] = opt.yAxis;
+    return morphDiscovery($("chart-discovery"), { ...landing(el, thumb, plot), dots, span: [x.min, x.max], floor: y.min, top: y.max }, to === "thumb", ms);
+  },
 
   // Top … over time, All your …, Skips and picks: the card's rows, each bar, name and number from where the thumbnail
   // draws it (rowfly.js), ranks and the rows it doesn't have fading in

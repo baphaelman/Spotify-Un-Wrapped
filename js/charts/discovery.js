@@ -91,7 +91,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
           formatter: (h) => (Math.abs(h / st.top - 1) < 1e-6 && Math.abs(Math.log10(h) % 1) > 1e-6 ? "" : h < 1 ? `${+(h * 60).toPrecision(2)} min` : `${+h.toPrecision(2)} h`),
         },
       },
-      series: [
+      series: (st.series = [
         {
           id: "rest",
           type: "scatter",
@@ -124,7 +124,7 @@ export function renderDiscovery(el, items, span, floor, top, names = [], slots =
             ...(st.grouped ? {} : { label: { position: foundOnLeft(st, e) ? "left" : "right" } }),
           })),
         })),
-      ],
+      ]),
     },
     { notMerge: fresh },
     ms
@@ -384,4 +384,67 @@ export function focusDiscovery(el, name) {
   setOptionFaded(c, { series: st.litBy.map((_, k) => discoveryLit(st, k)) }, undefined, dur(FADE_MS));
   dimRest(c, st, dur(FADE_MS));
   lightFoundKey(st, el.parentElement.querySelector(".found-key"));
+}
+
+// The gallery's arrival (arrivals.js): the card's dots as its thumbnail draws them (toThumb), or as its own. look:
+// { dots: name -> { size, color, border } in the thumbnail's pixels, x, y: [at, k], where a thumbnail's dot at a
+// fraction f across (or up) its plot is at at + k·f of the card's, s: the card's pixels per thumbnail pixel, and
+// span, floor, top, the thumbnail's axes }. In the thumbnail's form, each dot sits where the thumbnail has it (on the
+// card's held axes, its log scale squashed toward the floor), at its size and color; the rest it leaves out are
+// nothing yet, and the names wait unseen. False when the thumbnail's dots aren't the card's.
+export function morphDiscovery(el, look, toThumb, ms) {
+  const st = discoveryState.get(el), c = instances.get(el);
+  if (!st?.series || st.c !== c || !look) return false;
+  const near = (a, b) => Math.abs(a / b - 1) < 1e-6;
+  if (!near(look.span[0], st.span[0]) || !near(look.span[1], st.span[1]) || !near(look.floor, st.floor) || !near(look.top, st.top)) return false;
+  const names = new Set([...st.rest, ...st.lit].map((e) => e.name));
+  for (const n of look.dots.keys()) if (!names.has(n)) return false;
+  c.dispatchAction({ type: "hideTip" });
+  st.ring?.attr({ style: { opacity: 0 } });
+  const [lo, hi] = st.span, ly = Math.log(st.floor), ry = Math.log(st.top) - ly;
+  const at = ([t, h]) => {
+    const fx = look.x[0] + look.x[1] * ((t - lo) / (hi - lo)), fy = look.y[0] + look.y[1] * ((Math.log(h) - ly) / ry);
+    return [lo + fx * (hi - lo), Math.exp(ly + fy * ry)];
+  };
+  const series = toThumb
+    ? st.series.map((s) => ({
+        id: s.id,
+        data: s.data.map((p) => {
+          const dot = look.dots.get(p.name);
+          return {
+            ...p, value: at(p.value), symbolSize: dot ? dot.size * look.s : 0,
+            ...(dot?.color && { itemStyle: { color: dot.color, borderColor: dot.border, borderWidth: look.s } }),
+          };
+        }),
+      }))
+    : st.series.map((s) => ({ id: s.id, data: s.data }));
+  const names0 = labelsOf(c);
+  // (every dot glides, however many: ECharts would otherwise draw a big plot's at once)
+  setOptionFaded(c, { animation: ms > 0, animationThreshold: 1e6, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
+  // The names fade in on the dots' beat (out, toward the thumbnail), from what's on screen
+  for (const [k, e] of labelsOf(c)) {
+    const to = toThumb ? 0 : e.style.opacity ?? 1, from = names0.get(k)?.style.opacity ?? (toThumb ? 1 : 0);
+    e.stopAnimation();
+    if (!ms) e.setStyle({ opacity: to });
+    else {
+      e.setStyle({ opacity: from });
+      e.animateTo({ style: { opacity: to } }, { duration: ms, easing: EASE_IN_OUT.echarts });
+    }
+  }
+  if (!ms) c.setOption({ animation: true });
+  clearTimeout(st.unthreshold);
+  st.unthreshold = setTimeout(() => !c.isDisposed() && c.setOption({ animationThreshold: 2000 }), ms + 50);
+  return true;
+}
+// The dots' names as drawn, by series and name
+function labelsOf(c) {
+  const out = new Map();
+  for (const m of c.getModel().getSeries()) {
+    const data = m.getData();
+    for (let i = 0; i < data.count(); i++) {
+      const text = data.getItemGraphicEl(i)?.getTextContent?.();
+      if (text && !text.ignore) out.set(`${m.id}:${data.getName(i)}`, text);
+    }
+  }
+  return out;
 }

@@ -10,5 +10,5 @@ export {
 } from "./charts/rolling.js";
 export { renderMonthly, focusMonthly, morphMonthly } from "./charts/monthly.js";
 export { renderClock, focusClock } from "./charts/clock.js";
-export { renderDiscovery, focusDiscovery, panDiscovery } from "./charts/discovery.js";
+export { renderDiscovery, focusDiscovery, panDiscovery, morphDiscovery } from "./charts/discovery.js";
 export { renderHistogram, renderHourLines } from "./charts/community.js";
