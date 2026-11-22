@@ -234,7 +234,7 @@ export const STRETCH = {
   // over time, the rolling chart's
   "rolling-card": 0.9, "hours-card": 0.65,
   // over time, ECharts
-  "rank-card": 0.6, "discovery-card": 0.5, "clock-card": 0.7,
+  "rank-card": 0.65, "discovery-card": 0.75, "clock-card": 0.7,
   // rows
   // (rows across: wider only lengthens the bars and the name column; the text keeps its size)
   "race-card": 0.75, "ranking-card": 0.6, "skips-card": 0.65,
