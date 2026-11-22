@@ -25,6 +25,8 @@ import { morphMonthly } from "./charts.js";
 
 // Rank race, Discovery, When you listened
 import { morphDiscovery, morphClock } from "./charts.js";
+import { morphRankRace } from "./rankrace.js";
+import { tune } from "./tune.js";
 // Where a thumbnail's plot lands on its card's in a solid flight (gallery.js: the card's grid as wide as the
 // thumbnail, on its baseline): a point a fraction f across (or up) the thumbnail's grid is at at + k·f of the card's.
 // s: the card's pixels per thumbnail pixel.
@@ -76,6 +78,15 @@ export const ARRIVALS = {
   // Top … View, Hours per week
 
   // Rank race, Discovery, When you listened
+  // … Rank race: the thumbnail draws the card's own lines, so the card's start as them, squashed to its height, thin
+  // and without circles or names, and grow into the card's (its earlier design, a Visual tweak, crossfades)
+  "rank-card": (card, el, to, ms) => {
+    const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($("chart-rank"));
+    const opt = thumb?.getOption(), series = opt?.series?.filter(Boolean); // (a series replaced away leaves a hole)
+    if (tune.rankThumb || !series?.length || !plot) return false;
+    const lines = new Map(series.map((s) => [s.id, { width: s.lineStyle.width, color: s.lineStyle.color, opacity: s.lineStyle.opacity }]));
+    return morphRankRace({ ...landing(el, thumb, plot), lines, n: series[0].data.length, MAX: Math.round(opt.yAxis[0].max - 0.4) }, to === "thumb", ms);
+  },
   // … Discovery: the card's own dots start as the thumbnail's, the same finds on the same axes squashed to its
   // height, and grow to the card's sizes as the dots the thumbnail left out grow from nothing and the names fade in
   "discovery-card": (card, el, to, ms) => {
@@ -83,7 +94,7 @@ export const ARRIVALS = {
     const opt = thumb?.getOption();
     if (!opt?.series?.length || !plot) return false;
     const dots = new Map();
-    for (const s of opt.series) for (const p of s.data) dots.set(p.name, s.id === "mine" ? { size: s.symbolSize, color: p.itemStyle.color, border: s.itemStyle.borderColor } : { size: s.symbolSize });
+    for (const s of opt.series.filter(Boolean)) for (const p of s.data) dots.set(p.name, s.id === "mine" ? { size: s.symbolSize, color: p.itemStyle.color, border: s.itemStyle.borderColor } : { size: s.symbolSize });
     const [x] = opt.xAxis, [y] = opt.yAxis;
     return morphDiscovery($("chart-discovery"), { ...landing(el, thumb, plot), dots, span: [x.min, x.max], floor: y.min, top: y.max }, to === "thumb", ms);
   },
@@ -92,7 +103,7 @@ export const ARRIVALS = {
   // with its thin outlines, and grow to the card's
   "clock-card": (card, el, to, ms) => {
     const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($("chart-clock"));
-    const series = thumb?.getOption()?.series;
+    const series = thumb?.getOption()?.series?.filter(Boolean); // (a series replaced away leaves a hole)
     if (!series?.length || !plot) return false;
     return morphClock($("chart-clock"), { ...landing(el, thumb, plot), n: series.length, edges: series.map((s) => s.data) }, to === "thumb", ms);
   },

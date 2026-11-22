@@ -177,16 +177,8 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   const el = $("chart-rank");
   if (!state.plays || !state.range || putOff($("rank-card"), () => paintRankRace())) return;
   const t = tokens();
-  const plays = rangePlays();
-  const span = agg.monthSpan(plays, tune.maxBars + 1);
-  // Hidden artists aren't ranked, so the rest close up. With Everyone else off: only the key's shown artists, ranked
-  // among themselves
-  const hidden = new Set(state.hidden);
-  const other = otherInput.checked;
-  const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
-  const inKey = new Set(keyed);
-  glideMax(other ? tune.rankMax : Math.max(1, keyed.length));
-  const { rows, labels, k0 } = ranksOf(plays, span, months, other ? (p) => (hidden.has(p.artist) ? null : p.artist) : (p) => (inKey.has(p.artist) ? p.artist : null));
+  const { span, other, keyed, rows, labels, k0, MAX: target, names, colors } = rankPlan(t);
+  glideMax(target);
   const [unit, steps] = SPANS[span];
   winInput.disabled = span >= 6;
   const around = months > span ? months : 0;
@@ -201,10 +193,6 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
   if (slid) return;
 
   const MAX = positions();
-  const colors = new Map();
-  for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
-  const names = new Set();
-  for (const m of rows) for (const [a, e] of m) if (e.r <= MAX && !hidden.has(a)) names.add(a);
   // Lines drawn before and not now stay a while, diving away as they fade (also any still fading from before)
   const fresh = !c || c.isDisposed() || !st;
   const leaving = new Set(fresh ? [] : [...st.names, ...st.leaving].filter((a) => !names.has(a)));
@@ -241,6 +229,35 @@ export function paintRankRace(ms = performance.now() - dragAt < 120 ? CHASE_MS :
     cc.setOption({ series: seriesOf() }, { replaceMerge: ["series"] });
   }, dur(MORPH_MS) + 50);
 }
+
+// What the chart draws, from the period and the card's settings: its slices (span months each, ranked over the
+// `months` around them), the positions (MAX), every item that reached them (names) and the chart's artists' colors.
+// Hidden artists aren't ranked, so the rest close up. With Everyone else off: only the key's shown artists, ranked
+// among themselves.
+function rankPlan(t) {
+  const plays = rangePlays();
+  const span = agg.monthSpan(plays, tune.maxBars + 1);
+  const hidden = new Set(state.hidden);
+  const other = otherInput.checked;
+  const keyed = (state.mixArgs?.[0] ?? []).filter((a) => state.colorSlots.has(a) && !hidden.has(a));
+  const inKey = new Set(keyed);
+  const MAX = other ? tune.rankMax : Math.max(1, keyed.length);
+  const { rows, labels, k0 } = ranksOf(plays, span, months, other ? (p) => (hidden.has(p.artist) ? null : p.artist) : (p) => (inKey.has(p.artist) ? p.artist : null));
+  const colors = new Map();
+  for (const [name, slot] of state.colorSlots) if (state.chartNames?.includes(name)) colors.set(name, t.series[slot]);
+  const names = new Set();
+  for (const m of rows) for (const [a, e] of m) if (e.r <= MAX && !hidden.has(a)) names.add(a);
+  return { span, other, keyed, rows, labels, k0, MAX, names, colors };
+}
+// The chart's lines as it draws them at rest, for the gallery's thumbnail: { MAX, n: slices, lines: [{ a, col, ys }] }
+// (col: the artist's color, or none for the grays; ys: its rank in each slice, past MAX + 0.4 below the floor)
+export function rankLines(t) {
+  if (!state.plays || !state.range) return null;
+  const { rows, MAX, names, colors } = rankPlan(t);
+  return { MAX, n: rows.length, lines: [...names].map((a) => ({ a, col: colors.get(a), ys: rows.map((m) => yOf(m, a, MAX)) })) };
+}
+// A key for what rankLines depends on beyond the period and the chart's artists
+export const rankKey = () => [otherInput.checked, months, tune.rankMax, tune.rankDive].join("|");
 
 // New lines draw in along their length at one speed over MORPH_MS, their circles and name appearing as the stroke
 // reaches them. (ECharts sweeps them in from left to right, under which a climb races and a level stretch crawls.)
@@ -451,6 +468,30 @@ function option(ms = MORPH_MS, animate = true) {
     yAxis: ["left", "right"].map((position, i) => ({ type: "value", position, inverse: true, min: 1, max: MAX + 0.4, interval: 1, ...axis, splitLine: { show: !i, lineStyle: { color: t.grid, opacity: 0.5 } }, axisLabel: { color: t.muted, formatter: (r) => (Number.isInteger(r) && r <= MAX ? "#" + r : "") } })),
     series: seriesOf(animate ? ms : 0),
   };
+}
+
+// The gallery's arrival (arrivals.js): the chart's lines as its thumbnail draws them (toThumb), or as its own. look:
+// { lines: item -> { width, color, opacity } in the thumbnail's pixels, n: its slices, MAX: its positions, x, y: [at,
+// k], where a point a fraction f across (or up) the thumbnail's plot is at at + k·f of the card's, s: the card's pixels
+// per thumbnail pixel }. The thumbnail draws the card's own lines (rankLines), so its form is the card's squashed to
+// the thumbnail's height (under the floor, still clipped), as thin as the thumbnail's, without circles (its names are chrome: the flight fades them).
+// False when they aren't the same lines.
+export function morphRankRace(look, toThumb, ms) {
+  if (!st || !c || c.isDisposed() || st.slide || !look || look.n !== st.rows.length || look.MAX !== st.MAX) return false;
+  if (look.lines.size !== st.names.length || st.names.some((a) => !look.lines.has(a))) return false;
+  const top = st.MAX + 0.4, h = top - 1, last = Math.max(1, st.rows.length - 1);
+  const at = ([x, y]) => [last * (look.x[0] + look.x[1] * (x / last)), top - h * (look.y[0] + look.y[1] * ((top - y) / h))];
+  const series = seriesOf(ms).map((s) => {
+    if (!toThumb) return s;
+    const l = look.lines.get(s.id);
+    return {
+      ...s, lineStyle: l ? { ...s.lineStyle, width: l.width * look.s, color: l.color, opacity: l.opacity } : { ...s.lineStyle, opacity: 0 },
+      data: s.data.map((d) => ({ ...d, value: at(d.value), symbolSize: 0 })),
+    };
+  });
+  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
+  if (!ms) c.setOption({ animation: true });
+  return true;
 }
 
 // An item lit from anywhere (the key, another graph, a hover here), or null for none

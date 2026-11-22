@@ -391,7 +391,7 @@ export function focusDiscovery(el, name) {
 // fraction f across (or up) its plot is at at + k·f of the card's, s: the card's pixels per thumbnail pixel, and
 // span, floor, top, the thumbnail's axes }. In the thumbnail's form, each dot sits where the thumbnail has it (on the
 // card's held axes, its log scale squashed toward the floor), at its size and color; the rest it leaves out are
-// nothing yet, and the names wait unseen. False when the thumbnail's dots aren't the card's.
+// nothing yet (the names are chrome: the flight fades them, gallery.js fadeCanvas). False when the thumbnail's dots aren't the card's.
 export function morphDiscovery(el, look, toThumb, ms) {
   const st = discoveryState.get(el), c = instances.get(el);
   if (!st?.series || st.c !== c || !look) return false;
@@ -418,33 +418,10 @@ export function morphDiscovery(el, look, toThumb, ms) {
         }),
       }))
     : st.series.map((s) => ({ id: s.id, data: s.data }));
-  const names0 = labelsOf(c);
   // (every dot glides, however many: ECharts would otherwise draw a big plot's at once)
   setOptionFaded(c, { animation: ms > 0, animationThreshold: 1e6, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  // The names fade in on the dots' beat (out, toward the thumbnail), from what's on screen
-  for (const [k, e] of labelsOf(c)) {
-    const to = toThumb ? 0 : e.style.opacity ?? 1, from = names0.get(k)?.style.opacity ?? (toThumb ? 1 : 0);
-    e.stopAnimation();
-    if (!ms) e.setStyle({ opacity: to });
-    else {
-      e.setStyle({ opacity: from });
-      e.animateTo({ style: { opacity: to } }, { duration: ms, easing: EASE_IN_OUT.echarts });
-    }
-  }
   if (!ms) c.setOption({ animation: true });
   clearTimeout(st.unthreshold);
   st.unthreshold = setTimeout(() => !c.isDisposed() && c.setOption({ animationThreshold: 2000 }), ms + 50);
   return true;
-}
-// The dots' names as drawn, by series and name
-function labelsOf(c) {
-  const out = new Map();
-  for (const m of c.getModel().getSeries()) {
-    const data = m.getData();
-    for (let i = 0; i < data.count(); i++) {
-      const text = data.getItemGraphicEl(i)?.getTextContent?.();
-      if (text && !text.ignore) out.set(`${m.id}:${data.getName(i)}`, text);
-    }
-  }
-  return out;
 }

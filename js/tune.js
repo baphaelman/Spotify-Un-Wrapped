@@ -63,6 +63,7 @@ export const TUNES = [
   { key: "rankText", card: "rank-card", label: "Name size", def: 10, min: 7, max: 18, step: 0.5, fmt: px },
   { key: "rankDim", card: "rank-card", label: "Dimming of the rest when one is lit", def: 0.25, min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}% left` },
   { key: "rankCursor", card: "rank-card", label: "Where you are", def: 2, options: CURSOR_LOOKS, fmt: (v) => CURSOR_LOOKS[v] },
+  { key: "rankThumb", card: "rank-card", label: "Gallery thumbnail", def: 0, options: ["The card's lines", "Only your artists"], fmt: (v) => ["The card's lines", "Only your artists"][v] },
   { key: "rankLane", card: "rank-card", label: "The timeline", def: 5, options: LANE_LOOKS, fmt: (v) => LANE_LOOKS[v] },
   { key: "rankDive", card: "rank-card", label: "How far lines dive below the chart", def: 1.6, min: 0.2, max: 4, step: 0.1, fmt: x },
   { key: "sharePx", card: "mix-card", label: "Shows % from", def: 30, min: 0, max: 200, step: 2, fmt: px },

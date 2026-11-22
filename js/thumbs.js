@@ -9,6 +9,7 @@
 import { state, shownPlays, rangeTotals, OTHER, WINDOWS } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart, clockShares, clockSmoothing } from "./charts.js";
+import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
@@ -146,6 +147,28 @@ function clockBands(d) {
   const data = share.map((v, k) => v.map((x, h) => [h, bottom[k][h] + x]));
   clockMemo = { key, curve, all: [...keyed, OTHER], data };
   return clockMemo;
+}
+
+// Rank race's lines as its card draws them (rankrace.js rankLines), kept while nothing they depend on changes
+let rankMemo = null;
+function rankThumb(d, t) {
+  const key = [d.key, rankKey(), [...(state.colorSlots ?? [])].join()].join("|");
+  if (rankMemo?.key !== key) rankMemo = { key, r: rankLines(t) };
+  return rankMemo.r;
+}
+// The earlier design (a Visual tweak): where each artist stood among the chart's artists, slice by slice
+function rankAmong(d, t) {
+  const sm = d.artists.map((_, i) => smooth(d.series[i], 3));
+  const ranks = d.artists.map(() => []);
+  for (let j = 0; j < d.nb; j++) {
+    const order = d.artists.map((_, i) => i).sort((a, b) => sm[b][j] - sm[a][j]);
+    order.forEach((i, r) => ranks[i].push(sm[i][j] > 0 ? r + 1 : null));
+  }
+  return {
+    grid: { left: 2, right: 2, top: 5, bottom: 5 }, xAxis: axis("category", { boundaryGap: false, data: keys(d.nb) }),
+    yAxis: guides(t, { inverse: true, min: 1, max: Math.max(1, d.k), interval: 1 }),
+    series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1, color: colorOf(t, n) }, data: ranks[i] })),
+  };
 }
 
 // ---------- Drawing ----------
@@ -313,18 +336,22 @@ export const THUMBS = {
       }],
     };
   },
-  // Rank race: where each artist stood among the chart's artists, slice by slice, over a guide per place
+  // Rank race: the card's own lines (rankLines), where everything that reached its positions stood slice by slice,
+  // the chart's artists in their colors over thin grays, without circles or names, so its arrival only grows them
+  // (morphRankRace). Visual tweaks' tune.rankThumb 1 draws the earlier design instead: only the chart's artists,
+  // ranked among themselves over BUCKETS slices (that one crossfades).
   "rank-card": (d, t) => {
-    const sm = d.artists.map((_, i) => smooth(d.series[i], 3));
-    const ranks = d.artists.map(() => []);
-    for (let j = 0; j < d.nb; j++) {
-      const order = d.artists.map((_, i) => i).sort((a, b) => sm[b][j] - sm[a][j]);
-      order.forEach((i, r) => ranks[i].push(sm[i][j] > 0 ? r + 1 : null));
-    }
+    if (tune.rankThumb) return rankAmong(d, t);
+    const r = rankThumb(d, t);
+    if (!r) return { series: [] };
     return {
-      grid: { left: 2, right: 2, top: 5, bottom: 5 }, xAxis: axis("category", { boundaryGap: false, data: keys(d.nb) }),
-      yAxis: guides(t, { inverse: true, min: 1, max: Math.max(1, d.k), interval: 1 }),
-      series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1, color: colorOf(t, n) }, data: ranks[i] })),
+      grid: { left: 0, right: 0, top: 3, bottom: 0 }, xAxis: axis("value", { min: 0, max: Math.max(1, r.n - 1) }),
+      yAxis: guides(t, { inverse: true, min: 1, max: r.MAX + 0.4, interval: 1 }),
+      series: r.lines.map((l) => ({
+        type: "line", id: l.a, symbol: "none", smooth: 0.5, smoothMonotone: "x", z: l.col ? 3 : 1,
+        lineStyle: { width: l.col ? 1.25 : 0.75, color: l.col ?? t.other, opacity: l.col ? 1 : tune.rankGrayOpacity },
+        data: l.ys.map((y, i) => [i, y]),
+      })),
     };
   },
   // … Every Month: the card's bars pared down, each month's hours with its top item on top in its color (gray when
