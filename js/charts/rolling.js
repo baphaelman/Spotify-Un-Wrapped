@@ -628,6 +628,57 @@ function restride(el, stride) {
   return true;
 }
 
+// Each edge's clip (clipEdges in renderRolling) also reaches only partway into the band: half its thickness, less
+// EDGE_GAP px. A band too thin to hold two borders shows just its tint, rather than stacking its own borders against
+// its neighbors' into a rainbow, and its borders grow in as it thickens (a ramp along the band, which morphs carry,
+// since the clip reads the live shapes). Bands wider than about 8px look as before.
+export const EDGE_GAP = 1.5;
+// `from` moved `dir` (+1 down, -1 up, in pixels) by how far its edge may reach into the band between roof and floor
+const inset = (from, roof, floor, dir, gap) => {
+  const out = new Float32Array(from.length);
+  for (let i = 0; i < from.length; i += 2) {
+    out[i] = from[i];
+    const reach = Math.max(0, ((floor[i + 1] ?? NaN) - roof[i + 1]) / 2 - gap);
+    out[i + 1] = from[i + 1] + dir * (Number.isFinite(reach) ? reach : 0);
+  }
+  return out;
+};
+// The share chart's bands s0… (the bottom first), their edges t…/b… clipped to each band's inside (see clipEdges in
+// renderRolling). Shared with the gallery's tile (thumbs.js miniature), which draws them at its own size: gap is the
+// card's EDGE_GAP at the tile's scale, so the two hide the same thin bands' edges and a flight carries on from it.
+export function clipBandEdges(c, n, visible, gap = EDGE_GAP) {
+  const shapes = drawnShapes(c);
+  let below = null;
+  for (let k = 0; k < n; k++) {
+    if (!visible(k)) continue;
+    const band = shapes.get(`s${k}:area`);
+    if (!band) continue;
+    const floorBand = below == null ? null : shapes.get(`s${below}:area`) ?? null;
+    below = k;
+    for (const side of ["t", "b"]) {
+      const line = shapes.get(`${side}${k}:line`);
+      if (!line || (line.__clipOf?.[0] === band && line.__clipOf[1] === floorBand && line.__clipOf[2] === gap)) continue;
+      const clip = new band.constructor({});
+      const roof = () => band.shape.points;
+      const floor = () => (floorBand ? floorBand.shape.points : band.shape.stackedOnPoints);
+      clip.shape = {
+        get points() { return side === "t" ? roof() : inset(floor(), roof(), floor(), -1, gap); },
+        get stackedOnPoints() { return side === "t" ? inset(roof(), roof(), floor(), 1, gap) : floor(); },
+        // Both sides round like the edge lines they cut, or with points far apart (a short period) the
+        // curves bow past the straight chords and the borders show in slivers
+        get smooth() { return band.shape.smooth; },
+        get stackedOnSmooth() { return band.shape.smooth; },
+        get smoothMonotone() { return band.shape.smoothMonotone; },
+      };
+      // zrender skips drawing a line whose clip has zero area, judged from a cached bounding box that a
+      // live shape never refreshes; a band that's flat for a moment mustn't hide its border for good
+      clip.isZeroArea = () => false;
+      line.setClipPath(clip);
+      line.__clipOf = [band, floorBand, gap];
+    }
+  }
+}
+
 // mode "share": stacked bands of each artist's share of listening (the original rolling_window.py).
 // mode "hours": the same artists as overlaid lines of hours per week.
 //
@@ -1183,55 +1234,10 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   // through morphs, re-stacks and zoom-slider drags without lagging or dropping. The clips are re-linked
   // right after each update, before it's painted, in case ECharts replaced a shape or the stacking
   // changed; a line already linked to the same shapes is left alone. This reaches into ECharts internals
-  // like setOptionFaded; without them the borders are just unclipped, twice as wide.
-  //
-  // Each edge's clip also reaches only partway into the band: half its thickness, less EDGE_GAP px. A
-  // band too thin to hold two borders shows just its tint, rather than stacking its own borders against
-  // its neighbors' into a rainbow, and its borders grow in as it thickens (a ramp along the band, which
-  // morphs carry, since the clip reads the live shapes). Bands wider than about 8px look as before.
-  const EDGE_GAP = 1.5;
-  // `from` moved `dir` (+1 down, -1 up, in pixels) by how far its edge may reach into the band between roof and floor
-  const inset = (from, roof, floor, dir) => {
-    const out = new Float32Array(from.length);
-    for (let i = 0; i < from.length; i += 2) {
-      out[i] = from[i];
-      const reach = Math.max(0, ((floor[i + 1] ?? NaN) - roof[i + 1]) / 2 - EDGE_GAP);
-      out[i + 1] = from[i + 1] + dir * (Number.isFinite(reach) ? reach : 0);
-    }
-    return out;
-  };
+  // like setOptionFaded; without them the borders are just unclipped, twice as wide. (The clip, and how far it
+  // reaches into a thin band: clipBandEdges.)
   const clipEdges = () => {
-    if (!share) return;
-    const shapes = drawnShapes(c);
-    let below = null;
-    for (let k = 0; k < names.length; k++) {
-      if (!visible(k)) continue;
-      const band = shapes.get(`s${k}:area`);
-      if (!band) continue;
-      const floorBand = below == null ? null : shapes.get(`s${below}:area`) ?? null;
-      below = k;
-      for (const side of ["t", "b"]) {
-        const line = shapes.get(`${side}${k}:line`);
-        if (!line || (line.__clipOf?.[0] === band && line.__clipOf[1] === floorBand)) continue;
-        const clip = new band.constructor({});
-        const roof = () => band.shape.points;
-        const floor = () => (floorBand ? floorBand.shape.points : band.shape.stackedOnPoints);
-        clip.shape = {
-          get points() { return side === "t" ? roof() : inset(floor(), roof(), floor(), -1); },
-          get stackedOnPoints() { return side === "t" ? inset(roof(), roof(), floor(), 1) : floor(); },
-          // Both sides round like the edge lines they cut, or with points far apart (a short period) the
-          // curves bow past the straight chords and the borders show in slivers
-          get smooth() { return band.shape.smooth; },
-          get stackedOnSmooth() { return band.shape.smooth; },
-          get smoothMonotone() { return band.shape.smoothMonotone; },
-        };
-        // zrender skips drawing a line whose clip has zero area, judged from a cached bounding box that a
-        // live shape never refreshes; a band that's flat for a moment mustn't hide its border for good
-        clip.isZeroArea = () => false;
-        line.setClipPath(clip);
-        line.__clipOf = [band, floorBand];
-      }
-    }
+    if (share) clipBandEdges(c, names.length, visible);
   };
   for (const ev of ["finished", "datazoom"]) {
     c.off(ev);
@@ -1629,7 +1635,7 @@ export function holdFocus(el, name) {
 // the groups: a squashed group would flatten its strokes too, level lines thinner than steep ones.
 // at(): where the flight is, { k: the height's scale, p: its progress (0 the tile, 1 the card), scale: the card's }.
 // The lines keep the tile's weight on screen and come to their own on p, rather than thinning with the card's scale.
-export const TILE_EDGE = 2 / 3; // share's edges in the tile, of what the card shows of them (thumbs.js miniature)
+export const TILE_EDGE = 2 / 3; // share's edges in the tile, of the card's weight (thumbs.js miniature)
 export function arriveHeight(el, ms, at, end) {
   const c = instances.get(el);
   const r = c?.getModel().getComponent("grid")?.coordinateSystem?.getRect();

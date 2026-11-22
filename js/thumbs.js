@@ -8,7 +8,7 @@
 
 import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
-import { chart, clockShares, clockSmoothing, TILE_EDGE } from "./charts.js";
+import { chart, clockShares, clockSmoothing, TILE_EDGE, clipBandEdges, EDGE_GAP } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
@@ -253,9 +253,10 @@ const copied = new WeakMap(); // chart -> its series' ids as the tile last copie
 const idsOf = (c) => c.getModel().getSeries().map((m) => m.id).join();
 // The chart's series as it draws them at rest (their options as its model holds them, read, never changed), on its
 // own y extent, over the period (rollingview.js periodZoom) and the point past each end. The card draws about a point
-// per pixel; the tile takes every step-th of the same points, about one per pixel of its own. Share's edges are drawn
-// twice as wide and half clipped away by their band (rolling.js clipEdges); here they're lines of their own, edge ×
-// what shows (TILE_EDGE: the arrival brings them from that weight to the card's).
+// per pixel; the tile takes every step-th of the same points, about one per pixel of its own. Share's edges (edge:
+// TILE_EDGE of the card's weight, which the arrival brings them to) are clipped to their bands' insides as the card's
+// are, hiding in bands too thin for them with the card's gap at the tile's scale, so a flight starts and lands on the
+// same edges (clipBandEdges, run once the paint has drawn them).
 function miniature(t, id, box, edge) {
   const c = plotOf(id);
   if (!c) return null;
@@ -277,12 +278,18 @@ function miniature(t, id, box, edge) {
     at.forEach((i, j) => ((data[2 * j] = s.data[2 * i]), (data[2 * j + 1] = s.data[2 * i + 1])));
     return {
       type: "line", id, z: s.z, symbol: "none", showSymbol: false, smooth: s.smooth, color: s.color, connectNulls: false,
-      lineStyle: { ...s.lineStyle, width: /^[tb]\d/.test(id) ? (s.lineStyle.width / 2) * edge : s.lineStyle.width },
+      lineStyle: { ...s.lineStyle, width: /^[tb]\d/.test(id) ? s.lineStyle.width * edge : s.lineStyle.width },
       areaStyle: s.areaStyle ? { ...s.areaStyle } : null,
       data,
     };
   });
   const x = [x0, x1];
+  if (edge) {
+    const bands = models.filter((m) => /^s\d+$/.test(m.id)).length, opacity = new Map(models.map((m) => [m.id, m.option.lineStyle?.opacity ?? 1]));
+    const gap = EDGE_GAP * (box.w / c.getModel().getComponent("grid").coordinateSystem.getRect().width);
+    const tile = document.getElementById(id === "chart-rolling" ? "thumb-rolling-card" : "thumb-hours-card");
+    queueMicrotask(() => clipBandEdges(echarts.getInstanceByDom(tile), bands, (k) => opacity.get(`t${k}`) > 0, gap));
+  }
   return {
     // (the top edge sits a line's width inside the frame, so it's drawn whole)
     grid: { left: 0, right: 0, top: 2, bottom: 1 },
@@ -458,7 +465,7 @@ export const THUMBS = {
   // design, kept as a Visual tweak ("Gallery tile", which crossfades): a ridge per artist, its hours rising from its
   // own baseline to its own peak, each over the next
   "hours-card": (d, t, box) => {
-    const mini = !tune.hoursThumb && miniature(t, "chart-rolling-hours", box, 1);
+    const mini = !tune.hoursThumb && miniature(t, "chart-rolling-hours", box, 0);
     if (mini) return mini;
     const sm = d.artists.map((_, i) => smooth(d.series[i], 1));
     const rise = 1.6; // each artist's peak, in rows
