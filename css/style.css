@@ -1719,7 +1719,7 @@ button:not(:disabled):active { transform: scale(0.96); }
 /* A wide graph across the whole row (gallery.js pack): a taller thumbnail */
 .gal-tile.hero .gal-thumb { flex-basis: 180px; }
 /* The layout choice (a Visual tweak) */
-.gal-layout:not([hidden]) { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -8px 0 12px; font-size: 12px; color: var(--text-secondary); }
+.gal-layout:not([hidden]) { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px 20px; margin: -8px 0 12px; font-size: 12px; color: var(--text-secondary); }
 .gallery.open .gal-layout { display: none; }
 .gallery.open .gal-head { display: flex; }
 .gal-steps { margin-left: auto; display: flex; gap: 4px; }

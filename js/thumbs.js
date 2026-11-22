@@ -145,6 +145,16 @@ function shareBands(t, d, rows) {
 // A month's top item: strong in its color when it's one of the chart's, a mid gray when it isn't
 const crown = (t, n, k = 0.85) => (state.colorSlots?.has(n) ? mix(t.surface, colorOf(t, n), k) : mix(t.surface, t.other, k * 0.7));
 const MONTHLY_LOOK = "crowns";
+let monthlyLook = MONTHLY_LOOK;
+// (a Visual tweak while they're compared; null puts back the default. The chart starts over, as the looks share no shapes)
+export function setMonthlyLook(k) {
+  const next = MONTHLY_LOOKS[k] ? k : MONTHLY_LOOK;
+  if (next === monthlyLook) return;
+  monthlyLook = next;
+  const el = els.get("monthly-card");
+  if (el) chart(el).clear();
+  paintThumbs();
+}
 export const MONTHLY_LOOKS = {
   // The card's bars pared down: each month's hours, its top item on top in its color, the rest one quiet gray
   crowns: (d, t) => ({
@@ -201,6 +211,14 @@ export const MONTHLY_LOOKS = {
       })),
     };
   },
+};
+
+// How well each thumbnail looks stretched to a column and a half (0 to 1): a section that must stretch some tiles to
+// fill its rows stretches its best (gallery.js pack). Placeholders until the thumbnails are settled; score them then.
+export const STRETCH = {
+  "rolling-card": 0.9, "calendar-card": 0.85, "raster-card": 0.8, "clock-card": 0.7, "hours-card": 0.65,
+  "rank-card": 0.6, "race-card": 0.55, "discovery-card": 0.5, "monthly-card": 0.45, "mix-card": 0.4,
+  "skips-card": 0.3, "ranking-card": 0.2, "sunburst-card": 0.1,
 };
 
 export const THUMBS = {
@@ -303,7 +321,7 @@ export const THUMBS = {
       series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1, color: colorOf(t, n) }, data: ranks[i] })),
     };
   },
-  "monthly-card": (d, t, box) => MONTHLY_LOOKS[MONTHLY_LOOK](d, t, box),
+  "monthly-card": (d, t, box) => MONTHLY_LOOKS[monthlyLook](d, t, box),
   // Discovery: everything first heard in the period, a dot by when and (on a log scale) how much since
   "discovery-card": (d, t) => ({
     grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: 0, max: d.days }),

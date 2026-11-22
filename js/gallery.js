@@ -13,7 +13,7 @@
 
 import { $, bringBack } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
-import { addThumb, paintThumbs } from "./thumbs.js";
+import { addThumb, paintThumbs, STRETCH, MONTHLY_LOOKS, setMonthlyLook } from "./thumbs.js";
 
 // card id -> its address (#every-play)
 const SLUG = {
@@ -27,18 +27,17 @@ const SECTIONS = [
   ["How you listen", ["hours-card", "clock-card", "raster-card", "calendar-card", "skips-card"]],
 ];
 // The ways to lay the tiles out. Graphs keep their sections; a section whose tiles don't fill its rows stretches some.
-// wide (the default): the stretching goes to the section's wide graphs, which lead it: its short row comes first, the
-//   wide graphs in it, sharing the room (five tiles in three columns: Top … View two columns beside one more, then three)
-// fill: the section's last row shares the width (three, then two a column and a half wide)
+// fill (the default): the section's short row comes first, made of its graphs whose thumbnails stretch best (STRETCH,
+//   thumbs.js), sharing the row evenly (five tiles in three columns: two a column and a half each, then three)
+// last: the section's last row shares the width, whichever graphs land there
 // even: nothing stretches, the last row left short
-// (fill and even stay as Visual tweaks)
-const WIDE = ["rolling-card", "calendar-card"];
+// (last and even stay as Visual tweaks)
 const LAYOUTS = {
-  wide: { label: "Wide graphs lead, rows filled", groups: SECTIONS, wide: WIDE, fill: true },
-  fill: { label: "Fill the rows", groups: SECTIONS, fill: true },
+  fill: { label: "Fill the rows, best stretchers first", groups: SECTIONS, fill: true, lead: true },
+  last: { label: "Fill the last row", groups: SECTIONS, fill: true },
   even: { label: "Even", groups: SECTIONS },
 };
-const DEFAULT_LAYOUT = "wide";
+const DEFAULT_LAYOUT = "fill";
 const LAYOUT_KEY = "gallery-layout";
 
 // Tiles that keep only their card's first sentence, giving the thumbnail the room
@@ -78,17 +77,25 @@ own.rel = "noopener";
 acts.append(req, own);
 ask.append(acts);
 
-// The layout choice, a tweak
-const pick = make("label", "gal-layout tweak-only", "Gallery layout ");
+// The tweaks being compared: the layout, and Every Month's thumbnail
+const pick = make("div", "gal-layout tweak-only");
 pick.hidden = true;
 const sel = make("select");
+const look = make("select");
+for (const k of Object.keys(MONTHLY_LOOKS)) look.append(Object.assign(make("option", "", k), { value: k }));
+look.addEventListener("change", () => setMonthlyLook(look.value));
+const labelled = (text, el) => {
+  const l = make("label", "", text);
+  l.append(el);
+  return l;
+};
 for (const [k, l] of Object.entries(LAYOUTS)) sel.append(Object.assign(make("option", "", l.label), { value: k }));
 try {
   sel.value = LAYOUTS[localStorage.getItem(LAYOUT_KEY)] ? localStorage.getItem(LAYOUT_KEY) : DEFAULT_LAYOUT;
 } catch {
   sel.value = DEFAULT_LAYOUT;
 }
-pick.append(sel);
+pick.append(labelled("Gallery layout ", sel), labelled("Every Month thumbnail ", look));
 gallery.append(ask, pick, head, slot, stage);
 
 const tiles = []; // {card, tile, slug}, in no particular order: the page's order is the sections' (order())
@@ -144,23 +151,19 @@ let arranged = ""; // what the tiles were last arranged for
 // A section's tiles in rows (see LAYOUTS), each tile's span in half columns (so a row can split into halves)
 function pack(list, L) {
   const total = cols * 2;
-  const short = list.length % cols;
+  const short = L.fill ? list.length % cols : 0;
   const rowsOf = (xs) => Array.from({ length: Math.ceil(xs.length / cols) }, (_, i) => xs.slice(i * cols, (i + 1) * cols));
-  const wides = list.filter((x) => L.wide?.includes(x.card.id)).slice(0, short);
   let rows;
-  if (!L.fill || !short) rows = rowsOf(list);
-  else if (wides.length) {
-    // the short row leads: its wide graphs first, then the section's next graphs
-    const lead = [...wides, ...list.filter((x) => !wides.includes(x)).slice(0, short - wides.length)];
-    rows = [lead, ...rowsOf(list.filter((x) => !lead.includes(x)))];
+  if (!short) rows = rowsOf(list);
+  else if (L.lead) {
+    // the short row leads: the graphs that stretch best, in the section's order (a tie goes to the earlier one)
+    const best = new Set([...list].sort((a, b) => (STRETCH[b.card.id] ?? 0) - (STRETCH[a.card.id] ?? 0)).slice(0, short));
+    rows = [list.filter((x) => best.has(x)), ...rowsOf(list.filter((x) => !best.has(x)))];
   } else rows = [...rowsOf(list.slice(0, list.length - short)), list.slice(-short)];
   const spans = new Map();
   for (const r of rows) {
-    const room = L.fill ? total - 2 * r.length : 0;
-    // the room goes to the row's wide graphs, or else to all of it, evenly
-    const to = r.filter((x) => wides.includes(x)).length ? r.filter((x) => wides.includes(x)) : r;
-    r.forEach((x) => spans.set(x, 2));
-    to.forEach((x, i) => spans.set(x, 2 + Math.floor(room / to.length) + (i < room % to.length ? 1 : 0)));
+    const room = short ? total - 2 * r.length : 0;
+    r.forEach((x, i) => spans.set(x, 2 + Math.floor(room / r.length) + (i < room % r.length ? 1 : 0)));
   }
   return { total, spans, order: rows.flat() };
 }
@@ -187,8 +190,8 @@ function arrange() {
     for (const x of [...order, ...list.filter((x) => x.tile.hidden)]) {
       const w = spans.get(x) ?? 2;
       x.tile.style.gridColumn = `span ${w}`;
-      // (a wide graph across the whole row draws a taller thumbnail)
-      x.tile.classList.toggle("hero", w === total && cols >= 3 && !!L.wide?.includes(x.card.id));
+      // (a graph across the whole row draws a taller thumbnail)
+      x.tile.classList.toggle("hero", w === total && cols >= 3);
       // (moved after the first arrangement, a tile doesn't rise in again)
       if (!first) x.tile.style.animation = "none";
       grid.append(x.tile);
@@ -207,7 +210,10 @@ sel.addEventListener("change", () => {
   arrange();
 });
 // (the choice counts only while Visual tweaks is on: off, the page is as chosen)
-new MutationObserver(arrange).observe(pick, { attributes: true, attributeFilter: ["hidden"] });
+new MutationObserver(() => {
+  arrange();
+  setMonthlyLook(pick.hidden ? null : look.value);
+}).observe(pick, { attributes: true, attributeFilter: ["hidden"] });
 
 // ---------- Fitting: the cards' full width and the tiles' columns ----------
 const galW = () => parseFloat(gallery.style.getPropertyValue("--gal-w"));
