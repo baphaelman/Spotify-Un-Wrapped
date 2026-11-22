@@ -6,7 +6,8 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, OTHER } from "./state.js";
+import { state, shownPlays, OTHER, WINDOWS } from "./state.js";
+import { coverFor, knownCover } from "./covers.js";
 import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick } from "./aggregate.js";
@@ -14,6 +15,8 @@ import { CHASE_MS, ENTER_MS, dur } from "./motion.js";
 import { fmtH } from "./format.js";
 
 const BUCKETS = 40; // time slices across the period
+const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
+const FACE = 26; // the mix thumbnail's pictures
 const RASTER_MAX = 1800; // marks in Every play's thumbnail
 const FOUND_MAX = 500; // dots in Discovery's
 const STILL = new Set(["raster-card", "calendar-card"]);
@@ -113,12 +116,12 @@ function shareBands(t, d, rows) {
 }
 
 export const THUMBS = {
-  // The mix bar: each artist's tinted block with its share in its color and its hours under
+  // The mix bar: each artist's tinted block with its share in its color and its hours under, their pictures above (faces)
   "mix-card": (d, t, box) => {
     const hrs = d.artists.map((_, i) => d.series[i].reduce((s, v) => s + v, 0));
     const sum = hrs.reduce((s, v) => s + v, 0) || 1;
     return {
-      grid: { left: 0, right: 0, top: 18, bottom: 18 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: [""] }),
+      grid: { left: 0, right: 0, top: FACE + 8, bottom: 0 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: [""] }),
       series: d.artists.map((n, i) => {
         const col = colorOf(t, n);
         return {
@@ -148,11 +151,14 @@ export const THUMBS = {
       }),
     }],
   }),
-  // All your …: the top of the list, a name over a thin line as long as its hours
-  "ranking-card": (d, t) => {
-    const top = [...d.total].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  // All your …: the list, a name over a thin line as long as its hours
+  // (rows keep their height and run on past the bottom, faded out there, as the card's list goes on)
+  "ranking-card": (d, t, box) => {
+    const ROW = 19, TOP = 12;
+    const n = Math.ceil((box.h - TOP) / ROW) + 1;
+    const top = [...d.total].sort((a, b) => b[1] - a[1]).slice(0, n);
     return {
-      grid: { left: 0, right: 34, top: 12, bottom: 2 }, xAxis: axis("value", { max: top[0]?.[1] || 1 }),
+      grid: { left: 0, right: 34, top: TOP, bottom: box.h - TOP - n * ROW }, xAxis: axis("value", { max: top[0]?.[1] || 1 }),
       yAxis: axis("category", { data: top.map((x) => x[0]), inverse: true }),
       series: [{
         type: "bar", barWidth: 1.5, data: top.map(([n, h]) => ({ value: r1(h), itemStyle: { color: colorOf(t, n) } })),
@@ -165,11 +171,21 @@ export const THUMBS = {
     };
   },
   // Top … View: each artist's share among the chart's artists, stacked (the rest left out, as the card does)
-  "rolling-card": (d, t) => ({
-    grid: { left: 0, right: 0, top: 1, bottom: 1 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(d.nb) }),
-    yAxis: guides(t, { max: 1, interval: 0.25 }),
-    series: shareBands(t, d, d.artists.map((_, i) => smooth(d.series[i]))),
-  }),
+  // (over the card's own window, its days per slice, summed from the days at up to POINTS places)
+  "rolling-card": (d, t) => {
+    const W = Math.min(d.days, WINDOWS[document.getElementById("window")?.value] ?? 45);
+    const n = Math.min(POINTS, d.days - W + 1);
+    const at = keys(n).map((j) => W - 1 + Math.round((j * (d.days - W)) / Math.max(1, n - 1)));
+    const rows = d.artists.map((_, a) => {
+      const sum = new Float64Array(d.days + 1); // running total, so each window is one subtraction
+      for (let i = 0; i < d.days; i++) sum[i + 1] = sum[i] + d.daily[i * d.K + a];
+      return at.map((x) => sum[x + 1] - sum[x + 1 - W]);
+    });
+    return {
+      grid: { left: 0, right: 0, top: 1, bottom: 1 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(n) }),
+      yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
+    };
+  },
   // … over time: the race's last frame, a tinted bar per artist with its name
   "race-card": (d, t) => {
     const rows = d.artists.map((n, i) => [n, d.series[i].reduce((s, v) => s + v, 0)]).sort((a, b) => b[1] - a[1]).slice(0, 6);
@@ -178,7 +194,7 @@ export const THUMBS = {
       yAxis: axis("category", { data: rows.map((x) => x[0]), inverse: true }),
       series: [{
         type: "bar", barWidth: "62%",
-        data: rows.map(([n, h]) => ({ value: r1(h), itemStyle: { color: band(t, colorOf(t, n)), borderColor: colorOf(t, n), borderWidth: 1, borderRadius: 2 } })),
+        data: rows.map(([n, h]) => ({ value: r1(h), itemStyle: { color: band(t, colorOf(t, n)), borderColor: colorOf(t, n), borderWidth: 0.5, borderRadius: 2 } })),
         label: { show: true, position: "insideLeft", distance: 6, color: t.primary, fontSize: 9, formatter: (p) => rows[p.dataIndex][0], width: 200, overflow: "truncate" },
       }, {
         type: "bar", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" }, data: rows.map(() => rows[0][1]),
@@ -197,7 +213,7 @@ export const THUMBS = {
     return {
       grid: { left: 2, right: 2, top: 5, bottom: 5 }, xAxis: axis("category", { boundaryGap: false, data: keys(d.nb) }),
       yAxis: guides(t, { inverse: true, min: 1, max: Math.max(1, d.k), interval: 1 }),
-      series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1.5, color: colorOf(t, n) }, data: ranks[i] })),
+      series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1, color: colorOf(t, n) }, data: ranks[i] })),
     };
   },
   // … Every Month: everyone else's gray at the bottom, the chart's artists tinted above, a dozen bars at most
@@ -303,6 +319,56 @@ export const THUMBS = {
   }),
 };
 
+// The mix thumbnail's pictures, a row of round faces centered over the artists' blocks (where a block is wide enough).
+// Only pictures the mix card asks for anyway (coverFor shares its asks), so the thumbnail costs no Spotify calls.
+function faces(el, d, t, box) {
+  let row = el.querySelector(".thumb-faces");
+  if (!row) {
+    row = document.createElement("div");
+    row.className = "thumb-faces";
+    row.faces = new Map();
+    el.append(row);
+  }
+  row.classList.toggle("square", state.dim !== "artist"); // albums' and songs' covers are square
+  const hrs = d.artists.map((_, i) => d.series[i].reduce((s, v) => s + v, 0));
+  const sum = hrs.reduce((s, v) => s + v, 0) || 1;
+  let x = 0;
+  d.artists.forEach((n, i) => {
+    const w = (hrs[i] / sum) * box.w;
+    let f = row.faces.get(n);
+    if (!f) {
+      f = document.createElement("div");
+      f.className = "thumb-face";
+      f.style.left = `${x + w / 2}px`;
+      row.faces.set(n, f);
+      row.append(f);
+    }
+    clearTimeout(f.gone);
+    f.style.left = `${x + w / 2}px`;
+    f.style.opacity = w >= FACE + 4 ? 1 : 0;
+    f.style.background = mix(t.surface, colorOf(t, n), 0.3);
+    x += w;
+    const item = state.dim === "genre" ? null : state.covers?.get(n);
+    const url = item ? knownCover(item) : "";
+    if (url === undefined) coverFor(item).then((u) => u && paintThumbs());
+    else if (url && f.url !== url) {
+      f.url = url;
+      const img = new Image();
+      img.alt = "";
+      img.onload = () => img.classList.add("shown");
+      img.src = url;
+      f.replaceChildren(img);
+    }
+  });
+  for (const [n, f] of row.faces) {
+    if (d.artists.includes(n)) continue;
+    f.style.opacity = 0;
+    row.faces.delete(n);
+    f.gone = setTimeout(() => f.remove(), dur(CHASE_MS));
+  }
+}
+const OVERLAYS = { "mix-card": faces };
+
 // ---------- Painting ----------
 // els: card id -> thumbnail element. Thumbnails off screen (or out of the open view) wait, and paint as they return.
 const els = new Map();
@@ -345,5 +411,6 @@ function paint() {
       animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: "cubicOut",
       tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
     }, { replaceMerge: first ? [] : ["series"] });
+    OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
   }
 }

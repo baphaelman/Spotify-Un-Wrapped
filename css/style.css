@@ -1673,7 +1673,22 @@ button:not(:disabled):active { transform: scale(0.96); }
   margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: var(--text-secondary); height: 2.8em; overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.gal-thumb { height: 96px; margin-top: 10px; pointer-events: none; }
+.gal-tile { display: flex; flex-direction: column; }
+.gal-tile.short > p { height: auto; }
+/* 96px, or more where the tile's row is taller than its own contents (a short tile's thumbnail takes the room) */
+.gal-thumb { flex: 1 0 96px; min-height: 96px; margin-top: 10px; pointer-events: none; }
+/* All your …: its rows run on past the bottom, fading out */
+#thumb-ranking-card { -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+/* The mix thumbnail's pictures (thumbs.js faces), over the artists' blocks */
+.thumb-faces { position: absolute; inset: 0 0 auto; height: 26px; z-index: 1; }
+.thumb-face {
+  position: absolute; top: 0; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; overflow: hidden;
+  transition: left var(--motion-chase) var(--ease-out), opacity var(--motion-chase) var(--ease-out);
+}
+.thumb-faces.square .thumb-face { border-radius: 3px; }
+.thumb-face img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--motion-enter) var(--ease-out); }
+.thumb-face img.shown { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .thumb-face, .thumb-face img { transition: none; } }
 
 /* "Missing something?" closes each section */
 .gal-ask {

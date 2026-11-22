@@ -18,6 +18,8 @@ const SECTIONS = [
   ["How you listen", [["hours-card", "hours-per-week"], ["clock-card", "when"], ["raster-card", "every-play"], ["calendar-card", "every-day"], ["skips-card", "skips"]]],
 ];
 
+// Tiles that keep only their card's first sentence, giving the thumbnail the room
+const SHORT = new Set(["sunburst-card"]);
 const make = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -54,6 +56,7 @@ for (const [sec, cards] of SECTIONS) {
     const blurb = make("p");
     const thumb = make("div", "gal-thumb");
     thumb.id = "thumb-" + id;
+    tile.classList.toggle("short", SHORT.has(id));
     tile.append(title, blurb, thumb);
     grid.append(tile);
     addThumb(id, thumb);
@@ -62,7 +65,8 @@ for (const [sec, cards] of SECTIONS) {
     const p = card.querySelector("h2 + p, h2 ~ p");
     const name = () => {
       title.textContent = h2?.textContent ?? "";
-      blurb.textContent = p?.textContent ?? "";
+      const text = p?.textContent ?? "";
+      blurb.textContent = SHORT.has(id) ? (text.match(/^.*?\.(?=\s|$)/)?.[0] ?? text) : text;
       tile.setAttribute("aria-label", `Open ${title.textContent}`);
     };
     name();
