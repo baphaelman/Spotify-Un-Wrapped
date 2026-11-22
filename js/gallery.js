@@ -13,7 +13,7 @@
 // Closing is the same in reverse, into the tile. A flight turned back midway (Esc while it opens) reverses from where
 // it is.
 
-import { $, bringBack } from "./state.js";
+import { $, bringBack, owes, prefer, holdIdle, onOwedChange } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
 import { addThumb, paintThumbs, paintThumb, STRETCH } from "./thumbs.js";
 import { ARRIVALS } from "./arrivals.js";
@@ -113,7 +113,13 @@ for (const id of Object.keys(SLUG)) {
   const thumb = make("div", "gal-thumb");
   thumb.id = "thumb-" + id;
   tile.classList.toggle("short", SHORT.has(id));
-  tile.append(title, blurb, thumb);
+  // (a Visual tweak: a dot in the corner, filled once the card is drawn for what the page shows, so it opens at once)
+  const ready = make("span", "gal-ready tweak-only");
+  ready.hidden = true;
+  ready.classList.toggle("waiting", owes(card));
+  tile.append(title, blurb, thumb, ready);
+  // (the card under the cursor, or focused, draws first: it's the one about to be opened)
+  for (const type of ["pointerenter", "focus"]) tile.addEventListener(type, () => prefer(card));
   addThumb(id, thumb);
   // The tile's name and line follow the card's (they change with the view: "Top Albums over time")
   const h2 = card.querySelector("h2");
@@ -135,7 +141,7 @@ for (const id of Object.keys(SLUG)) {
   };
   tile.hidden = card.hidden;
   new MutationObserver(shown).observe(card, { attributes: true, attributeFilter: ["hidden"] });
-  const entry = { card, tile, slug: SLUG[id] };
+  const entry = { card, tile, slug: SLUG[id], ready };
   tiles.push(entry);
   byId.set(id, entry);
   tile.addEventListener("click", () => open(entry));
@@ -146,6 +152,7 @@ for (const id of Object.keys(SLUG)) {
     }
   });
 }
+onOwedChange((card, owing) => byId.get(card.id)?.ready.classList.toggle("waiting", owing));
 
 // ---------- Arranging: sections, columns, spans ----------
 let cols = 0;
@@ -384,6 +391,7 @@ function launch(entry, opening, anims, done, undo, solid) {
   const f = { anims, done, undo, opening, entry, solid };
   // (a cursor left where the tile was clicked doesn't hover the card flying under it: hovers wait for it to land)
   entry.card.style.pointerEvents = "none";
+  holdIdle(true); // (no other card's paint mid-flight)
   flight = f;
   anims[0].onfinish = () => {
     if (flight !== f) return;
@@ -420,6 +428,7 @@ function settle(entry, anims) {
   fadeCanvas(entry.card, true, 0);
   unpin(entry.card, head);
   entry.card.style.pointerEvents = "";
+  holdIdle(false);
   entry.card.style.transformOrigin = entry.tile.querySelector(".gal-thumb").style.transformOrigin = entry.tile.style.zIndex = "";
 }
 const toGrid = (entry, anims, solid) => () => {

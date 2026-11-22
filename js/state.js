@@ -175,6 +175,7 @@ const nearScreen = new IntersectionObserver((entries) => {
     const paint = owed.get(e.target);
     owed.delete(e.target);
     paint?.();
+    if (paint) owedChanged(e.target);
   }
 }, { rootMargin: "50% 0px" });
 export function putOff(card, paint) {
@@ -182,11 +183,18 @@ export function putOff(card, paint) {
     watched.add(card);
     nearScreen.observe(card);
   }
+  // (an idle paint drawing a card it already drew since the last change, as Every play's paint draws Every day too, is
+  // up to date: nothing's owed, or the two would owe each other forever)
+  if (idling && away.has(card) && paidAt.get(card) === changes) return true;
+  if (!idling) changes++;
   if (!away.has(card)) {
-    owed.delete(card);
+    if (owed.delete(card)) owedChanged(card);
     return false;
   }
+  const was = owed.has(card);
   owed.set(card, paint);
+  if (!was) owedChanged(card);
+  if (!idling) idleSoon();
   return true;
 }
 // Bring a card back at once, ahead of the observer, its held paint run now (the gallery measures a card's plot as it
@@ -196,6 +204,7 @@ export function bringBack(card) {
   const paint = owed.get(card);
   owed.delete(card);
   paint?.();
+  if (paint) owedChanged(card);
 }
 // Run what cards owe now (each different paint once, in turn), leaving them away, so later paints wait again: the
 // gallery's tiles copy the rolling chart's drawing (thumbs.js), which mustn't redraw off screen every frame of a drag
@@ -203,9 +212,70 @@ export function catchUp(...cards) {
   const paints = [...new Set(cards.map((c) => owed.get(c)).filter(Boolean))];
   if (!paints.length) return;
   const were = cards.filter((c) => away.delete(c));
-  for (const c of cards) owed.delete(c);
+  for (const c of cards) if (owed.delete(c)) owedChanged(c);
   for (const paint of paints) paint();
   for (const c of were) away.add(c);
 }
 // Whether a card has a paint waiting, so what it shows is out of date anyway
 export const owes = (card) => owed.has(card);
+// (one listener, told each time a card starts or stops owing a paint: the gallery's "ready" dots)
+let owedFn = null;
+export const onOwedChange = (fn) => (owedFn = fn);
+const owedChanged = (card) => owedFn?.(card, owed.has(card));
+
+// Held paints run anyway once the page has been still a while, one per idle moment, cards left away, so a card opened
+// later is already drawn and its opening doesn't stall on its paint (the gallery's cards wait off screen all the
+// time). `prefer(card)` puts a card first and runs it soon (the tile under the cursor); `holdIdle(true)` stops them
+// until `holdIdle(false)` (a flight: a paint mid-flight would freeze it).
+const SETTLE_MS = 1000; // (after the last paint put off: a drag puts one off every frame, and what moved still animates)
+const idle = typeof requestIdleCallback === "function" ? (fn, timeout) => requestIdleCallback(fn, { timeout }) : (fn) => setTimeout(fn, 50);
+const unidle = typeof cancelIdleCallback === "function" ? cancelIdleCallback : clearTimeout;
+let settleTimer = 0, idleTask = 0, idleHeld = false, preferred = null;
+let changes = 0, idling = false; // (paints put off outside idle ones, and whether an idle one is running)
+const paidAt = new WeakMap(); // card -> `changes` when an idle paint last drew it
+function idleSoon(wait = SETTLE_MS) {
+  clearTimeout(settleTimer);
+  unidle(idleTask);
+  idleTask = 0;
+  if (!idleHeld) settleTimer = setTimeout(idleNext, wait);
+}
+function idleNext(timeout = 2000) {
+  unidle(idleTask);
+  idleTask = idle(() => {
+    idleTask = 0;
+    if (idleHeld || !owed.size) return;
+    const card = owed.has(preferred) ? preferred : owed.keys().next().value;
+    preferred = null;
+    const paint = owed.get(card);
+    // (cards owing the same paint, as Top … View and Hours per week share the rolling chart's, are all paid by it)
+    const paid = [...owed].filter(([, p]) => p === paint).map(([c]) => c);
+    const were = paid.filter((c) => away.delete(c));
+    for (const c of paid) owed.delete(c);
+    idling = true;
+    try {
+      paint();
+    } finally {
+      idling = false;
+    }
+    for (const c of were) away.add(c);
+    for (const c of paid) paidAt.set(c, changes);
+    for (const c of paid) owedChanged(c);
+    if (owed.size) idleNext();
+  }, timeout);
+}
+export function prefer(card) {
+  if (!owed.has(card)) return;
+  preferred = card;
+  if (!idleHeld) {
+    clearTimeout(settleTimer);
+    idleNext(300);
+  }
+}
+export function holdIdle(on) {
+  idleHeld = on;
+  if (on) {
+    clearTimeout(settleTimer);
+    unidle(idleTask);
+    idleTask = 0;
+  } else if (owed.size) idleSoon();
+}
