@@ -80,9 +80,10 @@ own.rel = "noopener";
 acts.append(req, own);
 ask.append(acts);
 
-// The layouts passed over, a Visual tweak
-const pick = make("label", "gal-layout tweak-only", "Gallery layout ");
+// The layouts passed over, and flights without their clip (to compare how smoothly they run), Visual tweaks
+const pick = make("div", "gal-layout tweak-only");
 pick.hidden = true;
+const layoutPick = make("label", "", "Gallery layout ");
 const sel = make("select");
 for (const [k, l] of Object.entries(LAYOUTS)) sel.append(Object.assign(make("option", "", l.label), { value: k }));
 try {
@@ -90,8 +91,14 @@ try {
 } catch {
   sel.value = DEFAULT_LAYOUT;
 }
-pick.append(sel);
+layoutPick.append(sel);
+const clipPick = make("label", "", "Clip flights ");
+const clipBox = Object.assign(make("input"), { type: "checkbox", checked: true });
+clipPick.append(clipBox);
+pick.append(layoutPick, clipPick);
 gallery.append(ask, pick, head, slot, stage);
+// (off only while Visual tweaks is on: off, the page is as chosen)
+const clipped = () => pick.hidden || clipBox.checked;
 
 const tiles = []; // {card, tile, slug}, in no particular order: the page's order is the sections' (order())
 const byId = new Map();
@@ -280,14 +287,18 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
   for (const el of [card, thumb]) el.style.transformOrigin = "0 0";
   tile.style.zIndex = solid ? "4" : "6"; // (above the card, so the thumbnail crosses over it, unless the card is solid)
   const o = { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css, fill: "forwards", direction };
-  const from = { transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${clip} round ${8 / s}px)` };
-  const to = { transform: "none", clipPath: "inset(0px 0px 0px 0px round 8px)" };
+  const from = `translate(${dx}px, ${dy}px) scale(${s})`;
   const cs = getComputedStyle(card);
   const fadeIn = [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1 }];
+  // (the card's move on its own, transform and opacity, so the compositor runs it even while the page is busy; its
+  // clip and colors, which only the page can draw, beside it: a busy frame holds them, not the card)
+  const clipFrom = clipped() ? { clipPath: `inset(${clip} round ${8 / s}px)` } : {};
+  const clipTo = clipped() ? { clipPath: "inset(0px 0px 0px 0px round 8px)" } : {};
   return [
+    card.animate(solid ? [{ transform: from }, { transform: "none" }] : [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.4 }, { transform: "none", opacity: 1 }], o),
     card.animate(solid
-      ? [{ ...from, backgroundColor: "transparent", borderColor: "transparent" }, { backgroundColor: cs.backgroundColor, borderColor: cs.borderColor, offset: 0.4 }, to]
-      : [{ ...from, opacity: 0 }, { opacity: 1, offset: 0.4 }, { ...to, opacity: 1 }], o),
+      ? [{ ...clipFrom, backgroundColor: "transparent", borderColor: "transparent" }, { backgroundColor: cs.backgroundColor, borderColor: cs.borderColor, offset: 0.4 }, { ...clipTo }]
+      : [clipFrom, clipTo], o),
     thumb.animate([
       { transform: "none", opacity: 1 },
       ...(solid ? [{ opacity: 0, offset: 0.25 }] : [{ opacity: 1, offset: 0.4 }, { opacity: 0, offset: 0.7 }]),
@@ -371,6 +382,8 @@ const unpin = (...els) => els.forEach((el) => PINNED.forEach((k) => (el.style[k]
 let flight = null;
 function launch(entry, opening, anims, done, undo, solid) {
   const f = { anims, done, undo, opening, entry, solid };
+  // (a cursor left where the tile was clicked doesn't hover the card flying under it: hovers wait for it to land)
+  entry.card.style.pointerEvents = "none";
   flight = f;
   anims[0].onfinish = () => {
     if (flight !== f) return;
@@ -406,6 +419,7 @@ function settle(entry, anims) {
   for (const a of anims) a.cancel();
   fadeCanvas(entry.card, true, 0);
   unpin(entry.card, head);
+  entry.card.style.pointerEvents = "";
   entry.card.style.transformOrigin = entry.tile.querySelector(".gal-thumb").style.transformOrigin = entry.tile.style.zIndex = "";
 }
 const toGrid = (entry, anims, solid) => () => {
