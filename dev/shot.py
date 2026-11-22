@@ -6,6 +6,8 @@
 #   FRAMES="hours,share"  click each mode and save frame_<mode>_<k>.png mid-morph (cwd)
 #   HOVER_SEL="css selector"  hover the element's center   HOVER="x,y"  hover a page point
 #   EVAL="js expression"  evaluate (promises awaited) and print the value
+#   PROFILE=1  sample the CPU through the EVAL; PROFILE=console  only between its console.profile("x") and
+#              console.profileEnd("x") (the same title), adding the page's functions by total time
 # OFFLINE=1 cuts the page off from Supabase: no picture lookups (each costs Spotify calls), genres or community
 # NOPICS=1 blocks only the picture lookups, so genres and community still load
 # The browser profile persists in dev/site/.profile (IndexedDB = remembered data); delete it for a
@@ -29,6 +31,7 @@ try:
     ws = websocket.create_connection(page["webSocketDebuggerUrl"], timeout=120)
     n = [0]
     logs = []
+    profiles = []  # (PROFILE=console: each console.profile() … console.profileEnd() in the EVAL)
     def call(method, **params):
         n[0] += 1
         ws.send(json.dumps({"id": n[0], "method": method, "params": params}))
@@ -36,6 +39,8 @@ try:
             m = json.loads(ws.recv())
             if m.get("method") == "Runtime.consoleAPICalled":
                 logs.append(" ".join(str(a.get("value", a.get("description"))) for a in m["params"]["args"]))
+            if m.get("method") == "Profiler.consoleProfileFinished":
+                profiles.append(m["params"]["profile"])
             if m.get("method") == "Runtime.exceptionThrown":
                 logs.append("EXC " + json.dumps(m["params"]["exceptionDetails"])[:500])
             if m.get("id") == n[0]:
@@ -102,23 +107,37 @@ try:
         call("Input.dispatchMouseEvent", type="mouseMoved", x=x, y=y)
         time.sleep(0.8)
     if os.environ.get("EVAL"):
-        # PROFILE=1 samples the CPU while EVAL runs and prints the functions that took the most time
-        if os.environ.get("PROFILE"):
+        # PROFILE=1 samples the CPU while EVAL runs and prints the functions that took the most time; PROFILE=console
+        # samples only between the EVAL's console.profile() and console.profileEnd() (say, around one click), and
+        # also prints the page's own functions by total time (with what they call)
+        prof_mode = os.environ.get("PROFILE")
+        if prof_mode:
             call("Profiler.enable")
             call("Profiler.setSamplingInterval", interval=200)
-            call("Profiler.start")
+            if prof_mode != "console": call("Profiler.start")
         print("eval:", call("Runtime.evaluate", expression=os.environ["EVAL"], awaitPromise=True)["result"].get("value"))
-        if os.environ.get("PROFILE"):
-            prof = call("Profiler.stop")["profile"]
-            nodes = {n["id"]: n for n in prof["nodes"]}
-            gaps = prof["timeDeltas"]
-            self_ms = {}
-            for sid, dt in zip(prof["samples"], gaps):
-                f = nodes[sid]["callFrame"]
-                k = f'{f["functionName"] or "(anon)"} {f["url"].rsplit("/", 1)[-1]}:{f["lineNumber"] + 1}:{f["columnNumber"] + 1}'
-                self_ms[k] = self_ms.get(k, 0) + dt / 1000
-            for k, ms in sorted(self_ms.items(), key=lambda x: -x[1])[:int(os.environ.get("PROFILE_TOP", "30"))]:
-                print(f"PROF {ms:8.1f} ms  {k}")
+        if prof_mode:
+            call("Runtime.evaluate", expression="0")  # (the profiles' events may come after the EVAL's answer)
+            for prof in [call("Profiler.stop")["profile"]] if prof_mode != "console" else profiles:
+                nodes = {n["id"]: n for n in prof["nodes"]}
+                parent = {c: n["id"] for n in prof["nodes"] for c in n.get("children", [])}
+                name = lambda f: f'{f["functionName"] or "(anon)"} {f["url"].rsplit("/", 1)[-1]}:{f["lineNumber"] + 1}:{f["columnNumber"] + 1}'
+                self_ms, total_ms = {}, {}
+                for sid, dt in zip(prof["samples"], prof["timeDeltas"]):
+                    k = name(nodes[sid]["callFrame"])
+                    self_ms[k] = self_ms.get(k, 0) + dt / 1000
+                    seen, at = set(), sid
+                    while at is not None:
+                        f = nodes[at]["callFrame"]
+                        if "/js/" in f["url"] and (k2 := name(f)) not in seen:
+                            seen.add(k2); total_ms[k2] = total_ms.get(k2, 0) + dt / 1000
+                        at = parent.get(at)
+                top = int(os.environ.get("PROFILE_TOP", "30"))
+                for k, ms in sorted(self_ms.items(), key=lambda x: -x[1])[:top]:
+                    print(f"PROF {ms:8.1f} ms  {k}")
+                if prof_mode == "console":
+                    for k, ms in sorted(total_ms.items(), key=lambda x: -x[1])[:top]:
+                        print(f"TOTAL {ms:7.1f} ms  {k}")
     print("title:", call("Runtime.evaluate", expression="document.title")["result"].get("value"))
     print("status:", call("Runtime.evaluate", expression="document.getElementById('status').textContent")["result"].get("value"))
     shot = call("Page.captureScreenshot", format="png")

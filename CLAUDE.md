@@ -145,7 +145,7 @@ Headless Brave is installed (no Chrome or Node).
 
 ```sh
 python3 dev/shot.py "http://localhost:<port>/test.html?v=$RANDOM#hours" /tmp/out.png 1280 1900
-# env: HOVER_SEL / HOVER, CLICK_JS + CLICK_TIMES (frames after an action), EVAL (+ PROFILE=1), WHEEL, OFFLINE=1
+# env: HOVER_SEL / HOVER, CLICK_JS + CLICK_TIMES (frames after an action), EVAL (+ PROFILE=1 or =console), WHEEL, OFFLINE=1
 python3 dev/motion_check.py <port> [slice|slice-back|smooth|drag|preset|custom ...]
 ```
 
