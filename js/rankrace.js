@@ -17,7 +17,7 @@ import * as agg from "./aggregate.js";
 import { FADE_MS, CHASE_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, dur, litLook, isLitLook, isPinLook, setOptionFaded, easeOut, easeInOut } from "./motion.js";
 import { $, state, putOff, rangePlays, shownName, pan, onPan } from "./state.js";
 import { tune, setTune } from "./tune.js";
-import { focusArtist, stopLines } from "./charts.js";
+import { focusArtist, morphShapes, part } from "./charts.js";
 import { tokens, alpha } from "./colors.js";
 import { esc, fmtH, MON } from "./format.js";
 import { HOUR } from "./aggregate.js";
@@ -476,41 +476,43 @@ function option(ms = MORPH_MS, animate = true) {
 // { lines: item -> { width, color, opacity } in the thumbnail's pixels, n: its slices, MAX: its positions, x, y: [at,
 // k], where a point a fraction f across (or up) the thumbnail's plot is at at + k·f of the card's, s: the card's pixels
 // per thumbnail pixel }. The thumbnail draws the card's own lines (rankLines), so its form is the card's squashed to
-// the thumbnail's height (under the floor, still clipped), as thin as the thumbnail's, without circles (its names are chrome: the flight fades them).
-// False when they aren't the same lines.
+// the thumbnail's height (under the floor, still clipped), as thin as the thumbnail's, without circles (its names are
+// chrome: the flight fades them). The drawn lines and circles move themselves (morphShapes): the lines' points, widths
+// and colors, the circles' places and sizes, so they grow in and shrink away rather than popping (ECharts snaps a
+// circle's size). False when they aren't the same lines.
 export function morphRankRace(look, toThumb, ms) {
   if (!st || !c || c.isDisposed() || st.slide || !look || look.n !== st.rows.length || look.MAX !== st.MAX) return false;
   if (look.lines.size !== st.names.length || st.names.some((a) => !look.lines.has(a))) return false;
-  if (!ms) stopLines(c); // (drawn at once: a paint's morph still running ends first, as in morphClock)
-  const top = st.MAX + 0.4, h = top - 1, last = Math.max(1, st.rows.length - 1);
-  const at = ([x, y]) => [last * (look.x[0] + look.x[1] * (x / last)), top - h * (look.y[0] + look.y[1] * ((top - y) / h))];
+  const rect = gridRect();
+  const ok = morphShapes(c, st, toThumb, ms, () => {
+    const floor = rect.y + rect.height;
+    const X = (x) => rect.x + rect.width * look.x[0] + look.x[1] * (x - rect.x), Y = (y) => floor - rect.height * look.y[0] - look.y[1] * (floor - y);
+    const parts = [];
+    for (const m of c.getModel().getSeries()) {
+      const line = c.getViewOfSeriesModel(m)?._polyline, l = look.lines.get(m.id);
+      if (line) {
+        const pts = line.shape.points, at = new Float32Array(pts.length);
+        for (let i = 0; i < pts.length; i += 2) [at[i], at[i + 1]] = [X(pts[i]), Y(pts[i + 1])];
+        parts.push(part(line, line.shape, "points", at));
+        if (l) parts.push(part(line, line.style, "lineWidth", l.width * look.s), part(line, line.style, "stroke", l.color), part(line, line.style, "opacity", l.opacity));
+        else parts.push(part(line, line.style, "opacity", 0));
+      }
+      const data = m.getData();
+      for (let i = 0; i < data.count(); i++) {
+        const g = data.getItemGraphicEl(i), dot = g?.childAt?.(0);
+        if (dot) parts.push(part(g, g, "x", X(g.x)), part(g, g, "y", Y(g.y)), part(dot, dot, "scaleX", 0), part(dot, dot, "scaleY", 0));
+      }
+    }
+    return parts;
+  }, () => {
+    // (home: the sides' clip goes, the lines keeping the flight's, which ECharts takes for its own; see clipSeries)
+    clearTimeout(st.unclip);
+    st.unclip = setTimeout(() => c && !c.isDisposed() && !st.slide && !st.arrival && clipSeries(null));
+  });
   // (clipped only under the floor and at the sides while it flies, as a slide is: the thumbnail's form can stand taller
   // than the plot, into the lane above it)
-  const series = seriesOf(ms).map((s) => {
-    if (!toThumb) return { ...s, clip: false };
-    const l = look.lines.get(s.id);
-    return {
-      ...s, clip: false, lineStyle: l ? { ...s.lineStyle, width: l.width * look.s, color: l.color, opacity: l.opacity } : { ...s.lineStyle, opacity: 0 },
-      data: s.data.map((d) => ({ ...d, value: at(d.value), symbolSize: 0 })),
-    };
-  });
-  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  clipSeries(gridRect(), { toCard: !toThumb, ms });
-  if (!ms) c.setOption({ animation: true });
-  // (as itself again, clipped as usual once it lands and its morph is done: the lines keep the flight's clip, which
-  // ECharts takes for its own. Without animation, as a line given a clip without one of its own gets ECharts' first-draw
-  // clip, which wipes the lines away and draws them in again from the left)
-  clearTimeout(st.unclip);
-  const until = performance.now() + ms + dur(MORPH_MS);
-  const unclip = () => {
-    if (!c || c.isDisposed() || st.slide) return;
-    if (!c.getZr().animation.isFinished() && performance.now() < until) return void (st.unclip = setTimeout(unclip, 50));
-    clipSeries(null);
-    c.setOption({ animation: false, series: st.names.concat([...st.leaving]).map((id) => ({ id, clip: true })) });
-    c.setOption({ animation: true });
-  };
-  if (!toThumb) st.unclip = setTimeout(unclip, ms + 50);
-  return true;
+  if (ok) clipSeries(rect, { toCard: !toThumb, ms });
+  return ok;
 }
 
 // An item lit from anywhere (the key, another graph, a hover here), or null for none
