@@ -2,6 +2,7 @@
 // cards beside the pointer.
 
 import { esc } from "../format.js";
+import { EASE_IN_OUT } from "../motion.js";
 
 export const instances = new Map();
 
@@ -101,3 +102,70 @@ export function fitTip(groups, more) {
     return [g.head, ...kept, subRow("transparent", ...more(g, gone))];
   });
 }
+
+// ---------- The gallery's arrivals (arrivals.js) ----------
+// A plot morphing between its thumbnail's form and its own by setting its drawn shapes directly, on one tick of
+// zrender's clock (as rolling.js arriveHeight does): no setOption, so it costs what the shapes do, not a render.
+// held: the chart's state, which keeps the morph (held.arrival) while the plot isn't its own. build(): the morph's
+// parts, read from the plot as drawn, its own, or null when it can't: each part(el, obj, key, thumb) is one value of
+// a drawn shape (obj: the element, its shape or its style), a number, a color or an array of numbers (points), from
+// its own value to the thumbnail form's. u runs from 0 (the thumbnail's form) to 1 (its own), in-out over ms from
+// wherever it is, so a flight turned back carries on from what's on screen; ms 0 sets it at once. Back at 1, every
+// value is put back as it was. A chart drawn again meanwhile (new data) keeps its own: the morph is dropped.
+export const part = (el, obj, key, thumb) => ({ el, obj, key, own: obj[key], thumb });
+export function morphShapes(c, held, toThumb, ms, build, done) {
+  const datas = () => c.getModel().getSeries().map((m) => m.getData());
+  let a = held.arrival;
+  if (a && (a.c !== c || datas().some((d, i) => d !== a.datas[i]))) a = held.arrival = null;
+  if (!a && !toThumb) return done?.(), true; // (it's its own already)
+  if (!a) {
+    // (a paint's morph still running ends first, so its own values are where it was going)
+    for (const v of c._chartsViews ?? []) v.group.traverse((e) => void e.stopAnimation(null, true));
+    const parts = build();
+    if (!parts) return false;
+    for (const p of parts) {
+      if (typeof p.own === "string") [p.from, p.to] = [rgba(p.thumb), rgba(p.own)];
+      else if (p.own && typeof p.own === "object") p.buf = Array.isArray(p.own) ? [...p.own] : new Float32Array(p.own.length); // (corners: an Array, as zrender reads them)
+    }
+    const redraw = new Set(), reshape = new Set();
+    for (const p of parts) (p.obj === p.el.shape ? reshape : redraw).add(p.el);
+    a = held.arrival = { c, parts, u: 1, datas: datas(), reshape: [...reshape], redraw: [...redraw].filter((e) => !reshape.has(e)) };
+  }
+  const to = toThumb ? 0 : 1;
+  const set = (u) => {
+    a.u = u;
+    for (const p of a.parts) {
+      const { obj, key, own, thumb } = p;
+      if (u === 1) obj[key] = own;
+      else if (typeof own === "number") obj[key] = thumb + (own - thumb) * u;
+      else if (p.buf) {
+        for (let i = 0; i < p.buf.length; i++) p.buf[i] = thumb[i] + (own[i] - thumb[i]) * u;
+        obj[key] = p.buf;
+      } else if (p.from && p.to) {
+        const [f, t] = [p.from, p.to], m = (i) => f[i] + (t[i] - f[i]) * u;
+        obj[key] = `rgba(${Math.round(m(0))},${Math.round(m(1))},${Math.round(m(2))},${m(3).toFixed(3)})`;
+      } else obj[key] = u < 0.5 ? thumb : own;
+    }
+    for (const e of a.reshape) e.dirtyShape();
+    for (const e of a.redraw) e.markRedraw();
+  };
+  // (at the end, home: its own values are back, and it's held no more. Not on any frame at 1: a close starts there)
+  const end = () => {
+    set(to);
+    if (to === 1) held.arrival = null;
+    done?.();
+  };
+  // (a step of the chart's own keeps zrender's clock on the beat, each frame setting the shapes before it paints)
+  const lead = c._chartsViews?.[0]?.group;
+  lead?.stopAnimation("arrive");
+  if (!ms || !lead || a.u === to) return end(), true;
+  const from = a.u;
+  lead.arriveStep = 0;
+  lead.animateTo({ arriveStep: 1 }, {
+    duration: ms, easing: EASE_IN_OUT.echarts, scope: "arrive",
+    during: () => held.arrival === a && set(from + (to - from) * lead.arriveStep),
+    done: () => held.arrival === a && end(),
+  });
+  return true;
+}
+const rgba = (s) => (s ? echarts.color.parse(s) : null);

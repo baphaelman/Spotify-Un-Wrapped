@@ -4,7 +4,7 @@ import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, EASE_OUT, setOptionFaded, dur
 import { shownName } from "../state.js";
 import { tokens, mix } from "../colors.js";
 import { esc, fmtHoursRound } from "../format.js";
-import { baseAxis, chart, instances, tooltipBase } from "./core.js";
+import { baseAxis, chart, instances, tooltipBase, morphShapes, part } from "./core.js";
 import { tune } from "../tune.js";
 
 // The items found in the period, across it: each a dot at the day it was first played (or reached the threshold) and as high as its
@@ -403,9 +403,11 @@ export function focusDiscovery(el, name) {
 // The gallery's arrival (arrivals.js): the card's dots as its thumbnail draws them (toThumb), or as its own. look:
 // { dots: name -> { size, color, border } in the thumbnail's pixels, x, y: [at, k], where a thumbnail's dot at a
 // fraction f across (or up) its plot is at at + k·f of the card's, s: the card's pixels per thumbnail pixel, and
-// span, floor, top, the thumbnail's axes }. In the thumbnail's form, each dot sits where the thumbnail has it (on the
-// card's held axes, its log scale squashed toward the floor), at its size and color; the rest it leaves out are
-// nothing yet (the names are chrome: the flight fades them, gallery.js fadeCanvas). False when the thumbnail's dots aren't the card's.
+// span, floor, top, the thumbnail's axes }. In the thumbnail's form, each dot sits where the thumbnail has it (both
+// plots' axes are linear in time and in log hours, so it's the card's own place under one map per axis), at its size
+// and color; the rest it leaves out are nothing yet (the names are chrome: the flight fades them, gallery.js
+// fadeCanvas). The drawn dots move themselves (morphShapes), each its own group and circle, or a genre's as one path.
+// False when the thumbnail's dots aren't the card's.
 export function morphDiscovery(el, look, toThumb, ms) {
   const st = discoveryState.get(el), c = instances.get(el);
   if (!st?.series || st.c !== c || !look) return false;
@@ -415,27 +417,33 @@ export function morphDiscovery(el, look, toThumb, ms) {
   for (const n of look.dots.keys()) if (!names.has(n)) return false;
   c.dispatchAction({ type: "hideTip" });
   st.ring?.attr({ style: { opacity: 0 } });
-  const [lo, hi] = st.span, ly = Math.log(st.floor), ry = Math.log(st.top) - ly;
-  const at = ([t, h]) => {
-    const fx = look.x[0] + look.x[1] * ((t - lo) / (hi - lo)), fy = look.y[0] + look.y[1] * ((Math.log(h) - ly) / ry);
-    return [lo + fx * (hi - lo), Math.exp(ly + fy * ry)];
-  };
-  const series = toThumb
-    ? st.series.map((s) => ({
-        id: s.id,
-        data: s.data.map((p) => {
-          const dot = look.dots.get(p.name);
-          return {
-            ...p, value: at(p.value), symbolSize: dot ? dot.size * look.s : 0,
-            ...(dot?.color && { itemStyle: { color: dot.color, borderColor: dot.border, borderWidth: look.s } }),
-          };
-        }),
-      }))
-    : st.series.map((s) => ({ id: s.id, data: s.data }));
-  // (every dot glides, however many: ECharts would otherwise draw a big plot's at once)
-  setOptionFaded(c, { animation: ms > 0, animationThreshold: 1e6, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
-  if (!ms) c.setOption({ animation: true });
-  clearTimeout(st.unthreshold);
-  st.unthreshold = setTimeout(() => !c.isDisposed() && c.setOption({ animationThreshold: 2000 }), ms + 50);
-  return true;
+  return morphShapes(c, st, toThumb, ms, () => {
+    const r = c.getModel().getComponent("grid").coordinateSystem.getRect(), floor = r.y + r.height;
+    const X = (x) => r.x + r.width * look.x[0] + look.x[1] * (x - r.x), Y = (y) => floor - r.height * look.y[0] - look.y[1] * (floor - y);
+    const parts = [];
+    for (const m of c.getModel().getSeries()) {
+      const data = m.getData();
+      if (m.get("large")) {
+        // (a genre's tracks: one path of points at one size, in one color)
+        const dot = data.count() ? look.dots.get(data.getName(0)) : null;
+        c.getViewOfSeriesModel(m)?.group.traverse((e) => {
+          const pts = e.shape?.points;
+          if (!(pts instanceof Float32Array)) return;
+          const at = new Float32Array(pts.length);
+          for (let i = 0; i < pts.length; i += 2) [at[i], at[i + 1]] = [X(pts[i]), Y(pts[i + 1])];
+          parts.push(part(e, e.shape, "points", at), part(e, e.shape, "size", e.shape.size.map(() => (dot ? dot.size * look.s : 0))));
+          if (dot?.color) parts.push(part(e, e.style, "fill", dot.color));
+        });
+        continue;
+      }
+      for (let i = 0; i < data.count(); i++) {
+        const g = data.getItemGraphicEl(i), dot = look.dots.get(data.getName(i)), path = g?.childAt(0);
+        if (!path) continue;
+        const k = dot ? (dot.size * look.s) / 2 : 0; // (a circle's scale is its radius)
+        parts.push(part(g, g, "x", X(g.x)), part(g, g, "y", Y(g.y)), part(path, path, "scaleX", k), part(path, path, "scaleY", k));
+        if (dot?.color) parts.push(part(path, path.style, "fill", dot.color), part(path, path.style, "stroke", dot.border), part(path, path.style, "lineWidth", look.s));
+      }
+    }
+    return parts;
+  });
 }
