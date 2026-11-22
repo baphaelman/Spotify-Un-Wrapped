@@ -13,7 +13,7 @@
 
 import { $, bringBack } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
-import { addThumb, paintThumbs, STRETCH, MONTHLY_LOOKS, setMonthlyLook } from "./thumbs.js";
+import { addThumb, paintThumbs, STRETCH } from "./thumbs.js";
 
 // card id -> its address (#every-play)
 const SLUG = {
@@ -31,7 +31,7 @@ const SECTIONS = [
 //   thumbs.js), sharing the row evenly (five tiles in three columns: two a column and a half each, then three)
 // last: the section's last row shares the width, whichever graphs land there
 // even: nothing stretches, the last row left short
-// (last and even stay as Visual tweaks)
+// (last and even, passed over, stay as Visual tweaks)
 const LAYOUTS = {
   fill: { label: "Fill the rows, best stretchers first", groups: SECTIONS, fill: true, lead: true },
   last: { label: "Fill the last row", groups: SECTIONS, fill: true },
@@ -77,25 +77,17 @@ own.rel = "noopener";
 acts.append(req, own);
 ask.append(acts);
 
-// The tweaks being compared: the layout, and Every Month's thumbnail
-const pick = make("div", "gal-layout tweak-only");
+// The layouts passed over, a Visual tweak
+const pick = make("label", "gal-layout tweak-only", "Gallery layout ");
 pick.hidden = true;
 const sel = make("select");
-const look = make("select");
-for (const k of Object.keys(MONTHLY_LOOKS)) look.append(Object.assign(make("option", "", k), { value: k }));
-look.addEventListener("change", () => setMonthlyLook(look.value));
-const labelled = (text, el) => {
-  const l = make("label", "", text);
-  l.append(el);
-  return l;
-};
 for (const [k, l] of Object.entries(LAYOUTS)) sel.append(Object.assign(make("option", "", l.label), { value: k }));
 try {
   sel.value = LAYOUTS[localStorage.getItem(LAYOUT_KEY)] ? localStorage.getItem(LAYOUT_KEY) : DEFAULT_LAYOUT;
 } catch {
   sel.value = DEFAULT_LAYOUT;
 }
-pick.append(labelled("Gallery layout ", sel), labelled("Every Month thumbnail ", look));
+pick.append(sel);
 gallery.append(ask, pick, head, slot, stage);
 
 const tiles = []; // {card, tile, slug}, in no particular order: the page's order is the sections' (order())
@@ -210,10 +202,7 @@ sel.addEventListener("change", () => {
   arrange();
 });
 // (the choice counts only while Visual tweaks is on: off, the page is as chosen)
-new MutationObserver(() => {
-  arrange();
-  setMonthlyLook(pick.hidden ? null : look.value);
-}).observe(pick, { attributes: true, attributeFilter: ["hidden"] });
+new MutationObserver(arrange).observe(pick, { attributes: true, attributeFilter: ["hidden"] });
 
 // ---------- Fitting: the cards' full width and the tiles' columns ----------
 const galW = () => parseFloat(gallery.style.getPropertyValue("--gal-w"));

@@ -75,6 +75,10 @@ All in `js/` unless noted; each file's own comments have the details.
 - `theme.js`: palettes and light/dark. `tune.js`: the Visual tweaks sliders (`TUNES`) and `.tweak-only`; imports nothing.
 - `views.js`: plays as each view sees them (`keyedPlays`). `genres.js`, `families.js`: the Genres view's data.
 - `every.js`: "Every play" and "Every day", drawn on their own canvas (per-artist `Path2D`s, eased looks, crossfades).
+- `gallery.js`: the dashboard as a gallery: each graph a tile in its section (`SECTIONS`, rows packed by `pack`), a
+  tile opening its card by a flight from the thumbnail to the card's plot (`flightAnims`, `PLOT`) and back.
+  `thumbs.js`: the tiles' own thumbnails (`THUMBS`), drawn from one digest of the period, and `STRETCH`, how well
+  each looks a column and a half wide.
 - `race.js`: "Top … over time". `rankrace.js`: "Rank race", a bump chart. `mix.js`: the mix bar. `skips.js`: skips and
   picks. `sunburst.js`: "Inside your top …", the rings under it. `ranking.js`: "All your …", every item by hours.
   `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB. `sample.js`: "Try it with sample data".
