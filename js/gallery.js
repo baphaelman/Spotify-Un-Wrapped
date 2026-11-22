@@ -269,10 +269,11 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
   const { card, tile } = entry;
   const thumb = tile.querySelector(".gal-thumb");
   const s = Th.width / P.width;
-  // (a solid card's plot sits on the thumbnail's baseline, or its top when it hangs from it (HANG): its arrival
-  // stretches or places its first shapes to the thumbnail's, when the two boxes' shapes differ)
+  // (a solid card's plot sits on the thumbnail's baseline (its grid's bottom, for an ECharts one), or its top when it
+  // hangs from it (HANG): its arrival stretches or places its first shapes to the thumbnail's, when the two boxes'
+  // shapes differ)
   const dx = Th.left - C.left - s * (P.left - C.left);
-  const dy = solid && !HANG.has(card.id) ? Th.bottom - C.top - s * (P.top + P.height - C.top) : Th.top - C.top - s * (P.top - C.top);
+  const dy = solid && !HANG.has(card.id) ? baseline(thumb, Th) - C.top - s * (P.top + P.height - C.top) : Th.top - C.top - s * (P.top - C.top);
   // the tile's frame, in the scaled card's own pixels
   const fl = (T.left - C.left - dx) / s, ft = (T.top - C.top - dy) / s;
   const clip = [ft, C.width - fl - T.width / s, C.height - ft - T.height / s, fl].map((v) => `${Math.max(0, v)}px`).join(" ");
@@ -290,7 +291,9 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
     thumb.animate([
       { transform: "none", opacity: 1 },
       ...(solid ? [{ opacity: 0, offset: 0.25 }] : [{ opacity: 1, offset: 0.4 }, { opacity: 0, offset: 0.7 }]),
-      { transform: `translate(${P.left - Th.left}px, ${P.top - Th.top}px) scale(${P.width / Th.width}, ${P.height / Th.height})`, opacity: 0 },
+      // (solid: it rides on the card, scaled evenly with it, so its shapes stay on the card's while it fades; else it
+      // stretches to the plot's box)
+      { transform: solid ? riding(Th, C, dx, dy, s) : `translate(${P.left - Th.left}px, ${P.top - Th.top}px) scale(${P.width / Th.width}, ${P.height / Th.height})`, opacity: 0 },
     ], o),
     ...(solid ? chromeOf(card).map((el) => el.animate(fadeIn, o)) : []),
     // the tile's frame and words give way to the card's
@@ -300,6 +303,19 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
     // everything else in the gallery fades where it is
     ...others(tile).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], o)),
   ];
+}
+// Where a thumbnail's shapes stand on screen: an ECharts one's grid bottom, else the element's bottom
+function baseline(thumb, Th) {
+  const c = echarts.getInstanceByDom(thumb);
+  const g = c?.getOption()?.series?.some?.(Boolean) && c.getModel().getComponent("grid")?.coordinateSystem?.getRect?.();
+  return g?.height > 0 ? Th.top + (g.y + g.height) * (Th.height / thumb.offsetHeight) : Th.bottom;
+}
+// The thumbnail's transform at the end of a solid flight: where the card carries it. The card goes from
+// translate(dx, dy) scale(s) to none, both linear in the same eased time, so a thumbnail going from none to
+// translate(e) scale(1 / s) stays attached to it all the way: e = q(1 - s) - d, q its place in the card's own pixels.
+function riding(Th, C, dx, dy, s) {
+  const qx = (Th.left - C.left - dx) / s, qy = (Th.top - C.top - dy) / s;
+  return `translate(${qx * (1 - s) - dx}px, ${qy * (1 - s) - dy}px) scale(${1 / s})`;
 }
 // ---------- A solid flight's chrome: everything of the card but its plot's shapes ----------
 const plotChart = (card) => echarts.getInstanceByDom(card.querySelector(PLOT[card.id]));
