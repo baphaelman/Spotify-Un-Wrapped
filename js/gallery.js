@@ -248,6 +248,8 @@ const PLOT = {
   "hours-card": "#chart-rolling-hours", "clock-card": "#chart-clock", "raster-card": "#chart-raster",
   "calendar-card": "#chart-calendar", "skips-card": "#skips-list",
 };
+// Plots that hang from the top (lists of rows): a solid flight sets their top on the thumbnail's, not their baseline
+const HANG = new Set(["race-card", "ranking-card", "skips-card"]);
 // The plot's box on screen, within the card's (C)
 function plotBox(card, C) {
   const el = card.querySelector(PLOT[card.id]);
@@ -267,10 +269,10 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
   const { card, tile } = entry;
   const thumb = tile.querySelector(".gal-thumb");
   const s = Th.width / P.width;
-  // (a solid card's plot sits on the thumbnail's baseline: its arrival stretches its first shapes to the thumbnail's
-  // height, when the two boxes' shapes differ)
+  // (a solid card's plot sits on the thumbnail's baseline, or its top when it hangs from it (HANG): its arrival
+  // stretches or places its first shapes to the thumbnail's, when the two boxes' shapes differ)
   const dx = Th.left - C.left - s * (P.left - C.left);
-  const dy = solid ? Th.bottom - C.top - s * (P.top + P.height - C.top) : Th.top - C.top - s * (P.top - C.top);
+  const dy = solid && !HANG.has(card.id) ? Th.bottom - C.top - s * (P.top + P.height - C.top) : Th.top - C.top - s * (P.top - C.top);
   // the tile's frame, in the scaled card's own pixels
   const fl = (T.left - C.left - dx) / s, ft = (T.top - C.top - dy) / s;
   const clip = [ft, C.width - fl - T.width / s, C.height - ft - T.height / s, fl].map((v) => `${Math.max(0, v)}px`).join(" ");

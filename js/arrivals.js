@@ -26,6 +26,8 @@ import { morphMonthly } from "./charts.js";
 // Rank race, Discovery, When you listened
 
 // Top … over time, All your …, Skips and picks
+import { flyRows, thumbShapes } from "./rowfly.js";
+import { raceRows, settleRace } from "./race.js";
 
 // Listening mix, Inside your top …
 import { morphMix } from "./mix.js";
@@ -36,6 +38,11 @@ import { arriveRaster, arriveCalendar } from "./every.js";
 import { paintThumb } from "./thumbs.js";
 
 // (end of the imports' slots)
+
+// (Top … over time, All your …, Skips and picks) A thumbnail's label as flyRows' text, and whether the thumbnail draws
+// the card's rows (its first ones, in order)
+const text = (l, align = "left") => l && { x: align === "right" ? l.x + l.w : l.x, y: l.y + l.h / 2, w: l.w, size: l.size, align };
+const matches = (rows, at) => rows.length > 0 && rows.slice(0, at.size).every((r) => at.has(r.key));
 
 export const ARRIVALS = {
   // … Every Month: each bar its top item over one gray (the crowns thumbnail), growing the chart's other artists'
@@ -57,7 +64,22 @@ export const ARRIVALS = {
 
   // Rank race, Discovery, When you listened
 
-  // Top … over time, All your …, Skips and picks
+  // Top … over time, All your …, Skips and picks: the card's rows, each bar, name and number from where the thumbnail
+  // draws it (rowfly.js), ranks and the rows it doesn't have fading in
+  // … over time: the thumbnail is the card's rows at its playhead
+  "race-card": (card, el, to, ms) => {
+    const plot = $("race-rows");
+    if (!settleRace()) return false;
+    const sh = thumbShapes(el, plot.offsetWidth / el.offsetWidth);
+    const vals = sh.get("val") ?? [];
+    const at = new Map((sh.get("bar") ?? []).map((b, i) => [b.name, { bar: b.bar, name: b.label, val: vals[i]?.label }]));
+    const rows = raceRows();
+    if (to === "thumb" && !matches(rows, at)) return false;
+    return flyRows(card, plot, rows.flatMap((r, row) => {
+      const a = at.get(r.key);
+      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.val, at: text(a.val) }, { el: r.rank, at: null, row }] : [{ el: r.li, at: null, row }];
+    }), to, ms);
+  },
 
   // Listening mix, Inside your top …
   // … Listening mix: each block of the thumbnail becomes its segment (place, height, corners, tint, labels), and its

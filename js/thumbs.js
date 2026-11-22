@@ -6,16 +6,17 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, OTHER, WINDOWS } from "./state.js";
+import { state, shownPlays, rangeTotals, OTHER, WINDOWS } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan } from "./aggregate.js";
 import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
-import { fmtH } from "./format.js";
+import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb } from "./every.js";
+import { raceNow } from "./race.js";
 
 const BUCKETS = 40; // time slices across the period
 const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
@@ -153,6 +154,15 @@ function shareBands(t, d, rows) {
 // A month's top item: strong in its color when it's one of the chart's, a mid gray when it isn't
 const crown = (t, n) => (state.colorSlots?.has(n) ? mix(t.surface, colorOf(t, n), 0.85) : mix(t.surface, t.other, 0.6));
 
+// Rows as the list cards draw them, for their thumbnails (race, skips): a row's pitch (rows hang from the top, as the
+// card's do, never taller than ROW_MAX), the name column's width (left) and the room kept right of the bars
+const ROW_MAX = 16;
+const rowLook = (box, n, nameFrac = 0.22, rightPx = 30) => {
+  const pitch = Math.min(ROW_MAX, box.h / Math.max(1, n));
+  return { pitch, left: Math.round(box.w * nameFrac), right: rightPx, font: pitch < 11 ? 8 : 9 };
+};
+const mono = () => getComputedStyle(document.body).getPropertyValue("--mono").trim() || "monospace";
+
 // How well each thumbnail looks stretched to a column and a half (0 to 1): a section that must stretch some tiles to
 // fill its rows stretches its best (gallery.js pack). Placeholders until the thumbnails are settled; score them then.
 export const STRETCH = {
@@ -230,21 +240,31 @@ export const THUMBS = {
       yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
     };
   },
-  // … over time: the race run out, each artist's hours since the period began piling up, named where it ends
-  // (the card plays this out as bars; drawn as lines it reads as time, unlike the lists beside it)
-  "race-card": (d, t) => ({
-    grid: { left: 0, right: 74, top: 4, bottom: 1 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(d.nb + 1) }),
-    yAxis: guides(t, { splitNumber: 3 }), animationDurationUpdate: dur(CHASE_MS),
-    series: d.artists.map((n, i) => {
-      let run = 0;
-      return {
-        type: "line", id: n, symbol: "none", lineStyle: { width: 1.25, color: colorOf(t, n) },
-        data: [0, ...Array.from(d.series[i], (v) => r1((run += v)))],
-        endLabel: { show: true, color: colorOf(t, n), fontSize: 9, distance: 4, formatter: n, width: 68, overflow: "truncate" },
-        labelLayout: { moveOverlap: "shiftY" },
-      };
-    }),
-  }),
+  // … over time: the card's rows at its playhead (raceNow), as the card draws them: the name, a bar in the item's color
+  // as long as its hours, the hours after it. The card waits halfway through the period, so this is the race then.
+  "race-card": (d, t, box) => {
+    const rows = raceNow();
+    const top = rows[0]?.[1] || 1;
+    const { pitch, left, right, font } = rowLook(box, rows.length);
+    const own = (k) => (state.chartNames?.includes(k) ? colorOf(t, k) : t.other); // (as the card's chartColor)
+    return {
+      grid: { left, right, top: 0, height: pitch * rows.length }, xAxis: axis("value", { max: top }),
+      yAxis: axis("category", { data: rows.map((r) => r[0]), inverse: true }),
+      series: [{
+        type: "bar", id: "bar", barWidth: Math.round(pitch * 0.53), animationDurationUpdate: dur(CHASE_MS),
+        data: rows.map(([k, v]) => ({ name: k, value: v, itemStyle: { color: own(k), borderRadius: 2 } })),
+        label: {
+          show: true, position: [-left, "50%"], align: "left", verticalAlign: "middle", color: t.primary, fontSize: font,
+          width: left - 6, overflow: "truncate", formatter: (p) => state.titles?.get(rows[p.dataIndex][0]) ?? rows[p.dataIndex][0],
+        },
+      }, {
+        // the hours, just past the bar's end
+        type: "bar", id: "val", barWidth: 1, barGap: "-100%", z: 0, itemStyle: { color: "transparent" },
+        data: rows.map(([k, v]) => ({ name: k, value: v })),
+        label: { show: true, position: "right", distance: 4, color: t.secondary, fontSize: font - 1, fontFamily: mono(), formatter: (p) => hoursText(rows[p.dataIndex][1], 0) },
+      }],
+    };
+  },
   // Rank race: where each artist stood among the chart's artists, slice by slice, over a guide per place
   "rank-card": (d, t) => {
     const sm = d.artists.map((_, i) => smooth(d.series[i], 3));

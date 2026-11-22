@@ -195,7 +195,7 @@ function frame(now) {
     }
   }
   const tau = dur(TAU);
-  const a = tau ? 1 - Math.exp(-dt / tau) : 1;
+  const a = tau && !snap ? 1 - Math.exp(-dt / tau) : 1;
   const count = n();
   const ranked = at(t);
   let settled = true;
@@ -471,27 +471,65 @@ export function paintRace() {
   $("race-sub").textContent = measure === "total"
     ? `${words.who} was on top through the period, by hours played since its start`
     : `${words.who} was on top through the period, by hours played in the ${recent} days up to each day`;
-  const key = [state.plays.length, state.dim, lo, hi, measure, recent, ...state.hidden, "\u0001", ...(onlyChart() ? state.chartNames ?? [] : ["*"])].join("\u0000");
   clearTimeout(rebuildTimer);
   const wait = lastBuild + REBUILD_MS - performance.now();
-  if (built && built.key !== key && wait > 0) rebuildTimer = setTimeout(paintRace, wait);
-  else if (built?.key !== key) {
-    const frames = build(lo, hi);
-    lastBuild = performance.now();
-    // Playing from the start skips the days before anything was played
-    const first = frames.findIndex((f) => f.list.length);
-    built = { key, lo, hi, frames, start: lo + Math.max(0, first) };
+  if (built && built.key !== buildKey() && wait > 0) rebuildTimer = setTimeout(paintRace, wait);
+  else if (rebuild() || drawnKey !== built.key) {
+    drawnKey = built.key; // (the thumbnail may have built them while the card was away)
     const input = $("race-time");
     input.min = lo;
     input.max = hi;
-    // A period changed while playing plays on from the same day, if it's in the new one; otherwise it waits at the start
-    if (!playing || t < lo || t > hi) t = built.start;
     paintTicks();
     paintRate();
     paintDensity();
   }
   kick();
 }
+
+let drawnKey = null; // the top lists the card's slider, ticks and strip were drawn for
+// What the days' top lists depend on
+const buildKey = () => {
+  const { lo, hi } = state.range;
+  return [state.plays.length, state.dim, lo, hi, measure, measure === "recent" ? recent : 0, ...state.hidden, "\u0001", ...(onlyChart() ? state.chartNames ?? [] : ["*"])].join("\u0000");
+};
+// The days' top lists worked out again, if what they depend on changed: true when they were
+function rebuild() {
+  const key = buildKey();
+  if (built?.key === key) return false;
+  const { lo, hi } = state.range;
+  const frames = build(lo, hi);
+  lastBuild = performance.now();
+  // Playing from the start skips the days before anything was played
+  const first = frames.findIndex((f) => f.list.length);
+  built = { key, lo, hi, frames, start: lo + Math.max(0, first) };
+  // A period changed while playing plays on from the same day, if it's in the new one; otherwise it waits halfway
+  // through, the time slider half full, so it reads as something to play
+  if (!playing || t < lo || t > hi) t = built.start + (hi - built.start) / 2;
+  return true;
+}
+
+// The rows as the card shows them at the playhead, for its thumbnail (thumbs.js): [item, hours in ms] for the shown
+// count, most first. Worked out here even while the card is away, so the two always agree.
+export function raceNow() {
+  if (!state.plays || !state.range) return [];
+  rebuild();
+  return at(t).slice(0, n());
+}
+
+// The rows put at once where they're headed (a flight's arrival measures them there: arrivals.js)
+export function settleRace() {
+  if (!built) return false;
+  cancelAnimationFrame(raf);
+  raf = 0;
+  snap = true;
+  frame(performance.now());
+  snap = false;
+  return true;
+}
+let snap = false;
+// The rows on show, most first, with their parts (the arrival's)
+export const raceRows = () => [...rows].filter(([, r]) => r.shown).sort((a, b) => a[1].pos - b[1].pos)
+  .map(([key, r]) => ({ key, li: r.el, rank: r.rankEl, name: r.el.querySelector(".race-name"), bar: r.bar, val: r.val }));
 
 function play() {
   if (!built) return;
