@@ -31,13 +31,21 @@ The flight calls it like this:
 What the solid flight does for you (gallery.js):
 
 - **Placement.** In the first frame, the card's plot (gallery.js `PLOT`, narrowed to the ECharts grid) is as wide as
-  the thumbnail and sits on the thumbnail's baseline. The tile is usually squatter than the plot, so the arrival
+  the thumbnail and sits on the thumbnail's baseline (an ECharts thumbnail's grid bottom, gallery.js `baseline()`). The tile is usually squatter than the plot, so the arrival
   stretches its first frame vertically by `(thumb aspect h/w) / (plot aspect h/w)` (Every Month: `look.stretch`).
 - **The card's chrome.** The card's frame and everything beside the plot fade in over 0–40% (reversed on close). For
   an ECharts plot, its DOM overlays and every drawn shape that isn't a series' fade too: axes, guides, labels,
   through zrender opacity. A plot of HTML elements or its own canvas is all plot: the arrival fades whatever in it
   doesn't morph.
-- **The thumbnail.** It fades out over 0–25%, over shapes that match it, and the card draws above the tile.
+- **The thumbnail.** It fades out over 0–25% of an open (and in over the last 25% of a close), over shapes that match
+  it, and the card draws above the tile.
+- **It rides on the card** (gallery.js `riding()`): scaled evenly with it, so in the card's own pixels it keeps the
+  tile's size all flight (its height there is `Th.height / s`, s the card's starting scale). An arrival that reshapes
+  its plot (squashes or stretches it) holds the thumbnail's form *in the card's pixels* while the thumbnail shows and
+  does its growing in between. Top … View and Hours per week (`rollingArrival`) squash by `k = k0 + (1 − k0)·p²`, k0
+  the tile's height over the plot's in the card's pixels and p the card's progress read from its transform: the p²
+  keeps them within 2px at both ends. A curve tuned to a thumbnail that stretched (its height following p) drifts
+  2–7px at the ends.
 
 ## Every Month, the worked example
 
@@ -70,6 +78,23 @@ What the solid flight does for you (gallery.js):
   between the parts and the card open for the flight.
 - **An overlaid ECharts bar lines up by its top edge**, so a clear bar carrying a label is as thick as the bar it rides on.
 
+## Plots that aren't ECharts
+
+- **Inside your top … is SVG** (`.sun-svg`; the thumbnail's `.thumb-sun` carries its radius `R` and slice `ids`), not
+  ECharts. To the flight it's a plot of elements: all plot, so `arriveSunburst` fades its labels itself.
+- **Every play and Every day draw on their own canvas,** and so do their thumbnails (every.js `paintRasterThumb`,
+  `paintCalendarThumb`): a canvas over the empty ECharts one thumbs.js gives the tile, drawn from the same per-artist
+  paths as the card at the tile's size. The pattern:
+  - **A signature** of what a drawing shows (period, artists, slots, pins, Everyone else) is kept per thumbnail
+    (`thumbSigs`) and per card (`v.sig`). The arrival flies only when they're equal.
+  - **Unequal, the entry repaints the tile now** (`paintThumb`) and tries again, so a stale thumbnail never makes the
+    flight crossfade. Pins, unpins and the Everyone else toggles already repaint the tiles as they happen (`renderMix`
+    calls `paintThumbs`), so that repaint is only a fallback: on a click it would be a visible pop.
+  - **The card is readied first** (`readyFlight`): drawn now rather than waiting on a period that changed while it was
+    away, whole, and without a crossfade's copy over it.
+  - **The marks move by one transform** from the thumbnail's box to the plot's (`fly`); labels and guides fade in.
+  - Measure them with `dev/flight_every.js` (below): flight_check sees a canvas only as one box.
+
 ## Measuring
 
 **`dev/flight_check.js`** prints a flight in numbers:
@@ -86,6 +111,9 @@ It reports:
 - **The round trip:** scroll and tile top must come back equal.
 - **Turning back:** Esc midway through an open, and a tile click midway through a close.
 - **Errors**, if any.
+
+**Its boxes ignore clipping:** they're the shapes' bounds, not what the card's `clip-path` or the grid's clip lets
+show, so a box can stand past what's visible (a stretched bar above the plot, the tile's frame cutting a corner).
 
 Under zsh, pass the card and selector as literal words, not through an unquoted variable: zsh doesn't word-split it.
 
@@ -106,6 +134,16 @@ EVAL="$(sed -e s/__CARD__/skips-card/ -e 's/__BAR__/#skips-list .skips-bar/' dev
 The three lists: within 0.4px at 20 ms and exact at 745 ms, with Everyone else on and off. In between they travel by
 design. Their frames: median 16.7 ms, at most one slow frame on a close (as Every Month). motion_check samples
 canvases, so pass the thumbnail's (`--charts thumb-race-card`).
+
+**Per band** (`dev/band_check.js`, for areas and lines): each series' top edge in the thumbnail and in the plot,
+compared at the thumbnail's points, and its fill, at given ms of an open (`__AT__`; `__SETUP__` sets the card's
+choices first). Top … View and Hours per week: within 0.6px through 200 ms, fills equal.
+
+**Every play, Every day** (`dev/flight_every.js`, `__OTHER__` its Everyone else toggle): the thumbnail's box cut into
+40 bands across, each band's marks compared in the two canvases (height, amount drawn, mean color), with Everyone
+else on and off.
+
+**Top … View and Hours per week's boxes:** within 2px at 20, 120 and 250 ms of an open and 600 ms of a close.
 
 **`motion_check custom`** gives frame times and cuts, for open and close:
 
@@ -153,5 +191,17 @@ the same scroll.
   card's paint waits while it's away (`putOff`), running as it opens (`bringBack`, before it's measured).
 - **Private ECharts API.** `fadeCanvas` and flight_check use ECharts' `_chartsViews`, which is fine on the pinned
   5.6.0.
+- **`getOption().series` has null holes** after a `replaceMerge` takes a series away: `filter(Boolean)` before
+  reading it (Rank race, When you listened).
+- **A tile taller than its plot overflows the card's canvas.** A thumbnail's shapes, placed on the plot's baseline,
+  can stand above the card's canvas when the tile is squatter than they are tall; whatever is past the canvas is cut,
+  `clip: false` or not. Check it and return false (When you listened does: it crossfades instead).
+- **Drawing at once over a running morph.** A card's held paint (`bringBack`) can still be morphing when
+  `("thumb", 0)` lands; ECharts, given data it already has, leaves the shapes partway. End the running animations
+  first (`stopLines` in charts/clock.js). Every Month doesn't need it: per column, its plot lands exactly in the
+  thumbnail's form even right after its Everyone else changes.
+- **A thumbnail repaints on `CHASE_MS`.** Opened within 450 ms of a change the tiles follow (a period drag, a toggle),
+  the flight starts on a thumbnail still moving toward what the card's first frame already shows (Every Month: up to
+  34px per column). Measure with the change well before the click.
 - **Pictures cost Spotify calls.** Each `test.html` load fetches uncached pictures; use `OFFLINE=1` unless pictures
   are what you're checking.
