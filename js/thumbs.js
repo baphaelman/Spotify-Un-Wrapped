@@ -15,11 +15,12 @@ import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
 import { fmtH } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
+import { paintRasterThumb } from "./every.js";
 
 const BUCKETS = 40; // time slices across the period
 const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
 const FACE = 26; // the mix thumbnail's pictures
-const RASTER_MAX = 1800; // marks in Every play's thumbnail
+const RASTER_MAX = 1800; // marks in Every play's thumbnail (digest: no longer drawn, every.js draws its own)
 const FOUND_MAX = 500; // dots in Discovery's
 const STILL = new Set(["raster-card", "calendar-card"]);
 
@@ -312,16 +313,8 @@ export const THUMBS = {
       yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
     };
   },
-  // Every play: a mark per play (a sample of them), by day and time of day
-  // (a series per artist: ECharts' large mode, quick with many marks, takes one color per series)
-  "raster-card": (d, t) => ({
-    grid: { left: 0, right: 0, top: 2, bottom: 2 }, xAxis: axis("value", { min: 0, max: d.days }), yAxis: axis("value", { min: 0, max: 24, inverse: true }),
-    series: keys(d.K).map((a) => ({
-      type: "scatter", id: a < d.k ? d.artists[a] : OTHER, symbol: "rect", symbolSize: [1.5, 3], large: true, largeThreshold: 200, z: a < d.k ? 2 : 1,
-      itemStyle: { color: a < d.k ? alpha(colorAt(t, d, a), 0.85) : alpha(t.other, 0.4) },
-      data: d.raster.filter((p) => p[2] === a).map((p) => [p[0], p[1]]),
-    })),
-  }),
+  // Every play: drawn by every.js, the card's own drawing in miniature (OVERLAYS), over an empty chart
+  "raster-card": () => ({ series: [] }),
   // Every day: a square per day, a column per week, tinted by the day's top artist of the chart's and darker the more you listened
   "calendar-card": (d, t) => {
     const startDow = (d.lo + 3) % 7, weeks = Math.ceil((d.days + startDow) / 7);
@@ -493,7 +486,18 @@ function rings(el, d, t, box) {
   };
   tick(ms ? t0 : t0 + 1);
 }
-const OVERLAYS = { "mix-card": faces, "sunburst-card": rings };
+// Every play and Every day draw on every.js's canvases, from what their cards are drawn from (rollingview.js paintEvery)
+const everyArgs = (id) => {
+  const [artists, , , pins] = state.mixArgs;
+  const names = artists.filter((a) => state.colorSlots.has(a) && !state.hidden.includes(a));
+  const { lo, hi } = state.range;
+  return { plays: state.plays, hidden: state.hidden, lo, hi, names, slots: names.map((n) => state.colorSlots.get(n)), pins, other: otherOn(id) };
+};
+const OVERLAYS = {
+  "mix-card": faces,
+  "sunburst-card": rings,
+  "raster-card": (el) => paintRasterThumb(el, document.getElementById("chart-raster"), everyArgs("raster-card")),
+};
 
 // ---------- Painting ----------
 // els: card id -> thumbnail element. Thumbnails off screen (or out of the open view) wait, and paint as they return.

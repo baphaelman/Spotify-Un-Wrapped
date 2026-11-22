@@ -276,6 +276,7 @@ export function renderRaster(el, plays, lo, hi, names = [], slots = [], pins = n
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, OTHER_SHADE);
   v.table = MARK_SHADE;
+  v.sig = sigOf(lo, hi, names, slots, v.pinned, other);
   v.fades ??= new Map();
   if (v.other !== other) v.fades.set(OTHER, { from: v.key ? alphaOf(v, OTHER).a : +other, to: +other, at: performance.now(), ms: v.key ? dur(MORPH_MS) : 0 });
   refresh(v, data, key, { plays, lo, hi, other }, () => layoutRaster(v), relaid);
@@ -356,9 +357,17 @@ function layoutRaster(v) {
       left -= 24 - from;
     }
   }
-  // Merge each column's runs that touch, then one rect each
-  const mw = Math.max(1, dw);
-  v.paths = new Map();
+  v.paths = mergePaths(cols, Math.max(1, dw));
+  v.dw = dw;
+  v.pph = pph;
+  v.xTicks = timeTicks(lo, hi, plotW);
+  if (v.looks.size) v.draw(v);
+}
+
+// Each layer's marks as one Path2D: per device-pixel column (cols: layer -> column -> [y0, y1, x0] runs), the runs
+// that touch merged, then one rect of width mw each
+function mergePaths(cols, mw) {
+  const paths = new Map();
   for (const [layer, m] of cols) {
     const path = new Path2D();
     for (const runs of m.values()) {
@@ -373,12 +382,187 @@ function layoutRaster(v) {
         }
       }
     }
-    v.paths.set(layer, path);
+    paths.set(layer, path);
   }
-  v.dw = dw;
-  v.pph = pph;
-  v.xTicks = timeTicks(lo, hi, plotW);
-  if (v.looks.size) v.draw(v);
+  return paths;
+}
+
+// The layer order: the gray first, then the artists from the last in rank up, the pinned on top
+const layerOrder = (names, pinned) => [OTHER, ...[...names].reverse().filter((n) => !pinned.has(n)), ...names.filter((n) => pinned.has(n))];
+// What a frame shows, to tell whether a thumbnail and its card agree (the flight morphs only between equals)
+const sigOf = (lo, hi, names, slots, pinned, other) => [lo, hi, names.join("\u0000"), slots.join(), [...pinned].join("\u0000"), other].join("|");
+const thumbSigs = new WeakMap(); // thumbnail element -> the sig it was drawn for
+
+// The thumbnail's canvas, over the (empty) ECharts one thumbs.js gives the tile, sized to it
+function thumbCanvas(box) {
+  let c = box.querySelector(":scope > canvas.every-thumb");
+  if (!c) {
+    c = Object.assign(document.createElement("canvas"), { className: "every-thumb" });
+    Object.assign(c.style, { position: "absolute", left: 0, top: 0, pointerEvents: "none" });
+    box.append(c);
+  }
+  const dpr = devicePixelRatio || 1, w = box.clientWidth, h = box.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+    Object.assign(c.style, { width: w + "px", height: h + "px" });
+  }
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h, dpr };
+}
+
+// Every play's runs over all the loaded plays, as typed columns, worked out once per set of plays (and deselected
+// artists), so a thumbnail redrawn on every move of a dragged period only reads its slice: d0, the day of the run's
+// first play (in order, for the slice); day and hour, where it starts; len, its hours; item.
+let runMemo = null;
+function runTable(plays, hidden) {
+  const key = hidden.join("\u0001");
+  if (runMemo?.plays === plays && runMemo.key === key) return runMemo;
+  const hid = new Set(hidden);
+  const runs = playRuns(hid.size ? plays.filter((p) => !hid.has(p.artist)) : plays);
+  const n = runs.length;
+  const d0 = new Int32Array(n), day = new Int32Array(n), hour = new Float64Array(n), len = new Float64Array(n), item = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = runs[i], s = new Date(r.start);
+    d0[i] = agg.dayIndex(r.plays[0].t);
+    day[i] = agg.dayIndex(r.start);
+    hour[i] = s.getHours() + s.getMinutes() / 60 + s.getSeconds() / 3600;
+    len[i] = (r.end - r.start) / HOUR;
+    item[i] = r.item;
+  }
+  return (runMemo = { plays, key, n, d0, day, hour, len, item });
+}
+const firstAt = (a, x) => {
+  let lo = 0, hi = a.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (a[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+// Every play's thumbnail: the card's own drawing in miniature, its plot fitted to the tile (no labels or guides).
+// The marks are the card's, as wide and as tall as the card would draw them, scaled, so the flight from one to the
+// other is only a scale. card: the card's plot element, for the width it lays out at. args: what the card is drawn
+// from (rollingview.js paintEvery): all the loaded plays and the deselected artists, the period, names and slots,
+// pins ({ has }), other.
+export function paintRasterThumb(box, card, { plays, hidden, lo, hi, names, slots, pins, other }) {
+  const { ctx, w, h, dpr } = thumbCanvas(box);
+  const t = tokens();
+  const pinned = new Set(names.filter((n) => pins?.has(n)));
+  thumbSigs.set(box, sigOf(lo, hi, names, slots, pinned, other));
+  const R = runTable(plays, hidden);
+  const days = hi - lo + 1;
+  const cardW = (views.get(card)?.width || card.clientWidth || w * 2) - GRID.left - GRID.right;
+  const cardH = tune.rasterHeight - GRID.top - GRID.bottom;
+  const sx = w / cardW, sy = h / cardH; // (a card pixel, in the tile's)
+  const dw = w / days, mw = Math.max(1, cardW / days) * sx, minH = 1.5 * sy, pph = h / 24;
+  const known = new Set(names);
+  const cols = new Map([[OTHER, new Map()], ...names.map((n) => [n, new Map()])]);
+  for (let i = firstAt(R.d0, lo); i < R.n && R.d0[i] <= hi; i++) {
+    const layer = known.has(R.item[i]) ? R.item[i] : OTHER;
+    if (layer === OTHER && !other) continue;
+    const m = cols.get(layer);
+    let day = R.day[i] - lo, from = R.hour[i], left = R.len[i];
+    for (; left > 0 && day < days; day++, from = 0) {
+      if (day >= 0) {
+        const x0 = day * dw, col = Math.floor(x0 * dpr), y0 = from * pph;
+        let runs = m.get(col);
+        if (!runs) m.set(col, (runs = []));
+        runs.push([y0, Math.max(Math.min(24, from + left) * pph, y0 + minH), x0]);
+      }
+      left -= 24 - from;
+    }
+  }
+  const paths = mergePaths(cols, mw);
+  for (const n of layerOrder(names, pinned)) {
+    const path = paths.get(n);
+    if (!path || (n === OTHER && !other)) continue;
+    const look = litLook(pinned, null, n);
+    ctx.fillStyle = mix(t.surface, n === OTHER ? t.other : t.series[slots[names.indexOf(n)]], (n === OTHER ? OTHER_SHADE : MARK_SHADE)[look]);
+    ctx.fill(path);
+  }
+}
+
+// ---------- The gallery's flight (arrivals.js) ----------
+// A card's plot flies from its thumbnail's form to its own: v.flight { u0, u1, at, ms, Tw, Th }, u the flight's linear
+// progress (0 the thumbnail's form, 1 the card's) travelling from u0 to u1 over ms, eased in-out as the flight's
+// transform is, so a flight turned back retraces its curve. The card's scale on screen follows from it, and each
+// frame is drawn at that scale's resolution (a 1px mark shrunk by the compositor flickers and pales).
+function flightOf(v) {
+  const f = v.flight;
+  if (!f) return null;
+  const t = f.ms ? clamp01((performance.now() - f.at) / f.ms) : 1;
+  const u = f.u0 + (f.u1 - f.u0) * t, e = EASE_IN_OUT.js(u);
+  const s = f.Tw / v.width; // (the flight's starting scale: the plot as wide as the thumbnail)
+  // the labels and guides fade with the card's frame: whole by 40% of the eased flight (gallery.js flightAnims)
+  return { u, e, done: t >= 1, sc: s + (1 - s) * e, thH: f.Th / s, chrome: clamp01(e / 0.4) };
+}
+// Size the canvas for a flight's frame at scale sc, with room above the card for a thumbnail form taller than it
+function flightCanvas(v, f) {
+  const { canvas, ctx } = v, dpr = devicePixelRatio || 1, k = dpr * f.sc;
+  const top = Math.min(0, v.cssH - f.thH), W = v.width, H = v.cssH - top;
+  const cw = Math.max(1, Math.round(W * k)), ch = Math.max(1, Math.round(H * k));
+  if (canvas.width !== cw || canvas.height !== ch) (canvas.width = cw), (canvas.height = ch);
+  Object.assign(canvas.style, { top: top + "px", height: H + "px" });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.setTransform(k, 0, 0, k, 0, -top * k);
+}
+// The plot's box f of the way from the thumbnail's form (as wide as the card, on its baseline, the thumbnail's
+// height tall) to its own
+const flightBox = (v, f, plot) => {
+  const from = { x: 0, y: v.cssH - f.thH, w: v.width, h: f.thH };
+  return { x: lerp(from.x, plot.x, f.e), y: lerp(from.y, plot.y, f.e), w: lerp(from.w, plot.w, f.e), h: lerp(from.h, plot.h, f.e) };
+};
+// Ready a card for its flight: drawn now (not waiting for a period that changed while it was away), whole, and
+// without a crossfade's copy over it
+function readyFlight(v) {
+  if (v.waiting) {
+    clearTimeout(v.waitTimer);
+    v.waiting = false;
+    v.relayout();
+    settle(v, true);
+  }
+  // (and as it settles: a card painted as it opens, its Everyone else turned off while it was away say, would fade
+  // its gray out during the flight, under a thumbnail drawn without it)
+  for (const [n, f] of v.fades ?? []) v.fades.set(n, { ...f, from: f.to, ms: 0 });
+  for (const [n, e] of v.looks) v.looks.set(n, { ...e, from: e.to, ms: 0 });
+  v.canvas.getAnimations().forEach((a) => a.cancel());
+  v.canvas.style.opacity = 1;
+  v.el.querySelectorAll(".chart-fade").forEach((c) => c.remove());
+  hideTip();
+}
+function fly(v, thumb, to, ms) {
+  const cur = flightOf(v);
+  v.flight = { u0: cur ? cur.u : 1, u1: to === "card" ? 1 : 0, at: performance.now(), ms, Tw: thumb.offsetWidth, Th: thumb.offsetHeight };
+  const frame = () => {
+    const f = flightOf(v);
+    if (f.done && f.u === 1) {
+      v.flight = null;
+      v.canvas.style.top = "0px";
+      size(v, v.cssH);
+      v.draw(v);
+      return;
+    }
+    v.draw(v);
+    if (!f.done) v.flightRaf = requestAnimationFrame(frame);
+  };
+  cancelAnimationFrame(v.flightRaf);
+  frame();
+}
+
+// Every play's arrival: its own marks, moved by one transform from the thumbnail's box to the plot's, the labels and
+// guides fading in. False when the thumbnail wasn't drawn for what the card shows.
+export function arriveRaster(el, thumb, to, ms) {
+  const v = views.get(el);
+  if (!v?.paths || v.panning || thumbSigs.get(thumb) !== v.sig) return false;
+  readyFlight(v);
+  fly(v, thumb, to, ms);
+  return true;
 }
 
 // A pan (state.js) sliding Every play to another period: it's laid out once over `lo`…`hi` (both periods), still
@@ -440,7 +624,11 @@ function timeTicks(lo, hi, plotW) {
 function drawRaster(v) {
   const { ctx, t, width: w, cssH: h } = v;
   if (!v.paths || v.waiting) return;
-  ctx.clearRect(0, 0, w, h);
+  // In a gallery flight, drawn at the card's scale on screen, the labels and guides fading with its frame
+  const fl = flightOf(v);
+  if (fl) flightCanvas(v, fl);
+  else ctx.clearRect(0, 0, w, h);
+  ctx.globalAlpha = fl ? fl.chrome : 1;
   ctx.font = `12px ${t.font}`;
   ctx.fillStyle = t.muted;
   // Hours down the left, with faint lines across
@@ -467,17 +655,21 @@ function drawRaster(v) {
   ctx.clip();
   for (const [k, label] of v.xTicks) ctx.fillText(label, x(k), h - GRID.bottom + 10);
   ctx.restore();
+  ctx.globalAlpha = 1;
   ctx.save();
-  if (at) {
+  if (fl) {
+    // the marks, moved and stretched from the plot to the flight's box for it
+    const plotH = h - GRID.top - GRID.bottom, b = flightBox(v, fl, { x: GRID.left, y: GRID.top, w: plotW, h: plotH });
+    const kx = b.w / plotW, ky = b.h / plotH;
+    ctx.transform(kx, 0, 0, ky, b.x - GRID.left * kx, b.y - GRID.top * ky);
+  } else if (at) {
     ctx.beginPath();
     ctx.rect(GRID.left, 0, plotW, h);
     ctx.clip();
     const s = dwAt / v.dw;
     ctx.transform(s, 0, 0, 1, x(0) - GRID.left * s, 0);
   }
-  // The gray first, then the artists from the last in rank up, the pinned on top
-  const order = [OTHER, ...[...v.names].reverse().filter((n) => !v.pinned.has(n)), ...v.names.filter((n) => v.pinned.has(n))];
-  for (const n of order) {
+  for (const n of layerOrder(v.names, v.pinned)) {
     const look = lookOf(v, n);
     const path = v.paths.get(n);
     if (!look || !path) continue;
@@ -491,7 +683,7 @@ function drawRaster(v) {
 }
 
 function pickRaster(v, x, y) {
-  if (!v.byDay || v.waiting || v.panning || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
+  if (!v.byDay || v.waiting || v.panning || v.flight || x < GRID.left || x > v.width - GRID.right || y < GRID.top || y > v.cssH - GRID.bottom) return null;
   const day = Math.floor((x - GRID.left) / v.dw);
   // Under a pixel wide, a day's marks share their column with their neighbours': look a pixel or two either way
   const reach = Math.ceil(2 / v.dw);

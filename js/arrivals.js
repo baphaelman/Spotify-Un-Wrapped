@@ -32,6 +32,8 @@ import { morphMix } from "./mix.js";
 import { arriveSunburst } from "./sunburst.js";
 
 // Every play, Every day
+import { arriveRaster } from "./every.js";
+import { paintThumb } from "./thumbs.js";
 
 // (end of the imports' slots)
 
@@ -109,6 +111,9 @@ export const ARRIVALS = {
   },
 
   // Every play, Every day
+  // … Every play: the thumbnail is the card's drawing in miniature (every.js paintRasterThumb), so its marks move by one
+  // transform to the plot, the labels and guides fading in. (Drawn again first if the card changed since, a pin say.)
+  "raster-card": (card, el, to, ms) => arriveRaster($("chart-raster"), el, to, ms) || (paintThumb("raster-card"), arriveRaster($("chart-raster"), el, to, ms)),
 
   // (end of the entries' slots)
 };
