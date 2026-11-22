@@ -169,7 +169,7 @@ button.ghost:hover { background: var(--border); }
   flex: none;
   width: 6px;
   height: 6px;
-  margin: -3px 1px 0 0;
+  margin: -3px 4px 0 0;
   border-right: 1.5px solid var(--text-muted);
   border-bottom: 1.5px solid var(--text-muted);
   transform: rotate(45deg);
