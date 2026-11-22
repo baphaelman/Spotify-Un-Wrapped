@@ -21,6 +21,7 @@ const CURSOR_LOOKS = ["Thick white line", "Thin line", "Soft column", "Column an
 const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "Gray, white played", "Green", "Amber", "Orange", "Pink", "Violet", "Line only"];
 const PLAY_LOOKS = ["Bare", "Filled circle", "Ring", "Soft circle"];
 const PLAY_CHANGES = ["Morph", "Morph and turn", "Shrink and grow"];
+const THUMB_LOOKS = ["The card's bands", "Unsmoothed shares"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
   { key: "hoverTint", card: "rolling-card", label: "Lit band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -29,6 +30,8 @@ export const TUNES = [
   { key: "partDepth", card: "rolling-card", label: "Part shading", def: 1, min: 0, max: 3, step: 0.05, fmt: x },
   { key: "blurScale", card: "rolling-card", label: "Blur", def: 1, min: 0, max: 4, step: 0.05, fmt: x },
   { key: "curveScale", card: "rolling-card", label: "Curve rounding", def: 1, min: 0, max: 1.5, step: 0.05, fmt: x },
+  // (the gallery's tile: the card's own bands, or the first design, which crossfades into the card: thumbs.js)
+  { key: "rollingThumb", card: "rolling-card", label: "Gallery tile", def: 0, options: THUMB_LOOKS, fmt: (v) => THUMB_LOOKS[v] },
   { key: "hoursLine", card: "hours-card", label: "Line width", def: 1.5, min: 0.25, max: 6, step: 0.25, fmt: px },
   { key: "lineFill", card: "hours-card", label: "Lit line fill", def: 1, min: 0, max: 6, step: 0.1, fmt: x },
   // (only the least gap while ridgeFollow is on, so it shows dimmed)

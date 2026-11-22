@@ -197,5 +197,15 @@ export function bringBack(card) {
   owed.delete(card);
   paint?.();
 }
+// Run what cards owe now (each different paint once, in turn), leaving them away, so later paints wait again: the
+// gallery's tiles copy the rolling chart's drawing (thumbs.js), which mustn't redraw off screen every frame of a drag
+export function catchUp(...cards) {
+  const paints = [...new Set(cards.map((c) => owed.get(c)).filter(Boolean))];
+  if (!paints.length) return;
+  const were = cards.filter((c) => away.delete(c));
+  for (const c of cards) owed.delete(c);
+  for (const paint of paints) paint();
+  for (const c of were) away.add(c);
+}
 // Whether a card has a paint waiting, so what it shows is out of date anyway
 export const owes = (card) => owed.has(card);

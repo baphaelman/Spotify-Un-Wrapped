@@ -6,7 +6,7 @@ export { disposeAll, chart } from "./charts/core.js";
 export {
   currentZoom, setZoom, renderRolling, linkStrip, setRidges,
   onFocusChange, onZoomChange, onSelectionChange,
-  hiddenIn, setHidden, toggleArtist, showArtists, focusArtist, holdFocus,
+  hiddenIn, setHidden, toggleArtist, showArtists, focusArtist, holdFocus, arriveHeight,
 } from "./charts/rolling.js";
 export { renderMonthly, focusMonthly, morphMonthly } from "./charts/monthly.js";
 export { renderClock, focusClock, clockShares, clockSmoothing, morphClock, stopLines } from "./charts/clock.js";

@@ -22,6 +22,26 @@ import { $ } from "./state.js";
 // Every Month
 import { morphMonthly } from "./charts.js";
 // Top … View, Hours per week
+import { arriveHeight } from "./charts.js";
+import { tune } from "./tune.js";
+// (the tile's series are the plot's, or it's the first design, a Visual tweak, which crossfades)
+function rollingArrival(card, el, id, classic, to, ms) {
+  const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($(id));
+  const ids = (c) => c?.getModel().getSeries().map((s) => s.id).sort().join() ?? ""; // (a merge appends newcomers: z orders them)
+  if (classic || !plot || !ids(thumb) || ids(thumb) !== ids(plot)) return false;
+  // The flight scales the card by s, from the tile's width to its own (the tiles' plots fill their width), and the
+  // flying thumbnail's height goes from the tile's to the plot's on the same progress p. The plot keeps to it: its
+  // height over the card's scale at p, read from the card as it flies, so a flight turned back keeps to it too.
+  const box = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
+  const a = box(thumb), b = box(plot);
+  const s = a.width / b.width, h = a.height / b.height; // (h = s × k: the tile's height in the plot's)
+  const follow = () => {
+    const scale = new DOMMatrix(getComputedStyle(card).transform).a;
+    const p = Math.min(1, Math.max(0, (scale - s) / (1 - s)));
+    return (h + (1 - h) * p) / scale;
+  };
+  return arriveHeight($(id), to === "thumb" ? h / s : 1, ms, follow);
+}
 
 // Rank race, Discovery, When you listened
 import { morphDiscovery, morphClock } from "./charts.js";
@@ -75,7 +95,9 @@ export const ARRIVALS = {
     };
     return morphMonthly($("chart-monthly"), look, to === "thumb", ms);
   },
-  // Top … View, Hours per week
+  // Top … View, Hours per week: the tile draws the card's own series (thumbs.js miniature), so the plot only grows from
+  // the tile's height to its own (arriveHeight), the axes fading in around it
+  "rolling-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling", tune.rollingThumb, to, ms),
 
   // Rank race, Discovery, When you listened
   // … Rank race: the thumbnail draws the card's own lines, so the card's start as them, squashed to its height, thin

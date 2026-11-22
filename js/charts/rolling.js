@@ -1620,3 +1620,30 @@ export function holdFocus(el, name) {
   const st = rollingState.get(el);
   if (st) st.keepFocus = name;
 }
+
+// ---------- The gallery's arrival (arrivals.js) ----------
+// Both cards' tiles draw the chart's own series (thumbs.js miniature), so in a flight the plot only changes height:
+// as it starts, the tile's shapes are as wide as the plot's but squatter, by k. The series' groups scale about the
+// plot's floor, from what's on screen, to k (1 is the card's own), at once or over ms; the axes stay at the card's
+// own extent, so they only fade (gallery.js). Every shape of a series, its clip too, scales with its group.
+// follow(): the scale for this frame, so the height keeps to the flying thumbnail's all the way (arrivals.js).
+export function arriveHeight(el, k, ms, follow) {
+  const c = instances.get(el);
+  const r = c?.getModel().getComponent("grid")?.coordinateSystem?.getRect();
+  if (!r) return false;
+  const groups = (c._chartsViews ?? []).map((v) => v.group);
+  const set = (v) => groups.forEach((g) => ((g.scaleY = v), g.markRedraw()));
+  for (const g of groups) {
+    g.stopAnimation();
+    g.originX = 0;
+    g.originY = r.y + r.height;
+  }
+  // (one group's step keeps zrender's clock on the beat, each frame setting every group's height before it paints)
+  const lead = groups[0];
+  if (!ms || !lead) set(k);
+  else {
+    lead.arriveStep = 0;
+    lead.animateTo({ arriveStep: 1 }, { duration: ms, during: () => set(follow()), done: () => set(k) });
+  }
+  return true;
+}

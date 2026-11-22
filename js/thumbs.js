@@ -6,7 +6,7 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, rangeTotals, OTHER, WINDOWS } from "./state.js";
+import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart, clockShares, clockSmoothing } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
@@ -226,6 +226,72 @@ const rowLook = (box, n, nameFrac = 0.22, rightPx = 30) => {
 export const SKIPS_NAME = 0.155; // the skips thumbnail's name column, as a share of its width (its arrival cuts names there)
 const mono = () => getComputedStyle(document.body).getPropertyValue("--mono").trim() || "monospace";
 
+// ---------- Top … View and Hours per week: the card's own plot, in miniature ----------
+// Both tiles draw what their card's chart draws (rolling.js), so every setting of it (days per slice, smoothing,
+// Everyone else, albums or songs, hidden and pinned artists, ridges or lines) shows in the tile, and the flight's
+// arrival only has to bring the height from the tile's to the card's (arrivals.js). The chart waits while both its
+// cards are away (rollingview.js putOff): a tile runs what it owes first (catchUp), so it's drawn, off screen, as
+// the tiles need it. Its morphs can chain past the paint that asked, so the tiles also repaint as its renders settle.
+const watched = new WeakSet(); // charts the tiles repaint after
+function plotOf(id) {
+  // (what both cards owe: the chart draws both plots unless both are away. They stay away: its series hold the whole
+  // history and the tile reads the period itself, so a drag's zoom, put off each frame, needn't be drawn for it)
+  // While the period window is dragged, the tiles slide over the chart as it is (its artists settle as it's let go)
+  if (!document.getElementById("brush-track")?.classList.contains("dragging")) catchUp(...["rolling-card", "hours-card"].map((c) => document.getElementById(c)));
+  const c = echarts.getInstanceByDom(document.getElementById(id));
+  if (!c?.getModel()?.getSeries().length) return null;
+  if (!watched.has(c)) {
+    watched.add(c);
+    c.on("finished", () => paintThumbs());
+    // (an artist change ends on a plain redraw that never reports finished: the tile follows its series instead)
+    c.on("rendered", () => idsOf(c) !== copied.get(c) && paintThumbs());
+  }
+  return c;
+}
+document.getElementById("brush-track")?.addEventListener("pointerup", () => paintThumbs()); // (a drag let go: see plotOf)
+const copied = new WeakMap(); // chart -> its series' ids as the tile last copied them
+const idsOf = (c) => c.getModel().getSeries().map((m) => m.id).join();
+// The chart's series as it draws them at rest (their options as its model holds them, read, never changed), on its
+// own y extent, over the period (rollingview.js periodZoom) and the point past each end. The card draws about a point
+// per pixel; the tile takes every step-th of the same points, about one per pixel of its own. Share's edges are drawn
+// twice as wide and half clipped away by their band (rolling.js clipEdges); here they're lines of their own, edge ×
+// what shows.
+function miniature(t, id, box, edge) {
+  const c = plotOf(id);
+  if (!c) return null;
+  const models = c.getModel().getSeries();
+  copied.set(c, idsOf(c));
+  const xs = models[0].option.data; // (flat: x, y, x, y …, the same dates in every series)
+  const n = xs.length / 2;
+  const x0 = Math.max(dayToDate(state.range.lo).getTime(), xs[0]), x1 = Math.min(dayToDate(state.range.hi + 1).getTime() - 1, xs[2 * n - 2]);
+  let a = 0, b = n - 1;
+  while (a < b && xs[2 * (a + 1)] <= x0) a++;
+  while (b > a && xs[2 * (b - 1)] >= x1) b--;
+  const step = Math.max(1, Math.floor((b - a) / Math.max(1, box.w)));
+  const at = [];
+  for (let i = a; i < b; i += step) at.push(i);
+  at.push(b);
+  const [, top] = c.getModel().getComponent("yAxis").axis.scale.getExtent();
+  const series = models.map(({ id, option: s }) => {
+    const data = new Float64Array(at.length * 2);
+    at.forEach((i, j) => ((data[2 * j] = s.data[2 * i]), (data[2 * j + 1] = s.data[2 * i + 1])));
+    return {
+      type: "line", id, z: s.z, symbol: "none", showSymbol: false, smooth: s.smooth, color: s.color, connectNulls: false,
+      lineStyle: { ...s.lineStyle, width: /^[tb]\d/.test(id) ? (s.lineStyle.width / 2) * edge : s.lineStyle.width },
+      areaStyle: s.areaStyle ? { ...s.areaStyle } : null,
+      data,
+    };
+  });
+  const x = [x0, x1];
+  return {
+    // (the top edge sits a line's width inside the frame, so it's drawn whole)
+    grid: { left: 0, right: 0, top: 2, bottom: 1 },
+    xAxis: base(t, "time", { min: x[0], max: x[1] }),
+    yAxis: { ...axis("value"), min: 0, max: top },
+    series,
+  };
+}
+
 // How well each thumbnail looks stretched to a column and a half (0 to 1): a section that must stretch some tiles to
 // fill its rows stretches its best (gallery.js pack). Placeholders until the thumbnails are settled; score them then.
 export const STRETCH = {
@@ -293,9 +359,12 @@ export const THUMBS = {
       }],
     };
   },
-  // Top … View: each artist's share among the chart's artists, stacked (the rest left out, as the card does)
-  // (over the card's own window, its days per slice, summed from the days at up to POINTS places)
-  "rolling-card": (d, t) => {
+  // Top … View: the card's own bands, as it draws them (miniature). The first design, kept as a Visual tweak ("Gallery
+  // tile", which crossfades): each artist's share among the chart's artists, stacked (the rest left out), over the
+  // card's own window, its days per slice, summed from the days at up to POINTS places, without its smoothing
+  "rolling-card": (d, t, box) => {
+    const mini = !tune.rollingThumb && miniature(t, "chart-rolling", box, 2 / 3);
+    if (mini) return mini;
     const W = Math.min(d.days, WINDOWS[document.getElementById("window")?.value] ?? 45);
     const n = Math.min(POINTS, d.days - W + 1);
     const at = keys(n).map((j) => W - 1 + Math.round((j * (d.days - W)) / Math.max(1, n - 1)));
