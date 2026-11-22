@@ -16,6 +16,7 @@ import { askGenres } from "./genres.js";
 import { $, state, startPan, onPan, noun, NOUN, START_WINDOW, RESIZES, extent, shownPlays, hooks, otherLabel, MAX_PINS } from "./state.js";
 import { keyedPlays } from "./views.js";
 import "./theme.js"; // its controls wire themselves up
+import "./gallery.js"; // moves the graph cards into the gallery's tiles before anything draws
 import { periodZoom, renderRollingChart, brushMorph, paintBrush, paintClock, paintEvery, paintMonthly, paintDiscovery, FLOORS, renderMix, setBrushMorph, setBrushFocus, syncSplit } from "./rollingview.js";
 import { paintFocus, paintArtistKey, closeResults } from "./key.js";
 import { syncPeriod, setPeriod, panMs } from "./period.js";

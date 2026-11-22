@@ -1653,3 +1653,59 @@ button:not(:disabled):active { transform: scale(0.96); }
 .found-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .found-head .found-floor { margin-top: 0; }
 .found-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+/* ---------- The gallery (js/gallery.js): every graph a tile, in sections; a tile opens its card in the grid's place.
+   The card inside is always --gal-w wide (no chart resizes between tile and open view), scaled down in a tile. */
+.gallery { position: relative; }
+.gal-sec { margin: 4px 0 28px; }
+.gal-sec > h3 { font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 10px; }
+.gal-grid { display: grid; grid-template-columns: repeat(var(--gal-cols, 3), minmax(0, 1fr)); gap: 12px; }
+.gal-tile {
+  position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+  cursor: pointer; min-width: 0; animation: rise var(--motion-enter) var(--ease-out) backwards;
+  transition: border-color var(--motion-fade) var(--ease-out), background var(--motion-fade) var(--ease-out);
+}
+.gal-tile:hover { border-color: color-mix(in srgb, var(--text-primary) 22%, transparent); }
+.gal-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gal-tile h4 { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gal-tile > p {
+  margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: var(--text-secondary); height: 2.8em; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.gal-frame { height: var(--gal-h, 190px); margin-top: 8px; overflow: hidden; border-radius: 4px; }
+.gal-scale { width: var(--gal-w, 100%); transform: scale(var(--gal-s, 0.3)); transform-origin: 0 0; pointer-events: none; }
+.gal-scale > .card { margin: 0; animation: none; }
+/* In a tile, the card's own heading and controls give way to the graph (the tile has the name) */
+.gallery:not(.open) .gal-scale > .card { border-color: transparent; }
+.gallery:not(.open) .gal-scale > .card > :is(h2, h2 + p, [class$="-head"], .hours-controls, .race-controls) { display: none !important; }
+
+/* "Missing something?" closes each section */
+.gal-ask {
+  grid-column: 1 / -1; border: 1px dashed var(--axis); border-radius: 8px; padding: 10px 14px; display: flex;
+  align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--text-secondary);
+  animation: rise var(--motion-enter) var(--ease-out) backwards;
+}
+.gal-ask-actions { margin-left: auto; }
+.gal-ask h4 { margin: 0; font-size: 14px; color: var(--text-primary); }
+.gal-ask p { margin: 0; }
+.gal-ask-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gal-ask-actions > * {
+  font-size: 12px; padding: 5px 10px; border-radius: 6px; text-decoration: none; color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent); transition: background var(--motion-fade) var(--ease-out);
+}
+.gal-ask-actions > *:hover { background: color-mix(in srgb, var(--text-primary) 13%, transparent); }
+
+/* The open view: one card at full size; the rest wait off screen, laid out, so their charts keep their size */
+.gal-head { display: none; align-items: center; gap: 12px; margin: 0 0 12px; font-size: 13px; }
+.gallery.open .gal-head { display: flex; }
+.gal-steps { margin-left: auto; display: flex; gap: 4px; }
+.gal-back, .gal-step { padding: 5px 10px; }
+.gallery.open .gal-sec { margin: 0; }
+.gallery.open .gal-sec > h3, .gallery.open .gal-ask { display: none; }
+.gallery.open .gal-tile:not(.is-open) { position: absolute; top: 0; left: -400vw; visibility: hidden; animation: none; }
+.gal-tile.is-open { grid-column: 1 / -1; padding: 0; border: 0; background: none; cursor: default; animation: none; }
+.gal-tile.is-open > :is(h4, p) { display: none; }
+.gal-tile.is-open .gal-frame { height: auto; margin: 0; overflow: visible; }
+.gal-tile.is-open .gal-scale { transform: none; pointer-events: auto; }
+.gal-tile.is-open .card { margin-bottom: 16px; }
+@media (prefers-reduced-motion: reduce) { .gal-tile, .gal-ask { animation: none; } }
