@@ -17,8 +17,7 @@ import argparse, json, os, socket, statistics, subprocess, sys, time, urllib.req
 from pathlib import Path
 import websocket
 
-PROFILE = Path(__file__).resolve().parent / "site" / ".profile"
-B = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+import brave
 
 # Records each frame's time and how much the charts' pixels changed since the frame before, on 64×24 thumbnails
 RECORDER = """
@@ -72,16 +71,8 @@ if "custom" in names:
 
 with socket.socket() as s:
     s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]
-proc = subprocess.Popen([B, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--remote-debugging-port={PORT}",
-                         "--remote-allow-origins=*", f"--user-data-dir={PROFILE}", "--window-size=1280,1400", "about:blank",
-                         "--host-resolver-rules=MAP qvsoxqeuvpnryitechsf.supabase.co ~NOTFOUND"], stderr=subprocess.DEVNULL)
+proc, page = brave.start(["--window-size=1280,1400", "about:blank", "--host-resolver-rules=MAP qvsoxqeuvpnryitechsf.supabase.co ~NOTFOUND"], PORT)
 try:
-    for _ in range(50):
-        try:
-            page = next(t for t in json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json")) if t["type"] == "page")
-            break
-        except Exception:
-            time.sleep(0.2)
     ws = websocket.create_connection(page["webSocketDebuggerUrl"], timeout=120)
     n = [0]
     errors = []

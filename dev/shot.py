@@ -15,8 +15,6 @@ import base64, json, os, socket, subprocess, sys, time, urllib.request
 from pathlib import Path
 import websocket
 
-PROFILE = Path(__file__).resolve().parent / "site" / ".profile"
-
 url, out = sys.argv[1], sys.argv[2]
 w = int(sys.argv[3]) if len(sys.argv) > 3 else 1280
 h = int(sys.argv[4]) if len(sys.argv) > 4 else 2400
@@ -24,20 +22,10 @@ dark = len(sys.argv) > 5 and sys.argv[5] == "dark"
 # A free DevTools port, so agents in different worktrees can take screenshots at the same time
 with socket.socket() as s:
     s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]
-B = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
-proc = subprocess.Popen([B, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--remote-debugging-port={PORT}", "--remote-allow-origins=*",
-                         f"--user-data-dir={PROFILE}",
-                         f"--window-size={w},{h}", "about:blank"]
-                        + (["--host-resolver-rules=MAP qvsoxqeuvpnryitechsf.supabase.co ~NOTFOUND"] if os.environ.get("OFFLINE") else []),
-                        stderr=subprocess.DEVNULL)
+import brave
+proc, page = brave.start([f"--window-size={w},{h}", "about:blank"]
+                         + (["--host-resolver-rules=MAP qvsoxqeuvpnryitechsf.supabase.co ~NOTFOUND"] if os.environ.get("OFFLINE") else []), PORT)
 try:
-    for _ in range(50):
-        try:
-            tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json"))
-            page = next(t for t in tabs if t["type"] == "page")
-            break
-        except Exception:
-            time.sleep(0.2)
     ws = websocket.create_connection(page["webSocketDebuggerUrl"], timeout=120)
     n = [0]
     logs = []
