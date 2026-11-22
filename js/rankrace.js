@@ -105,7 +105,9 @@ function chart(el) {
     }).observe(el);
     // The lines don't take the pointer: scrub picks who it's on. A click pins them (one that isn't the chart's joins it)
     c.getZr().on("click", (e) => clickAt(e.offsetX, e.offsetY));
-    c.getZr().on("mousemove", (e) => scrub(e.offsetX, e.offsetY));
+    // (a move with no movement is the page moving under a still pointer, as a gallery flight lands the card under it:
+    // that isn't a hover until the pointer moves)
+    c.getZr().on("mousemove", (e) => (pointer || e.event?.movementX || e.event?.movementY) && scrub(e.offsetX, e.offsetY));
     c.getZr().on("globalout", () => scrub(null));
     // A pinned column's card takes the pointer: its rows light and pin their artist like the lines
     const tip = el.parentElement.querySelector(".rank-tip");
@@ -481,16 +483,26 @@ export function morphRankRace(look, toThumb, ms) {
   if (look.lines.size !== st.names.length || st.names.some((a) => !look.lines.has(a))) return false;
   const top = st.MAX + 0.4, h = top - 1, last = Math.max(1, st.rows.length - 1);
   const at = ([x, y]) => [last * (look.x[0] + look.x[1] * (x / last)), top - h * (look.y[0] + look.y[1] * ((top - y) / h))];
+  // (clipped only under the floor and at the sides while it flies, as a slide is: the thumbnail's form can stand taller
+  // than the plot, into the lane above it)
   const series = seriesOf(ms).map((s) => {
-    if (!toThumb) return s;
+    if (!toThumb) return { ...s, clip: false };
     const l = look.lines.get(s.id);
     return {
-      ...s, lineStyle: l ? { ...s.lineStyle, width: l.width * look.s, color: l.color, opacity: l.opacity } : { ...s.lineStyle, opacity: 0 },
+      ...s, clip: false, lineStyle: l ? { ...s.lineStyle, width: l.width * look.s, color: l.color, opacity: l.opacity } : { ...s.lineStyle, opacity: 0 },
       data: s.data.map((d) => ({ ...d, value: at(d.value), symbolSize: 0 })),
     };
   });
   setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
+  clipSeries(gridRect());
   if (!ms) c.setOption({ animation: true });
+  // (as itself again, clipped to the plot as usual once it lands)
+  clearTimeout(st.unclip);
+  if (!toThumb) st.unclip = setTimeout(() => {
+    if (!c || c.isDisposed() || st.slide) return;
+    clipSeries(null);
+    c.setOption({ series: st.names.concat([...st.leaving]).map((id) => ({ id, clip: true })) });
+  }, ms + 50);
   return true;
 }
 
