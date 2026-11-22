@@ -124,6 +124,8 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
     unpin,
     toggle: (name) => (state.pinned.includes(name) ? unpin(name) : pin(name)),
     hide: (name) => toggleArtist($("chart-rolling"), name),
+    // Whether the chart's redraw waits, both its cards away (putOff): true, and it's drawn as either comes back
+    waits: () => putOff($("rolling-card"), later) && putOff($("hours-card"), later),
     openPart: (artist, kind, name) => hooks.openPart(artist, kind, name),
     // Artists shown or hidden: if the rest now split into other albums or songs, the chart is drawn afresh with
     // them, the bands and parts morphing together (the chart's selection is already set)

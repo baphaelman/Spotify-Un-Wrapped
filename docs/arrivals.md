@@ -119,8 +119,11 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   mid-flight), the grid's thumbnails on screen, the open graph's neighbours once the change's morph is done (gallery.js
   `paintRank`), and the thumbnails of the grid it'll close onto (`comingBack`: the tiles on screen as it opened);
   everything else waits for idle moments. Every graph's paint goes through `putOff` (the mix bar and Skips and picks
-  did not), and a hover reaches a graph off screen as it comes back (state.js `look`). The Top … View and Hours per
-  week thumbnails repaint only when the chart's data changes, not after its hover fades.
+  did not), and a hover reaches a graph off screen as it comes back (state.js `look`). Hiding or showing an artist
+  with Top … View's cards away tells the page at once and leaves the chart to draw as they come back (rolling.js
+  `restack`, `pins.waits`). The Top … View and Hours per week thumbnails repaint only when the chart's data changes,
+  not after its hover fades. A thumbnail whose last paint took longer than a frame (Top … View's draws the chart
+  off screen first; Every play's) waits for the change's morph, so its long frame doesn't land in it.
 - **Closing goes back to where you were** when you opened the graph, even with its tile partly off screen. After ‹ ›
   to a tile that isn't on screen there, the page scrolls only as far as brings it in.
 - **The card takes no pointer events while it flies**, or a cursor left on the tile hovers the card flying under it.

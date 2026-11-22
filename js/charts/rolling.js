@@ -1553,6 +1553,8 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
     hiddenNames.set(el, hidden);
     if (!mainOf.has(el) && p?.restack?.()) return; // (the strip only ever follows the main chart)
     const [fd, fn, fsl] = st.final ?? [d, n, sl];
+    // (both its cards well off screen, it draws as they come back, pins.waits: the page hears of the selection now)
+    if (!mainOf.has(el) && p?.waits?.()) return void selectionHooks.get(el)?.(artistsOf(fn, o).filter((x) => st.selected[x] === false));
     renderRolling(el, fd, fn, w, currentZoom(el), m, o, true, p, fsl, sm);
   };
   // Show or hide an artist as the legend's box does. Not through ECharts' legendToggleSelect: that redraws the

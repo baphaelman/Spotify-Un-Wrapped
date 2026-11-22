@@ -247,8 +247,8 @@ function plotOf(id) {
     // finished: the tiles follow its series instead)
     const follow = () => {
       if (sigOf(c) === copied.get(c)) return;
-      paintThumb("rolling-card");
-      paintThumb("hours-card");
+      queue("rolling-card");
+      queue("hours-card");
     };
     c.on("finished", follow);
     c.on("rendered", () => idsOf(c) !== copiedIds.get(c) && follow());
@@ -751,11 +751,17 @@ export const comingBack = (thumbs) => void (back = new Set(thumbs));
 function paint() {
   frame = 0;
   if (!state.plays || !state.range || !state.mixArgs) return;
-  for (const [id, el] of els) {
-    owed.add(el);
-    if (near.has(el) && el.offsetParent) soon(el, () => paintThumb(id), 1);
-    else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
-  }
+  for (const id of els.keys()) queue(id);
+}
+// (one that took longer than a frame to draw last time waits for the change's own morph, so it doesn't hold up one
+// of its frames: Top … View's, which draws the chart off screen first, Every play's)
+const cost = new Map(); // thumbnail -> ms its last paint took
+function queue(id) {
+  const el = els.get(id);
+  if (!el) return;
+  owed.add(el);
+  if (near.has(el) && el.offsetParent) soon(el, () => paintThumb(id), 1, (cost.get(el) ?? 0) > 16 ? dur(MORPH_MS) : 0);
+  else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
 }
 // One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js)
 export function paintThumb(id) {
@@ -765,6 +771,7 @@ export function paintThumb(id) {
 // (fade: a change of look, a hover, faded over that many ms, shapes and words, rather than morphed on CHASE_MS)
 function paintOne(id, el, t, fade = 0) {
   owed.delete(el);
+  const start = performance.now();
   const d = digest();
   const c = chart(el);
   const first = !c.getOption()?.series?.length;
@@ -778,6 +785,7 @@ function paintOne(id, el, t, fade = 0) {
   if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
   else c.setOption(option, opts);
   OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
+  cost.set(el, performance.now() - start);
 }
 // setOptionFaded fades shapes, not the words on them: those fade from what they showed to their new opacity too
 function fadeWords(c, apply, ms) {
