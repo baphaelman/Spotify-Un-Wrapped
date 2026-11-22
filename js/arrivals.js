@@ -96,8 +96,9 @@ export const ARRIVALS = {
     return morphMonthly($("chart-monthly"), look, to === "thumb", ms);
   },
   // Top … View, Hours per week: the tile draws the card's own series (thumbs.js miniature), so the plot only grows from
-  // the tile's height to its own (arriveHeight), the axes fading in around it
+  // the tile's height to its own (arriveHeight), the axes and the ridges' names fading in around it
   "rolling-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling", tune.rollingThumb, to, ms),
+  "hours-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling-hours", tune.hoursThumb, to, ms),
 
   // Rank race, Discovery, When you listened
   // … Rank race: the thumbnail draws the card's own lines, so the card's start as them, squashed to its height, thin

@@ -298,7 +298,7 @@ export const STRETCH = {
   // (grouped as the per-graph sessions are, a comment between groups, so re-scoring one group never touches another's
   // lines: git merges them cleanly)
   // over time, the rolling chart's
-  "rolling-card": 0.9, "hours-card": 0.65,
+  "rolling-card": 0.9, "hours-card": 0.75,
   // over time, ECharts
   "rank-card": 0.65, "discovery-card": 0.75, "clock-card": 0.7,
   // rows
@@ -454,8 +454,12 @@ export const THUMBS = {
       ],
     };
   },
-  // Hours per week: a ridge per artist, its hours rising from its own baseline, each over the next
-  "hours-card": (d, t) => {
+  // Hours per week: the card's own ridges (or lines), as it draws them, on its one scale (miniature). The first
+  // design, kept as a Visual tweak ("Gallery tile", which crossfades): a ridge per artist, its hours rising from its
+  // own baseline to its own peak, each over the next
+  "hours-card": (d, t, box) => {
+    const mini = !tune.hoursThumb && miniature(t, "chart-rolling-hours", box, 1);
+    if (mini) return mini;
     const sm = d.artists.map((_, i) => smooth(d.series[i], 1));
     const rise = 1.6; // each artist's peak, in rows
     return {

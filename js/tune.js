@@ -22,6 +22,7 @@ const DENSITY_LOOKS = ["Default (played bright)", "Gray, blue played", "Blue", "
 const PLAY_LOOKS = ["Bare", "Filled circle", "Ring", "Soft circle"];
 const PLAY_CHANGES = ["Morph", "Morph and turn", "Shrink and grow"];
 const THUMB_LOOKS = ["The card's bands", "Unsmoothed shares"];
+const HOURS_THUMB_LOOKS = ["The card's ridges", "Each to its own peak"];
 export const TUNES = [
   { key: "bandTint", card: "rolling-card", label: "Band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
   { key: "hoverTint", card: "rolling-card", label: "Lit band tint", def: 1, min: 0.05, max: 3, step: 0.05, fmt: x },
@@ -34,6 +35,7 @@ export const TUNES = [
   { key: "rollingThumb", card: "rolling-card", label: "Gallery tile", def: 0, options: THUMB_LOOKS, fmt: (v) => THUMB_LOOKS[v] },
   { key: "hoursLine", card: "hours-card", label: "Line width", def: 1.5, min: 0.25, max: 6, step: 0.25, fmt: px },
   { key: "lineFill", card: "hours-card", label: "Lit line fill", def: 1, min: 0, max: 6, step: 0.1, fmt: x },
+  { key: "hoursThumb", card: "hours-card", label: "Gallery tile", def: 0, options: HOURS_THUMB_LOOKS, fmt: (v) => HOURS_THUMB_LOOKS[v] },
   // (only the least gap while ridgeFollow is on, so it shows dimmed)
   { key: "ridgeGap", card: "hours-card", label: "Distance between graphs", def: 24, min: 4, max: 70, step: 1, fmt: px, idle: (v) => v.ridgeFollow > 0 },
   // (0: every gap ridgeGap; more: a tall ridge lifts the ones above it, see ridgeLayout)
