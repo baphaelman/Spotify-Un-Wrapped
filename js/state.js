@@ -189,5 +189,13 @@ export function putOff(card, paint) {
   owed.set(card, paint);
   return true;
 }
+// Bring a card back at once, ahead of the observer, its held paint run now (the gallery measures a card's plot as it
+// flies it open, so the plot must be drawn for the period as it is)
+export function bringBack(card) {
+  away.delete(card);
+  const paint = owed.get(card);
+  owed.delete(card);
+  paint?.();
+}
 // Whether a card has a paint waiting, so what it shows is out of date anyway
 export const owes = (card) => owed.has(card);

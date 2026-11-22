@@ -11,7 +11,7 @@
 // grows with it and fades in over it; the rest of the grid fades where it is. Closing is the same in reverse, into
 // the tile. A flight turned back midway (Esc while it opens) reverses from where it is.
 
-import { $ } from "./state.js";
+import { $, bringBack } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
 import { addThumb, paintThumbs } from "./thumbs.js";
 
@@ -228,21 +228,64 @@ const rise = (el, delay = 0) => el.animate(
 const scrollToOpen = () => scrollTo({ top: gallery.getBoundingClientRect().top + scrollY - barBottom() - 8, behavior: "instant" });
 
 // ---------- The flight between a tile and its card ----------
-// The card's frame over the tile: scaled to the tile's width, cropped to its height (T, C: the two boxes on screen)
-const asTile = (T, C) => {
-  const s = T.width / C.width;
-  return {
-    transform: `translate(${T.left - C.left}px, ${T.top - C.top}px) scale(${s})`,
-    clipPath: `inset(0px 0px ${Math.max(0, C.height - T.height / s)}px 0px round ${8 / s}px)`,
-  };
+// The thumbnail is the shared element: it flies from its place in the tile to the card's plot, while the card, scaled
+// so its plot starts exactly on the thumbnail and clipped to the tile's frame, grows to its place with it. The two
+// cover the same box all the way, so the crossfade between them is between matching shapes.
+// card id -> what its thumbnail stands for in the card (an ECharts chart is narrowed to its grid)
+const PLOT = {
+  "mix-card": "#mix-bar", "sunburst-card": "#sunburst", "ranking-card": "#ranking-list", "rolling-card": "#chart-rolling",
+  "race-card": "#race-rows", "rank-card": "#chart-rank", "monthly-card": "#chart-monthly", "discovery-card": "#chart-discovery",
+  "hours-card": "#chart-rolling-hours", "clock-card": "#chart-clock", "raster-card": "#chart-raster",
+  "calendar-card": "#chart-calendar", "skips-card": "#skips-list",
 };
-const asCard = { transform: "none", clipPath: "inset(0px 0px 0px 0px round 8px)" };
-// The tile over the card: scaled up to the card's width, at its corner
-const tileAsCard = (T, C) => ({ transform: `translate(${C.left - T.left}px, ${C.top - T.top}px) scale(${C.width / T.width})` });
+// The plot's box on screen, within the card's (C)
+function plotBox(card, C) {
+  const el = card.querySelector(PLOT[card.id]);
+  if (!el) return C;
+  const r = el.getBoundingClientRect();
+  let { left, top, width, height } = r;
+  const grid = echarts.getInstanceByDom(el)?.getModel()?.getComponent("grid")?.coordinateSystem?.getRect?.();
+  if (grid?.width > 0) ({ left, top, width, height } = { left: left + grid.x, top: top + grid.y, width: grid.width, height: grid.height });
+  const bottom = Math.min(top + height, C.bottom - 16);
+  return width > 0 && bottom > top ? { left, top, width, height: bottom - top } : C;
+}
+// The keyframes of a flight open (played in reverse to close): T the tile's box, Th its thumbnail's, C the card's in
+// its place, P its plot's
+function flightAnims(entry, T, Th, C, P, direction) {
+  const { card, tile } = entry;
+  const thumb = tile.querySelector(".gal-thumb");
+  const s = Th.width / P.width;
+  const dx = Th.left - C.left - s * (P.left - C.left), dy = Th.top - C.top - s * (P.top - C.top);
+  // the tile's frame, in the scaled card's own pixels
+  const fl = (T.left - C.left - dx) / s, ft = (T.top - C.top - dy) / s;
+  const clip = [ft, C.width - fl - T.width / s, C.height - ft - T.height / s, fl].map((v) => `${Math.max(0, v)}px`).join(" ");
+  for (const el of [card, thumb]) el.style.transformOrigin = "0 0";
+  tile.style.zIndex = "6"; // (above the card, so the thumbnail crosses over it)
+  const o = { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css, fill: "forwards", direction };
+  return [
+    card.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${clip} round ${8 / s}px)`, opacity: 0 },
+      { opacity: 1, offset: 0.4 },
+      { transform: "none", clipPath: "inset(0px 0px 0px 0px round 8px)", opacity: 1 },
+    ], o),
+    thumb.animate([
+      { transform: "none", opacity: 1 },
+      { opacity: 1, offset: 0.4 },
+      { opacity: 0, offset: 0.7 },
+      { transform: `translate(${P.left - Th.left}px, ${P.top - Th.top}px) scale(${P.width / Th.width}, ${P.height / Th.height})`, opacity: 0 },
+    ], o),
+    // the tile's frame and words give way to the card's
+    tile.animate([{}, { backgroundColor: "transparent", borderColor: "transparent", offset: 0.4 }, { backgroundColor: "transparent", borderColor: "transparent" }], o),
+    ...[...tile.children].filter((e) => e !== thumb).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], o)),
+    head.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], o),
+    // everything else in the gallery fades where it is
+    ...others(tile).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], o)),
+  ];
+}
 // Held on screen where it is (or at `r`) through a flight, above the grid and under the bar
-const PINNED = ["position", "left", "top", "width", "margin", "zIndex", "display", "transformOrigin"];
+const PINNED = ["position", "left", "top", "width", "margin", "zIndex", "display"];
 function pin(el, r, width) {
-  Object.assign(el.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, margin: "0", zIndex: "5", transformOrigin: "0 0" });
+  Object.assign(el.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, margin: "0", zIndex: "5" });
   if (width) el.style.width = `${width}px`;
 }
 const unpin = (...els) => els.forEach((el) => PINNED.forEach((k) => (el.style[k] = "")));
@@ -274,10 +317,26 @@ function turnBack() {
 }
 // Everything in the gallery but the tile that flies (the sections' names, the other tiles, the bar above them)
 const others = (tile) => [...gallery.querySelectorAll(".gal-sec h3, .gal-tile"), ask, pick].filter((e) => e !== tile && !e.hidden);
+// Back to rest after a flight, either way
+function settle(entry, anims) {
+  for (const a of anims) a.cancel();
+  unpin(entry.card, head);
+  entry.card.style.transformOrigin = entry.tile.querySelector(".gal-thumb").style.transformOrigin = entry.tile.style.zIndex = "";
+}
+const toGrid = (entry, anims) => () => {
+  stage.append(entry.card);
+  settle(entry, anims);
+  entry.tile.focus({ preventScroll: true });
+};
+const toCard = (entry, anims) => () => {
+  gallery.classList.add("open");
+  settle(entry, anims);
+  scrollToOpen();
+};
 
 function flyOpen(entry) {
   const { card, tile } = entry;
-  const T = tile.getBoundingClientRect();
+  const T = tile.getBoundingClientRect(), Th = tile.querySelector(".gal-thumb").getBoundingClientRect();
   const left = gallery.getBoundingClientRect().left;
   const top = barBottom() + 8;
   head.style.display = "flex";
@@ -285,37 +344,16 @@ function flyOpen(entry) {
   // (pinned before it joins the slot, so the page never lays out with the card in the flow above the grid)
   pin(card, { left, top: top + head.offsetHeight + 12 });
   slot.append(card);
+  bringBack(card);
   const C = card.getBoundingClientRect();
-  tile.style.transformOrigin = "0 0";
-  tile.style.zIndex = "4";
-  const o = { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css, fill: "forwards" };
-  const rest = others(tile);
-  const anims = [
-    // the card fades in over the tile in the first part, then the tile, hidden under it, goes
-    card.animate([{ ...asTile(T, C), opacity: 0 }, { opacity: 1, offset: 0.4 }, { ...asCard, opacity: 1 }], o),
-    tile.animate([{ transform: "none", opacity: 1 }, { opacity: 1, offset: 0.4 }, { opacity: 0, offset: 0.6 }, { ...tileAsCard(T, C), opacity: 0 }], o),
-    head.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], o),
-    ...rest.map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], o)),
-  ];
-  const end = () => {
-    for (const a of anims) a.cancel();
-    unpin(card, head);
-    tile.style.transformOrigin = tile.style.zIndex = "";
-  };
-  launch(entry, true, anims, () => {
-    gallery.classList.add("open");
-    end();
-    scrollToOpen();
-  }, () => {
-    stage.append(card);
-    end();
-    tile.focus({ preventScroll: true });
-  });
+  const anims = flightAnims(entry, T, Th, C, plotBox(card, C), "normal");
+  launch(entry, true, anims, toCard(entry, anims), toGrid(entry, anims));
 }
 
 function flyClose(entry) {
   const { card, tile } = entry;
   const C = card.getBoundingClientRect(), H = head.getBoundingClientRect();
+  const P = plotBox(card, C);
   pin(head, H, galW());
   head.style.display = "flex";
   pin(card, C);
@@ -329,30 +367,8 @@ function flyClose(entry) {
     T = tile.getBoundingClientRect();
   }
   paintThumbs();
-  tile.style.transformOrigin = "0 0";
-  tile.style.zIndex = "4";
-  const o = { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css, fill: "forwards" };
-  const rest = others(tile);
-  const anims = [
-    card.animate([{ ...asCard, opacity: 1 }, { opacity: 1, offset: 0.6 }, { ...asTile(T, C), opacity: 0 }], o),
-    tile.animate([{ ...tileAsCard(T, C), opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1, offset: 0.6 }, { transform: "none", opacity: 1 }], o),
-    head.animate([{ opacity: 1 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }], o),
-    ...rest.map((el) => el.animate([{ opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1 }], o)),
-  ];
-  const end = () => {
-    for (const a of anims) a.cancel();
-    unpin(card, head);
-    tile.style.transformOrigin = tile.style.zIndex = "";
-  };
-  launch(entry, false, anims, () => {
-    stage.append(card);
-    end();
-    tile.focus({ preventScroll: true });
-  }, () => {
-    gallery.classList.add("open");
-    end();
-    scrollToOpen();
-  });
+  const anims = flightAnims(entry, T, tile.querySelector(".gal-thumb").getBoundingClientRect(), C, P, "reverse");
+  launch(entry, false, anims, toGrid(entry, anims), toCard(entry, anims));
 }
 
 function setCrumb(entry) {
