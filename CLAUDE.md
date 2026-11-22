@@ -78,7 +78,8 @@ All in `js/` unless noted; each file's own comments have the details.
 - `gallery.js`: the dashboard as a gallery: each graph a tile in its section (`SECTIONS`, rows packed by `pack`), a
   tile opening its card by a flight from the thumbnail to the card's plot (`flightAnims`, `PLOT`) and back.
   `thumbs.js`: the tiles' own thumbnails (`THUMBS`), drawn from one digest of the period, and `STRETCH`, how well
-  each looks a column and a half wide.
+  each looks a column and a half wide. `arrivals.js`: `ARRIVALS`, per card, how its thumbnail becomes its plot in the
+  flight (a card with one flies solid; one without crossfades).
 - `race.js`: "Top … over time". `rankrace.js`: "Rank race", a bump chart. `mix.js`: the mix bar. `skips.js`: skips and
   picks. `sunburst.js`: "Inside your top …", the rings under it. `ranking.js`: "All your …", every item by hours.
   `lists.js`: ranked lists and stat tiles. `store.js`: IndexedDB. `sample.js`: "Try it with sample data".
