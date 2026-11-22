@@ -23,6 +23,13 @@ first one.
 - `to`: `"thumb"` (the card's plot in the thumbnail's form) or `"card"` (its own).
 - It morphs the plot from what's on screen to `to` over `ms`, in-out, or draws it at once when `ms` is 0.
 - It returns false when it can't (the thumbnail doesn't match the card's data), and that flight crossfades.
+- **For an ECharts plot, morph the drawn shapes, not the options** (`morphShapes` in charts/core.js): list each value
+  of a drawn shape that changes (a symbol's place and scale, a line's points and width, a rect's box, a fill) with
+  its thumbnail-form value, worked out from the card's own as drawn, and it runs them from what's on screen to either
+  form on one tick of zrender's clock, puts the drawn values back exactly once home, and ends a paint's running
+  morph first. A `setOption` here costs a render each call (Discovery's two were 42 ms of a click); this costs what
+  the shapes do. Every Month, Rank race and Discovery use it; rolling.js `arriveHeight` is the same idea, tied to the
+  card's progress.
 
 The flight calls it like this:
 
@@ -57,10 +64,10 @@ What the solid flight does for you (gallery.js):
   in its color, the rest one gray.
 - **Arrival:** `morphMonthly` (`charts/monthly.js`). The thumbnail's form is the card's own series, with the slices
   zeroed into the gray, the thumbnail's colors and bar gap, and values scaled by `cardMax / thumbMax × stretch`.
-  - The y-axis is held at the card's own extent, so axes and captions are identical in both forms and only fade.
-  - `clip: false` lets stretched bars stand above the plot meanwhile.
-  - The morph is one `setOptionFaded` with in-out for both shapes and colors (its last argument).
-  - `renderMonthly` keeps `st.dress(looks)`, so the arrival rebuilds the real series without re-rendering the card.
+  - Each bar's rect moves itself (`morphShapes`): its box from the values stacked as ECharts stacks the series, its
+    corners and edge to nothing, its fill to the thumbnail's, in-out. The axes never change, so they only fade.
+  - Rects aren't clipped (a bar series clips its layout, not its drawing), so stretched bars stand above the plot
+    meanwhile.
 - **Thumbnails follow their card's choices.** `otherOn(cardId)` (thumbs.js) reads the card's "Everyone else" toggle,
   and a toggle's change redraws the thumbnails. Without that, Every Month with Everyone else off flew from
   everyone's months to only the chart's artists. Apply the same to any setting that changes what the card shows.
@@ -93,10 +100,11 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   All your … 40). A paint that draws two cards (Every play and Every day) pays both. A Visual tweak shows each tile's
   dot: a ring while its card's paint waits, filled once it's drawn. Unload cards (Visual tweaks, `unloadAll`) makes
   every card off screen owe its last paint again, to watch them refill or to open one before they have.
-- **What's left is the flight's own setup:** about 13 ms of layout (the card joining the slot) and the arrival's two
-  `setOption`s, `("thumb", 0)` and `("card", MORPH_MS)`: Discovery 42 ms, Rank race 22, Every Month 16, Skips and
-  picks 7. Arrivals that move zrender shapes directly (rolling.js `arriveHeight`) or the whole drawing by one
-  transform (every.js `fly`) cost a few ms.
+- **What's left is the flight's own setup:** layout (the card joining the slot), the flight's animations, and the
+  arrival. Arrivals that move the drawn shapes (`morphShapes`, `arriveHeight`) or the whole drawing by one transform
+  (every.js `fly`) cost a few ms: profiled, a click on Discovery went from 63 to 11 ms (`morphDiscovery` 42 → 3,
+  about 1,000 dots in the Tracks view), Rank race 75 → 8 (28 → 2), Every Month 21 → 8 (14 → 2). Skips and picks'
+  `flyRows` is about 7.
 - **The card's move is its own animation** (transform and opacity, run by the compositor even while the page is busy);
   its clip and colors are another beside it, so a busy frame holds only them. Clip flights (Visual tweaks) flies
   without the clip, to compare.
@@ -223,17 +231,17 @@ the same scroll.
   `clip: false` or not. Check it and return false (When you listened does: it crossfades instead).
 - **Drawing at once over a running morph.** A card's held paint (`bringBack`) can still be morphing when
   `("thumb", 0)` lands; ECharts, given data it already has, leaves the shapes partway. End the running animations
-  first (`stopLines` in charts/clock.js). Every Month doesn't need it: per column, its plot lands exactly in the
-  thumbnail's form even right after its Everyone else changes.
+  first (`stopLines` in charts/clock.js; `morphShapes` does it for you, so it reads the card's own values where they
+  were going).
 - **A thumbnail repaints on `CHASE_MS`.** Opened within 450 ms of a change the tiles follow (a period drag, a toggle),
   the flight starts on a thumbnail still moving toward what the card's first frame already shows (Every Month: up to
   34px per column). Measure with the change well before the click.
 - **Giving a line series its clip back** (`clip: true` after a flight's `clip: false`): a line with no clip path of
-  its own then gets ECharts' first-draw clip, which wipes the lines away and draws them in again from the left (Rank
-  race did, just after landing). Give it back with `animation: false` once the morph is done, and end the flight on
-  ECharts' own clip rect (the grid and half the line's width around it) so the switch changes nothing (rankrace.js
-  `clipSeries`).
-- **ECharts' line series doesn't animate its circles' size:** a morph that changes `symbolSize` snaps it (Rank race's
-  circles pop in on an open's first frame and out on a close's).
+  its own then gets ECharts' first-draw clip, which wipes the lines away and draws them in again from the left. Rank
+  race no longer changes `clip` at all (its arrival sets no option): its flight swaps the lines' clip path for one
+  ending on ECharts' own rect (the grid and half the line's width around it), which ECharts then takes for its own
+  (rankrace.js `clipSeries`).
+- **ECharts' line series doesn't animate its circles' size:** a morph that changes `symbolSize` snaps it. Rank race's
+  arrival scales the circles' drawn paths itself, so they grow in on an open and shrink away on a close.
 - **Pictures cost Spotify calls.** Each `test.html` load fetches uncached pictures; use `OFFLINE=1` unless pictures
   are what you're checking.
