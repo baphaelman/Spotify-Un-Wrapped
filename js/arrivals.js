@@ -23,7 +23,7 @@ import { $ } from "./state.js";
 import { morphMonthly } from "./charts.js";
 // Top … View, Hours per week
 import { arriveHeight } from "./charts.js";
-import { tune } from "./tune.js";
+import { tune as rollingTune } from "./tune.js"; // (another slot imports tune too)
 // (the tile's series are the plot's, or it's the first design, a Visual tweak, which crossfades)
 function rollingArrival(card, el, id, classic, to, ms) {
   const thumb = echarts.getInstanceByDom(el), plot = echarts.getInstanceByDom($(id));
@@ -97,8 +97,8 @@ export const ARRIVALS = {
   },
   // Top … View, Hours per week: the tile draws the card's own series (thumbs.js miniature), so the plot only grows from
   // the tile's height to its own (arriveHeight), the axes and the ridges' names fading in around it
-  "rolling-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling", tune.rollingThumb, to, ms),
-  "hours-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling-hours", tune.hoursThumb, to, ms),
+  "rolling-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling", rollingTune.rollingThumb, to, ms),
+  "hours-card": (card, el, to, ms) => rollingArrival(card, el, "chart-rolling-hours", rollingTune.hoursThumb, to, ms),
 
   // Rank race, Discovery, When you listened
   // … Rank race: the thumbnail draws the card's own lines, so the card's start as them, squashed to its height, thin
