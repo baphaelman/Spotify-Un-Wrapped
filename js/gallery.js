@@ -26,40 +26,19 @@ const SECTIONS = [
   ["Over time", ["rolling-card", "race-card", "rank-card", "monthly-card", "discovery-card"]],
   ["How you listen", ["hours-card", "clock-card", "raster-card", "calendar-card", "skips-card"]],
 ];
-// The ways to lay the tiles out (a Visual tweaks choice while the owner compares them; off, DEFAULT_LAYOUT). A tile is
-// a column wide, a `wide` one two, a `pair` one half the row (two side by side, a column and a half each), a
-// `full` one the whole row; with `fill`, a row left short gives its room to its wide graph, or else shares it out.
+// The ways to lay the tiles out. Graphs keep their sections; a section whose tiles don't fill its rows stretches some.
+// wide (the default): the stretching goes to the section's wide graphs, which lead it: its short row comes first, the
+//   wide graphs in it, sharing the room (five tiles in three columns: Top … View two columns beside one more, then three)
+// fill: the section's last row shares the width (three, then two a column and a half wide)
+// even: nothing stretches, the last row left short
+// (fill and even stay as Visual tweaks)
 const WIDE = ["rolling-card", "calendar-card"];
 const LAYOUTS = {
-  even: { label: "Even", groups: SECTIONS },
+  wide: { label: "Wide graphs lead, rows filled", groups: SECTIONS, wide: WIDE, fill: true },
   fill: { label: "Fill the rows", groups: SECTIONS, fill: true },
-  feature: { label: "Wide graphs wide, rows filled", groups: SECTIONS, wide: WIDE, fill: true },
-  pair: {
-    label: "Wide graphs together", pair: WIDE, fill: true, groups: [
-      ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
-      ["Over time", ["rolling-card", "calendar-card", "race-card", "rank-card", "monthly-card"]],
-      ["How you listen", ["hours-card", "clock-card", "raster-card", "discovery-card", "skips-card"]],
-    ],
-  },
-  across: {
-    label: "Wide graphs across", full: WIDE, fill: true, groups: [
-      ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
-      ["Over time", ["rolling-card", "race-card", "rank-card", "monthly-card"]],
-      ["Day by day", ["calendar-card", "hours-card", "clock-card", "raster-card"]],
-      ["Finds and skips", ["discovery-card", "skips-card"]],
-    ],
-  },
-  hero: {
-    label: "Hero and threes", full: ["rolling-card"], groups: [
-      ["", ["rolling-card"]],
-      ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
-      ["Over time", ["race-card", "rank-card", "monthly-card"]],
-      ["When you listen", ["hours-card", "clock-card", "calendar-card"]],
-      ["How you listen", ["raster-card", "discovery-card", "skips-card"]],
-    ],
-  },
+  even: { label: "Even", groups: SECTIONS },
 };
-const DEFAULT_LAYOUT = "even";
+const DEFAULT_LAYOUT = "wide";
 const LAYOUT_KEY = "gallery-layout";
 
 // Tiles that keep only their card's first sentence, giving the thumbnail the room
@@ -162,30 +141,28 @@ for (const id of Object.keys(SLUG)) {
 // ---------- Arranging: sections, columns, spans ----------
 let cols = 0;
 let arranged = ""; // what the tiles were last arranged for
-// A section's tiles in rows, each tile's span in half columns (so a row can split into halves)
+// A section's tiles in rows (see LAYOUTS), each tile's span in half columns (so a row can split into halves)
 function pack(list, L) {
   const total = cols * 2;
-  const want = (id) => (L.full?.includes(id) ? total : L.pair?.includes(id) ? (cols >= 3 ? total / 2 : total) : L.wide?.includes(id) ? Math.min(4, total) : 2);
-  const rows = [];
-  let row = [], used = 0;
-  for (const x of list) {
-    const w = want(x.card.id);
-    if (used + w > total && row.length) rows.push(row), (row = []), (used = 0);
-    row.push([x, w]);
-    used += w;
-  }
-  if (row.length) rows.push(row);
+  const short = list.length % cols;
+  const rowsOf = (xs) => Array.from({ length: Math.ceil(xs.length / cols) }, (_, i) => xs.slice(i * cols, (i + 1) * cols));
+  const wides = list.filter((x) => L.wide?.includes(x.card.id)).slice(0, short);
+  let rows;
+  if (!L.fill || !short) rows = rowsOf(list);
+  else if (wides.length) {
+    // the short row leads: its wide graphs first, then the section's next graphs
+    const lead = [...wides, ...list.filter((x) => !wides.includes(x)).slice(0, short - wides.length)];
+    rows = [lead, ...rowsOf(list.filter((x) => !lead.includes(x)))];
+  } else rows = [...rowsOf(list.slice(0, list.length - short)), list.slice(-short)];
   const spans = new Map();
   for (const r of rows) {
-    const room = total - r.reduce((s, [, w]) => s + w, 0);
-    if (L.fill && room > 0) {
-      const wide = r.filter(([x]) => want(x.card.id) > 2);
-      const to = wide.length ? wide : r;
-      to.forEach((e, i) => (e[1] += Math.floor(room / to.length) + (i < room % to.length ? 1 : 0)));
-    }
-    for (const [x, w] of r) spans.set(x, w);
+    const room = L.fill ? total - 2 * r.length : 0;
+    // the room goes to the row's wide graphs, or else to all of it, evenly
+    const to = r.filter((x) => wides.includes(x)).length ? r.filter((x) => wides.includes(x)) : r;
+    r.forEach((x) => spans.set(x, 2));
+    to.forEach((x, i) => spans.set(x, 2 + Math.floor(room / to.length) + (i < room % to.length ? 1 : 0)));
   }
-  return { total, spans };
+  return { total, spans, order: rows.flat() };
 }
 const layoutName = () => (pick.hidden ? DEFAULT_LAYOUT : sel.value);
 function arrange() {
@@ -205,12 +182,13 @@ function arrange() {
     if (title) s.append(make("h3", "", title));
     const grid = make("div", "gal-grid");
     const list = ids.map((id) => byId.get(id));
-    const { total, spans } = pack(list.filter((x) => !x.tile.hidden), L);
-    for (const x of list) {
+    const { total, spans, order } = pack(list.filter((x) => !x.tile.hidden), L);
+    // (tiles the page hides keep their place in the list, after the shown ones)
+    for (const x of [...order, ...list.filter((x) => x.tile.hidden)]) {
       const w = spans.get(x) ?? 2;
       x.tile.style.gridColumn = `span ${w}`;
       // (a wide graph across the whole row draws a taller thumbnail)
-      x.tile.classList.toggle("hero", w === total && cols >= 3 && [...(L.full ?? []), ...(L.wide ?? [])].includes(x.card.id));
+      x.tile.classList.toggle("hero", w === total && cols >= 3 && !!L.wide?.includes(x.card.id));
       // (moved after the first arrangement, a tile doesn't rise in again)
       if (!first) x.tile.style.animation = "none";
       grid.append(x.tile);
