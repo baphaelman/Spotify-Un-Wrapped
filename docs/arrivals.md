@@ -78,6 +78,26 @@ What the solid flight does for you (gallery.js):
   between the parts and the card open for the flight.
 - **An overlaid ECharts bar lines up by its top edge**, so a clear bar carrying a label is as thick as the bar it rides on.
 
+## Opening without a stall
+
+A click does all of its work before the flight's first frame, so whatever it costs, the tile sits still that long.
+Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 10 items, headless):
+
+- **Held paints run while idle** (state.js): about a second after the last change, cards that owe a paint draw one per
+  idle moment, off screen; the tile under the cursor (or focused) goes first (`prefer`); none run during a flight
+  (`holdIdle`). Without it, an open after a period change ran the card's whole paint first (Discovery 122 ms,
+  All your … 40). A paint that draws two cards (Every play and Every day) pays both. A Visual tweak shows each tile's
+  dot: a ring while its card's paint waits, filled once it's drawn.
+- **What's left is the flight's own setup:** about 13 ms of layout (the card joining the slot) and the arrival's two
+  `setOption`s, `("thumb", 0)` and `("card", MORPH_MS)`: Discovery 42 ms, Rank race 22, Every Month 16, Skips and
+  picks 7. Arrivals that move zrender shapes directly (rolling.js `arriveHeight`) or the whole drawing by one
+  transform (every.js `fly`) cost a few ms.
+- **The card's move is its own animation** (transform and opacity, run by the compositor even while the page is busy);
+  its clip and colors are another beside it, so a busy frame holds only them. Clip flights (Visual tweaks) flies
+  without the clip, to compare.
+- **The card takes no pointer events while it flies**, or a cursor left on the tile hovers the card flying under it.
+- **The chrome fades in to each part's own opacity:** a hidden part (Discovery's key while the names fit) stays hidden.
+
 ## Plots that aren't ECharts
 
 - **Inside your top … is SVG** (`.sun-svg`; the thumbnail's `.thumb-sun` carries its radius `R` and slice `ids`), not
