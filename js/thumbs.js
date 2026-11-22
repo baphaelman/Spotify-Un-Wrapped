@@ -15,7 +15,7 @@ import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
 import { fmtH } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
-import { paintRasterThumb } from "./every.js";
+import { paintRasterThumb, paintCalendarThumb } from "./every.js";
 
 const BUCKETS = 40; // time slices across the period
 const POINTS = 160; // places along the period the Top … View thumbnail is worked out at
@@ -167,7 +167,7 @@ export const STRETCH = {
   // your top
   "mix-card": 0.7, "sunburst-card": 0.1,
   // every.js
-  "raster-card": 0.8, "calendar-card": 0.85,
+  "raster-card": 0.85, "calendar-card": 0.7, // (scored: every.js's miniatures. A play's marks widen along time; the boxes turn wide past their square)
   // done
   "monthly-card": 0.45,
 };
@@ -315,32 +315,8 @@ export const THUMBS = {
   },
   // Every play: drawn by every.js, the card's own drawing in miniature (OVERLAYS), over an empty chart
   "raster-card": () => ({ series: [] }),
-  // Every day: a square per day, a column per week, tinted by the day's top artist of the chart's and darker the more you listened
-  "calendar-card": (d, t) => {
-    const startDow = (d.lo + 3) % 7, weeks = Math.ceil((d.days + startDow) / 7);
-    const sums = keys(d.days).map((i) => {
-      let s = 0, top = d.k, best = 0;
-      for (let a = 0; a < d.K; a++) {
-        const h = d.daily[i * d.K + a];
-        s += h;
-        if (a < d.k && h > best) (best = h), (top = a); // (the day's top among the chart's artists: everyone else, all of them together, would win most days)
-      }
-      return [s, top];
-    });
-    const heard = sums.map((x) => x[0]).filter((h) => h > 0).sort((a, b) => a - b);
-    const full = heard[Math.floor(heard.length * 0.9)] || 1e-9; // (the 90th percentile day is full strength)
-    const empty = mix(t.surface, t.other, 0.08);
-    return {
-      grid: { left: 0, right: 0, top: 0, bottom: 0 }, xAxis: axis("category", { data: keys(weeks) }), yAxis: axis("category", { data: keys(7), inverse: true }),
-      series: [{
-        type: "heatmap", itemStyle: { borderColor: t.surface, borderWidth: weeks > 80 ? 0 : 1.5, borderRadius: 1 },
-        data: sums.map(([h, a], i) => ({
-          value: [Math.floor((i + startDow) / 7), (i + startDow) % 7, r1(h)],
-          itemStyle: { color: h > 0 ? mix(t.surface, colorAt(t, d, a), 0.25 + 0.65 * Math.sqrt(Math.min(1, h / full))) : empty },
-        })),
-      }],
-    };
-  },
+  // Every day: drawn by every.js, the card's own boxes in miniature (OVERLAYS), over an empty chart
+  "calendar-card": () => ({ series: [] }),
   // Skips and picks: each artist's plays, picked, played through and skipped, in shades of its color
   "skips-card": (d, t) => ({
     grid: { left: 0, right: 0, top: 2, bottom: 2 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: d.artists, inverse: true }),
@@ -497,6 +473,7 @@ const OVERLAYS = {
   "mix-card": faces,
   "sunburst-card": rings,
   "raster-card": (el) => paintRasterThumb(el, document.getElementById("chart-raster"), everyArgs("raster-card")),
+  "calendar-card": (el) => paintCalendarThumb(el, document.getElementById("chart-calendar"), everyArgs("calendar-card")),
 };
 
 // ---------- Painting ----------

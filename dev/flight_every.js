@@ -13,6 +13,14 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   for (let i = 0; i < 60 && !document.getElementById("thumb-" + CARD)?.offsetParent; i++) await wait(250);
   await wait(1000);
+  // (__PERIOD__, optional: a year-filter value, all for all time, to fly a period other than the harness's)
+  const PERIOD = "__PERIOD__";
+  if (!PERIOD.startsWith("__")) {
+    const sel = document.getElementById("year-filter");
+    sel.value = PERIOD;
+    sel.dispatchEvent(new Event("change"));
+    await wait(2500);
+  }
   const errs = [];
   addEventListener("error", (e) => errs.push(e.message));
   addEventListener("unhandledrejection", (e) => errs.push(String(e.reason)));

@@ -450,7 +450,7 @@ const firstAt = (a, x) => {
 // from (rollingview.js paintEvery): all the loaded plays and the deselected artists, the period, names and slots,
 // pins ({ has }), other.
 export function paintRasterThumb(box, card, { plays, hidden, lo, hi, names, slots, pins, other }) {
-  const { ctx, w, h, dpr } = thumbCanvas(box);
+  const { ctx, w, h } = thumbCanvas(box);
   const t = tokens();
   const pinned = new Set(names.filter((n) => pins?.has(n)));
   thumbSigs.set(box, sigOf(lo, hi, names, slots, pinned, other));
@@ -460,24 +460,23 @@ export function paintRasterThumb(box, card, { plays, hidden, lo, hi, names, slot
   const cardH = tune.rasterHeight - GRID.top - GRID.bottom;
   const sx = w / cardW, sy = h / cardH; // (a card pixel, in the tile's)
   const dw = w / days, mw = Math.max(1, cardW / days) * sx, minH = 1.5 * sy, pph = h / 24;
+  // (each mark straight into its layer's path, unmerged: at the tile's size that's quicker than merging, and it
+  // allocates nothing per mark, which matters while a dragged period redraws it every frame)
   const known = new Set(names);
-  const cols = new Map([[OTHER, new Map()], ...names.map((n) => [n, new Map()])]);
+  const paths = new Map([[OTHER, new Path2D()], ...names.map((n) => [n, new Path2D()])]);
   for (let i = firstAt(R.d0, lo); i < R.n && R.d0[i] <= hi; i++) {
     const layer = known.has(R.item[i]) ? R.item[i] : OTHER;
     if (layer === OTHER && !other) continue;
-    const m = cols.get(layer);
+    const path = paths.get(layer);
     let day = R.day[i] - lo, from = R.hour[i], left = R.len[i];
     for (; left > 0 && day < days; day++, from = 0) {
       if (day >= 0) {
-        const x0 = day * dw, col = Math.floor(x0 * dpr), y0 = from * pph;
-        let runs = m.get(col);
-        if (!runs) m.set(col, (runs = []));
-        runs.push([y0, Math.max(Math.min(24, from + left) * pph, y0 + minH), x0]);
+        const y0 = from * pph;
+        path.rect(day * dw, y0, mw, Math.max(Math.min(24, from + left) * pph - y0, minH));
       }
       left -= 24 - from;
     }
   }
-  const paths = mergePaths(cols, mw);
   for (const n of layerOrder(names, pinned)) {
     const path = paths.get(n);
     if (!path || (n === OTHER && !other)) continue;
@@ -559,8 +558,9 @@ function fly(v, thumb, to, ms) {
 // guides fading in. False when the thumbnail wasn't drawn for what the card shows.
 export function arriveRaster(el, thumb, to, ms) {
   const v = views.get(el);
-  if (!v?.paths || v.panning || thumbSigs.get(thumb) !== v.sig) return false;
+  if (!v?.paths || v.panning) return false;
   readyFlight(v);
+  if (thumbSigs.get(thumb) !== v.sig) return false;
   fly(v, thumb, to, ms);
   return true;
 }
@@ -729,6 +729,7 @@ export function renderCalendar(el, plays, lo, hi, names = [], slots = [], pins =
   const relaid = v.key?.some((x, i) => x !== key[i]) ?? true;
   adopt(v, names, slots, pins, hover, DAY_FACTOR);
   v.table = DAY_FACTOR;
+  v.sig = sigOf(lo, hi, names, slots, v.pinned, other);
   v.onUnit = onUnit;
   const keep = other ? null : names.join("\u0000");
   refresh(v, key, key, { plays, lo, hi, keep }, () => {
@@ -764,6 +765,57 @@ function calendarCells(plays, lo, hi, keep = null, weeks = hi - lo + 1 > DAY_MOD
   }
   const sorted = [...cells.values()].filter((c) => c.best).map((c) => c.h).sort((a, b) => a - b);
   return { plays, lo, hi, keep, weeks, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
+}
+
+// The same cells from each day's hours per item over all the loaded plays, worked out once per set of plays (and
+// deselected artists), so a thumbnail redrawn on every move of a dragged period only reads its days. Equal to
+// calendarCells over the period's plays: the same sums, each day's (week's) items in the order they were first played.
+let dayMemo = null;
+function dayTable(plays, hidden) {
+  const key = hidden.join("\u0001");
+  if (dayMemo?.plays === plays && dayMemo.key === key) return dayMemo.days;
+  const hid = new Set(hidden), days = new Map();
+  let next = -Infinity, m = null;
+  for (const p of plays) {
+    if (p.t >= next) {
+      const k = agg.dayIndex(p.t);
+      next = agg.dayToDate(k + 1).getTime();
+      m = days.get(k);
+      if (!m) days.set(k, (m = new Map()));
+    }
+    if (!hid.has(p.artist)) m.set(p.artist, (m.get(p.artist) ?? 0) + p.ms / HOUR);
+  }
+  dayMemo = { plays, key, days };
+  return days;
+}
+function cellsOfDays(days, lo, hi, keep = null, weeks = hi - lo + 1 > DAY_MODE_MAX) {
+  const kept = keep == null ? null : new Set(keep ? keep.split("\u0000") : []);
+  const cells = new Map();
+  let wk = null, wm = null;
+  const close = () => wm && cells.set(wk, cellOf(wm));
+  for (let k = lo; k <= hi; k++) {
+    const m = days.get(k);
+    if (!m) continue;
+    if (!weeks) {
+      cells.set(k, cellOf(m, kept));
+      continue;
+    }
+    const key = weekKey(k);
+    if (key !== wk) close(), (wk = key), (wm = new Map());
+    for (const [a, x] of m) if (!kept || kept.has(a)) wm.set(a, (wm.get(a) ?? 0) + x);
+  }
+  close();
+  const sorted = [...cells.values()].filter((c) => c.best).map((c) => c.h).sort((a, b) => a - b);
+  return { lo, hi, keep, weeks, cells, top: sorted[Math.floor(sorted.length * 0.95)] || 1 };
+}
+function cellOf(m, kept = null) {
+  let h = 0, best = null, bh = 0;
+  for (const [a, x] of m) {
+    if (kept && !kept.has(a)) continue;
+    h += x;
+    if (x > bh) (bh = x), (best = a);
+  }
+  return { h, best, bh };
 }
 
 const CAL = { top: 22, bottom: 6, left: 52, right: 8, gap: 2, rowGap: 14 }; // (left: the week rows'; the day strips set their own)
@@ -882,9 +934,46 @@ function calPlace(v, m, at, grow = null) {
 }
 
 function layoutCalendar(v) {
-  calPlace(v, calMode(v.lo, v.hi, v.el.clientWidth || 1000), { lo: v.lo, hi: v.hi });
+  const m = calMode(v.lo, v.hi, v.el.clientWidth || 1000);
+  calPlace(v, m, { lo: v.lo, hi: v.hi });
+  v.content = contentOf(v.boxes);
+  v.modeSig = modeSig(m);
   size(v, tune.calendarHeight);
   if (v.looks.size) v.draw(v);
+}
+// Where a layout's boxes lie, all of them: { x, y, w, h }
+function contentOf(boxes) {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const x of boxes) (l = Math.min(l, x.x)), (t = Math.min(t, x.y)), (r = Math.max(r, x.x + x.w)), (b = Math.max(b, x.y + x.h));
+  return l < r ? { x: l, y: t, w: r - l, h: b - t } : { x: 0, y: 0, w: 1, h: 1 };
+}
+const modeSig = (m) => [m.kind, m.left, m.cw, m.ch].join();
+
+// Every day's thumbnail: the card's own boxes, laid out as the card lays them out (at its width) and fitted to the
+// tile, in the card's tints, rings for pins included (no labels), so the flight from one to the other is only a
+// scale. card: the card's plot element. args: as paintRasterThumb's.
+export function paintCalendarThumb(box, card, { plays, hidden, lo, hi, names, slots, pins, other }) {
+  const { ctx, w, h } = thumbCanvas(box);
+  const v = { lo, hi, looks: new Map() };
+  adopt(v, names, slots, pins, null, DAY_FACTOR);
+  for (const [n, to] of targetsOf(v, DAY_FACTOR)) v.looks.set(n, { from: to, to, at: 0, ms: 0, ease: EASE_OUT.js });
+  v.cells = cellsOfDays(dayTable(plays, hidden), lo, hi, other ? null : names.join("\u0000"));
+  const m = calMode(lo, hi, views.get(card)?.width || card.clientWidth || 1000);
+  calPlace(v, m, { lo, hi });
+  thumbSigs.set(box, sigOf(lo, hi, names, slots, v.pinned, other) + "|" + modeSig(m));
+  const c = contentOf(v.boxes), kx = w / c.w, ky = h / c.h;
+  ctx.transform(kx, 0, 0, ky, -c.x * kx, -c.y * ky);
+  drawBoxes(v, ctx, v.boxes);
+}
+// Every day's arrival: its own boxes, moved by one transform from the thumbnail's box to where they lie, the labels
+// fading in. False when the thumbnail wasn't drawn for what the card shows (or it's sliding or dragged).
+export function arriveCalendar(el, thumb, to, ms) {
+  const v = views.get(el);
+  if (!v?.boxes || v.calPan || v.calDrag || v.calLand) return false;
+  readyFlight(v); // (first: a card waiting to lay out a changed period does so now)
+  if (thumbSigs.get(thumb) !== v.sig + "|" + v.modeSig) return false;
+  fly(v, thumb, to, ms);
+  return true;
 }
 
 // A box's fill, from its cell (none: nothing played) at the tint's scale `top`, and the artist a pin rings it for
@@ -1077,20 +1166,35 @@ function morphPlace(v, cp, at, f) {
 function drawCalendar(v) {
   const { ctx, t, width: w, cssH: h } = v;
   if (!v.boxes || v.waiting) return;
-  const { cells, top } = v.cells;
-  ctx.clearRect(0, 0, w, h);
+  // In a gallery flight, drawn at the card's scale on screen, the labels fading with its frame
+  const fl = flightOf(v);
+  if (fl) flightCanvas(v, fl);
+  else ctx.clearRect(0, 0, w, h);
   ctx.textBaseline = "middle";
   // The years read first, larger and brightest; the months along the top next; the weekdays quietest
   for (const [x, y, text, align, year, a] of v.labels) {
     if (a <= 0) continue;
-    ctx.globalAlpha = a;
+    ctx.globalAlpha = a * (fl ? fl.chrome : 1);
     ctx.font = year ? `600 13px ${t.font}` : `11px ${t.font}`;
     ctx.fillStyle = year ? t.primary : align === "left" ? t.secondary : t.muted;
     ctx.textAlign = align;
     ctx.fillText(text, x, y);
   }
+  ctx.save();
+  if (fl) {
+    // the boxes, moved and stretched from where they lie to the flight's box for them
+    const c = v.content, b = flightBox(v, fl, c), kx = b.w / c.w, ky = b.h / c.h;
+    ctx.transform(kx, 0, 0, ky, b.x - c.x * kx, b.y - c.y * ky);
+  }
+  drawBoxes(v, ctx, v.boxes);
+  ctx.restore();
+}
+
+// The boxes, each tinted (a morph's carry their fill) and ringed for a pin
+function drawBoxes(v, ctx, boxes) {
+  const { cells, top } = v.cells;
   const rings = [];
-  for (const b of v.boxes) {
+  for (const b of boxes) {
     ctx.globalAlpha = b.a;
     const { fill, name } = b.fill ? b : tintOf(v, cells.get(b.key), top); // (a morph's boxes carry their fill)
     ctx.fillStyle = fill;
@@ -1121,7 +1225,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function pickCalendar(v, x, y) {
-  const b = !v.waiting && !v.calPan && !v.calDrag && v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
+  const b = !v.waiting && !v.calPan && !v.calDrag && !v.flight && v.boxes?.find((b) => x >= b.x && x < b.x + b.w + CAL.gap && y >= b.y && y < b.y + b.h + CAL.gap);
   if (!b) return null;
   const c = v.cells.cells.get(b.key);
   const d = agg.dayToDate(b.from);
