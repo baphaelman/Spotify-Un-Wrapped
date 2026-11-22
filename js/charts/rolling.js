@@ -14,6 +14,8 @@ const partSlots = (parts) => (parts ? slotsMax(parts.share.map((list) => list.le
 
 // Legend selections per rolling chart, kept across morphs and reset when the artist list changes.
 const rollingState = new WeakMap();
+// chart -> the listeners renderRolling set on it last ({event: fn}), so the next render takes off only its own
+const ownListeners = new WeakMap();
 
 // [startValue, endValue] of a chart's current zoom, so re-renders can keep the reader's place.
 export function currentZoom(el) {
@@ -1239,11 +1241,11 @@ export function renderRolling(el, data, names, window, zoom, mode = "share", has
   const clipEdges = () => {
     if (share) clipBandEdges(c, names.length, visible);
   };
-  for (const ev of ["finished", "datazoom"]) {
-    c.off(ev);
-    c.on(ev, clipEdges);
-  }
-  c.on("datazoom", () => zoomHooks.get(el)?.());
+  // (this render's own listeners replace the last render's, by name: a bare off(ev) would drop everyone's)
+  for (const [ev, fn] of Object.entries(ownListeners.get(c) ?? {})) c.off(ev, fn);
+  const own = { finished: clipEdges, datazoom: () => (clipEdges(), zoomHooks.get(el)?.()) };
+  ownListeners.set(c, own);
+  for (const [ev, fn] of Object.entries(own)) c.on(ev, fn);
 
   // What each series shows, by data index, for the next live morph to start from
   // (NaN where there's a gap, as in the series' points)
