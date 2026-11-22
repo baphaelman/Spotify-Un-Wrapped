@@ -295,7 +295,11 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
       // stretches to the plot's box)
       { transform: solid ? riding(Th, C, dx, dy, s) : `translate(${P.left - Th.left}px, ${P.top - Th.top}px) scale(${P.width / Th.width}, ${P.height / Th.height})`, opacity: 0 },
     ], o),
-    ...(solid ? chromeOf(card).map((el) => el.animate(fadeIn, o)) : []),
+    // (each to its own opacity: what's hidden now, Discovery's key while the names fit, stays hidden)
+    ...(solid ? chromeOf(card).flatMap((el) => {
+      const op = +getComputedStyle(el).opacity;
+      return op > 0 ? [el.animate(op === 1 ? fadeIn : [{ opacity: 0 }, { opacity: op, offset: 0.4 }, { opacity: op }], o)] : [];
+    }) : []),
     // the tile's frame and words give way to the card's
     tile.animate([{}, { backgroundColor: "transparent", borderColor: "transparent", offset: 0.4 }, { backgroundColor: "transparent", borderColor: "transparent" }], o),
     ...[...tile.children].filter((e) => e !== thumb).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], o)),
