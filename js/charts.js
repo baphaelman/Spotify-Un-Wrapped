@@ -8,7 +8,7 @@ export {
   onFocusChange, onZoomChange, onSelectionChange,
   hiddenIn, setHidden, toggleArtist, showArtists, focusArtist, holdFocus,
 } from "./charts/rolling.js";
-export { renderMonthly, focusMonthly } from "./charts/monthly.js";
+export { renderMonthly, focusMonthly, morphMonthly } from "./charts/monthly.js";
 export { renderClock, focusClock } from "./charts/clock.js";
 export { renderDiscovery, focusDiscovery, panDiscovery } from "./charts/discovery.js";
 export { renderHistogram, renderHourLines } from "./charts/community.js";

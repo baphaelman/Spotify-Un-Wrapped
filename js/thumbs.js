@@ -426,22 +426,29 @@ function paint() {
   frame = 0;
   if (!state.plays || !state.range || !state.mixArgs) return;
   const t = tokens();
-  let d = null;
   for (const [id, el] of els) {
     if (!near.has(el) || !el.offsetParent) {
       owed.add(el);
       continue;
     }
-    owed.delete(el);
-    d ??= digest();
-    const c = chart(el);
-    const first = !c.getOption()?.series?.length;
-    c.setOption({
-      // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
-      animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
-      animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
-      tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
-    }, { replaceMerge: first ? [] : ["series"] });
-    OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
+    paintOne(id, el, t);
   }
+}
+// One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js)
+export function paintThumb(id) {
+  const el = els.get(id);
+  if (el?.offsetParent && state.plays && state.range && state.mixArgs) paintOne(id, el, tokens());
+}
+function paintOne(id, el, t) {
+  owed.delete(el);
+  const d = digest();
+  const c = chart(el);
+  const first = !c.getOption()?.series?.length;
+  c.setOption({
+    // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
+    animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
+    animationDurationUpdate: dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
+    tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
+  }, { replaceMerge: first ? [] : ["series"] });
+  OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
 }

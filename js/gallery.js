@@ -8,12 +8,15 @@
 // screen while a card is open rather than hiding, so the thumbnails keep their size.
 //
 // Opening flies: the tile grows into the card's place while the card, pinned there and scaled down over the tile,
-// grows with it and fades in over it; the rest of the grid fades where it is. Closing is the same in reverse, into
-// the tile. A flight turned back midway (Esc while it opens) reverses from where it is.
+// grows with it and fades in over it; the rest of the grid fades where it is. A card with an arrival (arrivals.js)
+// flies solid instead: its plot starts as the thumbnail and morphs into itself, and only what's around it fades.
+// Closing is the same in reverse, into the tile. A flight turned back midway (Esc while it opens) reverses from where
+// it is.
 
 import { $, bringBack } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
-import { addThumb, paintThumbs, STRETCH } from "./thumbs.js";
+import { addThumb, paintThumbs, paintThumb, STRETCH } from "./thumbs.js";
+import { ARRIVALS } from "./arrivals.js";
 
 // card id -> its address (#every-play)
 const SLUG = {
@@ -257,30 +260,37 @@ function plotBox(card, C) {
   return width > 0 && bottom > top ? { left, top, width, height: bottom - top } : C;
 }
 // The keyframes of a flight open (played in reverse to close): T the tile's box, Th its thumbnail's, C the card's in
-// its place, P its plot's
-function flightAnims(entry, T, Th, C, P, direction) {
+// its place, P its plot's. solid: the card's plot is the thumbnail all the way (its arrival morphs it), so the card
+// draws over the tile and never fades as a whole: its frame and everything but the plot fade in around it, and the
+// thumbnail under it fades out early, over bars that match it.
+function flightAnims(entry, T, Th, C, P, direction, solid) {
   const { card, tile } = entry;
   const thumb = tile.querySelector(".gal-thumb");
   const s = Th.width / P.width;
-  const dx = Th.left - C.left - s * (P.left - C.left), dy = Th.top - C.top - s * (P.top - C.top);
+  // (a solid card's plot sits on the thumbnail's baseline: its arrival stretches its first shapes to the thumbnail's
+  // height, when the two boxes' shapes differ)
+  const dx = Th.left - C.left - s * (P.left - C.left);
+  const dy = solid ? Th.bottom - C.top - s * (P.top + P.height - C.top) : Th.top - C.top - s * (P.top - C.top);
   // the tile's frame, in the scaled card's own pixels
   const fl = (T.left - C.left - dx) / s, ft = (T.top - C.top - dy) / s;
   const clip = [ft, C.width - fl - T.width / s, C.height - ft - T.height / s, fl].map((v) => `${Math.max(0, v)}px`).join(" ");
   for (const el of [card, thumb]) el.style.transformOrigin = "0 0";
-  tile.style.zIndex = "6"; // (above the card, so the thumbnail crosses over it)
+  tile.style.zIndex = solid ? "4" : "6"; // (above the card, so the thumbnail crosses over it, unless the card is solid)
   const o = { duration: dur(MORPH_MS), easing: EASE_IN_OUT.css, fill: "forwards", direction };
+  const from = { transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${clip} round ${8 / s}px)` };
+  const to = { transform: "none", clipPath: "inset(0px 0px 0px 0px round 8px)" };
+  const cs = getComputedStyle(card);
+  const fadeIn = [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1 }];
   return [
-    card.animate([
-      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, clipPath: `inset(${clip} round ${8 / s}px)`, opacity: 0 },
-      { opacity: 1, offset: 0.4 },
-      { transform: "none", clipPath: "inset(0px 0px 0px 0px round 8px)", opacity: 1 },
-    ], o),
+    card.animate(solid
+      ? [{ ...from, backgroundColor: "transparent", borderColor: "transparent" }, { backgroundColor: cs.backgroundColor, borderColor: cs.borderColor, offset: 0.4 }, to]
+      : [{ ...from, opacity: 0 }, { opacity: 1, offset: 0.4 }, { ...to, opacity: 1 }], o),
     thumb.animate([
       { transform: "none", opacity: 1 },
-      { opacity: 1, offset: 0.4 },
-      { opacity: 0, offset: 0.7 },
+      ...(solid ? [{ opacity: 0, offset: 0.25 }] : [{ opacity: 1, offset: 0.4 }, { opacity: 0, offset: 0.7 }]),
       { transform: `translate(${P.left - Th.left}px, ${P.top - Th.top}px) scale(${P.width / Th.width}, ${P.height / Th.height})`, opacity: 0 },
     ], o),
+    ...(solid ? chromeOf(card).map((el) => el.animate(fadeIn, o)) : []),
     // the tile's frame and words give way to the card's
     tile.animate([{}, { backgroundColor: "transparent", borderColor: "transparent", offset: 0.4 }, { backgroundColor: "transparent", borderColor: "transparent" }], o),
     ...[...tile.children].filter((e) => e !== thumb).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], o)),
@@ -288,6 +298,44 @@ function flightAnims(entry, T, Th, C, P, direction) {
     // everything else in the gallery fades where it is
     ...others(tile).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], o)),
   ];
+}
+// ---------- A solid flight's chrome: everything of the card but its plot's shapes ----------
+const plotChart = (card) => echarts.getInstanceByDom(card.querySelector(PLOT[card.id]));
+// The card's elements beside its plot (walking up from it), and the plot's own overlays beside its chart's canvas
+function chromeOf(card) {
+  const plot = card.querySelector(PLOT[card.id]);
+  const root = plotChart(card)?.getZr().painter.getViewportRoot?.();
+  const out = [...plot.children].filter((e) => e !== root);
+  for (let el = plot; el !== card; el = el.parentElement) out.push(...[...el.parentElement.children].filter((e) => e !== el));
+  return out;
+}
+// The chart's drawn shapes that aren't a series' (axes, guides, labels), faded in the canvas with the chrome: opening,
+// from nothing to whole by 40% of the flight as the chrome does (keyframes in eased time, as the animations' are);
+// closing, the same played back (the in-out cubic is symmetric). from: turned back midway, from that opacity to the
+// end over ms.
+function fadeCanvas(card, opening, ms, from) {
+  const c = plotChart(card);
+  if (!c) return;
+  const own = new Set();
+  for (const v of c._chartsViews ?? []) v.group.traverse((e) => own.add(e));
+  for (const e of c.getZr().storage.getDisplayList(true)) {
+    if (own.has(e)) continue;
+    e.stopAnimation();
+    if (!ms) {
+      e.setStyle({ opacity: 1 });
+      continue;
+    }
+    const a = e.animate("style", false);
+    if (from != null) a.when(0, { opacity: from }).when(ms, { opacity: opening ? 1 : 0 }).start(EASE_IN_OUT.echarts);
+    else if (opening) a.when(0, { opacity: 0 }).when(0.4 * ms, { opacity: 1 }).when(ms, { opacity: 1 }).start(EASE_IN_OUT.echarts);
+    else a.when(0, { opacity: 1 }).when(0.6 * ms, { opacity: 1 }).when(ms, { opacity: 0 }).start(EASE_IN_OUT.echarts);
+  }
+}
+// The card's arrival (arrivals.js), with its thumbnail as drawn: true when it ran
+function arrive(entry, to, ms) {
+  const fn = ARRIVALS[entry.card.id];
+  const th = echarts.getInstanceByDom(entry.tile.querySelector(".gal-thumb"));
+  return !!(fn && th?.getOption()?.series?.length && fn(entry.card, th, to, ms));
 }
 // Held on screen where it is (or at `r`) through a flight, above the grid and under the bar
 const PINNED = ["position", "left", "top", "width", "margin", "zIndex", "display"];
@@ -297,10 +345,10 @@ function pin(el, r, width) {
 }
 const unpin = (...els) => els.forEach((el) => PINNED.forEach((k) => (el.style[k] = "")));
 
-// The flight in progress: { anims, done (as it lands), undo (turned back), opening, entry }
+// The flight in progress: { anims, done (as it lands), undo (turned back), opening, entry, solid }
 let flight = null;
-function launch(entry, opening, anims, done, undo) {
-  const f = { anims, done, undo, opening, entry };
+function launch(entry, opening, anims, done, undo, solid) {
+  const f = { anims, done, undo, opening, entry, solid };
   flight = f;
   anims[0].onfinish = () => {
     if (flight !== f) return;
@@ -318,20 +366,29 @@ function land() {
 // Fly back the way it came, from where it is
 function turnBack() {
   const f = flight;
+  // (the time flown so far is the time back, whichever way it was going)
+  const ms = f.anims[0].currentTime;
   for (const a of f.anims) a.reverse();
   [f.done, f.undo] = [f.undo, f.done];
   f.opening = !f.opening;
+  if (!f.solid) return;
+  // the plot morphs back from where it is, its axes from the opacity the chrome has reached
+  const at = +getComputedStyle(chromeOf(f.entry.card)[0] ?? f.entry.card).opacity;
+  arrive(f.entry, f.opening ? "card" : "thumb", ms);
+  fadeCanvas(f.entry.card, f.opening, ms, at);
 }
 // Everything in the gallery but the tile that flies (the sections' names, the other tiles, the bar above them)
 const others = (tile) => [...gallery.querySelectorAll(".gal-sec h3, .gal-tile"), ask, pick].filter((e) => e !== tile && !e.hidden);
 // Back to rest after a flight, either way
 function settle(entry, anims) {
   for (const a of anims) a.cancel();
+  fadeCanvas(entry.card, true, 0);
   unpin(entry.card, head);
   entry.card.style.transformOrigin = entry.tile.querySelector(".gal-thumb").style.transformOrigin = entry.tile.style.zIndex = "";
 }
-const toGrid = (entry, anims) => () => {
+const toGrid = (entry, anims, solid) => () => {
   stage.append(entry.card);
+  if (solid) arrive(entry, "card", 0); // (it waits off screen as itself)
   settle(entry, anims);
   entry.tile.focus({ preventScroll: true });
 };
@@ -353,8 +410,10 @@ function flyOpen(entry) {
   slot.append(card);
   bringBack(card);
   const C = card.getBoundingClientRect();
-  const anims = flightAnims(entry, T, Th, C, plotBox(card, C), "normal");
-  launch(entry, true, anims, toCard(entry, anims), toGrid(entry, anims));
+  const solid = arrive(entry, "thumb", 0) && arrive(entry, "card", dur(MORPH_MS));
+  const anims = flightAnims(entry, T, Th, C, plotBox(card, C), "normal", solid);
+  if (solid) fadeCanvas(card, true, dur(MORPH_MS));
+  launch(entry, true, anims, toCard(entry, anims), toGrid(entry, anims, solid), solid);
 }
 
 function flyClose(entry) {
@@ -373,9 +432,12 @@ function flyClose(entry) {
     scrollBy({ top: T.top - lo - Math.max(0, (innerHeight - lo - T.height) / 2), behavior: "instant" });
     T = tile.getBoundingClientRect();
   }
+  paintThumb(card.id); // (now, so the arrival morphs to the thumbnail as it will show)
   paintThumbs();
-  const anims = flightAnims(entry, T, tile.querySelector(".gal-thumb").getBoundingClientRect(), C, P, "reverse");
-  launch(entry, false, anims, toGrid(entry, anims), toCard(entry, anims));
+  const solid = arrive(entry, "thumb", dur(MORPH_MS));
+  const anims = flightAnims(entry, T, tile.querySelector(".gal-thumb").getBoundingClientRect(), C, P, "reverse", solid);
+  if (solid) fadeCanvas(card, false, dur(MORPH_MS));
+  launch(entry, false, anims, toGrid(entry, anims, solid), toCard(entry, anims), solid);
 }
 
 function setCrumb(entry) {

@@ -51,6 +51,12 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
   st.busyUntil = fresh ? 0 : performance.now() + dur(MORPH_MS);
   const captionOf = (r) => barView(st, r).top[0]?.name ?? "";
   const bar = { type: "bar", stack: "month", barCategoryGap: `${tune.barGap}%` };
+  // The series as set, from their looks (monthlySeries)
+  st.dress = (looks) => [
+    { ...looks[0], name: "Everyone else", ...bar, silent: true },
+    ...[...names, ...names].map((n, j) => ({ ...looks[j + 1], name: n, ...bar, cursor: pins ? "pointer" : "default" })),
+    { ...looks[2 * names.length + 1], name: "Top artist", ...bar },
+  ];
   const looks = monthlySeries(st);
   // New artists over the same bars (a pin, the artist count): the bars stand still and only who fills them
   // changes, so the old chart fades out over the new one instead of the bars growing in again
@@ -113,11 +119,7 @@ export function renderMonthly(el, rows, names = [], slots = [], pins = null, hov
         axisLine: { show: false },
         axisLabel: { color: t.muted, formatter: (v) => `${v} h` },
       },
-      series: [
-        { ...looks[0], name: "Everyone else", ...bar, silent: true },
-        ...[...names, ...names].map((n, j) => ({ ...looks[j + 1], name: n, ...bar, cursor: pins ? "pointer" : "default" })),
-        { ...looks[2 * names.length + 1], name: "Top artist", ...bar },
-      ],
+      series: st.dress(looks),
     },
     // Colors and outlines fade with the bars' morph rather than snapping before it
     { notMerge: fresh },
@@ -613,4 +615,42 @@ function restyleMonthly(el, st, c) {
   const series = monthlySeries(st);
   setOptionFaded(c, { series }, undefined, dur(FADE_MS)); // faded, as hover in the other charts is
   settleMonthly(el, st, series);
+}
+
+// The gallery's flight (arrivals.js): the chart in its thumbnail's form, or its own. The thumbnail's form is each bar
+// its top item over one gray, in the thumbnail's colors and bar gap, as tall as the thumbnail draws it: the values are
+// scaled rather than the axis, so the axes, captions and lines are the same in both and only fade (gallery.js).
+// look: { max (the thumbnail's y-axis top), stretch (how much taller its bars stand, for its plot's shape), gap (its
+// barCategoryGap), rest (its gray), tops[i] (each bar's top color) }. Bars may stand above the plot meanwhile.
+// Morphs from what's on screen to the thumbnail's form (toThumb) or its own over ms, or draws it at once (ms 0).
+// Returns false when the thumbnail's bars aren't the chart's (another bar size), and the flight crossfades instead.
+export function morphMonthly(el, look, toThumb, ms) {
+  const st = monthlyState.get(el);
+  const c = instances.get(el);
+  const y = c?.getModel()?.getComponent("yAxis")?.axis?.scale;
+  if (!st || !y || !look || look.tops.length !== st.rows.length || !(look.max > 0)) return false;
+  c.dispatchAction({ type: "hideTip" });
+  const [lo, max] = y.getExtent();
+  const k = (max / look.max) * (look.stretch || 1);
+  const flat = { borderWidth: 0, borderRadius: 0 };
+  const views = st.rows.map((r) => barView(st, r));
+  // Each series' share of the thumbnail's bars: the gray under the top item, the top item in its own series
+  const part = (id, i) => {
+    const { hours, top: [first] } = views[i];
+    if (id === "rest") return hours - (first?.hours ?? 0);
+    if (id === "top") return first && !st.names.includes(first.name) ? first.hours : 0;
+    return id[0] === "t" && first?.name === st.names[+id.slice(1)] ? first.hours : 0;
+  };
+  const series = toThumb
+    ? st.dress(monthlySeries(st)).map((s) => ({
+        ...s, clip: false, barCategoryGap: look.gap, itemStyle: { ...s.itemStyle, ...flat },
+        data: st.rows.map((_, i) => ({ value: part(s.id, i) * k, itemStyle: { ...flat, color: s.id === "rest" ? look.rest : look.tops[i] } })),
+      }))
+    : st.dress(monthlySeries(st)).map((s) => ({ ...s, clip: false }));
+  // (the thumbnail's form holds the axis where it is, so its scaled bars don't move it)
+  const yAxis = toThumb ? { min: lo, max, interval: y.getInterval() } : { min: null, max: null, interval: null };
+  st.busyUntil = performance.now() + ms; // (a hover's restyle waits for the morph, see focusMonthly)
+  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, yAxis, series }, undefined, ms);
+  if (!ms) c.setOption({ animation: true });
+  return true;
 }
