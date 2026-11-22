@@ -98,6 +98,13 @@ const colorOf = (t, n) => {
 const colorAt = (t, d, a) => (a < d.k ? colorOf(t, d.artists[a]) : t.other);
 const band = (t, col) => mix(t.surface, col, t.shade.rest); // the rolling chart's bands at rest
 const r1 = (v) => Math.round(v * 100) / 100;
+// The mix bar's blocks: the chart's artists, and everyone else when the card's own toggle shows it (so the shares
+// are the card's)
+const mixRows = (d) => {
+  const rows = d.artists.map((n, i) => [n, d.series[i].reduce((s, v) => s + v, 0)]);
+  if (document.getElementById("mix-other")?.checked) rows.push([OTHER, d.series[d.k].reduce((s, v) => s + v, 0)]);
+  return rows;
+};
 const keys = (n) => [...Array(n).keys()];
 // Rolling sum over a few slices (wrapping round for the hours of a day), so shares don't flicker slice to slice
 const smooth = (a, w = 2, wrap = false) => Array.from(a, (_, i) => {
@@ -118,12 +125,12 @@ function shareBands(t, d, rows) {
 export const THUMBS = {
   // The mix bar: each artist's tinted block with its share in its color and its hours under, their pictures above (faces)
   "mix-card": (d, t, box) => {
-    const hrs = d.artists.map((_, i) => d.series[i].reduce((s, v) => s + v, 0));
+    const rows = mixRows(d), hrs = rows.map((r) => r[1]);
     const sum = hrs.reduce((s, v) => s + v, 0) || 1;
     return {
       grid: { left: 0, right: 0, top: FACE + 8, bottom: 0 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: [""] }),
-      series: d.artists.map((n, i) => {
-        const col = colorOf(t, n);
+      series: rows.map(([n], i) => {
+        const col = n === OTHER ? t.other : colorOf(t, n);
         return {
           type: "bar", stack: "a", barWidth: "100%", id: n, name: n, data: [r1(hrs[i] / sum)],
           itemStyle: { color: band(t, col), borderColor: t.surface, borderWidth: 1, borderRadius: 3 },
@@ -145,8 +152,8 @@ export const THUMBS = {
         const col = colorOf(t, n);
         const kids = [...d.parts[i]].sort((a, b) => b[1] - a[1]).slice(0, 6);
         return {
-          name: n, value: r1(d.total.get(n) ?? 0), itemStyle: { color: mix(t.surface, col, 0.3) },
-          children: kids.map(([p, h]) => ({ name: p, value: r1(h), itemStyle: { color: mix(t.surface, col, 0.16) } })),
+          name: n, value: r1(d.total.get(n) ?? 0), itemStyle: { color: mix(t.surface, col, 0.7) },
+          children: kids.map(([p, h]) => ({ name: p, value: r1(h), itemStyle: { color: mix(t.surface, col, 0.4) } })),
         };
       }),
     }],
@@ -186,22 +193,21 @@ export const THUMBS = {
       yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
     };
   },
-  // … over time: the race's last frame, a tinted bar per artist with its name
-  "race-card": (d, t) => {
-    const rows = d.artists.map((n, i) => [n, d.series[i].reduce((s, v) => s + v, 0)]).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    return {
-      grid: { left: 0, right: 34, top: 2, bottom: 2 }, xAxis: axis("value", { max: rows[0]?.[1] || 1 }),
-      yAxis: axis("category", { data: rows.map((x) => x[0]), inverse: true }),
-      series: [{
-        type: "bar", barWidth: "62%",
-        data: rows.map(([n, h]) => ({ value: r1(h), itemStyle: { color: band(t, colorOf(t, n)), borderColor: colorOf(t, n), borderWidth: 0.5, borderRadius: 2 } })),
-        label: { show: true, position: "insideLeft", distance: 6, color: t.primary, fontSize: 9, formatter: (p) => rows[p.dataIndex][0], width: 200, overflow: "truncate" },
-      }, {
-        type: "bar", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" }, data: rows.map(() => rows[0][1]),
-        label: { show: true, position: "right", distance: 6, color: t.muted, fontSize: 9, formatter: (p) => fmtH(rows[p.dataIndex][1]) },
-      }],
-    };
-  },
+  // … over time: the race run out, each artist's hours since the period began piling up, named where it ends
+  // (the card plays this out as bars; drawn as lines it reads as time, unlike the lists beside it)
+  "race-card": (d, t) => ({
+    grid: { left: 0, right: 74, top: 4, bottom: 1 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(d.nb + 1) }),
+    yAxis: guides(t, { splitNumber: 3 }), animationDurationUpdate: dur(CHASE_MS),
+    series: d.artists.map((n, i) => {
+      let run = 0;
+      return {
+        type: "line", id: n, symbol: "none", lineStyle: { width: 1.25, color: colorOf(t, n) },
+        data: [0, ...Array.from(d.series[i], (v) => r1((run += v)))],
+        endLabel: { show: true, color: colorOf(t, n), fontSize: 9, distance: 4, formatter: n, width: 68, overflow: "truncate" },
+        labelLayout: { moveOverlap: "shiftY" },
+      };
+    }),
+  }),
   // Rank race: where each artist stood among the chart's artists, slice by slice, over a guide per place
   "rank-card": (d, t) => {
     const sm = d.artists.map((_, i) => smooth(d.series[i], 3));
@@ -225,7 +231,7 @@ export const THUMBS = {
       grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(bars) }), yAxis: guides(t, { splitNumber: 3 }),
       series: order.map((a, j) => ({
         type: "bar", stack: "a", id: a < d.k ? d.artists[a] : OTHER, barCategoryGap: "30%", data: fold(Array.from(d.series[a])),
-        itemStyle: { color: mix(t.surface, colorAt(t, d, a), 0.25), borderColor: t.surface, borderWidth: 1, borderRadius: j === order.length - 1 ? [1.5, 1.5, 0, 0] : 0 },
+        itemStyle: { color: a < d.k ? mix(t.surface, colorAt(t, d, a), 0.55) : mix(t.surface, t.other, 0.25), borderColor: t.surface, borderWidth: 1, borderRadius: j === order.length - 1 ? [1.5, 1.5, 0, 0] : 0 },
       })),
     };
   },
@@ -234,8 +240,8 @@ export const THUMBS = {
     grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: 0, max: d.days }),
     yAxis: { ...guides(t), type: "log", min: 1 / 60, splitLine: hide },
     series: [0, 1].map((mine) => ({
-      type: "scatter", symbolSize: mine ? 4.5 : 2.5, z: mine ? 2 : 1,
-      itemStyle: mine ? {} : { color: alpha(t.other, 0.55) },
+      type: "scatter", symbolSize: mine ? 7 : 3.5, z: mine ? 2 : 1,
+      itemStyle: mine ? { borderColor: t.surface, borderWidth: 1 } : { color: alpha(t.other, 0.75) },
       data: d.found.filter((x) => (x[2] < d.k) === !!mine).map(([day, h, a]) => ({
         value: [day, Math.max(h, 1 / 60)], ...(mine ? { itemStyle: { color: colorAt(t, d, a) } } : {}),
       })),
@@ -244,8 +250,7 @@ export const THUMBS = {
   // Hours per week: a ridge per artist, its hours rising from its own baseline, each over the next
   "hours-card": (d, t) => {
     const sm = d.artists.map((_, i) => smooth(d.series[i], 1));
-    const max = Math.max(1e-9, ...sm.flat());
-    const rise = 3; // the tallest peak, in rows
+    const rise = 1.6; // each artist's peak, in rows
     return {
       grid: { left: 0, right: 0, top: 2, bottom: 2 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(d.nb) }),
       yAxis: axis("value", { min: 0, max: Math.max(1, d.k - 1) + rise }),
@@ -254,7 +259,7 @@ export const THUMBS = {
         return {
           type: "line", id: n, symbol: "none", smooth: 0.4, lineStyle: { width: 1, color: colorOf(t, n) },
           areaStyle: { color: band(t, colorOf(t, n)), opacity: 1, origin: y0 },
-          data: sm[i].map((v) => r1(y0 + (v / max) * rise)),
+          data: sm[i].map((v, _, a) => r1(y0 + (v / (Math.max(...a) || 1)) * rise)),
         };
       }),
     };
@@ -280,7 +285,7 @@ export const THUMBS = {
       data: d.raster.filter((p) => p[2] === a).map((p) => [p[0], p[1]]),
     })),
   }),
-  // Every day: a square per day, a column per week, tinted by the day's top artist and darker the more you listened
+  // Every day: a square per day, a column per week, tinted by the day's top artist of the chart's and darker the more you listened
   "calendar-card": (d, t) => {
     const startDow = (d.lo + 3) % 7, weeks = Math.ceil((d.days + startDow) / 7);
     const sums = keys(d.days).map((i) => {
@@ -288,11 +293,12 @@ export const THUMBS = {
       for (let a = 0; a < d.K; a++) {
         const h = d.daily[i * d.K + a];
         s += h;
-        if (h > best) (best = h), (top = a);
+        if (a < d.k && h > best) (best = h), (top = a); // (the day's top among the chart's artists: everyone else, all of them together, would win most days)
       }
       return [s, top];
     });
-    const full = Math.max(1e-9, ...sums.map((x) => x[0])) * 0.7;
+    const heard = sums.map((x) => x[0]).filter((h) => h > 0).sort((a, b) => a - b);
+    const full = heard[Math.floor(heard.length * 0.9)] || 1e-9; // (the 90th percentile day is full strength)
     const empty = mix(t.surface, t.other, 0.08);
     return {
       grid: { left: 0, right: 0, top: 0, bottom: 0 }, xAxis: axis("category", { data: keys(weeks) }), yAxis: axis("category", { data: keys(7), inverse: true }),
@@ -300,7 +306,7 @@ export const THUMBS = {
         type: "heatmap", itemStyle: { borderColor: t.surface, borderWidth: weeks > 80 ? 0 : 1.5, borderRadius: 1 },
         data: sums.map(([h, a], i) => ({
           value: [Math.floor((i + startDow) / 7), (i + startDow) % 7, r1(h)],
-          itemStyle: { color: h > 0 ? mix(t.surface, colorAt(t, d, a), 0.2 + 0.7 * Math.min(1, h / full)) : empty },
+          itemStyle: { color: h > 0 ? mix(t.surface, colorAt(t, d, a), 0.25 + 0.65 * Math.sqrt(Math.min(1, h / full))) : empty },
         })),
       }],
     };
@@ -330,10 +336,10 @@ function faces(el, d, t, box) {
     el.append(row);
   }
   row.classList.toggle("square", state.dim !== "artist"); // albums' and songs' covers are square
-  const hrs = d.artists.map((_, i) => d.series[i].reduce((s, v) => s + v, 0));
+  const rows = mixRows(d), hrs = rows.map((r) => r[1]);
   const sum = hrs.reduce((s, v) => s + v, 0) || 1;
   let x = 0;
-  d.artists.forEach((n, i) => {
+  rows.forEach(([n], i) => {
     const w = (hrs[i] / sum) * box.w;
     let f = row.faces.get(n);
     if (!f) {
@@ -345,7 +351,7 @@ function faces(el, d, t, box) {
     }
     clearTimeout(f.gone);
     f.style.left = `${x + w / 2}px`;
-    f.style.opacity = w >= FACE + 4 ? 1 : 0;
+    f.style.opacity = w >= FACE + 4 && n !== OTHER ? 1 : 0;
     f.style.background = mix(t.surface, colorOf(t, n), 0.3);
     x += w;
     const item = state.dim === "genre" ? null : state.covers?.get(n);
