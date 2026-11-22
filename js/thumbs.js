@@ -10,7 +10,8 @@ import { state, shownPlays, OTHER, WINDOWS } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
-import { DAY, HOUR, isSkip, isPick } from "./aggregate.js";
+import { DAY, HOUR, isSkip, isPick, monthSpan } from "./aggregate.js";
+import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur } from "./motion.js";
 import { fmtH } from "./format.js";
 
@@ -36,7 +37,7 @@ let memo = null;
 function digest() {
   const artists = (state.mixArgs?.[0] ?? []).filter((n) => n !== OTHER);
   const { lo, hi } = state.range;
-  const key = [state.plays?.length, lo, hi, state.dim, state.hidden.join("\u0001"), artists.join("\u0001")].join("|");
+  const key = [state.plays?.length, lo, hi, state.dim, tune.maxBars, state.hidden.join("\u0001"), artists.join("\u0001")].join("|");
   if (memo?.key === key) return memo;
   const plays = shownPlays();
   // local days and hours without a Date per play: the zone's offset, taken once (a DST hour off is fine at this size)
@@ -52,6 +53,15 @@ function digest() {
   const skip = artists.map(() => [0, 0, 0]); // picked, played through, skipped (plays)
   const hours = new Float64Array(K * 24); // by hour of day
   const daily = new Float64Array(days * K); // by day
+  // Calendar months (in the card's blocks of `span`), each with its hours, its top item of all and the chart's artists'
+  const span = monthSpan(plays, tune.maxBars);
+  const monthKey = (i) => {
+    const dt = new Date((lo + i) * DAY); // (a local day's UTC fields are its local date)
+    return Math.floor((dt.getUTCFullYear() * 12 + dt.getUTCMonth()) / span);
+  };
+  const m0 = monthKey(0);
+  const monthOf = Int32Array.from({ length: days }, (_, i) => monthKey(i) - m0);
+  const months = Array.from({ length: monthOf[days - 1] + 1 }, () => ({ hours: 0, each: new Map(), by: new Float64Array(K) }));
   const raster = [];
   const every = Math.max(1, Math.ceil(plays.length / RASTER_MAX));
   for (let i = 0; i < plays.length; i++) {
@@ -64,6 +74,10 @@ function digest() {
     series[a][Math.floor(d / per)] += h;
     total.set(p.artist, (total.get(p.artist) ?? 0) + h);
     daily[d * K + a] += h;
+    const mo = months[monthOf[d]];
+    mo.hours += h;
+    mo.by[a] += h;
+    mo.each.set(p.artist, (mo.each.get(p.artist) ?? 0) + h);
     const hour = Math.floor((local % DAY) / HOUR);
     hours[a * 24 + hour] += h;
     if (a < k) {
@@ -78,7 +92,12 @@ function digest() {
   for (const [n, f] of firstDays(off)) if (f >= lo && f <= hi && total.has(n)) found.push([f - lo, total.get(n), idx.get(n) ?? k]);
   const step = Math.max(1, Math.ceil(found.length / FOUND_MAX));
   const foundShown = found.filter((x, i) => x[2] < k || i % step === 0);
-  memo = { key, artists, k, K, nb, per, lo, days, series, total, parts, skip, hours, daily, raster, found: foundShown };
+  for (const mo of months) {
+    let top = "", topH = 0;
+    for (const [n, h] of mo.each) if (h > topH) (top = n), (topH = h);
+    Object.assign(mo, { top, topH, each: null });
+  }
+  memo = { key, artists, k, K, nb, per, lo, days, series, total, parts, skip, hours, daily, raster, found: foundShown, months };
   return memo;
 }
 
@@ -121,6 +140,68 @@ function shareBands(t, d, rows) {
     data: rows[i].map((v, j) => r1(v / tot[j])),
   }));
 }
+
+// Top … Every Month, the looks being compared (the owner picks one; the rest go)
+// A month's top item: strong in its color when it's one of the chart's, a mid gray when it isn't
+const crown = (t, n, k = 0.85) => (state.colorSlots?.has(n) ? mix(t.surface, colorOf(t, n), k) : mix(t.surface, t.other, k * 0.7));
+const MONTHLY_LOOK = "crowns";
+export const MONTHLY_LOOKS = {
+  // The card's bars pared down: each month's hours, its top item on top in its color, the rest one quiet gray
+  crowns: (d, t) => ({
+    grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(d.months.length) }), yAxis: guides(t, { splitNumber: 3 }),
+    series: [
+      { type: "bar", stack: "a", id: "rest", barCategoryGap: "26%", itemStyle: { color: mix(t.surface, t.other, 0.28) }, data: d.months.map((m) => r1(m.hours - m.topH)) },
+      { type: "bar", stack: "a", id: "top", data: d.months.map((m) => ({ value: r1(m.topH), itemStyle: { color: crown(t, m.top), borderRadius: [2, 2, 0, 0] } })) },
+    ],
+  }),
+  // Reigns: a ribbon of who topped each month, a run of months under one name, over a gray line of the hours
+  reigns: (d, t, box) => {
+    const M = d.months, RIB = 24;
+    const runs = [];
+    M.forEach((m) => (runs.at(-1)?.[0] === m.top ? runs.at(-1)[1]++ : runs.push([m.top, 1])));
+    return {
+      grid: [{ left: 0, right: 0, top: 2, bottom: RIB + 6 }, { left: 0, right: 0, bottom: 0, height: RIB }],
+      xAxis: [base(t, "category", { data: keys(M.length) }), axis("value", { gridIndex: 1, min: 0, max: M.length })],
+      yAxis: [guides(t, { splitNumber: 2 }), axis("category", { gridIndex: 1, data: [""] })],
+      series: [
+        { type: "line", id: "hours", symbol: "none", smooth: 0.3, lineStyle: { width: 1, color: t.other }, areaStyle: { color: mix(t.surface, t.other, 0.18), opacity: 1 }, data: M.map((m) => r1(m.hours)) },
+        ...runs.map(([n, len], j) => {
+          const w = (len / M.length) * box.w;
+          return {
+            type: "bar", stack: "r", id: "run" + j, xAxisIndex: 1, yAxisIndex: 1, barWidth: "100%", data: [len],
+            itemStyle: { color: crown(t, n, 0.45), borderColor: t.surface, borderWidth: 1, borderRadius: 3 },
+            label: { show: w > 30, position: "inside", color: t.primary, fontSize: 9, formatter: n, width: w - 6, overflow: "truncate" },
+          };
+        }),
+      ],
+    };
+  },
+  // Each month's mix of the chart's artists, as shares (everyone else left out), its top one strongest
+  shares: (d, t) => ({
+    grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(d.months.length) }), yAxis: axis("value", { max: 1 }),
+    series: d.artists.map((n, i) => ({
+      type: "bar", stack: "a", id: n, barCategoryGap: "18%",
+      data: d.months.map((m) => {
+        const mine = m.by.slice(0, d.k), sum = mine.reduce((s, v) => s + v, 0) || 1;
+        const top = mine.indexOf(Math.max(...mine));
+        return { value: r1(m.by[i] / sum), itemStyle: { color: mix(t.surface, colorOf(t, n), top === i ? 0.85 : 0.35), borderColor: t.surface, borderWidth: 0.5 } };
+      }),
+    })),
+  }),
+  // (the look so far) everyone else's gray at the bottom, the chart's artists tinted above, a dozen bars at most
+  stack: (d, t) => {
+    const bars = Math.min(12, d.nb), per = Math.ceil(d.nb / bars);
+    const fold = (a) => keys(bars).map((b) => r1(a.slice(b * per, (b + 1) * per).reduce((s, v) => s + v, 0)));
+    const order = [d.k, ...keys(d.k)];
+    return {
+      grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(bars) }), yAxis: guides(t, { splitNumber: 3 }),
+      series: order.map((a, j) => ({
+        type: "bar", stack: "a", id: a < d.k ? d.artists[a] : OTHER, barCategoryGap: "30%", data: fold(Array.from(d.series[a])),
+        itemStyle: { color: a < d.k ? mix(t.surface, colorAt(t, d, a), 0.55) : mix(t.surface, t.other, 0.25), borderColor: t.surface, borderWidth: 1, borderRadius: j === order.length - 1 ? [1.5, 1.5, 0, 0] : 0 },
+      })),
+    };
+  },
+};
 
 export const THUMBS = {
   // The mix bar: each artist's tinted block with its share in its color and its hours under, their pictures above (faces)
@@ -222,19 +303,7 @@ export const THUMBS = {
       series: d.artists.map((n, i) => ({ type: "line", id: n, symbol: "none", smooth: 0.5, connectNulls: false, lineStyle: { width: 1, color: colorOf(t, n) }, data: ranks[i] })),
     };
   },
-  // … Every Month: everyone else's gray at the bottom, the chart's artists tinted above, a dozen bars at most
-  "monthly-card": (d, t) => {
-    const bars = Math.min(12, d.nb), per = Math.ceil(d.nb / bars);
-    const fold = (a) => keys(bars).map((b) => r1(a.slice(b * per, (b + 1) * per).reduce((s, v) => s + v, 0)));
-    const order = [d.k, ...keys(d.k)];
-    return {
-      grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(bars) }), yAxis: guides(t, { splitNumber: 3 }),
-      series: order.map((a, j) => ({
-        type: "bar", stack: "a", id: a < d.k ? d.artists[a] : OTHER, barCategoryGap: "30%", data: fold(Array.from(d.series[a])),
-        itemStyle: { color: a < d.k ? mix(t.surface, colorAt(t, d, a), 0.55) : mix(t.surface, t.other, 0.25), borderColor: t.surface, borderWidth: 1, borderRadius: j === order.length - 1 ? [1.5, 1.5, 0, 0] : 0 },
-      })),
-    };
-  },
+  "monthly-card": (d, t, box) => MONTHLY_LOOKS[MONTHLY_LOOK](d, t, box),
   // Discovery: everything first heard in the period, a dot by when and (on a log scale) how much since
   "discovery-card": (d, t) => ({
     grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: 0, max: d.days }),

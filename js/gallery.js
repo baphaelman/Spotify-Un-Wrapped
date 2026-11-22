@@ -26,17 +26,31 @@ const SECTIONS = [
   ["Over time", ["rolling-card", "race-card", "rank-card", "monthly-card", "discovery-card"]],
   ["How you listen", ["hours-card", "clock-card", "raster-card", "calendar-card", "skips-card"]],
 ];
-// The ways to lay the tiles out (a Visual tweaks choice while the owner compares them; off, DEFAULT_LAYOUT):
-// even: every tile one column, the last row of a section left short;
-// fill: a section's last row shares the whole width (five tiles in three columns: three, then two a column and a half wide);
-// feature: the two graphs that are wide by nature (the rolling view, the calendar) span two columns, filling the rows;
-// hero: Top … View across the page under the bar, the other twelve in four sections of three.
+// The ways to lay the tiles out (a Visual tweaks choice while the owner compares them; off, DEFAULT_LAYOUT). A tile is
+// a column wide, a `wide` one two, a `pair` one half the row (two side by side, a column and a half each), a
+// `full` one the whole row; with `fill`, a row left short gives its room to its wide graph, or else shares it out.
+const WIDE = ["rolling-card", "calendar-card"];
 const LAYOUTS = {
   even: { label: "Even", groups: SECTIONS },
   fill: { label: "Fill the rows", groups: SECTIONS, fill: true },
-  feature: { label: "Wide graphs wide", groups: SECTIONS, wide: ["rolling-card", "calendar-card"] },
+  feature: { label: "Wide graphs wide, rows filled", groups: SECTIONS, wide: WIDE, fill: true },
+  pair: {
+    label: "Wide graphs together", pair: WIDE, fill: true, groups: [
+      ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
+      ["Over time", ["rolling-card", "calendar-card", "race-card", "rank-card", "monthly-card"]],
+      ["How you listen", ["hours-card", "clock-card", "raster-card", "discovery-card", "skips-card"]],
+    ],
+  },
+  across: {
+    label: "Wide graphs across", full: WIDE, fill: true, groups: [
+      ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
+      ["Over time", ["rolling-card", "race-card", "rank-card", "monthly-card"]],
+      ["Day by day", ["calendar-card", "hours-card", "clock-card", "raster-card"]],
+      ["Finds and skips", ["discovery-card", "skips-card"]],
+    ],
+  },
   hero: {
-    label: "Hero and threes", hero: "rolling-card", groups: [
+    label: "Hero and threes", full: ["rolling-card"], groups: [
       ["", ["rolling-card"]],
       ["Your top", ["mix-card", "sunburst-card", "ranking-card"]],
       ["Over time", ["race-card", "rank-card", "monthly-card"]],
@@ -148,7 +162,31 @@ for (const id of Object.keys(SLUG)) {
 // ---------- Arranging: sections, columns, spans ----------
 let cols = 0;
 let arranged = ""; // what the tiles were last arranged for
-const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+// A section's tiles in rows, each tile's span in half columns (so a row can split into halves)
+function pack(list, L) {
+  const total = cols * 2;
+  const want = (id) => (L.full?.includes(id) ? total : L.pair?.includes(id) ? (cols >= 3 ? total / 2 : total) : L.wide?.includes(id) ? Math.min(4, total) : 2);
+  const rows = [];
+  let row = [], used = 0;
+  for (const x of list) {
+    const w = want(x.card.id);
+    if (used + w > total && row.length) rows.push(row), (row = []), (used = 0);
+    row.push([x, w]);
+    used += w;
+  }
+  if (row.length) rows.push(row);
+  const spans = new Map();
+  for (const r of rows) {
+    const room = total - r.reduce((s, [, w]) => s + w, 0);
+    if (L.fill && room > 0) {
+      const wide = r.filter(([x]) => want(x.card.id) > 2);
+      const to = wide.length ? wide : r;
+      to.forEach((e, i) => (e[1] += Math.floor(room / to.length) + (i < room % to.length ? 1 : 0)));
+    }
+    for (const [x, w] of r) spans.set(x, w);
+  }
+  return { total, spans };
+}
 const layoutName = () => (pick.hidden ? DEFAULT_LAYOUT : sel.value);
 function arrange() {
   if (!cols) return;
@@ -167,16 +205,12 @@ function arrange() {
     if (title) s.append(make("h3", "", title));
     const grid = make("div", "gal-grid");
     const list = ids.map((id) => byId.get(id));
-    const shownHere = list.filter((x) => !x.tile.hidden);
-    // columns: `cols`, or more where the last row's tiles share the width (each tile spans several)
-    const r = L.fill ? shownHere.length % cols : 0;
-    const total = r ? (cols * r) / gcd(cols, r) : cols;
-    const span = new Map(r ? shownHere.slice(-r).map((x) => [x, total / r]) : []);
+    const { total, spans } = pack(list.filter((x) => !x.tile.hidden), L);
     for (const x of list) {
-      const id = x.card.id;
-      const s = span.get(x) ?? (id === L.hero ? total : L.wide?.includes(id) ? (Math.min(2, cols) * total) / cols : total / cols);
-      x.tile.style.gridColumn = `span ${s}`;
-      x.tile.classList.toggle("hero", id === L.hero);
+      const w = spans.get(x) ?? 2;
+      x.tile.style.gridColumn = `span ${w}`;
+      // (a wide graph across the whole row draws a taller thumbnail)
+      x.tile.classList.toggle("hero", w === total && cols >= 3 && [...(L.full ?? []), ...(L.wide ?? [])].includes(x.card.id));
       // (moved after the first arrangement, a tile doesn't rise in again)
       if (!first) x.tile.style.animation = "none";
       grid.append(x.tile);
