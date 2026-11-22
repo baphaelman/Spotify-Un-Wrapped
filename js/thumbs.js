@@ -91,10 +91,16 @@ function digest() {
   for (const [n, f] of firstDays(off)) if (f >= lo && f <= hi && total.has(n)) found.push([f - lo, total.get(n), idx.get(n) ?? k]);
   const step = Math.max(1, Math.ceil(found.length / FOUND_MAX));
   const foundShown = found.filter((x, i) => x[2] < k || i % step === 0);
+  // (and of the chart's artists alone, for a card showing them without everyone else)
   for (const mo of months) {
-    let top = "", topH = 0;
-    for (const [n, h] of mo.each) if (h > topH) (top = n), (topH = h);
-    Object.assign(mo, { top, topH, each: null });
+    let top = "", topH = 0, own = 0, mine = "", mineH = 0;
+    for (const [n, h] of mo.each) {
+      if (h > topH) (top = n), (topH = h);
+      if (!idx.has(n)) continue;
+      own += h;
+      if (h > mineH) (mine = n), (mineH = h);
+    }
+    Object.assign(mo, { top, topH, own, mine, mineH, each: null });
   }
   memo = { key, artists, k, K, nb, per, lo, days, series, total, parts, skip, hours, daily, raster, found: foundShown, months };
   return memo;
@@ -116,11 +122,13 @@ const colorOf = (t, n) => {
 const colorAt = (t, d, a) => (a < d.k ? colorOf(t, d.artists[a]) : t.other);
 const band = (t, col) => mix(t.surface, col, t.shade.rest); // the rolling chart's bands at rest
 const r1 = (v) => Math.round(v * 100) / 100;
-// The mix bar's blocks: the chart's artists, and everyone else when the card's own toggle shows it (so the shares
-// are the card's)
+// Whether a card shows everyone else (its own "Everyone else" toggle). A thumbnail follows its card's choice, so the
+// tile shows what opening it shows (and a flight's arrival starts from matching shapes).
+const otherOn = (id) => document.querySelector(`#${id} .other-toggle input`)?.checked ?? true;
+// The mix bar's blocks: the chart's artists, and everyone else when the card shows it (so the shares are the card's)
 const mixRows = (d) => {
   const rows = d.artists.map((n, i) => [n, d.series[i].reduce((s, v) => s + v, 0)]);
-  if (document.getElementById("mix-other")?.checked) rows.push([OTHER, d.series[d.k].reduce((s, v) => s + v, 0)]);
+  if (otherOn("mix-card")) rows.push([OTHER, d.series[d.k].reduce((s, v) => s + v, 0)]);
   return rows;
 };
 const keys = (n) => [...Array(n).keys()];
@@ -252,14 +260,19 @@ export const THUMBS = {
     };
   },
   // … Every Month: the card's bars pared down, each month's hours with its top item on top in its color (gray when
-  // it isn't one of the chart's), the rest one quiet gray
-  "monthly-card": (d, t) => ({
-    grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(d.months.length) }), yAxis: guides(t, { splitNumber: 3 }),
-    series: [
-      { type: "bar", stack: "a", id: "rest", barCategoryGap: "26%", itemStyle: { color: mix(t.surface, t.other, 0.28) }, data: d.months.map((m) => r1(m.hours - m.topH)) },
-      { type: "bar", stack: "a", id: "top", data: d.months.map((m) => ({ value: r1(m.topH), itemStyle: { color: crown(t, m.top), borderRadius: [2, 2, 0, 0] } })) },
-    ],
-  }),
+  // it isn't one of the chart's), the rest one quiet gray. Without everyone else, as the card has it, a month is
+  // only the chart's artists, the biggest of them on top.
+  "monthly-card": (d, t) => {
+    const all = otherOn("monthly-card");
+    const bar = (m) => (all ? [m.hours, m.top, m.topH] : [m.own, m.mine, m.mineH]);
+    return {
+      grid: { left: 0, right: 0, top: 2, bottom: 1 }, xAxis: base(t, "category", { data: keys(d.months.length) }), yAxis: guides(t, { splitNumber: 3 }),
+      series: [
+        { type: "bar", stack: "a", id: "rest", barCategoryGap: "26%", itemStyle: { color: mix(t.surface, t.other, 0.28) }, data: d.months.map((m) => r1(bar(m)[0] - bar(m)[2])) },
+        { type: "bar", stack: "a", id: "top", data: d.months.map((m) => ({ value: r1(bar(m)[2]), itemStyle: { color: crown(t, bar(m)[1]), borderRadius: [2, 2, 0, 0] } })) },
+      ],
+    };
+  },
   // Discovery: everything first heard in the period, a dot by when and (on a log scale) how much since
   "discovery-card": (d, t) => ({
     grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: 0, max: d.days }),
@@ -413,6 +426,10 @@ const seen = new IntersectionObserver((entries) => {
     } else near.delete(e.target);
   }
 }, { rootMargin: "25% 0px" });
+// (a card's "Everyone else" toggle redraws its thumbnail with it: otherOn)
+document.addEventListener("change", (e) => {
+  if (e.target.closest?.(".other-toggle")) paintThumbs();
+});
 export function addThumb(id, el) {
   els.set(id, el);
   seen.observe(el);

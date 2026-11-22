@@ -650,7 +650,8 @@ export function morphMonthly(el, look, toThumb, ms) {
   // (the thumbnail's form holds the axis where it is, so its scaled bars don't move it)
   const yAxis = toThumb ? { min: lo, max, interval: y.getInterval() } : { min: null, max: null, interval: null };
   st.busyUntil = performance.now() + ms; // (a hover's restyle waits for the morph, see focusMonthly)
-  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, yAxis, series }, undefined, ms);
+  // (the colors on the bars' beat, so the crowns deepen as the bars turn into the card's)
+  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, yAxis, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
   if (!ms) c.setOption({ animation: true });
   return true;
 }

@@ -106,7 +106,8 @@ export function drawnShapes(c) {
 
 // setOption, then fade every drawn shape from its old style to its new one over `ms`. Also tweens the
 // curve rounding (`shape.smooth`), which ECharts would otherwise swap instantly while the points move.
-export function setOptionFaded(c, option, opts, ms, easing = EASE_IN_OUT.echarts) {
+// (styleEasing: the colors' easing, out by default; a restyle that travels with a morph takes the morph's)
+export function setOptionFaded(c, option, opts, ms, easing = EASE_IN_OUT.echarts, styleEasing = EASE_OUT.echarts) {
   const shapes = drawnShapes(c);
   const before = new Map([...shapes].map(([k, e]) => [k, { style: pickStyle(e.style), smooth: +e.shape.smooth || 0 }]));
   // Stop earlier fades first: zrender moves a running animation onto the new style object ECharts
@@ -127,7 +128,7 @@ export function setOptionFaded(c, option, opts, ms, easing = EASE_IN_OUT.echarts
     if (from.opacity === 0) Object.assign(from, { fill: to.fill, stroke: to.stroke });
     else if (to.opacity === 0) end = { ...from, opacity: 0 };
     e.setStyle(from);
-    e.animateTo({ style: end }, { duration: ms, easing: EASE_OUT.echarts, scope: "fade", done: () => e.setStyle(to) });
+    e.animateTo({ style: end }, { duration: ms, easing: styleEasing, scope: "fade", done: () => e.setStyle(to) });
     const smoothTo = +e.shape.smooth || 0;
     if (was && was.smooth !== smoothTo) {
       e.setShape({ smooth: was.smooth });
