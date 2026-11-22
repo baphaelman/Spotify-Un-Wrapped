@@ -41,6 +41,21 @@ const stage = make("div", "gal-stage");
 stage.setAttribute("aria-hidden", "true");
 gallery.append(head, slot);
 
+// "Missing something?", once, right under the period bar: ask for a graph, or make one
+const ask = make("div", "gal-ask");
+ask.append(make("h4", "", "Missing something?"), make("p", "", "Ask for a graph you'd like to see, or make your own: the site is open source."));
+const acts = make("div", "gal-ask-actions");
+const req = make("button", "ghost", "Ask for a graph");
+req.type = "button";
+req.addEventListener("click", () => $("feedback-open").click());
+const own = make("a", "", "Make your own ↗");
+own.href = $("github-link")?.href ?? "#";
+own.target = "_blank";
+own.rel = "noopener";
+acts.append(req, own);
+ask.append(acts);
+gallery.prepend(ask);
+
 const tiles = []; // {card, tile, slug, sec}
 for (const [sec, cards] of SECTIONS) {
   const s = make("section", "gal-sec");
@@ -86,20 +101,7 @@ for (const [sec, cards] of SECTIONS) {
       }
     });
   }
-  // "Missing something?": ask for a graph, or make one
-  const ask = make("div", "gal-ask");
-  ask.append(make("h4", "", "Missing something?"), make("p", "", "Ask for a graph you'd like to see, or make your own: the site is open source."));
-  const acts = make("div", "gal-ask-actions");
-  const req = make("button", "ghost", "Ask for a graph");
-  req.type = "button";
-  req.addEventListener("click", () => $("feedback-open").click());
-  const own = make("a", "", "Make your own ↗");
-  own.href = $("github-link")?.href ?? "#";
-  own.target = "_blank";
-  own.rel = "noopener";
-  acts.append(req, own);
-  ask.append(acts);
-  s.append(grid, ask);
+  s.append(grid);
   gallery.append(s);
 }
 gallery.append(stage);

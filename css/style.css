@@ -1690,9 +1690,10 @@ button:not(:disabled):active { transform: scale(0.96); }
 .thumb-face img.shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .thumb-face, .thumb-face img { transition: none; } }
 
-/* "Missing something?" closes each section */
+/* "Missing something?", once above the sections (not while a card is open) */
+.gallery.open .gal-ask { display: none; }
 .gal-ask {
-  margin-top: 12px; border: 1px dashed var(--axis); border-radius: 8px; padding: 10px 14px; display: flex;
+  margin: 0 0 20px; border: 1px dashed var(--axis); border-radius: 8px; padding: 10px 14px; display: flex;
   align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--text-secondary);
 }
 .gal-ask h4 { margin: 0; font-size: 14px; color: var(--text-primary); }
