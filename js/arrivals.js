@@ -29,6 +29,7 @@ import { morphMonthly } from "./charts.js";
 import { flyRows, thumbShapes } from "./rowfly.js";
 import { raceRows, settleRace } from "./race.js";
 import { skipsRows } from "./skips.js";
+import { SKIPS_NAME } from "./thumbs.js";
 
 // Listening mix, Inside your top …
 import { morphMix } from "./mix.js";
@@ -42,7 +43,8 @@ import { paintThumb } from "./thumbs.js";
 
 // (Top … over time, All your …, Skips and picks) A thumbnail's label as flyRows' text, and whether the thumbnail draws
 // the card's rows (its first ones, in order)
-const text = (l, align = "left") => l && { x: align === "right" ? l.x + l.w : l.x, y: l.y + l.h / 2, w: l.w, size: l.size, align };
+// (room: the width it may take before it's clipped, in the plot's px; by default it isn't)
+const text = (l, align = "left", room = Infinity) => l && { x: align === "right" ? l.x + l.w : l.x, y: l.y + l.h / 2, w: room, size: l.size, align };
 const matches = (rows, at) => rows.length > 0 && rows.slice(0, at.size).every((r) => at.has(r.key));
 
 export const ARRIVALS = {
@@ -78,7 +80,7 @@ export const ARRIVALS = {
     if (to === "thumb" && !matches(rows, at)) return false;
     return flyRows(card, plot, rows.flatMap((r, row) => {
       const a = at.get(r.key);
-      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.val, at: text(a.val) }, { el: r.rank, at: null, row }] : [{ el: r.li, at: null, row }];
+      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name, "right") }, { el: r.val, at: text(a.val) }, { el: r.rank, at: null, row }] : [{ el: r.li, at: null, row }];
     }), to, ms);
   },
   // All your …: the thumbnail is the list's first rows; the rest of the list fades in below them
@@ -99,8 +101,9 @@ export const ARRIVALS = {
   "skips-card": (card, el, to, ms) => {
     const plot = $("skips-list"), rows = skipsRows();
     if (!rows) return false; // (the vertical look crossfades)
-    const sh = thumbShapes(el, plot.offsetWidth / el.offsetWidth);
+    const u = plot.offsetWidth / el.offsetWidth, sh = thumbShapes(el, u);
     const get = (id, i) => sh.get(id)?.[i];
+    const nameRoom = SKIPS_NAME * el.offsetWidth * u; // (a long name is cut where the thumbnail's bar begins)
     const at = new Map((sh.get("bar") ?? []).map((b, i) => {
       // the row's bar: its three stacked parts as one box
       const bs = ["bar", "bar-on", "bar-skip"].map((id) => get(id, i)?.bar).filter((r) => r && r.w > 0);
@@ -111,7 +114,7 @@ export const ARRIVALS = {
     if (to === "thumb" && !matches(rows, at)) return false;
     return flyRows(card, plot, rows.flatMap((r, row) => {
       const a = at.get(r.key);
-      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name) }, { el: r.pick, at: text(a.pick) }, { el: r.skip, at: text(a.skip) }] : [{ el: r.li, at: null, row }];
+      return a ? [{ el: r.bar, at: a.bar, row }, { el: r.name, at: text(a.name, "left", nameRoom) }, { el: r.pick, at: text(a.pick) }, { el: r.skip, at: text(a.skip) }] : [{ el: r.li, at: null, row }];
     }), to, ms);
   },
   // Listening mix, Inside your top …

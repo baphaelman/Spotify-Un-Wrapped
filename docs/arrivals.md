@@ -63,8 +63,10 @@ What the solid flight does for you (gallery.js):
 - **`flyRows`** (`js/rowfly.js`, imports only motion.js): each bar, name and number the thumbnail also draws starts on
   the thumbnail's shape (read by `thumbShapes` from its ECharts bars and labels) and glides to its own place, through
   the CSS `translate` and `scale` properties, so a card's own `transform` keeps working. Bars stretch; text scales
-  evenly, anchored at its edge, clipped to the thumbnail's room. Ranks and rows the thumbnail lacks fade with the
-  chrome, moving with their row (`row`). The card's own entrance animations are finished first, and clipping boxes
+  evenly, anchored at its edge. Each part animates only what it needs, on the compositor (`translate`, `scale`,
+  `opacity`); a `clip-path` repaints every frame, so text is clipped only where it would run into a bar (Skips' long
+  names). Ranks and rows the thumbnail lacks fade with the chrome, moving with their row (`row`); rows past the
+  thumbnail's last keep its offset, so the rest of the list stays together under it. The card's own entrance animations are finished first, and clipping boxes
   between the parts and the card open for the flight.
 - **An overlaid ECharts bar lines up by its top edge**, so a clear bar carrying a label is as thick as the bar it rides on.
 

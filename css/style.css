@@ -1558,7 +1558,8 @@ button:not(:disabled):active { transform: scale(0.96); }
 }
 .race-rows li[aria-disabled] { cursor: default; }
 .race-rank { color: var(--text-muted); font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
-.race-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+/* (right-aligned, so each name ends where its bar begins) */
+.race-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; text-align: right; }
 .race-name small { color: var(--text-muted); margin-left: 6px; font-size: 11px; }
 .race-track { position: relative; height: 18px; }
 .race-bar {

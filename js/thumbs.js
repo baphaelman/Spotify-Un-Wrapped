@@ -162,6 +162,7 @@ const rowLook = (box, n, nameFrac = 0.22, rightPx = 30) => {
   const pitch = Math.min(ROW_MAX, box.h / Math.max(1, n));
   return { pitch, left: Math.round(box.w * nameFrac), right: rightPx, font: pitch < 11 ? 8 : 9 };
 };
+export const SKIPS_NAME = 0.155; // the skips thumbnail's name column, as a share of its width (its arrival cuts names there)
 const mono = () => getComputedStyle(document.body).getPropertyValue("--mono").trim() || "monospace";
 
 // How well each thumbnail looks stretched to a column and a half (0 to 1): a section that must stretch some tiles to
@@ -247,7 +248,7 @@ export const THUMBS = {
       yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
     };
   },
-  // … over time: the card's rows at its playhead (raceNow), as the card draws them: the name, a bar in the item's color
+  // … over time: the card's rows at its playhead (raceNow), as the card draws them: the name ending at its bar, a bar in the item's color
   // as long as its hours, the hours after it. The card waits halfway through the period, so this is the race then.
   "race-card": (d, t, box) => {
     const rows = raceNow();
@@ -261,7 +262,8 @@ export const THUMBS = {
         type: "bar", id: "bar", barWidth: Math.round(pitch * 0.53), animationDurationUpdate: dur(CHASE_MS),
         data: rows.map(([k, v]) => ({ name: k, value: v, itemStyle: { color: own(k), borderRadius: 2 } })),
         label: {
-          show: true, position: [-left, "50%"], align: "left", verticalAlign: "middle", color: t.primary, fontSize: font,
+          // (right-aligned, ending just before the bar, as the card's names do)
+          show: true, position: [-6, "50%"], align: "right", verticalAlign: "middle", color: t.primary, fontSize: font,
           width: left - 6, overflow: "truncate", formatter: (p) => state.titles?.get(rows[p.dataIndex][0]) ?? rows[p.dataIndex][0],
         },
       }, {
@@ -370,7 +372,7 @@ export const THUMBS = {
           type: "bar", id, stack: "a", barWidth: thick,
           data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k) } })),
         })),
-        words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * 0.155), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
+        words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * SKIPS_NAME), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
         words("pick", Math.round(W * 0.877), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].pick }),
         words("skip", Math.round(W * 0.941), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].skip }),
       ],
