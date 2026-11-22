@@ -129,6 +129,178 @@ function glide() {
   raf = requestAnimationFrame(tick);
 }
 
+// ---------- The gallery's arrival (arrivals.js) ----------
+// The bar as its thumbnail draws it (to "thumb"), or as itself ("card"), morphed from what's on screen over ms.
+// look, in the bar's own px: { blocks: name -> { l, t, w, h, r, color, show, pct: { dy, k }, hrs: { dy, k } } (each
+// segment, a label's offset from the middle and its scale), faces: name -> { l, t, size, r, src } (the thumbnail's
+// pictures, flown down into their tiles in the list, or faded where a tile has none) }. False when the thumbnail
+// isn't this bar's artists.
+let fly = null; // { raf, segs: name -> state on screen, faces: name -> { el, imgs, state, art } }
+const lerp = (a, b, p) => a + (b - a) * p;
+let probe = null;
+// "rgb(…)", "#…" or "color(srgb …)" as [r, g, b] (0–255)
+function rgbOf(c) {
+  if (!probe) {
+    probe = document.createElement("i");
+    probe.hidden = true;
+    document.body.append(probe);
+  }
+  probe.style.color = "";
+  probe.style.color = c;
+  const s = getComputedStyle(probe).color;
+  const v = s.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+  return s.startsWith("color(") ? v.slice(0, 3).map((x) => x * 255) : v.slice(0, 3);
+}
+const SEG_KEYS = ["left", "top", "width", "height", "bottom", "borderRadius", "background", "transition", "overflow"];
+// (read with transitions held off, so the colors read are the card's own rather than the start of a transition to them)
+function segCard(e, W) {
+  for (const k of SEG_KEYS) e.seg.style[k] = "";
+  e.seg.style.transition = "none";
+  for (const el of [e.label, e.hoursEl]) {
+    el.style.transform = el.style.opacity = "";
+    el.style.transition = "none";
+  }
+  const R = parseFloat(getComputedStyle($("mix-bar")).getPropertyValue("--mix-radius")) || 10;
+  const r = (on) => (on ? R : 3);
+  const L = e.x <= EDGE, Rt = e.x + e.w >= 1 - EDGE;
+  const cs = getComputedStyle(e.seg);
+  return {
+    l: e.x * W, t: 0, w: Math.max(0, e.w * W - GAP), h: $("mix-bar").offsetHeight, r: [r(L), r(Rt), r(Rt), r(L)],
+    color: rgbOf(cs.backgroundColor), pct: { o: +e.seg.classList.contains("fits-share"), dy: mid(e.label), k: 1 },
+    hrs: { o: +e.seg.classList.contains("fits-hours"), dy: mid(e.hoursEl), k: 1 },
+  };
+}
+// A label's middle, from its segment's middle (flex centers them, whatever the segment's height)
+const mid = (el) => el.offsetTop + el.offsetHeight / 2 - el.parentElement.clientHeight / 2;
+function putSeg(e, g) {
+  const st = e.seg.style;
+  Object.assign(st, {
+    transition: "none", overflow: "visible", left: `${g.l}px`, top: `${g.t}px`, width: `${g.w}px`, height: `${g.h}px`,
+    bottom: "auto", borderRadius: g.r.map((v) => `${v}px`).join(" "), background: `rgb(${g.color.map(Math.round).join(",")})`,
+  });
+  for (const [el, s] of [[e.label, g.pct], [e.hoursEl, g.hrs]]) {
+    el.style.transition = "none";
+    el.style.opacity = s.o;
+    el.style.transform = `translateY(${(s.dy - mid(el)).toFixed(2)}px) scale(${s.k.toFixed(4)})`;
+  }
+}
+const mixState = (a, b, p) => ({
+  l: lerp(a.l, b.l, p), t: lerp(a.t, b.t, p), w: lerp(a.w, b.w, p), h: lerp(a.h, b.h, p),
+  r: a.r.map((v, i) => lerp(v, b.r[i], p)), color: a.color.map((v, i) => lerp(v, b.color[i], p)),
+  pct: { o: lerp(a.pct.o, b.pct.o, p), dy: lerp(a.pct.dy, b.pct.dy, p), k: lerp(a.pct.k, b.pct.k, p) },
+  hrs: { o: lerp(a.hrs.o, b.hrs.o, p), dy: lerp(a.hrs.dy, b.hrs.dy, p), k: lerp(a.hrs.k, b.hrs.k, p) },
+});
+const faceState = (a, b, p) => ({ l: lerp(a.l, b.l, p), t: lerp(a.t, b.t, p), size: lerp(a.size, b.size, p), r: lerp(a.r, b.r, p), o: lerp(a.o, b.o, p), x: lerp(a.x, b.x, p) });
+function putFace(f, g) {
+  Object.assign(f.el.style, { left: `${g.l}px`, top: `${g.t}px`, width: `${g.size}px`, height: `${g.size}px`, borderRadius: `${g.r}px`, opacity: g.o });
+  if (f.imgs[1]) f.imgs[1].style.opacity = g.x;
+}
+function endFly() {
+  if (!fly) return;
+  cancelAnimationFrame(fly.raf);
+  const W = $("mix-bar").clientWidth + GAP;
+  for (const e of entries.values()) segCard(e, W);
+  void $("mix-bar").offsetWidth; // (the card's own look in place before its transitions come back)
+  for (const e of entries.values()) for (const el of [e.seg, e.label, e.hoursEl]) el.style.transition = "";
+  for (const f of fly.faces.values()) {
+    f.el.remove();
+    if (f.art) f.art.style.visibility = "";
+  }
+  fly.layer.remove();
+  fly = null;
+  place();
+}
+export function morphMix(look, toThumb, ms) {
+  const shown = [...entries.values()].filter((e) => !e.leaving).sort((a, b) => a.x - b.x);
+  const names = [...look.blocks.keys()];
+  if (shown.length !== names.length || shown.some((e, i) => e.name !== names[i])) return false;
+  cancelAnimationFrame(raf);
+  raf = 0;
+  if (!toThumb && !fly) return true; // (already itself)
+  const bar = $("mix-bar");
+  const W = bar.clientWidth + GAP;
+  // The card's own form (read with the bar as itself), and where each picture's tile is, in the bar's px
+  const card = new Map(shown.map((e) => [e.name, segCard(e, W)]));
+  if (!fly) {
+    const layer = document.createElement("div");
+    layer.className = "mix-fly";
+    bar.append(layer);
+    fly = { raf: 0, layer, segs: new Map(), faces: new Map(), form: "card" };
+    for (const [name, s] of card) fly.segs.set(name, s);
+  }
+  const B = bar.getBoundingClientRect(), k = B.width / bar.offsetWidth || 1;
+  const listed = $("mix-list").classList.contains("with-covers");
+  const thumbOf = (e) => {
+    const b = look.blocks.get(e.name);
+    return {
+      l: b.l, t: b.t, w: b.w, h: b.h, r: [b.r, b.r, b.r, b.r], color: rgbOf(b.color),
+      pct: { o: +b.show, dy: b.pct.dy, k: b.pct.k / (parseFloat(getComputedStyle(e.label).fontSize) || 15) },
+      hrs: { o: +b.show, dy: b.hrs.dy, k: b.hrs.k / (parseFloat(getComputedStyle(e.hoursEl).fontSize) || 11) },
+    };
+  };
+  const ends = new Map(shown.map((e) => [e.name, { thumb: thumbOf(e), card: card.get(e.name) }]));
+  // Pictures: each face of the thumbnail, made once (the thumbnail's own picture, already loaded: no new asks)
+  for (const [name, fc] of look.faces) {
+    const e = entries.get(name);
+    if (!e || fly.faces.has(name)) continue;
+    const el = document.createElement("div");
+    el.className = "mix-fly-face";
+    const imgs = [fc.src, e.img?.classList.contains("shown") && e.img.src !== fc.src ? e.img.src : null].filter(Boolean).map((src, i) => {
+      const img = new Image();
+      img.alt = "";
+      img.src = src;
+      if (i) img.style.opacity = 0;
+      el.append(img);
+      return img;
+    });
+    el.style.background = fc.bg;
+    fly.layer.append(el);
+    const art = listed && e.art.offsetWidth ? e.art : null;
+    const from = { l: fc.l, t: fc.t, size: fc.size, r: fc.r, o: 1, x: 0 };
+    fly.faces.set(name, { el, imgs, art, state: toThumb ? null : from, thumb: from });
+  }
+  for (const f of fly.faces.values()) {
+    if (f.art) {
+      const a = f.art.getBoundingClientRect();
+      const size = a.width / k;
+      f.card = { l: (a.left - B.left) / k, t: (a.top - B.top) / k, size, r: $("mix-list").classList.contains("portraits") ? size / 2 : 4, o: 1, x: 1 };
+      f.art.style.visibility = "hidden";
+    } else f.card = { ...f.thumb, o: 0, x: 0 };
+    f.state ??= f.card;
+  }
+  const from = new Map(fly.segs);
+  const fromFaces = new Map([...fly.faces].map(([n, f]) => [n, f.state]));
+  const step = (p) => {
+    for (const e of shown) {
+      const { thumb, card: c } = ends.get(e.name);
+      const [a, b] = [from.get(e.name) ?? (toThumb ? c : thumb), toThumb ? thumb : c];
+      const g = mixState(a, b, p);
+      fly.segs.set(e.name, g);
+      putSeg(e, g);
+    }
+    for (const [n, f] of fly.faces) {
+      const to = toThumb ? f.thumb : f.card;
+      // (a face with no tile to go to fades out with the card's chrome, by 40% of the way)
+      const q = !f.art && !toThumb ? Math.min(1, p / 0.4) : !f.art ? Math.max(0, (p - 0.6) / 0.4) : p;
+      f.state = faceState(fromFaces.get(n), to, q);
+      putFace(f, f.state);
+    }
+  };
+  cancelAnimationFrame(fly.raf);
+  const finish = () => (toThumb ? step(1) : endFly());
+  if (!ms) return finish(), true;
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    if (t === 1) return finish();
+    step(easeInOut(t));
+    fly.raf = requestAnimationFrame(tick);
+  };
+  step(0);
+  fly.raf = requestAnimationFrame(tick);
+  return true;
+}
+
 // Called on every (non-sweep) render of the rolling chart. table: aggregate.dailyTable for the shown
 // artists; pins: {has, toggle, hide} for the chart's pinned artists; names/slots/hasOther: the chart's artists and
 // their palette slots; plays: name -> plays over the period; lo/hi: the period's first and last day; noun: what the

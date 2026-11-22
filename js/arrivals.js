@@ -28,6 +28,7 @@ import { morphMonthly } from "./charts.js";
 // Top … over time, All your …, Skips and picks
 
 // Listening mix, Inside your top …
+import { morphMix } from "./mix.js";
 
 // Every play, Every day
 
@@ -56,6 +57,41 @@ export const ARRIVALS = {
   // Top … over time, All your …, Skips and picks
 
   // Listening mix, Inside your top …
+  // … Listening mix: each block of the thumbnail becomes its segment (place, height, corners, tint, labels), and its
+  // faces fly down into their tiles in the list under the bar, the pictures it already shows (no new asks)
+  "mix-card": (card, el, to, ms) => {
+    const thumb = echarts.getInstanceByDom(el), bar = $("mix-bar");
+    const series = thumb?.getOption()?.series ?? [];
+    if (!series.length || !bar.offsetWidth || !el.clientWidth) return false;
+    // the thumbnail's px in the bar's: as wide, on the same baseline
+    const s = el.clientWidth / bar.offsetWidth, H = el.clientHeight, base = bar.offsetHeight;
+    const y = (v) => base - (H - v) / s;
+    const model = thumb.getModel();
+    const blocks = new Map();
+    series.forEach((sr, i) => {
+      const data = model.getSeriesByIndex(i)?.getData();
+      const L = data?.getItemLayout(0);
+      if (!L) return;
+      // (each block's 1px surface border: half of it over the fill on every side)
+      blocks.set(sr.id, {
+        l: (L.x + 0.5) / s, t: y(L.y + 0.5), w: Math.max(0, L.width - 1) / s, h: Math.max(0, L.height - 1) / s, r: 3 / s,
+        color: data.getItemVisual(0, "style").fill, show: !!sr.label?.show,
+        pct: { dy: -7 / s, k: 11 / s }, hrs: { dy: 7 / s, k: 9 / s },
+      });
+    });
+    const faces = new Map();
+    const row = el.querySelector(".thumb-faces");
+    for (const [n, f] of row?.faces ?? []) {
+      const img = f.querySelector("img.shown");
+      if (+f.style.opacity !== 1) continue;
+      const size = f.offsetWidth / s;
+      faces.set(n, {
+        l: (f.offsetLeft) / s, t: y(f.offsetTop + row.offsetTop), size, r: row.classList.contains("square") ? 3 / s : size / 2,
+        src: img?.src, bg: f.style.background,
+      });
+    }
+    return morphMix({ blocks, faces }, to === "thumb", ms);
+  },
 
   // Every play, Every day
 
