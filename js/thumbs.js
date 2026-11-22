@@ -154,9 +154,20 @@ const crown = (t, n) => (state.colorSlots?.has(n) ? mix(t.surface, colorOf(t, n)
 // How well each thumbnail looks stretched to a column and a half (0 to 1): a section that must stretch some tiles to
 // fill its rows stretches its best (gallery.js pack). Placeholders until the thumbnails are settled; score them then.
 export const STRETCH = {
-  "rolling-card": 0.9, "calendar-card": 0.85, "raster-card": 0.8, "clock-card": 0.7, "hours-card": 0.65,
-  "rank-card": 0.6, "race-card": 0.55, "discovery-card": 0.5, "monthly-card": 0.45, "mix-card": 0.4,
-  "skips-card": 0.3, "ranking-card": 0.2, "sunburst-card": 0.1,
+  // (grouped as the per-graph sessions are, a comment between groups, so re-scoring one group never touches another's
+  // lines: git merges them cleanly)
+  // over time, the rolling chart's
+  "rolling-card": 0.9, "hours-card": 0.65,
+  // over time, ECharts
+  "rank-card": 0.6, "discovery-card": 0.5, "clock-card": 0.7,
+  // rows
+  "race-card": 0.55, "ranking-card": 0.2, "skips-card": 0.3,
+  // your top
+  "mix-card": 0.4, "sunburst-card": 0.1,
+  // every.js
+  "raster-card": 0.8, "calendar-card": 0.85,
+  // done
+  "monthly-card": 0.45,
 };
 
 export const THUMBS = {

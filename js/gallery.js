@@ -301,11 +301,12 @@ function flightAnims(entry, T, Th, C, P, direction, solid) {
 }
 // ---------- A solid flight's chrome: everything of the card but its plot's shapes ----------
 const plotChart = (card) => echarts.getInstanceByDom(card.querySelector(PLOT[card.id]));
-// The card's elements beside its plot (walking up from it), and the plot's own overlays beside its chart's canvas
+// The card's elements beside its plot (walking up from it), and an ECharts plot's own overlays beside its canvas (a
+// plot of elements or its own canvas is all plot: its arrival fades what it doesn't morph)
 function chromeOf(card) {
   const plot = card.querySelector(PLOT[card.id]);
   const root = plotChart(card)?.getZr().painter.getViewportRoot?.();
-  const out = [...plot.children].filter((e) => e !== root);
+  const out = root ? [...plot.children].filter((e) => e !== root) : [];
   for (let el = plot; el !== card; el = el.parentElement) out.push(...[...el.parentElement.children].filter((e) => e !== el));
   return out;
 }
@@ -317,7 +318,7 @@ function fadeCanvas(card, opening, ms, from) {
   const c = plotChart(card);
   if (!c) return;
   const own = new Set();
-  for (const v of c._chartsViews ?? []) v.group.traverse((e) => own.add(e));
+  for (const v of c._chartsViews ?? []) v.group.traverse((e) => void own.add(e));
   for (const e of c.getZr().storage.getDisplayList(true)) {
     if (own.has(e)) continue;
     e.stopAnimation();
@@ -334,8 +335,7 @@ function fadeCanvas(card, opening, ms, from) {
 // The card's arrival (arrivals.js), with its thumbnail as drawn: true when it ran
 function arrive(entry, to, ms) {
   const fn = ARRIVALS[entry.card.id];
-  const th = echarts.getInstanceByDom(entry.tile.querySelector(".gal-thumb"));
-  return !!(fn && th?.getOption()?.series?.length && fn(entry.card, th, to, ms));
+  return !!fn?.(entry.card, entry.tile.querySelector(".gal-thumb"), to, ms);
 }
 // Held on screen where it is (or at `r`) through a flight, above the grid and under the bar
 const PINNED = ["position", "left", "top", "width", "margin", "zIndex", "display"];

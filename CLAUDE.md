@@ -102,6 +102,7 @@ from `rollingview.js`.
   mode and bursts earn day-long lockouts that blank every visitor's pictures:** never bulk-fetch or loop pictures,
   and remember each `test.html` load costs Spotify calls for uncached pictures (use `OFFLINE=1` when pictures don't matter).
 - **`docs/backend.md`** before deploying an edge function or touching the community pool.
+- **`docs/arrivals.md`** before `arrivals.js`, a gallery thumbnail (`thumbs.js`) or the gallery's flight.
 
 ## Motion
 

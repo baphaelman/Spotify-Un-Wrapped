@@ -1,26 +1,44 @@
-// How each graph's thumbnail becomes its card in the gallery's flight (gallery.js), one entry per card.
+// How each graph's thumbnail becomes its card in the gallery's flight (gallery.js), one entry per card. See
+// docs/arrivals.md before adding one.
 //
-// ARRIVALS: card id -> (card, thumb, to, ms) => boolean. `thumb` is the thumbnail's ECharts instance, drawn as it
-// is now (its plot sits on the card's baseline, as wide as the card's plot); `to` is "thumb" (the card's plot in the thumbnail's form) or "card" (its own). It morphs the plot from what's
-// on screen to `to` over ms, in-out, or draws it at once when ms is 0. The flight calls it:
+// ARRIVALS: card id -> (card, thumb, to, ms) => boolean. `thumb` is the thumbnail's element (.gal-thumb), drawn as it
+// is now (an ECharts one: echarts.getInstanceByDom(thumb)); in the flight's first frame the card's plot sits on its
+// baseline, as wide as it. `to` is "thumb" (the card's plot in the thumbnail's form) or "card" (its own). It morphs
+// the plot from what's on screen to `to` over ms, in-out, or draws it at once when ms is 0. The flight calls it:
 //   opening: ("thumb", 0) then ("card", MORPH_MS), as the flight starts
 //   closing: ("thumb", MORPH_MS) as it starts, then ("card", 0) once it lands (the card waits off screen as itself)
 //   turned back midway: the other way, over the time flown so far
 // Return false when it can't (the thumbnail doesn't match the card's data yet), and the flight crossfades.
 //
-// A card with an entry flies solid: its plot is the thumbnail from the first frame and never fades; the card's frame,
-// words, controls, overlays and its chart's axes fade in around it (gallery.js). A card without one crossfades: the
-// card fades in over the flying thumbnail, which fades out after.
+// A card with an entry flies solid: its plot is the thumbnail from the first frame and never fades. The card's frame
+// and words fade in around it, and for an ECharts plot, its overlays and its axes too (gallery.js); a plot of
+// elements or its own canvas is all plot, so its arrival fades what it doesn't morph. A card without one crossfades:
+// the card fades in over the flying thumbnail, which fades out after.
+//
+// Each group's imports and entries sit in their own slot, a comment between slots, so sessions working on different
+// graphs at once merge cleanly: change only your slot.
 
 import { $ } from "./state.js";
+// Every Month
 import { morphMonthly } from "./charts.js";
+// Top … View, Hours per week
+
+// Rank race, Discovery, When you listened
+
+// Top … over time, All your …, Skips and picks
+
+// Listening mix, Inside your top …
+
+// Every play, Every day
+
+// (end of the imports' slots)
 
 export const ARRIVALS = {
   // … Every Month: each bar its top item over one gray (the crowns thumbnail), growing the chart's other artists'
   // slices out of the gray as the colors, gap and heights turn into the card's
-  "monthly-card": (card, thumb, to, ms) => {
-    const o = thumb.getOption();
-    const [rest, top] = o?.series ?? [];
+  "monthly-card": (card, el, to, ms) => {
+    const thumb = echarts.getInstanceByDom(el);
+    const [rest, top] = thumb?.getOption()?.series ?? [];
     if (!rest || !top) return false;
     // (the thumbnail's plot is squatter than the card's: its bars stand this much taller, for the same width)
     const box = (c) => c.getModel().getComponent("grid").coordinateSystem.getRect();
@@ -31,4 +49,15 @@ export const ARRIVALS = {
     };
     return morphMonthly($("chart-monthly"), look, to === "thumb", ms);
   },
+  // Top … View, Hours per week
+
+  // Rank race, Discovery, When you listened
+
+  // Top … over time, All your …, Skips and picks
+
+  // Listening mix, Inside your top …
+
+  // Every play, Every day
+
+  // (end of the entries' slots)
 };
