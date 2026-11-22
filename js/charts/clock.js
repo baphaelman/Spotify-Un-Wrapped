@@ -1,7 +1,8 @@
 // When you listened (renderClock): shares of each hour of the day, stacked as in the rolling chart's Share mode.
 
 import { FADE_MS, ENTER_MS, MORPH_MS, EASE_IN_OUT, setOptionFaded, dur, litLook, isPinLook } from "../motion.js";
-import { shownName } from "../state.js";
+import { shownName, state } from "../state.js";
+import { tune } from "../tune.js";
 import { tokens, mix } from "../colors.js";
 import { baseAxis, chart, instances, row, tooltipBase } from "./core.js";
 
@@ -24,6 +25,39 @@ function blurRing(v, sigma) {
   return v.map((_, i) => w.reduce((s, wj, j) => s + wj * v[(i + j - r + n) % n], 0));
 }
 
+// The bands' shares through the day, as When you listened draws them: grid is clockBy's for n artists; returns, for
+// each artist and then everyone else (nothing without includeOther), its share at each hour 0..24 (on the hour,
+// halfway between two hours' smoothed values) and the bottom of its band in the stack. The gallery's thumbnail
+// draws these too.
+export function clockShares(grid, n, includeOther, sigma) {
+  const cell = (e, k) => (k < n ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0);
+  const K = n + 1;
+  // Hours on the day's ring (24 hours from midnight, every weekday summed) for each series, then smoothed
+  const ring = Array.from({ length: K }, (_, k) => Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + cell(row[h], k), 0)));
+  const smooth = ring.map((v) => blurRing(v, sigma));
+  // Each hour's value sits at the middle of the hour; points go on the hour (0..24), halfway between two
+  const hours = smooth.map((v) => Array.from({ length: 25 }, (_, h) => (v[(h + 23) % 24] + v[h % 24]) / 2));
+  const total = Array.from({ length: 25 }, (_, h) => hours.reduce((s, v) => s + v[h], 0));
+  // Each band's share, and its bottom and top in the stack (for hover)
+  const share = hours.map((v) => total.map((tot, h) => (tot > 1e-9 ? v[h] / tot : 0)));
+  const bottom = share.map(() => new Array(25).fill(0));
+  for (let h = 0; h < 25; h++) {
+    let acc = 0;
+    for (let k = 0; k < K; k++) {
+      bottom[k][h] = acc;
+      acc += share[k][h];
+    }
+  }
+  return { share, bottom };
+}
+// The card's smoothing, as the rolling chart's (paintClock): its curve rounding, and its blur as a share of its
+// window, taken as a share of tune.clockReach hours (4, so High blurs about an hour), but never less than a light
+// smoothing (tune.clockMinBlur and tune.clockCurve)
+export function clockSmoothing() {
+  const { sigma = 0, curve = 0 } = state.shownSmooth ?? {};
+  return { sigma: Math.max(tune.clockMinBlur, sigma >= 0.5 ? (sigma / state.shownWindow) * tune.clockReach : 0), curve: Math.max(tune.clockCurve, curve) };
+}
+
 export function renderClock(el, grid, names = [], slots = [], pins = null, hover = () => {}, off = new Set(), includeOther = true, sigma = 0.5, curve = 0.3) {
   const t = tokens();
   const all = [...names, "Everyone else"];
@@ -33,25 +67,11 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
   const prev = clockState.get(el);
   const fresh = !prev || prev.names.join("\u0000") !== names.join("\u0000");
 
-  // Hours on the day's ring (24 hours from midnight, every weekday summed) for each series, then smoothed
-  const cell = (e, k) => (k < otherIdx ? e.by[k] : includeOther ? Math.max(0, e.hours - e.by.reduce((x, y) => x + y, 0)) : 0);
-  const ring = all.map((_, k) => Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + cell(row[h], k), 0)));
-  const smooth = ring.map((v) => blurRing(v, sigma));
-  // Each hour's value sits at the middle of the hour; points go on the hour (0..24), halfway between two
-  const hours = smooth.map((v) => Array.from({ length: 25 }, (_, h) => (v[(h + 23) % 24] + v[h % 24]) / 2));
-  const total = Array.from({ length: 25 }, (_, h) => all.reduce((s, _n, k) => s + hours[k][h], 0));
-  // Each band's share, and its bottom and top in the stack (for hover)
-  const share = all.map((_, k) => total.map((tot, h) => (tot > 1e-9 ? hours[k][h] / tot : 0)));
-  const bottom = all.map(() => new Array(25).fill(0));
-  for (let h = 0; h < 25; h++) {
-    let acc = 0;
-    all.forEach((_, k) => {
-      bottom[k][h] = acc;
-      acc += share[k][h];
-    });
-  }
+  const { share, bottom } = clockShares(grid, names.length, includeOther, sigma);
 
   const st = { names, all, colors, t, off, pinned: new Set(names.filter((n) => pins?.has(n) && !off.has(n))), hovered: prev?.hovered ?? null };
+  st.data = all.map((_, k) => share[k].map((s, h) => [h, bottom[k][h] + s]));
+  st.curve = curve;
   st.zrMove = prev?.zrMove;
   st.zrOut = prev?.zrOut;
   st.zrClick = prev?.zrClick;
@@ -106,7 +126,7 @@ export function renderClock(el, grid, names = [], slots = [], pins = null, hover
         // bands below paint over it
         z: 2 + all.length - k,
         ...clockLook(st, k),
-        data: share[k].map((s, h) => [h, bottom[k][h] + s]),
+        data: st.data[k],
       })),
     },
     // Outlines and fills fade with the morph (deselecting an artist), rather than snapping before it
@@ -188,4 +208,26 @@ export function focusClock(el, name) {
   st.hovered = next;
   // Faded, as hover in the rolling chart is
   setOptionFaded(c, { series: st.all.map((n, k) => ({ id: `c${k}`, ...clockLook(st, k) })) }, undefined, dur(FADE_MS));
+}
+
+// The gallery's arrival (arrivals.js): the card's bands as its thumbnail draws them (toThumb), or as its own. look:
+// { x, y: [at, k], where a point a fraction f across (or up) the thumbnail's plot is at at + k·f of the card's, s: the
+// card's pixels per thumbnail pixel, n: the thumbnail's bands, edges: their top edges as the thumbnail has them, 0..1 }.
+// The thumbnail draws the card's own shares (clockShares), so its form is the card's squashed to the thumbnail's
+// height, its outlines as thin as the thumbnail's. False when they aren't the same bands.
+export function morphClock(el, look, toThumb, ms) {
+  const st = clockState.get(el), c = instances.get(el);
+  if (!st?.data || !c || !look || look.n !== st.all.length) return false;
+  c.dispatchAction({ type: "hideTip" });
+  const series = st.all.map((n, k) => {
+    const base = { id: `c${k}`, ...clockLook(st, k) };
+    if (!toThumb) return { ...base, data: st.data[k] };
+    return {
+      ...base, lineStyle: { ...base.lineStyle, width: base.lineStyle.width && look.s },
+      data: look.edges[k].map(([h, y]) => [24 * (look.x[0] + look.x[1] * (h / 24)), look.y[0] + look.y[1] * y]),
+    };
+  });
+  setOptionFaded(c, { animation: ms > 0, animationDurationUpdate: ms, animationEasingUpdate: EASE_IN_OUT.echarts, series }, undefined, ms, EASE_IN_OUT.echarts, EASE_IN_OUT.echarts);
+  if (!ms) c.setOption({ animation: true });
+  return true;
 }

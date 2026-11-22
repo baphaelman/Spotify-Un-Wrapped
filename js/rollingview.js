@@ -2,7 +2,7 @@
 // slider and smoothing sweeps, pins, and the graphs that follow its artists (the period bar's timeline,
 // the mix bar, monthly hours, the clock, Every play and Every day).
 import * as agg from "./aggregate.js";
-import { renderRolling, renderMonthly, renderClock, renderDiscovery, panDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
+import { renderRolling, renderMonthly, renderClock, clockSmoothing, renderDiscovery, panDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
 import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
@@ -237,12 +237,8 @@ export function paintClock(plays) {
   const keyed = artists.filter((a) => state.colorSlots.has(a));
   const slots = keyed.map((n) => state.colorSlots.get(n));
   const hover = (name) => focusArtist($("chart-rolling"), name);
-  // Smoothed as the rolling chart is: its curve rounding, and its blur as a share of its window, taken as a share of
-  // tune.clockReach hours (4, so High blurs about an hour), but never less than a light smoothing (tune.clockMinBlur
-  // and tune.clockCurve)
-  const { sigma = 0, curve = 0 } = state.shownSmooth ?? {};
-  const hours = Math.max(tune.clockMinBlur, sigma >= 0.5 ? (sigma / state.shownWindow) * tune.clockReach : 0);
-  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, hours, Math.max(tune.clockCurve, curve));
+  const { sigma, curve } = clockSmoothing(); // (smoothed as the rolling chart is)
+  renderClock($("chart-clock"), agg.clockBy(plays, keyed, 1), keyed, slots, pins, hover, new Set(state.hidden), includeOther, sigma, curve);
 }
 $("clock-other").addEventListener("change", () => paintClock());
 

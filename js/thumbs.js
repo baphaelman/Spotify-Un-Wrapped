@@ -8,9 +8,9 @@
 
 import { state, shownPlays, rangeTotals, OTHER, WINDOWS } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
-import { chart } from "./charts.js";
+import { chart, clockShares, clockSmoothing } from "./charts.js";
 import { tokens, alpha, mix } from "./colors.js";
-import { DAY, HOUR, isSkip, isPick, monthSpan, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
+import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, EASE_OUT, dur, easeOut, litLook } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
@@ -132,6 +132,20 @@ function discoveryFinds(d) {
   const top = Math.max(1, shown.reduce((m, x) => Math.max(m, x.hours), floor) * 1.6);
   findsMemo = { key, span, floor, top, lit, rest: rest.filter((_, i) => i % step === 0) };
   return findsMemo;
+}
+
+// When you listened's bands as its card has them (rollingview.js paintClock): the chart's artists' shares through
+// the day (and everyone else's, when the card shows it), smoothed as the card smooths them, each band's top edge
+let clockMemo = null;
+function clockBands(d) {
+  const other = otherOn("clock-card"), { sigma, curve } = clockSmoothing();
+  const key = [d.key, other, sigma, curve].join("|");
+  if (clockMemo?.key === key) return clockMemo;
+  const keyed = d.artists.filter((n) => state.colorSlots?.has(n));
+  const { share, bottom } = clockShares(clockBy(shownPlays(), keyed, 1), keyed.length, other, sigma);
+  const data = share.map((v, k) => v.map((x, h) => [h, bottom[k][h] + x]));
+  clockMemo = { key, curve, all: [...keyed, OTHER], data };
+  return clockMemo;
 }
 
 // ---------- Drawing ----------
@@ -361,15 +375,22 @@ export const THUMBS = {
       }),
     };
   },
-  // When you listened: through the day, each artist's share of the hour, as the card stacks it
+  // When you listened: the card's own bands (clockShares, its smoothing and its Everyone else), each artist's share
+  // of the hour through the day under a line in its color, everyone else's gray on top, stacked by hand as the card
+  // stacks them, so its arrival only grows them to the card's height (morphClock)
   "clock-card": (d, t) => {
-    const rows = d.artists.map((_, i) => {
-      const r = smooth(d.hours.subarray(i * 24, i * 24 + 24), 1, true);
-      return [...r, r[0]]; // midnight again at the right
-    });
+    const { curve, all, data } = clockBands(d);
+    const hidden = new Set(state.hidden);
     return {
-      grid: { left: 0, right: 0, top: 1, bottom: 1 }, xAxis: base(t, "category", { boundaryGap: false, data: keys(25) }),
-      yAxis: guides(t, { max: 1, interval: 0.25 }), series: shareBands(t, d, rows),
+      grid: { left: 0, right: 0, top: 1, bottom: 0 }, xAxis: axis("value", { min: 0, max: 24 }),
+      yAxis: guides(t, { min: 0, max: 1, interval: 0.25 }),
+      series: all.map((n, k) => {
+        const col = n === OTHER ? t.other : colorOf(t, n);
+        return {
+          id: `c${k}`, type: "line", symbol: "none", smooth: curve, z: 2 + all.length - k, data: data[k],
+          lineStyle: { width: hidden.has(n) ? 0 : 1, color: mix(t.surface, col, t.fade.rest) }, areaStyle: { color: mix(t.surface, col, t.shade.rest), opacity: 1 },
+        };
+      }),
     };
   },
   // Every play: drawn by every.js, the card's own drawing in miniature (OVERLAYS), over an empty chart
