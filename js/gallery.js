@@ -13,7 +13,7 @@
 // Closing is the same in reverse, into the tile. A flight turned back midway (Esc while it opens) reverses from where
 // it is.
 
-import { $, bringBack, owes, prefer, holdIdle, onOwedChange } from "./state.js";
+import { $, bringBack, owes, prefer, holdIdle, onOwedChange, unloadAll } from "./state.js";
 import { ENTER_MS, MORPH_MS, STAGGER_MS, STAGGER_MAX_MS, EASE_OUT, EASE_IN_OUT, dur, flip } from "./motion.js";
 import { addThumb, paintThumbs, paintThumb, STRETCH } from "./thumbs.js";
 import { ARRIVALS } from "./arrivals.js";
@@ -80,7 +80,8 @@ own.rel = "noopener";
 acts.append(req, own);
 ask.append(acts);
 
-// The layouts passed over, and flights without their clip (to compare how smoothly they run), Visual tweaks
+// The layouts passed over, flights without their clip (to compare how smoothly they run), and unloading every card
+// (each owes its paint again, so the idle paints draw them anew: their dots show it), Visual tweaks
 const pick = make("div", "gal-layout tweak-only");
 pick.hidden = true;
 const layoutPick = make("label", "", "Gallery layout ");
@@ -95,7 +96,11 @@ layoutPick.append(sel);
 const clipPick = make("label", "", "Clip flights ");
 const clipBox = Object.assign(make("input"), { type: "checkbox", checked: true });
 clipPick.append(clipBox);
-pick.append(layoutPick, clipPick);
+const unload = make("button", "ghost", "Unload cards");
+unload.type = "button";
+unload.title = "Every card off screen owes its paint again; the idle paints draw them back one by one";
+unload.addEventListener("click", unloadAll);
+pick.append(layoutPick, clipPick, unload);
 gallery.append(ask, pick, head, slot, stage);
 // (off only while Visual tweaks is on: off, the page is as chosen)
 const clipped = () => pick.hidden || clipBox.checked;

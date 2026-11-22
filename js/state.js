@@ -164,6 +164,7 @@ export const hooks = {};
 // within half a screen of view, before it shows. `putOff(card, paint)` returns true when it kept the paint for
 // later, false when the caller should paint now. `paint` must draw from the state as it is when it runs.
 const away = new Set(), owed = new Map(), watched = new WeakSet();
+const lastPaint = new Map(); // card -> the paint it last asked for (unloadAll)
 const nearScreen = new IntersectionObserver((entries) => {
   for (const e of entries) {
     // (a card that isn't laid out, as in the hidden dashboard, paints when asked, as it always has)
@@ -183,6 +184,7 @@ export function putOff(card, paint) {
     watched.add(card);
     nearScreen.observe(card);
   }
+  lastPaint.set(card, paint);
   // (an idle paint drawing a card it already drew since the last change, as Every play's paint draws Every day too, is
   // up to date: nothing's owed, or the two would owe each other forever)
   if (idling && away.has(card) && paidAt.get(card) === changes) return true;
@@ -215,6 +217,17 @@ export function catchUp(...cards) {
   for (const c of cards) if (owed.delete(c)) owedChanged(c);
   for (const paint of paints) paint();
   for (const c of were) away.add(c);
+}
+// Every card away from the screen owes its last paint again, as after a change, so the idle paints draw them all anew
+// (a Visual tweak: to watch them fill, or open a card before they have)
+export function unloadAll() {
+  changes++;
+  for (const [card, paint] of lastPaint) {
+    if (!away.has(card) || owed.has(card)) continue;
+    owed.set(card, paint);
+    owedChanged(card);
+  }
+  if (owed.size) idleSoon();
 }
 // Whether a card has a paint waiting, so what it shows is out of date anyway
 export const owes = (card) => owed.has(card);
