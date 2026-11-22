@@ -2,7 +2,10 @@
 
 Opening a gallery tile is one flight (`MORPH_MS`, in-out; gallery.js "The flight between a tile and its card"). The
 card is pinned in its place, scaled down over the tile and clipped to the tile's frame, and grows. Closing plays the
-same keyframes in reverse. Esc or Back midway reverses from wherever it is.
+same keyframes in reverse. Esc or Back midway reverses from wherever it is. The page's title line and period bar
+travel with it as if the page scrolled (gallery.js `scrollAnims`: compositor transforms in the flight's own list, the
+bar's keyframes bending where it sticks); the real scroll jumps when nothing on screen moves for it, as an open lands
+and as a close starts. The tile never moves meanwhile, so the flight's start holds.
 
 A card **crossfades** by default: it fades in over the flying thumbnail (0–40%), and the thumbnail fades out (40–70%).
 The two are different drawings.
@@ -35,7 +38,7 @@ What the solid flight does for you (gallery.js):
   stretches its first frame vertically by `(thumb aspect h/w) / (plot aspect h/w)` (Every Month: `look.stretch`).
 - **The card's chrome.** The card's frame and everything beside the plot fade in over 0–40% (reversed on close). For
   an ECharts plot, its DOM overlays and every drawn shape that isn't a series' fade too: axes, guides, labels,
-  through zrender opacity. A plot of HTML elements or its own canvas is all plot: the arrival fades whatever in it
+  through zrender opacity, each to its own (a faint guide stays faint). A plot of HTML elements or its own canvas is all plot: the arrival fades whatever in it
   doesn't morph.
 - **The thumbnail.** It fades out over 0–25% of an open (and in over the last 25% of a close), over shapes that match
   it, and the card draws above the tile.
@@ -87,7 +90,8 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   idle moment, off screen; the tile under the cursor (or focused) goes first (`prefer`); none run during a flight
   (`holdIdle`). Without it, an open after a period change ran the card's whole paint first (Discovery 122 ms,
   All your … 40). A paint that draws two cards (Every play and Every day) pays both. A Visual tweak shows each tile's
-  dot: a ring while its card's paint waits, filled once it's drawn.
+  dot: a ring while its card's paint waits, filled once it's drawn. Unload cards (Visual tweaks, `unloadAll`) makes
+  every card off screen owe its last paint again, to watch them refill or to open one before they have.
 - **What's left is the flight's own setup:** about 13 ms of layout (the card joining the slot) and the arrival's two
   `setOption`s, `("thumb", 0)` and `("card", MORPH_MS)`: Discovery 42 ms, Rank race 22, Every Month 16, Skips and
   picks 7. Arrivals that move zrender shapes directly (rolling.js `arriveHeight`) or the whole drawing by one
@@ -223,5 +227,12 @@ the same scroll.
 - **A thumbnail repaints on `CHASE_MS`.** Opened within 450 ms of a change the tiles follow (a period drag, a toggle),
   the flight starts on a thumbnail still moving toward what the card's first frame already shows (Every Month: up to
   34px per column). Measure with the change well before the click.
+- **Giving a line series its clip back** (`clip: true` after a flight's `clip: false`): a line with no clip path of
+  its own then gets ECharts' first-draw clip, which wipes the lines away and draws them in again from the left (Rank
+  race did, just after landing). Give it back with `animation: false` once the morph is done, and end the flight on
+  ECharts' own clip rect (the grid and half the line's width around it) so the switch changes nothing (rankrace.js
+  `clipSeries`).
+- **ECharts' line series doesn't animate its circles' size:** a morph that changes `symbolSize` snaps it (Rank race's
+  circles pop in on an open's first frame and out on a close's).
 - **Pictures cost Spotify calls.** Each `test.html` load fetches uncached pictures; use `OFFLINE=1` unless pictures
   are what you're checking.
