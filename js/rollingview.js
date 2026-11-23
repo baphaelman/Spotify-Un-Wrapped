@@ -277,6 +277,7 @@ const DRAGS = {
 const dragging = new Map(); // id -> "drag" while it follows the window, "land" while it lands
 export function dragEvery(range) {
   if (!state.mixArgs) return;
+  hooks.followThumbs?.(range); // (Every day's tile: thumbs.js)
   for (const [id, [start, to]] of Object.entries(DRAGS)) {
     if (dragging.get(id) !== "drag") {
       if (putOff($(id).closest(".card"), () => paintEvery())) continue;
@@ -288,6 +289,7 @@ export function dragEvery(range) {
   }
 }
 export function endDragEvery() {
+  hooks.followThumbs?.(null);
   for (const [id, mode] of dragging) {
     if (mode !== "drag") continue;
     dragging.set(id, "land");

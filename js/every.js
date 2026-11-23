@@ -965,6 +965,44 @@ export function paintCalendarThumb(box, card, { plays, hidden, lo, hi, names, sl
   ctx.transform(kx, 0, 0, ky, -c.x * kx, -c.y * ky);
   drawBoxes(v, ctx, v.boxes);
 }
+// Every day's thumbnail while the period moves (thumbs.js: a pan, a drag of the period window). calendarThumbMove lays
+// out the days of `span` (all a move can reach) once; rest(lo, hi) is where a period rests: its layout (m), the box
+// its boxes fill (frame) and its tint's scale (top). drawCalendarThumbMove places the boxes for the days `at` shows
+// (fractional on the way) with the columns at now.shift and now's sizes, in now.frame rather than fitted to them, so
+// they slide through the tile, days fading in and out at its ends. A strip only (a year or less): rest gives null
+// otherwise, and the tile is left to paintCalendarThumb.
+export function calendarThumbMove(card, { plays, hidden, names, slots, pins, other }, span) {
+  const v = { lo: span.lo, hi: span.hi, looks: new Map() };
+  adopt(v, names, slots, pins, null, DAY_FACTOR);
+  for (const [n, to] of targetsOf(v, DAY_FACTOR)) v.looks.set(n, { from: to, to, at: 0, ms: 0, ease: EASE_OUT.js });
+  const table = dayTable(plays, hidden), keep = other ? null : names.join("\u0000");
+  v.cells = cellsOfDays(table, span.lo, span.hi, keep, false);
+  const W = views.get(card)?.width || card.clientWidth || 1000, rests = new Map();
+  const rest = (lo, hi) => {
+    const key = lo + "," + hi;
+    if (!rests.has(key)) {
+      const m = calMode(lo, hi, W), u = { lo, hi };
+      if (m.kind === "strip") calPlace(u, m, u);
+      rests.set(key, m.kind === "strip" ? { m, frame: contentOf(u.boxes), top: cellsOfDays(table, lo, hi, keep).top } : null);
+    }
+    return rests.get(key);
+  };
+  return { v, rest };
+}
+export function drawCalendarThumbMove(box, mv, at, now) {
+  const { ctx, w, h } = thumbCanvas(box);
+  mv.v.cells.top = now.top;
+  calPlace(mv.v, { kind: "strip", left: now.left, cw: now.cw, ch: now.ch, shift: now.shift }, at);
+  const c = now.frame, kx = w / c.w, ky = h / c.h;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.clip();
+  ctx.transform(kx, 0, 0, ky, -c.x * kx, -c.y * ky);
+  drawBoxes(mv.v, ctx, mv.v.boxes);
+  ctx.restore();
+}
+
 // Every day's arrival: its own boxes, moved by one transform from the thumbnail's box to where they lie, the labels
 // fading in. False when the thumbnail wasn't drawn for what the card shows (or it's sliding or dragged).
 export function arriveCalendar(el, thumb, to, ms) {

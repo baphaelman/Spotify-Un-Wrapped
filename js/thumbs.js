@@ -6,7 +6,7 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp, soon, onPan, pan } from "./state.js";
+import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp, soon, onPan, pan, hooks, extent } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart, clockShares, clockSmoothing, TILE_EDGE, clipBandEdges, EDGE_GAP, MONTH_SHADE } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
@@ -16,7 +16,7 @@ import { tune } from "./tune.js";
 import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, easeInOut, litLook, setOptionFaded, drawStill } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
-import { paintRasterThumb, paintCalendarThumb } from "./every.js";
+import { paintRasterThumb, paintCalendarThumb, calendarThumbMove, drawCalendarThumbMove } from "./every.js";
 import { raceNow } from "./race.js";
 import { skipsNow } from "./skips.js";
 
@@ -753,7 +753,7 @@ const OVERLAYS = {
   "mix-card": faces,
   "sunburst-card": rings,
   "raster-card": (el) => paintRasterThumb(el, document.getElementById("chart-raster"), everyArgs("raster-card")),
-  "calendar-card": (el) => paintCalendarThumb(el, document.getElementById("chart-calendar"), everyArgs("calendar-card")),
+  "calendar-card": (el) => cal || paintCalendarThumb(el, document.getElementById("chart-calendar"), everyArgs("calendar-card")), // (moving: calFollow)
 };
 
 // ---------- Painting ----------
@@ -831,6 +831,7 @@ const onScreen = (el) => {
   return !!el.offsetParent && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
 };
 onPan((p) => {
+  calFollow(p.done ? null : p.at, { lo: Math.floor(Math.min(p.from.lo, p.to.lo)), hi: Math.ceil(Math.max(p.from.hi, p.to.hi)) }, p.from);
   if (slide?.pan !== p && !p.done) {
     if (slide) slideEnd();
     slideStart(p);
@@ -877,6 +878,56 @@ function slideEnd() {
     const el = els.get(id);
     if (el) soon(el, () => el.offsetParent && drawStill(() => paintOne(id, el, tokens())), 1);
   }
+}
+
+// ---------- Every day while the period moves ----------
+// A pan or a drag of the period window moves Every day's tile with it rather than recolouring its boxes in place: its
+// days laid out once over all the move can reach (every.js calendarThumbMove), each frame placed for the range on
+// screen. The columns move with the window, a week's column per 7 days, and what doesn't follow it smoothly chases
+// where the range rests (CAL_CHASE): where a week's column starts (res, under a column), the sizes, the frame and the
+// tint's scale. Once it has stopped and caught up it's drawn as usual, the same picture. Periods of a year or less (a
+// strip); the rest redraw as they did. Laid out on its first frame, with the period's new artists.
+const CAL_CHASE = 70; // ms to cover most of the way
+let cal = null; // { mv, span, now: the layout on screen, target: the range shown (fractional on a pan), ending, raf, last }
+hooks.followThumbs = (range) => calFollow(range, extent());
+function calFollow(range, span, from = range) {
+  const el = els.get("calendar-card");
+  if (!cal) {
+    if (!range || !el || !onScreen(el) || !state.mixArgs) return;
+    const r = calendarThumbMove(document.getElementById("chart-calendar"), everyArgs("calendar-card"), { lo: from.lo, hi: from.lo }).rest(Math.round(from.lo), Math.round(from.hi));
+    if (!r) return;
+    const res = r.m.shift - from.lo / 7;
+    cal = { span, now: { left: r.m.left, cw: r.m.cw, ch: r.m.ch, res, frame: { ...r.frame }, top: r.top }, raf: 0, last: performance.now() };
+  }
+  if (range) [cal.target, cal.ending] = [range, false];
+  else cal.ending = true;
+  cal.raf ||= requestAnimationFrame(calTick);
+}
+function calTick(t) {
+  const c = cal, el = els.get("calendar-card");
+  c.raf = 0;
+  c.mv ??= calendarThumbMove(document.getElementById("chart-calendar"), everyArgs("calendar-card"), c.span);
+  const r = c.mv.rest(Math.round(c.target.lo), Math.round(c.target.hi));
+  if (!r || !el?.offsetParent) return calStop();
+  const k = 1 - Math.exp(-Math.max(0, t - c.last) / CAL_CHASE), n = c.now;
+  c.last = t;
+  let off = 0;
+  const go = (o, key, to) => {
+    o[key] += (to - o[key]) * k;
+    off = Math.max(off, Math.abs(to - o[key]));
+  };
+  for (const key of ["left", "cw", "ch"]) go(n, key, r.m[key]);
+  go(n, "res", r.m.shift - Math.round(c.target.lo) / 7);
+  for (const key of ["x", "y", "w", "h"]) go(n.frame, key, r.frame[key]);
+  n.top += (r.top - n.top) * k;
+  drawCalendarThumbMove(el, c.mv, c.target, { ...n, shift: c.target.lo / 7 + n.res });
+  if (c.ending && off < 0.02) return calStop();
+  c.raf = requestAnimationFrame(calTick);
+}
+function calStop() {
+  cancelAnimationFrame(cal.raf);
+  cal = null;
+  paintThumb("calendar-card");
 }
 
 // One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js); at once
