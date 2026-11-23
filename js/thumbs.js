@@ -586,17 +586,20 @@ export const THUMBS = {
     // (each label rides a clear bar as thick as the row's: overlaid bars line up by their top edge)
     const words = (id, x, o) => ({
       type: "bar", id, barWidth: thick, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
-      data: rows.map((r) => ({ name: r.name, value: 1, label: { opacity: dim(r) } })), label: label(x, o),
+      data: rows.map((r) => ({ value: 1, label: { opacity: dim(r) } })), label: label(x, o),
     });
-    const w = washes(rows.map((r) => r.name), pitch, (n, i) => wash(col(rows[i]), 0.14, lit(n)));
+    // Rows by their place, not their artist: a change (a period's new artists) turns each row into its new one,
+    // its bars growing or shrinking and its colors and words changing, rather than one row going as another comes
+    const at = rows.map((_, i) => i);
+    const w = washes(at, pitch, (_, i) => wash(col(rows[i]), 0.14, lit(rows[i].name)));
     return {
       grid: [{ left, right, top: 0, height: pitch * n }, w.grid], xAxis: [axis("value", { max: 1 }), w.xAxis],
-      yAxis: [axis("category", { data: rows.map((r) => r.name), inverse: true }), w.yAxis],
+      yAxis: [axis("category", { data: at, inverse: true }), w.yAxis],
       series: [
         w.series,
         ...[["bar", 1], ["bar-on", 0.5], ["bar-skip", shade]].map(([id, k], s) => ({
           type: "bar", id, stack: "a", barWidth: thick,
-          data: rows.map((r) => ({ name: r.name, value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k), opacity: dim(r) } })),
+          data: rows.map((r) => ({ value: r1(r.parts[s]), itemStyle: { color: mix(t.surface, col(r), k), opacity: dim(r) } })),
         })),
         words("name", Math.round(W * 0.01), { color: t.primary, width: Math.round(W * SKIPS_NAME), overflow: "truncate", formatter: (p) => rows[p.dataIndex].shown }),
         words("pick", Math.round(W * 0.877), { color: t.primary, fontFamily: mono(), formatter: (p) => rows[p.dataIndex].pick }),

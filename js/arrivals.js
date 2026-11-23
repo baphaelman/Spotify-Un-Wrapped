@@ -61,7 +61,7 @@ function landing(thumbEl, thumb, plot) {
 // Top … over time, All your …, Skips and picks
 import { flyRows, thumbShapes } from "./rowfly.js";
 import { raceRows, settleRace } from "./race.js";
-import { skipsRows } from "./skips.js";
+import { skipsRows, skipsNow } from "./skips.js";
 import { SKIPS_NAME } from "./thumbs.js";
 
 // Listening mix, Inside your top …
@@ -175,12 +175,13 @@ export const ARRIVALS = {
     const u = plot.offsetWidth / el.offsetWidth, sh = thumbShapes(el, u);
     const get = (id, i) => sh.get(id)?.[i];
     const nameRoom = SKIPS_NAME * el.offsetWidth * u; // (a long name is cut where the thumbnail's bar begins)
-    const at = new Map((sh.get("bar") ?? []).map((b, i) => {
+    const names = skipsNow().map((r) => r.name); // (the thumbnail's rows are by place: thumbs.js)
+    const at = new Map((sh.get("bar") ?? []).map((_, i) => {
       // the row's bar: its three stacked parts as one box
       const bs = ["bar", "bar-on", "bar-skip"].map((id) => get(id, i)?.bar).filter((r) => r && r.w > 0);
       const x = Math.min(...bs.map((r) => r.x)), y = Math.min(...bs.map((r) => r.y));
       const bar = bs.length ? { x, y, w: Math.max(...bs.map((r) => r.x + r.w)) - x, h: Math.max(...bs.map((r) => r.y + r.h)) - y } : null;
-      return [b.name, { bar, name: get("name", i)?.label, pick: get("pick", i)?.label, skip: get("skip", i)?.label }];
+      return [names[i], { bar, name: get("name", i)?.label, pick: get("pick", i)?.label, skip: get("skip", i)?.label }];
     }));
     if (to === "thumb" && !matches(rows, at)) return false;
     return flyRows(card, plot, rows.flatMap((r, row) => {
