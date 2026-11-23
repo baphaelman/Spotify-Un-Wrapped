@@ -335,21 +335,26 @@ export const STRETCH = {
 };
 
 export const THUMBS = {
-  // The mix bar: each artist's tinted block with its share in its color and its hours under, their pictures above (faces)
+  // The mix bar: each artist's tinted block with its share in its color and its hours under, their pictures above (faces);
+  // a lit artist's block takes the card's deeper tint (.mix-seg's --tint), and the rest dim, pictures too
   "mix-card": (d, t, box) => {
     const rows = mixRows(d), hrs = rows.map((r) => r[1]);
     const sum = hrs.reduce((s, v) => s + v, 0) || 1;
+    const lit = litAmong(rows.map((r) => r[0]));
     return {
       grid: { left: 0, right: 0, top: FACE + 8, bottom: 0 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: [""] }),
       series: rows.map(([n], i) => {
-        const col = n === OTHER ? t.other : colorOf(t, n);
+        const col = n === OTHER ? t.other : colorOf(t, n), look = lit(n);
         return {
           type: "bar", stack: "a", barWidth: "100%", id: n, name: n, data: [r1(hrs[i] / sum)],
-          itemStyle: { color: band(t, col), borderColor: t.surface, borderWidth: 1, borderRadius: 3 },
+          itemStyle: {
+            color: isLit(look) ? mix(t.surface, col, Math.min(1, MIX_TINT * litK(look))) : band(t, col), opacity: t.dimItem[look],
+            borderColor: t.surface, borderWidth: 1, borderRadius: 3,
+          },
           label: {
             show: (hrs[i] / sum) * box.w > 30, position: "inside", lineHeight: 14,
             formatter: `{p|${Math.round((hrs[i] / sum) * 100)}%}\n{h|${fmtH(hrs[i])}}`,
-            rich: { p: { color: col, fontSize: 11, fontWeight: 600 }, h: { color: t.muted, fontSize: 9 } },
+            rich: { p: { color: col, fontSize: 11, fontWeight: isLit(look) ? 700 : 600 }, h: { color: isLit(look) ? t.primary : t.muted, fontSize: 9 } },
           },
         };
       }),
@@ -585,6 +590,7 @@ function faces(el, d, t, box) {
   row.classList.toggle("square", state.dim !== "artist"); // albums' and songs' covers are square
   const rows = mixRows(d), hrs = rows.map((r) => r[1]);
   const sum = hrs.reduce((s, v) => s + v, 0) || 1;
+  const lit = litAmong(rows.map((r) => r[0]));
   let x = 0;
   rows.forEach(([n], i) => {
     const w = (hrs[i] / sum) * box.w;
@@ -598,7 +604,7 @@ function faces(el, d, t, box) {
     }
     clearTimeout(f.gone);
     f.style.left = `${x + w / 2}px`;
-    f.style.opacity = w >= FACE + 4 && n !== OTHER ? 1 : 0;
+    f.style.opacity = w >= FACE + 4 && n !== OTHER ? t.dimItem[lit(n)] : 0;
     f.style.background = mix(t.surface, colorOf(t, n), 0.3);
     x += w;
     const item = state.dim === "genre" ? null : state.covers?.get(n);
@@ -813,12 +819,12 @@ function fadeWords(c, apply, ms) {
 
 // ---------- The lit look ----------
 // A thumbnail lights its artists as its card does, by the page's hover/pin rule (litLook) among those it draws, but
-// without the outline a pin adds in the card: Top … over time and Skips and picks wash a lit row and dim the rest,
-// Rank race and When you listened dim the others' lines and bands, Every Month grows a lit artist's slices out of
-// the gray. A hover fades the tiles on screen (a frame at a time, state.js soon); the rest take it as they come back,
+// without the outline a pin adds in the card: the mix bar deepens a lit block's tint and dims the rest, Top … over time
+// and Skips and picks wash a lit row and dim the rest, Rank race and When you listened dim the others' lines and bands,
+// Every Month grows a lit artist's slices out of the gray. A hover fades the tiles on screen (a frame at a time, state.js soon); the rest take it as they come back,
 // or, while a graph is open, the ones it'll close onto, after it.
 let hovered = null;
-const LIT = ["race-card", "rank-card", "monthly-card", "clock-card", "skips-card"];
+const LIT = ["mix-card", "race-card", "rank-card", "monthly-card", "clock-card", "skips-card"];
 export function focusThumbs(name) {
   if ((name ?? null) === hovered) return;
   hovered = name ?? null;
@@ -841,10 +847,14 @@ const RANK_DIM = (look) => (look === "dim" ? tune.rankDim : look === "dimHover" 
 // A row's wash as the card's rows have it: its --tint of the color hovered, times --lit-pin pinned and
 // --lit-pin-hover both; none at rest or dimmed (a clear one, so it fades in rather than appearing)
 function wash(col, tint, look) {
-  const css = (k) => +getComputedStyle(document.documentElement).getPropertyValue(k) || 1;
-  const k = look === "hover" ? 1 : look === "pin" ? css("--lit-pin") : look === "pinHover" ? css("--lit-pin-hover") : 0;
-  return alpha(col, Math.min(1, tint * k));
+  return alpha(col, Math.min(1, tint * litK(look)));
 }
+// How many times its --tint a lit item takes: 1 hovered, --lit-pin pinned, --lit-pin-hover both; 0 otherwise
+function litK(look) {
+  const css = (k) => +getComputedStyle(document.documentElement).getPropertyValue(k) || 1;
+  return look === "hover" ? 1 : look === "pin" ? css("--lit-pin") : look === "pinHover" ? css("--lit-pin-hover") : 0;
+}
+const MIX_TINT = 0.26; // (.mix-seg's --tint)
 // The washes: a full-width bar behind each row, on a grid of its own across the whole tile (names and numbers too)
 function washes(keys, pitch, color) {
   return {
