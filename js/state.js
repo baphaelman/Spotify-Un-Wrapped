@@ -352,14 +352,16 @@ export function holdIdle(on) {
 
 // What a change leaves to draw, in order, a frame at a time: soon(key, paint, rank, wait) runs paint after wait ms,
 // lower ranks first, as many a frame as fit in SOON_MS (at least one), each key once (a newer paint replaces its
-// older one), none mid-flight (holdIdle). The graph you're looking at draws in the change itself; then come the
+// older one but keeps its place: its time and rank, if sooner, so asking again never puts one off), none mid-flight
+// (holdIdle). The graph you're looking at draws in the change itself; then come the
 // grid's thumbnails on screen (thumbs.js, rank 1), the open graph's neighbours (gallery.js paintRank, 2) and the
 // thumbnails of the grid you'll go back to (3); the rest wait for idle moments, as above.
 const SOON_MS = 8;
 const soonQ = new Map(); // key -> { paint, rank, at }
 let soonTimer = 0;
 export function soon(key, paint, rank = 1, wait = 0) {
-  soonQ.set(key, { paint, rank, at: performance.now() + wait });
+  const was = soonQ.get(key), at = performance.now() + wait;
+  soonQ.set(key, { paint, rank: Math.min(rank, was?.rank ?? rank), at: Math.min(at, was?.at ?? at) });
   pumpSoon();
 }
 function pumpSoon() {

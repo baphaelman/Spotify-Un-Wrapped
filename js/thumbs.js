@@ -233,11 +233,20 @@ const mono = () => getComputedStyle(document.body).getPropertyValue("--mono").tr
 // cards are away (rollingview.js putOff): a tile runs what it owes first (catchUp), so it's drawn, off screen, as
 // the tiles need it. Its morphs can chain past the paint that asked, so the tiles also repaint as its renders settle.
 const watched = new WeakSet(); // charts the tiles repaint after
+let catching = false;
 function plotOf(id) {
   // (what both cards owe: the chart draws both plots unless both are away. They stay away: its series hold the whole
   // history and the tile reads the period itself, so a drag's zoom, put off each frame, needn't be drawn for it)
   // While the period window is dragged, the tiles slide over the chart as it is (its artists settle as it's let go)
-  if (!document.getElementById("brush-track")?.classList.contains("dragging")) catchUp(...["rolling-card", "hours-card"].map((c) => document.getElementById(c)));
+  // (drawn for the change the tiles are already painting for: it doesn't ask them all to paint again)
+  if (!document.getElementById("brush-track")?.classList.contains("dragging")) {
+    catching = true;
+    try {
+      catchUp(...["rolling-card", "hours-card"].map((c) => document.getElementById(c)));
+    } finally {
+      catching = false;
+    }
+  }
   const c = echarts.getInstanceByDom(document.getElementById(id));
   if (!c?.getModel()?.getSeries().length) return null;
   if (!watched.has(c)) {
@@ -247,8 +256,8 @@ function plotOf(id) {
     // finished: the tiles follow its series instead)
     const follow = () => {
       if (sigOf(c) === copied.get(c)) return;
-      queue("rolling-card");
-      queue("hours-card");
+      queue("rolling-card", true);
+      queue("hours-card", true);
     };
     c.on("finished", follow);
     c.on("rendered", () => idsOf(c) !== copiedIds.get(c) && follow());
@@ -746,7 +755,7 @@ export function addThumb(id, el) {
 // until they come near the screen.
 let frame = 0;
 export function paintThumbs() {
-  if (!frame) frame = requestAnimationFrame(paint);
+  if (!frame && !catching) frame = requestAnimationFrame(paint);
 }
 let back = new Set();
 export const comingBack = (thumbs) => void (back = new Set(thumbs));
@@ -755,14 +764,21 @@ function paint() {
   if (!state.plays || !state.range || !state.mixArgs) return;
   for (const id of els.keys()) queue(id);
 }
-// (one that has taken longer than a frame to draw waits for the change's own morph, so it doesn't hold up one of its
-// frames: Top … View's, which draws the chart off screen first when it owes a paint, Every play's)
+// (one that has taken longer than a frame to draw, Top … View's, which draws the chart off screen first when it owes a
+// paint, Hours per week's, Every play's: on screen, it goes first, in the frame after the change's own, before the
+// others start moving, so its long frame stops nothing mid-way; just off screen, it waits for the change's morph)
 const cost = new Map(); // thumbnail -> the most ms a paint of it has taken
-function queue(id) {
+// (light: it's quick this time, as Top … View's and Hours per week's are, the chart already drawn, following it)
+function queue(id, light = false) {
   const el = els.get(id);
   if (!el) return;
   owed.add(el);
-  if (near.has(el) && el.offsetParent) soon(el, () => paintThumb(id), 1, (cost.get(el) ?? 0) > 16 ? dur(MORPH_MS) : 0);
+  if (near.has(el) && el.offsetParent) {
+    const r = !light && (cost.get(el) ?? 0) > 16 && el.getBoundingClientRect();
+    if (!r) soon(el, () => paintThumb(id), 1);
+    else if (r.bottom > 0 && r.top < innerHeight) soon(el, () => paintThumb(id), 0);
+    else soon(el, () => paintThumb(id), 1, dur(MORPH_MS));
+  }
   else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
 }
 // One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js); at once
@@ -791,7 +807,7 @@ function paintOne(id, el, t, fade = 0) {
   if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
   else c.setOption(option, opts);
   OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
-  cost.set(el, Math.max(cost.get(el) ?? 0, performance.now() - start));
+  if (!first) cost.set(el, Math.max(cost.get(el) ?? 0, performance.now() - start)); // (a first paint makes its chart too)
 }
 // setOptionFaded fades shapes, not the words on them: those fade from what they showed to their new opacity too
 function fadeWords(c, apply, ms) {

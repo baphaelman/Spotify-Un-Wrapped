@@ -121,9 +121,13 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   everything else waits for idle moments. Every graph's paint goes through `putOff` (the mix bar and Skips and picks
   did not), and a hover reaches a graph off screen as it comes back (state.js `look`). Hiding or showing an artist
   with Top … View's cards away tells the page at once and leaves the chart to draw as they come back (rolling.js
-  `restack`, `pins.waits`). The Top … View and Hours per week thumbnails repaint only when the chart's data changes,
-  not after its hover fades. A thumbnail whose last paint took longer than a frame (Top … View's draws the chart
-  off screen first; Every play's) waits for the change's morph, so its long frame doesn't land in it.
+  `restack`, `pins.waits`, which goes first even when the chart splits into albums or songs). The Top … View and
+  Hours per week thumbnails repaint only when the chart's data changes, not after its hover fades. A thumbnail whose
+  paints have taken longer than a frame (Top … View's draws the chart off screen first; Hours per week's, Every
+  play's; a first paint, which makes its chart, doesn't count) goes first when it's on screen, in the frame after the
+  change's own, so its long frame lands before the others start moving rather than in their morphs; just off screen,
+  it waits for the change's morph. A paint asked for again keeps its place in the queue (`soon`), so repeated asks
+  never put it off, and the chart Top … View's thumbnail draws for it doesn't ask every thumbnail to paint again.
 - **Nothing animates off screen.** A card drawn while it's away (an idle paint, a neighbour's) draws at once, as
   under reduced motion (motion.js `drawStill`: `dur` is 0 meanwhile), and whatever it still set moving ends at its
   end at once (state.js `settleNow`: its elements' animations finished, its charts' zrender clocks run past each
