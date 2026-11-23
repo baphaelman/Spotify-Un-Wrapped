@@ -5,7 +5,7 @@ import { currentZoom, setZoom } from "./charts.js";
 import { setupBrush, setBrushRange } from "./brush.js";
 import { dur, CHASE_MS, MORPH_MS, PAN_MS, scaledMs, EASE_IN_OUT, EASE_OUT } from "./motion.js";
 import { $, state, RESIZE_LOOK, extent, presetRange, presetOf, presetLabel, rangePlays, hooks, WINDOWS, endPan, putOff } from "./state.js";
-import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph, dragEvery, endDragEvery } from "./rollingview.js";
+import { periodZoom, clampZoom, rollingSub, rawMemo, renderRollingChart, paintBrush, renderMix, chartArtists, sweepSmoothing, sweepWindow, setBrushMorph, dragEvery, endDragEvery, holdGrid, glideWindow } from "./rollingview.js";
 import { paintArtistKey } from "./key.js";
 import { fmtDay } from "./format.js";
 
@@ -13,6 +13,10 @@ const renderAll = (...a) => hooks.renderAll(...a); // main.js
 const renderDependents = () => hooks.renderDependents(); // main.js
 
 const spanOf = (r) => r.hi - r.lo + 1;
+const onScreen = (el) => {
+  const r = el.getBoundingClientRect();
+  return !!el.offsetParent && r.bottom > 0 && r.top < innerHeight;
+};
 
 // The bar's text and buttons, and the brush's window, for the current range
 export function syncPeriod(frame = true) {
@@ -68,14 +72,21 @@ $("period-resize").addEventListener("click", (e) => {
   const sliceChanges = look && String(WINDOWS.indexOf(look.window)) !== windowWas;
   if (!sameRange(range, state.range)) {
     // The window frame and the chart travel to the new period together first, drawn at the old slice size,
-    // and the new artists morph in. Then the slice size and smoothing change (see retune), when every artist
-    // has data across the period (swept earlier, the old artists would leave the new period's left edge empty).
+    // and the new artists morph in. With Top … View (or Hours per week) open, the new slice size and the
+    // smoothing it calls for morph in with them, on the old size's points (holdGrid), the slider's thumb gliding
+    // over the trip. Otherwise the slice size and smoothing change after (see retune), when every artist has data
+    // across the period (swept earlier, the old artists would leave the new period's left edge empty).
     const was = state.range;
+    const fold = sliceChanges && ["rolling-card", "hours-card"].some((id) => onScreen($(id)));
+    if (fold) {
+      holdGrid({ days: WINDOWS[+windowWas], of: look.window });
+      glideWindow(WINDOWS[+windowWas], look.window, scaledMs(spanOf(was), spanOf(range), PAN_MS) + dur(MORPH_MS));
+    }
     setRange(range);
-    if (!sliceChanges && !retunes(look)) return;
+    if (fold ? !retunes(look) : !sliceChanges && !retunes(look)) return;
     const trip = panMs(was) + dur(MORPH_MS); // (panMs reads the new range as the destination)
     const mine = resizeRun;
-    return void setTimeout(() => mine === resizeRun && retune(look, windowWas), trip + 60);
+    return void setTimeout(() => mine === resizeRun && retune(look, fold ? $("window").value : windowWas), trip + 60);
   }
   // Already that long: there's no trip, so the slice size sweeps as if the slider moved (or the smoothing alone morphs)
   retune(look, windowWas);

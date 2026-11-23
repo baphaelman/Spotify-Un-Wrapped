@@ -76,6 +76,13 @@ $("ridges").addEventListener("click", (e) => {
 // draws only the points over that [start, end] (and one past each end), unfiltered by the range (see cutTo).
 // followers: false leaves the lists, mix bar, monthly chart and the bar's backdrop for the caller to update.
 let renders = 0; // how many times the chart has been drawn, so a window sweep can tell whether it's still its own
+// A period button's new slice size morphing in with its new artists (period.js): renders draw the new window (`of`)
+// on the old one's points (`days`), so the morph's two ends share them, as a sweep's steps do. They stay on them while
+// that slice size stays (redrawn on its own points, the range would shrink to them and the bands shift); the next
+// slice size draws on its own again.
+let heldGrid = null;
+export const holdGrid = (g) => (heldGrid = g);
+
 export function renderRollingChart(zoom, morph = false, look = null, followers = !look) {
   renders++;
   if (!look) cancelSweep(); // any other render ends a sweep in progress
@@ -95,7 +102,8 @@ export function renderRollingChart(zoom, morph = false, look = null, followers =
   let artists = chartArtists(null, n);
   if (!artists.length) artists = chartArtists(state.plays, n);
   const strength = state.smoothify;
-  const grid = look?.grid ?? window;
+  if (heldGrid && heldGrid.of !== window) heldGrid = null;
+  const grid = look?.grid ?? heldGrid?.days ?? window;
   // Each artist's albums or songs, chosen from the period like the artists themselves
   const kind = splitKind();
   const split = kind && { kind, names: partsOf(artists, kind) };
@@ -732,7 +740,7 @@ function endGlide(to = WINDOWS[$("window").value]) {
     ticks.classList.remove("settle");
   }
 }
-function glideWindow(from, to, ms) {
+export function glideWindow(from, to, ms) {
   if (!ms) return;
   // A window size's place on the slider: between two steps in proportion to the log of its size
   const place = (w) => {
