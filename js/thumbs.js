@@ -995,6 +995,9 @@ function paintOne(id, el, t, fade = 0, land = false) {
     slide.landed.add(id);
   }
   if (land) option.animation = false;
+  // After the first, nothing enters on ECharts' own entrance (a line drawn in from the left, a bar grown from nothing):
+  // a newcomer appears where it goes and fades in (setOptionFaded, below). Discovery's new dots still grow in.
+  if (!first && id !== "discovery-card") option.animationDuration = 0;
   const opts = { replaceMerge: first ? [] : ["series"] };
   // A change morphs the shapes on ECharts' own clock, their colors blending on the same one (setOptionFaded: ECharts
   // would swap them), and shapes it adds fading in

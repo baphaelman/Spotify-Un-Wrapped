@@ -81,12 +81,13 @@ export function drawnShapes(c) {
     const v = c.getViewOfSeriesModel?.(m);
     if (v?._polygon) shapes.set(`${m.id}:area`, v._polygon);
     if (v?._polyline) shapes.set(`${m.id}:line`, v._polyline);
-    // Bars: one rect per data item
+    // Bars: one rect per data item, by its name (a category's) where it has one, so an item new to a list fades in
+    // rather than taking on the look of the one that was at its place
     if (m.subType === "bar") {
       const data = m.getData();
       for (let i = 0; i < data.count(); i++) {
         const el = data.getItemGraphicEl(i);
-        if (el) shapes.set(`${m.id}:${i}`, el);
+        if (el) shapes.set(`${m.id}:${data.getName(i) || i}`, el);
       }
     }
     // Dots: each symbol's path, by name (a few hundred at most; bigger layers fade as a whole, see dimRest)
