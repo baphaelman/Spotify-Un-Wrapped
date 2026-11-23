@@ -418,7 +418,8 @@ export const THUMBS = {
         // the hours, at the right as the card has them
         type: "bar", id: "val", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
         data: top.map(([k]) => ({ name: k, value: top[0][1], label: { opacity: dim(k) } })),
-        label: { show: true, position: "right", distance: 6, color: t.muted, fontSize: 9, formatter: (p) => fmtH(top[p.dataIndex][1] / HOUR) },
+        // (level with the middle of the row's wash, between the name and its bar)
+        label: { show: true, position: "right", distance: 6, offset: [0, 2 - ROW / 2], color: t.muted, fontSize: 9, formatter: (p) => fmtH(top[p.dataIndex][1] / HOUR) },
       }],
     };
   },
