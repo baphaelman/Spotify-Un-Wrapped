@@ -30,6 +30,8 @@ import { paintSunburst, focusSunburst } from "./sunburst.js";
 
 // The modules under this one call these back through hooks (state.js)
 Object.assign(hooks, { renderAll, renderDependents, paintArtistKey, openPart, paintThumbs, paintSunburst: () => paintSunburst(), paintRankRace: () => paintRankRace() });
+// ?perf in the address: a readout of what each click costs, for tuning on a real screen (perf.js)
+if (new URLSearchParams(location.search).has("perf")) import("./perf.js");
 // The views parts were opened from, latest last: the back button returns to the latest, a step at a time, and
 // picking a view from the tabs (or opening other data) forgets them
 let viewTrail = [];

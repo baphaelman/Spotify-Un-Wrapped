@@ -291,11 +291,13 @@ function pay(card) {
   const were = paid.filter((c) => away.delete(c));
   for (const c of paid) owed.delete(c);
   idling = true;
+  const start = performance.now();
   try {
     drawStill(paint); // (at once: no one sees it)
   } finally {
     idling = false;
   }
+  hooks.perf?.("idle", card, start);
   for (const c of paid) settleNow(c);
   for (const c of were) away.add(c);
   for (const c of paid) paidAt.set(c, changes);
@@ -377,6 +379,7 @@ function runSoon() {
     if (!next) break;
     soonQ.delete(next[0]);
     next[1].paint();
+    hooks.perf?.("soon", next[0], now, next[1].rank); // (perf.js, with ?perf)
   }
   pumpSoon();
 }
