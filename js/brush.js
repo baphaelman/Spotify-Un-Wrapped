@@ -6,6 +6,7 @@ import { dayToDate } from "./aggregate.js";
 import { dur, easeInOut, easeOut, travel, FADE_MS, SHADE_TOKENS, isPinLook } from "./motion.js";
 import { fmtDay } from "./format.js";
 import { DAY } from "./aggregate.js";
+import { pan, endPan } from "./state.js";
 
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -43,6 +44,13 @@ export function setupBrush(cb, done = () => {}) {
 
   track.addEventListener("pointerdown", (e) => {
     if (!model || !range || e.button) return;
+    // A preset's or a step's pan still gliding the window stops where the window is, on whole days, and the drag takes
+    // it from there (rather than the two fighting over it, the page taking a range between days)
+    if (pan) {
+      const at = { lo: Math.round(range.lo), hi: Math.round(range.hi) };
+      endPan();
+      emit(at.lo, at.hi);
+    }
     const t = e.target;
     let mode = t.closest(".bh.l") ? "l" : t.closest(".bh.r") ? "r" : t.closest("#brush-win") ? "m" : null;
     if (!mode) {
@@ -101,6 +109,7 @@ export function setupBrush(cb, done = () => {}) {
 }
 
 function emit(lo, hi) {
+  [lo, hi] = [Math.round(lo), Math.round(hi)]; // (the page's ranges are whole days)
   if (range && lo === range.lo && hi === range.hi) return;
   range = { lo, hi };
   position();
