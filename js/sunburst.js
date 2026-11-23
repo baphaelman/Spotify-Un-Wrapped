@@ -717,13 +717,12 @@ export function sunLayout() {
   });
   return (thumbMemo = { key, slices });
 }
-// A slice's shapes, round, at radius r px: [slice, its seams or what's past its ring (shapes), a pin's outline]
+// A slice's shapes, round, at radius r px: [slice, its seams or what's past its ring (shapes)]
 export function sunShape(g, r) {
   const keep = [R, edge, gap];
   [R, edge, gap] = [r, null, GAP];
   try {
-    const [d, ext] = shapes(g);
-    return [d, ext, d && slice(g.a0, g.a1, g.r0, 1, GAP + 0.75)];
+    return shapes(g);
   } finally {
     [R, edge, gap] = keep;
   }

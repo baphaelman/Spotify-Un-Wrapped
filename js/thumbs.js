@@ -621,14 +621,15 @@ function faces(el, d, t, box) {
   }
 }
 // Inside your top's thumbnail: the card's slices as it draws them (sunLayout), round at the tile's height, in the
-// card's own classes (so its colors and looks), without labels; a change glides each slice from where it is
+// card's own classes (so its colors and looks), without labels or a pin's outline; a change glides each slice from
+// where it is
 const SVGNS = "http://www.w3.org/2000/svg";
 function rings(el, d, t, box) {
   let svg = el.querySelector(".thumb-sun");
   if (!svg) {
     svg = document.createElementNS(SVGNS, "svg");
     svg.setAttribute("class", "thumb-sun");
-    svg.shapes = new Map(); // id -> { path, ext, outline, g (on screen) }
+    svg.shapes = new Map(); // id -> { path, ext, g (on screen) }
     el.append(svg);
   }
   const lay = sunLayout();
@@ -650,7 +651,7 @@ function rings(el, d, t, box) {
         p.setAttribute("class", cls);
         return p;
       };
-      sh = { path: make("sun-slice"), ext: make("sun-slice sun-ext"), outline: make("sun-outline") };
+      sh = { path: make("sun-slice"), ext: make("sun-slice sun-ext") };
       svg.append(sh.path, sh.ext);
       svg.shapes.set(x.id, sh);
       // (comes in from nothing: growing out of its ring on the first paint, opening from its start after)
@@ -662,12 +663,9 @@ function rings(el, d, t, box) {
     sh.ext.classList.toggle("seam", tune.sunTeeth === 2);
     const slot = x.item != null && x.item !== OTHER ? state.colorSlots?.get(x.item) : undefined;
     const c = slot === undefined ? "var(--other)" : `var(--series-${slot + 1})`;
-    for (const e of [sh.path, sh.ext, sh.outline]) e.style.setProperty("--c", c);
+    for (const e of [sh.path, sh.ext]) e.style.setProperty("--c", c);
     const look = x.depth === 0 ? "rest" : litLook(pinned, null, x.item);
     sh.path.dataset.look = sh.ext.dataset.look = look;
-    const on = x.depth === 1 && pinned.has(x.item);
-    if (on && !sh.outline.isConnected) svg.append(sh.outline);
-    sh.outline.classList.toggle("on", on);
     moves.push([sh, sh.g, x.g]);
   }
   // Whoever left closes up where they were
@@ -677,10 +675,9 @@ function rings(el, d, t, box) {
     sh.leaving = true;
   }
   const put = (sh) => {
-    const [dd, ext, outline] = sunShape(sh.g, R);
+    const [dd, ext] = sunShape(sh.g, R);
     sh.path.setAttribute("d", dd);
     sh.ext.setAttribute("d", ext);
-    sh.outline.setAttribute("d", sh.outline.classList.contains("on") ? outline : "");
   };
   const lerp = (a, b, p) => Object.fromEntries(Object.keys(b).map((k) => [k, (a[k] ?? b[k]) + (b[k] - (a[k] ?? b[k])) * p]));
   cancelAnimationFrame(svg.raf);
@@ -697,7 +694,6 @@ function rings(el, d, t, box) {
       if (!sh.leaving) continue;
       sh.path.remove();
       sh.ext.remove();
-      sh.outline.remove();
       svg.shapes.delete(id);
     }
   };
