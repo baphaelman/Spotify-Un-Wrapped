@@ -129,12 +129,24 @@ function discoveryFinds(d) {
   const hidden = new Set(state.hidden);
   const shown = heardMemo.items.filter((e) => e.t >= s0 && e.t < s1 && e.hours >= floor && !hidden.has(e.group ?? e.name));
   const keyed = new Set(d.artists.filter((n) => state.colorSlots?.has(n)));
-  const lit = shown.filter((e) => keyed.has(e.group ?? e.name)), rest = shown.filter((e) => !keyed.has(e.group ?? e.name));
-  const step = Math.max(1, Math.ceil(rest.length / (wide ? FOUND_MAX * ((s1 - s0) / (span[1] - span[0])) : FOUND_MAX)));
+  // The rest, a sample of about FOUND_MAX over the period, chosen by name, so a pan's two pictures and the period's
+  // own keep the same dots whichever artists are lit
+  const lit = shown.filter((e) => keyed.has(e.group ?? e.name));
+  let n = 0;
+  for (const e of shown) if (e.t >= span[0] && e.t < span[1] && !keyed.has(e.group ?? e.name)) n++;
+  const step = Math.max(1, Math.ceil(n / FOUND_MAX));
+  const rest = shown.filter((e) => !keyed.has(e.group ?? e.name) && hash(e.name) % step === 0);
   const top = Math.max(1, shown.reduce((m, x) => (x.t >= span[0] && x.t < span[1] ? Math.max(m, x.hours) : m), floor) * 1.6);
-  const f = { key, span, floor, top, lit, rest: rest.filter((_, i) => i % step === 0) };
+  const f = { key, span, floor, top, lit, rest };
   if (!wide) findsMemo = f;
   return f;
+}
+
+// A name's number, the same every time (FNV-1a)
+function hash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
 }
 
 // When you listened's bands as its card has them (rollingview.js paintClock): the chart's artists' shares through
@@ -883,14 +895,7 @@ function paintOne(id, el, t, fade = 0) {
   const c = chart(el);
   const first = !c.getOption()?.series?.length;
   const from = !first && slide?.from.get(id), box = { w: el.clientWidth, h: el.clientHeight };
-  if (from) {
-    // what it showed, over both periods, where the pan has got to: nothing on screen changes
-    // (a line's axis ends where its points do, as at rest)
-    const [x0, x1] = spanOf(pan?.at ?? slide.pan.to), xs = id !== "discovery-card" && from.series[0].data;
-    const x = xs ? [Math.max(x0, xs[0]), Math.min(x1, xs[xs.length - 2])] : [x0, x1];
-    c.setOption({ ...from, animation: false, xAxis: { ...from.xAxis, ...minMax(x) } }, { replaceMerge: ["series"] });
-    wide = { span: slide.span, win: spanOf(slide.pan.to), step: slide.step.get(id) };
-  }
+  if (from) wide = { span: slide.span, win: spanOf(slide.pan.to), step: slide.step.get(id) };
   let option;
   try {
     option = {
@@ -903,6 +908,16 @@ function paintOne(id, el, t, fade = 0) {
     wide = null;
   }
   if (from) {
+    // First what it showed, over both periods, where the pan has got to: nothing on screen changes (a line's axis ends
+    // where its points do, as at rest). The lines the new picture has and it hadn't (a new artist's albums) wait for
+    // the end's paint: drawn as they'll be, they'd cross bands still on their way
+    const [x0, x1] = spanOf(pan?.at ?? slide.pan.to), xs = id !== "discovery-card" && from.series[0].data;
+    const x = xs ? [Math.max(x0, xs[0]), Math.min(x1, xs[xs.length - 2])] : [x0, x1];
+    c.setOption({ ...from, animation: false, xAxis: { ...from.xAxis, ...minMax(x) } }, { replaceMerge: ["series"] });
+    if (xs) {
+      const had = new Set(from.series.map((o) => o.id));
+      option.series = option.series.filter((o) => had.has(o.id));
+    }
     // then to the new period's picture over the pan's remaining time, if it has the same points (a line's are by
     // their order); otherwise at once. Its easing is the rest of the pan's own curve from where the pan has got to, so
     // a tile that starts a few frames late keeps pace with the period bar rather than setting off slowly again
