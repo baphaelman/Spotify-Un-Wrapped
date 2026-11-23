@@ -13,7 +13,7 @@ import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
-import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, easeInOut, litLook, setOptionFaded, drawStill } from "./motion.js";
+import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, EASE_IN_OUT, dur, easeOut, easeInOut, litLook, setOptionFaded, drawStill } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb, calendarThumbMove, drawCalendarThumbMove } from "./every.js";
@@ -133,7 +133,8 @@ function discoveryFinds(d) {
   // own keep the same dots whichever artists are lit
   const lit = shown.filter((e) => keyed.has(e.group ?? e.name));
   let n = 0;
-  for (const e of shown) if (e.t >= span[0] && e.t < span[1] && !keyed.has(e.group ?? e.name)) n++;
+  const [n0, n1] = wide?.land ?? span; // (sliding: as where it lands, so both pictures and the landing share their dots)
+  for (const e of shown) if (e.t >= n0 && e.t < n1 && !keyed.has(e.group ?? e.name)) n++;
   const step = Math.max(1, Math.ceil(n / FOUND_MAX));
   const rest = shown.filter((e) => !keyed.has(e.group ?? e.name) && hash(e.name) % step === 0);
   const top = Math.max(1, shown.reduce((m, x) => (x.t >= span[0] && x.t < span[1] ? Math.max(m, x.hours) : m), floor) * 1.6);
@@ -371,10 +372,12 @@ export const THUMBS = {
     const lit = litAmong(rows.map((r) => r[0]));
     return {
       grid: { left: 0, right: 0, top: FACE + 8, bottom: 0 }, xAxis: axis("value", { max: 1 }), yAxis: axis("category", { data: [""] }),
+      // (blocks by place, not artist: a change turns each into its new one, resized and recolored, rather than
+      // drawing new ones in from the left)
       series: rows.map(([n], i) => {
         const col = n === OTHER ? t.other : colorOf(t, n), look = lit(n);
         return {
-          type: "bar", stack: "a", barWidth: "100%", id: n, name: n, data: [r1(hrs[i] / sum)],
+          type: "bar", stack: "a", barWidth: "100%", id: `b${i}`, name: n, data: [r1(hrs[i] / sum)],
           itemStyle: {
             color: isLit(look) ? mix(t.surface, col, Math.min(1, MIX_TINT * litK(look))) : band(t, col), opacity: t.dimItem[look],
             borderColor: t.surface, borderWidth: 1, borderRadius: 3,
@@ -394,22 +397,27 @@ export const THUMBS = {
   // totals (the period's, less what's hidden), past an empty column where the card's ranks go
   // (rows keep their height and run on past the bottom, faded out there, as the card's list goes on)
   "ranking-card": (d, t, box) => {
-    const ROW = 19, TOP = 12, RANK = Math.round(box.w * 0.044);
+    const ROW = 19, TOP = 6, RANK = Math.round(box.w * 0.044);
     const n = Math.ceil((box.h - TOP) / ROW) + 1;
     const hidden = new Set(state.hidden);
     const top = [...rangeTotals().items].filter(([k, e]) => !hidden.has(k) && e.ms > 0).sort((a, b) => b[1].ms - a[1].ms).slice(0, n)
       .map(([k, e]) => [k, e.ms]);
     const own = (k) => (state.chartNames?.includes(k) ? colorOf(t, k) : t.other); // (as the card's chartColor)
+    // A pinned or hovered row washed in its color, the rest dimmed, as the card's list (each row's wash spans its name
+    // above its bar)
+    const lit = litAmong(top.map((x) => x[0])), dim = (k) => t.dimItem[lit(k)];
+    const w = washes(top.map((x) => x[0]), ROW, (k) => wash(own(k), 0.12, lit(k)));
+    w.grid.top = TOP - ROW / 2 + 2;
     return {
-      grid: { left: RANK, right: 34, top: TOP, bottom: box.h - TOP - n * ROW }, xAxis: axis("value", { max: top[0]?.[1] || 1 }),
-      yAxis: axis("category", { data: top.map((x) => x[0]), inverse: true }),
-      series: [{
-        type: "bar", id: "bar", barWidth: 1.5, data: top.map(([k, ms]) => ({ name: k, value: ms, itemStyle: { color: own(k) } })),
+      grid: [{ left: RANK, right: 34, top: TOP, bottom: box.h - TOP - n * ROW }, w.grid], xAxis: [axis("value", { max: top[0]?.[1] || 1 }), w.xAxis],
+      yAxis: [axis("category", { data: top.map((x) => x[0]), inverse: true }), w.yAxis],
+      series: [w.series, {
+        type: "bar", id: "bar", barWidth: 1.5, data: top.map(([k, ms]) => ({ name: k, value: ms, itemStyle: { color: own(k), opacity: dim(k) }, label: { opacity: dim(k) } })),
         label: { show: true, position: [0, -12], color: t.primary, fontSize: 10, formatter: (p) => state.titles?.get(top[p.dataIndex][0]) ?? top[p.dataIndex][0], width: 220, overflow: "truncate" },
       }, {
         // the hours, at the right as the card has them
         type: "bar", id: "val", barWidth: 1, barGap: "-100%", silent: true, z: 0, itemStyle: { color: "transparent" },
-        data: top.map(([k]) => ({ name: k, value: top[0][1] })),
+        data: top.map(([k]) => ({ name: k, value: top[0][1], label: { opacity: dim(k) } })),
         label: { show: true, position: "right", distance: 6, color: t.muted, fontSize: 9, formatter: (p) => fmtH(top[p.dataIndex][1] / HOUR) },
       }],
     };
@@ -509,14 +517,16 @@ export const THUMBS = {
     return {
       grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: f.span[0], max: f.span[1] }),
       yAxis: { ...guides(t), type: "log", min: f.floor, max: f.top, splitLine: hide },
-      series: [
-        // (unclipped: a dot leaving or coming in with a pan slides past the edge rather than popping; the tile clips it)
-        { id: "rest", type: "scatter", symbolSize: 3.5, z: 1, clip: false, itemStyle: { color: mix(t.surface, t.other, 0.8) }, data: f.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)] })) },
-        {
-          id: "mine", type: "scatter", symbolSize: 7, z: 2, clip: false, itemStyle: { borderColor: t.surface, borderWidth: 1 },
-          data: f.lit.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)], itemStyle: { color: colorOf(t, e.group ?? e.name) } })),
-        },
-      ],
+      // One series, the chart's artists' dots last (on top), so a dot whose artist joins or leaves the chart's (a pan to
+      // a period with other artists) stays itself, moving and changing color and size, rather than one going as
+      // another grows in. (Unclipped: a dot leaving or coming in with a pan slides past the edge; the tile clips it.)
+      series: [{
+        id: "dots", type: "scatter", clip: false,
+        data: [
+          ...f.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)], symbolSize: 3.5, itemStyle: { color: mix(t.surface, t.other, 0.8), borderWidth: 0 } })),
+          ...f.lit.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)], symbolSize: 7, itemStyle: { color: colorOf(t, e.group ?? e.name), borderColor: t.surface, borderWidth: 1 } })),
+        ],
+      }],
     };
   },
   // Hours per week: the card's own ridges (or lines), as it draws them, on its one scale (miniature). The first
@@ -821,7 +831,7 @@ function queue(id, light = false) {
 // for the range on screen each frame, as it does while the period is dragged.
 const SLIDE = { "rolling-card": ["chart-rolling", TILE_EDGE], "hours-card": ["chart-rolling-hours", 0], "discovery-card": null };
 let slide = null; // { pan, t0, span, from: id -> option, step: id -> step, landed: ids, raster: its tile or false }
-let wide = null; // while a paint draws over both periods: { span, win, step } (ms, ms, points)
+let wide = null; // while a paint draws over both periods: { span, win, land, step } (ms, ms, ms, points)
 // A range of days (fractional on a pan's way) as times, its last day whole
 const msOf = (d) => dayToDate(Math.floor(d)).getTime() + (d - Math.floor(d)) * DAY;
 const spanOf = (r) => [msOf(r.lo), msOf(r.hi + 1) - 1];
@@ -862,7 +872,7 @@ function slideStart(p) {
       for (let i = 0; i < n; i++) if (xs[2 * i] >= span[0] && xs[2 * i] <= span[1]) k++;
       slide.step.set(id, Math.max(1, Math.ceil(k / Math.max(1, box.w))));
     }
-    wide = { span, win: spanOf(p.from), step: slide.step.get(id) };
+    wide = { span, win: spanOf(p.from), land: spanOf(p.to), step: slide.step.get(id) };
     try {
       const option = plot ? miniature(t, plot[0], box, plot[1], true) : THUMBS[id]({ key: "", artists: (state.mixArgs?.[0] ?? []).filter((n) => n !== OTHER) }, t, box);
       if (option) slide.from.set(id, option);
@@ -876,7 +886,7 @@ function slideEnd() {
   slide = null;
   for (const id of ids) {
     const el = els.get(id);
-    if (el) soon(el, () => el.offsetParent && drawStill(() => paintOne(id, el, tokens())), 1);
+    if (el) soon(el, () => el.offsetParent && paintOne(id, el, tokens(), 0, true), 1);
   }
 }
 
@@ -940,7 +950,8 @@ export function paintThumb(id) {
   else drawStill(() => paintOne(id, el, tokens()));
 }
 // (fade: a change of look, a hover, faded over that many ms, shapes and words, rather than morphed on CHASE_MS)
-function paintOne(id, el, t, fade = 0) {
+// (land: a slide's end, at the period's own detail: what's there stays put, and what it adds fades in)
+function paintOne(id, el, t, fade = 0, land = false) {
   // (one already moving to where a pan is going waits for its end: slideEnd)
   if (slide?.landed.has(id)) return void owed.add(el);
   owed.delete(el);
@@ -949,7 +960,7 @@ function paintOne(id, el, t, fade = 0) {
   const c = chart(el);
   const first = !c.getOption()?.series?.length;
   const from = !first && slide?.from.get(id), box = { w: el.clientWidth, h: el.clientHeight };
-  if (from) wide = { span: slide.span, win: spanOf(slide.pan.to), step: slide.step.get(id) };
+  if (from) wide = { span: slide.span, win: spanOf(slide.pan.to), land: spanOf(slide.pan.to), step: slide.step.get(id) };
   let option;
   try {
     option = {
@@ -982,9 +993,14 @@ function paintOne(id, el, t, fade = 0) {
     } : { animation: false });
     slide.landed.add(id);
   }
+  if (land) option.animation = false;
   const opts = { replaceMerge: first ? [] : ["series"] };
+  // A change morphs the shapes on ECharts' own clock, their colors blending on the same one (setOptionFaded: ECharts
+  // would swap them), and shapes it adds fading in
+  const ms = land ? dur(CHASE_MS) : option.animation === false ? 0 : option.animationDurationUpdate;
   if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
-  else c.setOption(option, opts);
+  else if (first || !ms || STILL.has(id)) c.setOption(option, opts);
+  else setOptionFaded(c, option, opts, ms, EASE_IN_OUT.echarts, land ? EASE_OUT.echarts : option.animationEasingUpdate);
   OVERLAYS[id]?.(el, d, t, { w: el.clientWidth, h: el.clientHeight });
   if (!first) cost.set(el, Math.max(cost.get(el) ?? 0, performance.now() - start)); // (a first paint makes its chart too)
 }
@@ -1019,7 +1035,7 @@ function fadeWords(c, apply, ms) {
 // Every Month grows a lit artist's slices out of the gray. A hover fades the tiles on screen (a frame at a time, state.js soon); the rest take it as they come back,
 // or, while a graph is open, the ones it'll close onto, after it.
 let hovered = null;
-const LIT = ["mix-card", "race-card", "rank-card", "monthly-card", "clock-card", "skips-card"];
+const LIT = ["mix-card", "ranking-card", "race-card", "rank-card", "monthly-card", "clock-card", "skips-card"];
 export function focusThumbs(name) {
   if ((name ?? null) === hovered) return;
   hovered = name ?? null;

@@ -44,7 +44,7 @@ const DEFAULT_LAYOUT = "fill";
 const LAYOUT_KEY = "gallery-layout";
 
 // Tiles that keep only their card's first sentence, giving the thumbnail the room
-const SHORT = new Set(["sunburst-card"]);
+const SHORT = new Set(["sunburst-card", "ranking-card"]);
 const make = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;

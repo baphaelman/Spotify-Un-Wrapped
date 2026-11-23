@@ -120,7 +120,8 @@ export const ARRIVALS = {
     const opt = thumb?.getOption();
     if (!opt?.series?.length || !plot) return false;
     const dots = new Map();
-    for (const s of opt.series.filter(Boolean)) for (const p of s.data) dots.set(p.name, s.id === "mine" ? { size: s.symbolSize, color: p.itemStyle.color, border: s.itemStyle.borderColor } : { size: s.symbolSize });
+    // (one series: the chart's artists' dots are the ones with a border, in their colors)
+    for (const s of opt.series.filter(Boolean)) for (const p of s.data) dots.set(p.name, p.itemStyle?.borderWidth ? { size: p.symbolSize, color: p.itemStyle.color, border: p.itemStyle.borderColor } : { size: p.symbolSize });
     const [x] = opt.xAxis, [y] = opt.yAxis;
     return morphDiscovery($("chart-discovery"), { ...landing(el, thumb, plot), dots, span: [x.min, x.max], floor: y.min, top: y.max }, to === "thumb", ms);
   },
@@ -206,7 +207,7 @@ export const ARRIVALS = {
       const L = data?.getItemLayout(0);
       if (!L) return;
       // (each block's 1px surface border: half of it over the fill on every side)
-      blocks.set(sr.id, {
+      blocks.set(sr.name, { // (the thumbnail's blocks are by place, named for their artist)
         l: (L.x + 0.5) / s, t: y(L.y + 0.5), w: Math.max(0, L.width - 1) / s, h: Math.max(0, L.height - 1) / s, r: 3 / s,
         color: data.getItemVisual(0, "style").fill, show: !!sr.label?.show,
         pct: { dy: -7 / s, k: 11 / s }, hrs: { dy: 7 / s, k: 9 / s },
@@ -216,7 +217,7 @@ export const ARRIVALS = {
     const row = el.querySelector(".thumb-faces");
     for (const [n, f] of row?.faces ?? []) {
       const img = f.querySelector("img.shown");
-      if (+f.style.opacity !== 1) continue;
+      if (!(+f.style.opacity > 0)) continue; // (shown: dimmed while another's lit, too)
       const size = f.offsetWidth / s;
       faces.set(n, {
         l: (f.offsetLeft) / s, t: y(f.offsetTop + row.offsetTop), size, r: row.classList.contains("square") ? 3 / s : size / 2,
