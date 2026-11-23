@@ -580,9 +580,9 @@ function draw() {
   const W = el.clientWidth;
   if (!W || !svg) return;
   const H = Math.min(W, MAX_SIZE);
-  // (in the gallery's flight, the circle is the thumbnail's, lower down: fly, from arriveSunburst)
+  // (in the gallery's flight, the circle is the thumbnail's, lower down and to the right: fly, from arriveSunburst)
   const c = fly?.c ?? 1;
-  svg.setAttribute("viewBox", `${-W / 2} ${(-H / 2 - (fly ? fly.dy * (1 - c) : 0)).toFixed(2)} ${W} ${H}`);
+  svg.setAttribute("viewBox", `${(-W / 2 - (fly ? fly.dx * (1 - c) : 0)).toFixed(2)} ${(-H / 2 - (fly ? fly.dy * (1 - c) : 0)).toFixed(2)} ${W} ${H}`);
   svg.setAttribute("width", W);
   svg.setAttribute("height", H);
   R = H / 2 - 1;
@@ -732,7 +732,7 @@ export function sunShape(g, r) {
 // no labels) or as itself, morphed from what's on screen over ms. look: { R, dy } the thumbnail's radius and how far
 // below the card's middle its middle is, in the card's px; ids: the thumbnail's slices. False when they aren't the
 // card's (it then crossfades).
-let fly = null; // { c (0: the thumbnail, 1: the card), R, dy, raf }
+let fly = null; // { c (0: the thumbnail, 1: the card), R, dx, dy, raf }
 export function arriveSunburst(look, ids, toThumb, ms) {
   if (!svg || !$("sunburst").clientWidth) return false;
   // (the card's own paint, if it's still moving, lands first: the flight starts from its shapes at rest)

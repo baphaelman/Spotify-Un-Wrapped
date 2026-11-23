@@ -643,9 +643,10 @@ function faces(el, d, t, box) {
     f.gone = setTimeout(() => f.remove(), dur(CHASE_MS));
   }
 }
-// Inside your top's thumbnail: the card's slices as it draws them (sunLayout), round at the tile's height, in the
-// card's own classes (so its colors and looks), without labels or a pin's outline; a change glides each slice from
-// where it is
+// Inside your top's thumbnail: the card's slices as it draws them (sunLayout), round, in the card's own classes (so its
+// colors and looks), without labels or a pin's outline; a change glides each slice from where it is. The thumbnail
+// fills the tile under its words (.gal-tile.round), and the circle is as tall as it, at its right, as wide as the
+// title leaves room for; the line under the title narrows beside it (--round)
 const SVGNS = "http://www.w3.org/2000/svg";
 function rings(el, d, t, box) {
   let svg = el.querySelector(".thumb-sun");
@@ -656,9 +657,13 @@ function rings(el, d, t, box) {
     el.append(svg);
   }
   const lay = sunLayout();
-  const R = box.h / 2 - 1;
-  svg.setAttribute("viewBox", `${-box.w / 2} ${-box.h / 2} ${box.w} ${box.h}`);
-  svg.R = R;
+  const title = el.closest(".gal-tile")?.querySelector("h4"), words = document.createRange();
+  words.selectNodeContents(title ?? el);
+  const R = Math.max(8, Math.min(box.h / 2 - 1, (box.w - (title ? words.getBoundingClientRect().width + 16 : 0)) / 2 - 1));
+  const cx = box.w / 2 - R - 1; // (the circle's middle, right of the box's)
+  svg.setAttribute("viewBox", `${-box.w / 2 - cx} ${-box.h / 2} ${box.w} ${box.h}`);
+  el.closest(".gal-tile")?.style.setProperty("--round", `${2 * R + 2}px`);
+  Object.assign(svg, { R, cx });
   svg.ids = lay ? lay.slices.map((x) => x.id) : [];
   if (!lay) return;
   const pins = state.mixArgs?.[3];

@@ -1690,6 +1690,11 @@ button:not(:disabled):active { transform: scale(0.96); }
 .gal-tile.short > p { height: auto; }
 /* 96px, or more where the tile's row is taller than its own contents (a short tile's thumbnail takes the room) */
 .gal-thumb { flex: 1 0 96px; min-height: 96px; margin-top: 10px; pointer-events: none; }
+/* Inside your top: the thumbnail fills the tile under its words, its circle as tall as the tile at the right, the line
+   beside it (--round: the circle's width, thumbs.js rings) */
+.gal-tile.round { min-height: 180px; }
+.gal-tile.round .gal-thumb { position: absolute; inset: 12px; margin: 0; }
+.gal-tile.round > p { max-width: calc(100% - var(--round, 0px) - 12px); -webkit-line-clamp: 3; }
 /* All your …: its rows run on past the bottom, fading out */
 #thumb-ranking-card { -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
 /* The mix thumbnail's pictures (thumbs.js faces), over the artists' blocks */

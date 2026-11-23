@@ -123,6 +123,7 @@ for (const id of Object.keys(SLUG)) {
   const thumb = make("div", "gal-thumb");
   thumb.id = "thumb-" + id;
   tile.classList.toggle("short", SHORT.has(id));
+  tile.classList.toggle("round", id === "sunburst-card"); // (its circle takes the tile's height: thumbs.js rings)
   // (a Visual tweak: a dot in the corner, filled once the card is drawn for what the page shows, so it opens at once)
   const ready = make("span", "gal-ready tweak-only");
   ready.hidden = true;

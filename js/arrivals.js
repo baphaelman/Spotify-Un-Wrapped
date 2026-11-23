@@ -230,13 +230,13 @@ export const ARRIVALS = {
     const svg = el.querySelector(".thumb-sun"), plot = $("sunburst");
     if (!svg?.ids?.length || !plot.offsetWidth || !el.clientWidth) return false;
     // the thumbnail's px in the card's: as wide, on the plot's baseline (gallery.js plotBox: at most 16px above the
-    // card's bottom), and the circle in the middle of the plot's svg
+    // card's bottom), and the circle in the middle of the plot's svg; the thumbnail's sits right of its middle (cx)
     const s = el.clientWidth / plot.offsetWidth;
     const r = plot.getBoundingClientRect(), k = r.width / plot.offsetWidth || 1;
     const bottom = (Math.min(r.bottom, card.getBoundingClientRect().bottom - 16) - r.top) / k;
     const H = plot.querySelector(".sun-svg")?.getAttribute("height") ?? plot.offsetHeight;
     const dy = bottom - el.clientHeight / 2 / s - H / 2;
-    return arriveSunburst({ R: svg.R / s, dy, gap: 1 / s }, svg.ids, to === "thumb", ms);
+    return arriveSunburst({ R: svg.R / s, dx: (svg.cx ?? 0) / s, dy, gap: 1 / s }, svg.ids, to === "thumb", ms);
   },
 
   // Every play, Every day
