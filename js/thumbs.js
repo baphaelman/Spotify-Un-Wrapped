@@ -6,14 +6,14 @@
 //
 // THUMBS: card id -> (digest, tokens, box) => ECharts option. A contributed graph adds its own entry here.
 
-import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp, soon } from "./state.js";
+import { state, shownPlays, rangeTotals, OTHER, WINDOWS, catchUp, soon, onPan, pan } from "./state.js";
 import { coverFor, knownCover } from "./covers.js";
 import { chart, clockShares, clockSmoothing, TILE_EDGE, clipBandEdges, EDGE_GAP, MONTH_SHADE } from "./charts.js";
 import { rankLines, rankKey } from "./rankrace.js";
 import { tokens, alpha, mix } from "./colors.js";
 import { DAY, HOUR, isSkip, isPick, monthSpan, clockBy, firstHeard, firstHeardTracks, dayToDate } from "./aggregate.js";
 import { tune } from "./tune.js";
-import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, litLook, setOptionFaded, drawStill } from "./motion.js";
+import { CHASE_MS, ENTER_MS, MORPH_MS, FADE_MS, EASE_OUT, dur, easeOut, easeInOut, litLook, setOptionFaded, drawStill } from "./motion.js";
 import { fmtH, hoursText } from "./format.js";
 import { sunLayout, sunShape } from "./sunburst.js";
 import { paintRasterThumb, paintCalendarThumb } from "./every.js";
@@ -119,20 +119,22 @@ function discoveryFinds(d) {
   const floor = tune.discoveryFloor / 60;
   const reach = document.querySelector("#discovery-by [aria-pressed=true]")?.dataset.by === "reach" ? floor : 0;
   const key = [d.key, floor, reach].join("|");
-  if (findsMemo?.key === key) return findsMemo;
+  if (!wide && findsMemo?.key === key) return findsMemo;
   if (heardMemo?.plays !== state.plays || heardMemo.reach !== reach) {
     const items = state.dim === "genre" ? firstHeardTracks(state.plays, reach) : firstHeard(state.plays, state.dim !== "track", state.dim !== "album", reach);
     heardMemo = { plays: state.plays, reach, items };
   }
-  const span = [dayToDate(d.lo).getTime(), dayToDate(d.lo + d.days).getTime()];
+  // (sliding: the finds of both periods, the axes the window's: its span and its own top)
+  const span = wide?.win ?? [dayToDate(d.lo).getTime(), dayToDate(d.lo + d.days).getTime()], [s0, s1] = wide?.span ?? span;
   const hidden = new Set(state.hidden);
-  const shown = heardMemo.items.filter((e) => e.t >= span[0] && e.t < span[1] && e.hours >= floor && !hidden.has(e.group ?? e.name));
+  const shown = heardMemo.items.filter((e) => e.t >= s0 && e.t < s1 && e.hours >= floor && !hidden.has(e.group ?? e.name));
   const keyed = new Set(d.artists.filter((n) => state.colorSlots?.has(n)));
   const lit = shown.filter((e) => keyed.has(e.group ?? e.name)), rest = shown.filter((e) => !keyed.has(e.group ?? e.name));
-  const step = Math.max(1, Math.ceil(rest.length / FOUND_MAX));
-  const top = Math.max(1, shown.reduce((m, x) => Math.max(m, x.hours), floor) * 1.6);
-  findsMemo = { key, span, floor, top, lit, rest: rest.filter((_, i) => i % step === 0) };
-  return findsMemo;
+  const step = Math.max(1, Math.ceil(rest.length / (wide ? FOUND_MAX * ((s1 - s0) / (span[1] - span[0])) : FOUND_MAX)));
+  const top = Math.max(1, shown.reduce((m, x) => (x.t >= span[0] && x.t < span[1] ? Math.max(m, x.hours) : m), floor) * 1.6);
+  const f = { key, span, floor, top, lit, rest: rest.filter((_, i) => i % step === 0) };
+  if (!wide) findsMemo = f;
+  return f;
 }
 
 // When you listened's bands as its card has them (rollingview.js paintClock): the chart's artists' shares through
@@ -280,19 +282,24 @@ const sigOf = (c) => idsOf(c) + "|" + c.getModel().getSeries().map((m) => {
 // TILE_EDGE of the card's weight, which the arrival brings them to) are clipped to their bands' insides as the card's
 // are, hiding in bands too thin for them with the card's gap at the tile's scale, so a flight starts and lands on the
 // same edges (clipBandEdges, run once the paint has drawn them).
-function miniature(t, id, box, edge) {
-  const c = plotOf(id);
-  if (!c) return null;
+// While a pan slides it (wide, below), the points span both periods at the step the slide set, the axis showing
+// wide.win; `still` reads the chart as it is (the pan's start: what the tile shows), without catching it up.
+function miniature(t, id, box, edge, still = false) {
+  const c = still ? echarts.getInstanceByDom(document.getElementById(id)) : plotOf(id);
+  if (!c?.getModel()?.getSeries().length) return null;
   const models = c.getModel().getSeries();
-  copied.set(c, sigOf(c));
-  copiedIds.set(c, idsOf(c));
+  if (!still) {
+    copied.set(c, sigOf(c));
+    copiedIds.set(c, idsOf(c));
+  }
   const xs = models[0].option.data; // (flat: x, y, x, y …, the same dates in every series)
   const n = xs.length / 2;
-  const x0 = Math.max(dayToDate(state.range.lo).getTime(), xs[0]), x1 = Math.min(dayToDate(state.range.hi + 1).getTime() - 1, xs[2 * n - 2]);
+  const [w0, w1] = wide?.win ?? spanOf(state.range), [s0, s1] = wide?.span ?? [w0, w1];
+  const x0 = Math.max(s0, xs[0]), x1 = Math.min(s1, xs[2 * n - 2]);
   let a = 0, b = n - 1;
   while (a < b && xs[2 * (a + 1)] <= x0) a++;
   while (b > a && xs[2 * (b - 1)] >= x1) b--;
-  const step = Math.max(1, Math.floor((b - a) / Math.max(1, box.w)));
+  const step = wide?.step ?? Math.max(1, Math.floor((b - a) / Math.max(1, box.w)));
   const at = [];
   for (let i = a; i < b; i += step) at.push(i);
   at.push(b);
@@ -307,8 +314,8 @@ function miniature(t, id, box, edge) {
       data,
     };
   });
-  const x = [x0, x1];
-  if (edge) {
+  const x = wide ? [Math.max(w0, xs[0]), Math.min(w1, xs[2 * n - 2])] : [x0, x1];
+  if (edge && !still) {
     const bands = models.filter((m) => /^s\d+$/.test(m.id)).length, opacity = new Map(models.map((m) => [m.id, m.option.lineStyle?.opacity ?? 1]));
     const gap = EDGE_GAP * (box.w / c.getModel().getComponent("grid").coordinateSystem.getRect().width);
     const tile = document.getElementById(id === "chart-rolling" ? "thumb-rolling-card" : "thumb-hours-card");
@@ -491,9 +498,10 @@ export const THUMBS = {
       grid: { left: 3, right: 3, top: 4, bottom: 1 }, xAxis: base(t, "value", { min: f.span[0], max: f.span[1] }),
       yAxis: { ...guides(t), type: "log", min: f.floor, max: f.top, splitLine: hide },
       series: [
-        { id: "rest", type: "scatter", symbolSize: 3.5, z: 1, itemStyle: { color: mix(t.surface, t.other, 0.8) }, data: f.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)] })) },
+        // (unclipped: a dot leaving or coming in with a pan slides past the edge rather than popping; the tile clips it)
+        { id: "rest", type: "scatter", symbolSize: 3.5, z: 1, clip: false, itemStyle: { color: mix(t.surface, t.other, 0.8) }, data: f.rest.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)] })) },
         {
-          id: "mine", type: "scatter", symbolSize: 7, z: 2, itemStyle: { borderColor: t.surface, borderWidth: 1 },
+          id: "mine", type: "scatter", symbolSize: 7, z: 2, clip: false, itemStyle: { borderColor: t.surface, borderWidth: 1 },
           data: f.lit.map((e) => ({ name: e.name, value: [e.t, Math.max(e.hours, f.floor)], itemStyle: { color: colorOf(t, e.group ?? e.name) } })),
         },
       ],
@@ -775,12 +783,82 @@ function queue(id, light = false) {
   owed.add(el);
   if (near.has(el) && el.offsetParent) {
     const r = !light && (cost.get(el) ?? 0) > 16 && el.getBoundingClientRect();
-    if (!r) soon(el, () => paintThumb(id), 1);
+    if (slide?.from.has(id) && !slide.landed.has(id)) soon(el, () => paintThumb(id), r ? 0 : -1); // (sliding: before it falls behind, quick ones first)
+    else if (!r) soon(el, () => paintThumb(id), 1);
     else if (r.bottom > 0 && r.top < innerHeight) soon(el, () => paintThumb(id), 0);
     else soon(el, () => paintThumb(id), 1, dur(MORPH_MS));
   }
   else if (back.has(el)) soon(el, () => paintThumb(id), 3, dur(MORPH_MS));
 }
+// ---------- Sliding with a pan ----------
+// A preset or a step (state.js pan) slides the thumbnails drawn over time with the period, in one move rather than
+// their cards' steps. As the pan starts, each one on screen notes what it shows over both periods (from: its option,
+// with the artists it has, unanimated); its paint for the change draws that first (nothing on screen changes), then
+// the new period's picture, also over both periods, on the pan's remaining time. With the same points in the same
+// order, ECharts carries each from where it is to where it's going: the time axis slides (and stretches, for a preset
+// of another length) while new artists and values morph in the same move. Paints asked for meanwhile wait; as the pan
+// ends each is drawn at the period's own detail at once (the same picture). Every play's, on its own canvas, redraws
+// for the range on screen each frame, as it does while the period is dragged.
+const SLIDE = { "rolling-card": ["chart-rolling", TILE_EDGE], "hours-card": ["chart-rolling-hours", 0], "discovery-card": null };
+let slide = null; // { pan, t0, span, from: id -> option, step: id -> step, landed: ids, raster: its tile or false }
+let wide = null; // while a paint draws over both periods: { span, win, step } (ms, ms, points)
+// A range of days (fractional on a pan's way) as times, its last day whole
+const msOf = (d) => dayToDate(Math.floor(d)).getTime() + (d - Math.floor(d)) * DAY;
+const spanOf = (r) => [msOf(r.lo), msOf(r.hi + 1) - 1];
+const minMax = ([min, max]) => ({ min, max });
+const onScreen = (el) => {
+  const r = el.getBoundingClientRect();
+  return !!el.offsetParent && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+};
+onPan((p) => {
+  if (slide?.pan !== p && !p.done) {
+    if (slide) slideEnd();
+    slideStart(p);
+  }
+  const raster = slide?.pan === p && slide.raster;
+  if (raster && state.mixArgs)
+    paintRasterThumb(raster, document.getElementById("chart-raster"), { ...everyArgs("raster-card"), lo: Math.round(p.at.lo), hi: Math.round(p.at.hi) });
+  if (p.done && slide?.pan === p) slideEnd();
+});
+function slideStart(p) {
+  const span = [msOf(Math.min(p.from.lo, p.to.lo)), msOf(Math.max(p.from.hi, p.to.hi) + 1) - 1];
+  // (Every play's tile, if it's on screen: it redraws each frame)
+  const raster = els.get("raster-card");
+  slide = { pan: p, t0: performance.now(), span, from: new Map(), step: new Map(), landed: new Set(), raster: raster && onScreen(raster) && raster };
+  const t = tokens();
+  for (const [id, plot] of Object.entries(SLIDE)) {
+    const el = els.get(id);
+    if (!el || !onScreen(el) || owed.has(el) || !chart(el).getOption()?.series?.length) continue;
+    const box = { w: el.clientWidth, h: el.clientHeight };
+    if (plot) {
+      // (the chart as the tile copied it: not since redrawn for something it hasn't shown)
+      const c = echarts.getInstanceByDom(document.getElementById(plot[0]));
+      if (!c?.getModel()?.getSeries().length || copied.get(c) !== sigOf(c)) continue;
+      // about a point per pixel of the tile across both periods: each frame of the move rebuilds every band, so it
+      // slides with less detail than it rests with (the end's paint brings it back)
+      const xs = c.getModel().getSeries()[0].option.data, n = xs.length / 2;
+      let k = 0;
+      for (let i = 0; i < n; i++) if (xs[2 * i] >= span[0] && xs[2 * i] <= span[1]) k++;
+      slide.step.set(id, Math.max(1, Math.ceil(k / Math.max(1, box.w))));
+    }
+    wide = { span, win: spanOf(p.from), step: slide.step.get(id) };
+    try {
+      const option = plot ? miniature(t, plot[0], box, plot[1], true) : THUMBS[id]({ key: "", artists: (state.mixArgs?.[0] ?? []).filter((n) => n !== OTHER) }, t, box);
+      if (option) slide.from.set(id, option);
+    } finally {
+      wide = null;
+    }
+  }
+}
+function slideEnd() {
+  const ids = [...slide.landed];
+  slide = null;
+  for (const id of ids) {
+    const el = els.get(id);
+    if (el) soon(el, () => el.offsetParent && drawStill(() => paintOne(id, el, tokens())), 1);
+  }
+}
+
 // One thumbnail, now, wherever it is (a flight closing into it reads its form before it shows: gallery.js); at once
 // when it isn't on screen (near it, or in the grid an open graph hides), where no one sees it move
 export function paintThumb(id) {
@@ -792,17 +870,44 @@ export function paintThumb(id) {
 }
 // (fade: a change of look, a hover, faded over that many ms, shapes and words, rather than morphed on CHASE_MS)
 function paintOne(id, el, t, fade = 0) {
+  // (one already moving to where a pan is going waits for its end: slideEnd)
+  if (slide?.landed.has(id)) return void owed.add(el);
   owed.delete(el);
   const start = performance.now();
   const d = digest();
   const c = chart(el);
   const first = !c.getOption()?.series?.length;
-  const option = {
-    // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
-    animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
-    animationDurationUpdate: fade || dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
-    tooltip: hide, silent: true, ...THUMBS[id](d, t, { w: el.clientWidth, h: el.clientHeight }),
-  };
+  const from = !first && slide?.from.get(id), box = { w: el.clientWidth, h: el.clientHeight };
+  if (from) {
+    // what it showed, over both periods, where the pan has got to: nothing on screen changes
+    // (a line's axis ends where its points do, as at rest)
+    const [x0, x1] = spanOf(pan?.at ?? slide.pan.to), xs = id !== "discovery-card" && from.series[0].data;
+    const x = xs ? [Math.max(x0, xs[0]), Math.min(x1, xs[xs.length - 2])] : [x0, x1];
+    c.setOption({ ...from, animation: false, xAxis: { ...from.xAxis, ...minMax(x) } }, { replaceMerge: ["series"] });
+    wide = { span: slide.span, win: spanOf(slide.pan.to), step: slide.step.get(id) };
+  }
+  let option;
+  try {
+    option = {
+      // (heatmaps and dots don't tween in ECharts, so those draw once a paint rather than every frame for nothing)
+      animation: !STILL.has(id), animationDuration: dur(ENTER_MS), animationEasing: EASE_OUT.echarts,
+      animationDurationUpdate: fade || dur(CHASE_MS), animationEasingUpdate: EASE_OUT.echarts,
+      tooltip: hide, silent: true, ...THUMBS[id](d, t, box),
+    };
+  } finally {
+    wide = null;
+  }
+  if (from) {
+    // then to the new period's picture over the pan's remaining time, if it has the same points (a line's are by
+    // their order); otherwise at once. Its easing is the rest of the pan's own curve from where the pan has got to, so
+    // a tile that starts a few frames late keeps pace with the period bar rather than setting off slowly again
+    const same = id === "discovery-card" || option.series?.[0]?.data?.length === from.series?.[0]?.data?.length;
+    const a = Math.min(1, (performance.now() - slide.t0) / slide.pan.ms), ea = easeInOut(a);
+    Object.assign(option, same && a < 1 ? {
+      animationDurationUpdate: slide.pan.ms * (1 - a), animationEasingUpdate: (u) => (easeInOut(a + u * (1 - a)) - ea) / (1 - ea),
+    } : { animation: false });
+    slide.landed.add(id);
+  }
   const opts = { replaceMerge: first ? [] : ["series"] };
   if (fade && !first) fadeWords(c, () => setOptionFaded(c, option, opts, fade), fade);
   else c.setOption(option, opts);

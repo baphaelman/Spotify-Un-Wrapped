@@ -128,6 +128,13 @@ Measured with `PROFILE=console` on `dev/shot.py` around one click (Tracks view, 
   change's own, so its long frame lands before the others start moving rather than in their morphs; just off screen,
   it waits for the change's morph. A paint asked for again keeps its place in the queue (`soon`), so repeated asks
   never put it off, and the chart Top … View's thumbnail draws for it doesn't ask every thumbnail to paint again.
+- **Thumbnails slide with a pan** (a preset or a ‹ › step): Top … View, Hours per week and Discovery in one ECharts
+  move rather than their cards' steps (thumbs.js "Sliding with a pan"). At the pan's start each on screen notes what it
+  shows over both periods; its paint for the change draws that unanimated, then the new period's picture over both
+  periods, the same points in the same order, so ECharts carries each point along: the axis slides (and stretches for
+  another length) while new artists and values morph in the same move, on the rest of the pan's own curve. Lines
+  slide with about a point per pixel of the tile; the pan's end repaints them at once at the period's detail. New
+  artists' colors change as it starts (ECharts doesn't tween a line's color). Every play's tile redraws each frame.
 - **Nothing animates off screen.** A card drawn while it's away (an idle paint, a neighbour's) draws at once, as
   under reduced motion (motion.js `drawStill`: `dur` is 0 meanwhile), and whatever it still set moving ends at its
   end at once (state.js `settleNow`: its elements' animations finished, its charts' zrender clocks run past each
