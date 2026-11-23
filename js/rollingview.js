@@ -4,7 +4,7 @@
 import * as agg from "./aggregate.js";
 import { renderRolling, renderMonthly, renderClock, clockSmoothing, renderDiscovery, panDiscovery, currentZoom, focusArtist, holdFocus, toggleArtist, onZoomChange, linkStrip, hiddenIn, setRidges } from "./charts.js";
 import { setBrushBands } from "./brush.js";
-import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
+import { sweep, cancelSweep, travel, GROW_MS, MORPH_MS, FADE_MS, scaledMs, sweepSteps, EASE_OUT, easeInOut, CHASE_MS, tweenNumber, dur, litLook } from "./motion.js";
 import { updateMix } from "./mix.js";
 import { renderRaster, renderCalendar, panRaster, panRasterTo, endPanRaster, panCalendar, panCalendarTo, endPanCalendar, dragCalendar, dragCalendarTo, endDragCalendar } from "./every.js";
 import { updateSkips } from "./skips.js";
@@ -857,21 +857,31 @@ for (const tick of windowSliders.flatMap((input) => [...input.closest(".slider")
 export function pin(name) {
   if (state.pinned.includes(name) || state.pinned.length >= MAX_PINS) return;
   state.pinned = [...state.pinned, name];
-  brushMorph = { ms: MORPH_MS };
+  const ms = pinMs();
+  brushMorph = { ms };
   // The chart morphs with the bar's backdrop: a pin's outline and shade fade in, an artist new to it grows in
-  renderRollingChart(currentZoom($("chart-rolling")), dur(MORPH_MS));
+  renderRollingChart(currentZoom($("chart-rolling")), pinMorph(ms));
   brushMorph = null;
 }
+
+// A pin or unpin that leaves the chart's artists as they were only changes how they look: it fades on a highlight's
+// quick ease-out (FADE_MS), not a data change's slow in-out; one that brings an artist in or lets one go morphs
+function pinMs() {
+  const artists = chartArtists(null, Number($("n-artists").value));
+  return state.chartNames && artists.join("\u0000") === state.chartNames.join("\u0000") ? FADE_MS : MORPH_MS;
+}
+const pinMorph = (ms) => (ms === FADE_MS ? { ms: dur(ms), easing: EASE_OUT.echarts } : dur(ms));
 
 // Unpinning is always a click on something of the artist's, so they go straight to being hovered
 function unpin(name) {
   state.pinned = state.pinned.filter((a) => a !== name);
-  brushMorph = { ms: MORPH_MS };
+  const ms = pinMs();
+  brushMorph = { ms };
   // Hovering a pinned artist doesn't tell the page (they're lit already), so say so before the key's chips are
   // rebuilt unpinned: otherwise they'd show unhovered for a beat before the hover reaches them
   focusArtist($("chart-rolling"), name);
   holdFocus($("chart-rolling"), name);
-  renderRollingChart(currentZoom($("chart-rolling")), dur(MORPH_MS));
+  renderRollingChart(currentZoom($("chart-rolling")), pinMorph(ms));
   holdFocus($("chart-rolling"), null);
   brushMorph = null;
 }
